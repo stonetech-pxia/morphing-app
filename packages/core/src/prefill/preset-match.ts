@@ -90,6 +90,28 @@ const ruleMoney = (text: string) =>
       ruleCandidates(row, 'en').some((c) => c.kind === 'amount' && /[.,]\d{2}\b/.test(c.raw)),
     );
 
+/** 小票上的「合计」「找零」「付款方式」「税」这几类词（英法西中日）。 */
+const TOTAL_WORDS =
+  /\b(?:sub-?total|total|montant|importe|totale?)\b|合计|合計|总计|總計|小計|小计|应付|實付|实付|税込/i;
+const PAY_WORDS =
+  /\b(?:cash|change|visa|mastercard|card|debit|credit|tax|vat|tva|iva|carte|esp[eè]ces|monnaie|efectivo|cambio|tarjeta|receipt|ticket|re[cç]u)\b|找零|找钱|现金|現金|微信|支付宝|支付寶|刷卡|税|稅|小票|小票|收据|收據|レシート|領収|お釣り|クレジット/i;
+/** 账单、对账单、合同这类不是小票：看到就不用规则推荐。 */
+const NOT_RECEIPT =
+  /\b(?:invoice|facture|statement|due date|iban|bic|payslip|salary|policy|agreement|contract)\b|账单|賬單|发票代码|工资|合同|請求書/i;
+
+/**
+ * 没有本机模型时，很明显的小票也要推荐「购物凭证」（D-444 的规则部分）：
+ * 要同时有「合计」类的词、金额，和付款方式 / 税 / 小票字样（或至少两行带两位小数的价格）。
+ * 拿不准就给 null，宁可不推荐，不乱推荐。
+ */
+export function rulePreset(pages: readonly TextPage[]): NewTablePreset | null {
+  const text = textOf(pages);
+  if (!text.trim() || NOT_RECEIPT.test(text)) return null;
+  if (!TOTAL_WORDS.test(text) || !(hasMoney(text) || ruleMoney(text))) return null;
+  const prices = text.split('\n').filter((r) => /\d[.,]\d{2}\b/.test(r)).length;
+  return PAY_WORDS.test(text) || prices >= 3 ? 'purchase' : null;
+}
+
 /** 问模型的请求：文件文字 + 目录，只答一个 ID（第三轮冻结的提示词 P3，目录按 ranking 取）。 */
 export function presetMatchRequest(
   pages: readonly TextPage[],

@@ -1771,6 +1771,8 @@ export const fr: MessageTable = {
   newTableTitle: 'Nouveau formulaire',
   newTableName: 'Nom du tableau',
   newTableWorking: 'Recherche du type de fichier…',
+  newTableModelNeed:
+    'Téléchargez le modèle sur l’appareil pour reconnaître ce fichier et proposer le bon formulaire. Le fichier ne quitte pas votre téléphone.',
   newTableLooksLike: 'Cela ressemble à « {name} »',
   newTableUse: 'Utiliser',
   newTableUseExisting: 'Vous avez déjà « {name} ». L’y mettre',

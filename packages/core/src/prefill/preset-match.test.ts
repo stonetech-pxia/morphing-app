@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { presetAnswer, presetMatchRequest, rankPresets, recommendPreset } from './preset-match';
+import {
+  presetAnswer,
+  presetMatchRequest,
+  rankPresets,
+  recommendPreset,
+  rulePreset,
+} from './preset-match';
 import type { TextPage } from './rows';
 
 const doc = (...rows: string[]): TextPage[] => [
@@ -72,5 +78,79 @@ describe('recommendPreset', () => {
       return null;
     }, []);
     expect(opened).toBe(false);
+  });
+});
+
+describe('rulePreset（没有本机模型时，很明显的小票也要推荐购物凭证）', () => {
+  it('英文小票', () => {
+    expect(
+      rulePreset(
+        doc(
+          'CORNER MARKET',
+          'Milk 2.49',
+          'Bread 3.10',
+          'Subtotal 5.59',
+          'Tax 0.45',
+          'Total 6.04',
+          'Cash 10.00',
+          'Change 3.96',
+        ),
+      ),
+    ).toBe('purchase');
+  });
+  it('法文小票', () => {
+    expect(
+      rulePreset(
+        doc(
+          'BOULANGERIE',
+          'Pain 1,20',
+          'Croissant 1,10',
+          'TVA 0,13',
+          'Total TTC 2,30 €',
+          'Carte bancaire',
+        ),
+      ),
+    ).toBe('purchase');
+  });
+  it('Lidl 小票（识别带错字）', () => {
+    expect(
+      rulePreset(
+        doc(
+          'LIDL',
+          'Place Salvador Allendé',
+          'FR93170BAGNOLET',
+          'Ticket de vente',
+          'Article P.U.EUR Qté EUR',
+          'Oeufs sol x12 2,76 1 2,76 A T',
+          'Pizza jambon fromage 2,29 1 2,29 A T',
+          'Nombre de lignes: 5',
+          'A payer 14,60',
+          '13,84 HT',
+          'Fotal éligible TR (T) : 14,60',
+          ':arte 14,60',
+          'VA Taux MONT.TTC MONT.TVA TOTAL HT',
+          'A 5,5% 14,60 0,76 13,84',
+        ),
+      ),
+    ).toBe('purchase');
+  });
+  it('中文小票', () => {
+    expect(
+      rulePreset(doc('永辉超市小票', '牛奶 12.50', '面包 8.00', '合计 20.50', '微信支付 20.50')),
+    ).toBe('purchase');
+  });
+  it('账单、没有金额、没有文字都不推荐', () => {
+    expect(
+      rulePreset(
+        doc(
+          'Invoice 2025-03',
+          'Due date 1 April',
+          'Amount due 120.00 €',
+          'IBAN FR7612345678901234567890123',
+        ),
+      ),
+    ).toBeNull();
+    expect(rulePreset(doc('Vaccination record', 'Dose 1: 3 March 2025'))).toBeNull();
+    expect(rulePreset([])).toBeNull();
   });
 });

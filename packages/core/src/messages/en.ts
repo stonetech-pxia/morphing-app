@@ -1699,6 +1699,8 @@ export const en = {
   newTableTitle: 'New form',
   newTableName: 'Table name',
   newTableWorking: 'Working out what this file is…',
+  newTableModelNeed:
+    'Download the on-device model to work out what this file is and suggest the right form. The file never leaves your phone.',
   newTableLooksLike: 'This looks like “{name}”',
   newTableUse: 'Use this',
   newTableUseExisting: 'You already have “{name}”. Put it there',

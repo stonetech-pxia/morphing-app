@@ -1611,6 +1611,7 @@ export const zh: MessageTable = {
   newTableTitle: '新建表单',
   newTableName: '表名',
   newTableWorking: '正在判断这是什么文件…',
+  newTableModelNeed: '下载本机模型后，能判断这是什么文件并推荐对应的表单。文件不会离开手机。',
   newTableLooksLike: '看起来是「{name}」',
   newTableUse: '用这个',
   newTableUseExisting: '你已经有「{name}」这张表，放进去',
