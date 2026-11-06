@@ -131,7 +131,7 @@ async function shareInto(
   );
   await act(async () => useIncoming.getState().receive(picked, [], 'picker'));
   await act(() => router.push('/share'));
-  await fireEvent.press(await screen.findByTestId('share-record-choose'));
+  await fireEvent.press(await screen.findByTestId(/^(preview-record|share-record-choose)$/));
   await fireEvent.press(await screen.findByTestId(`share-record-${choice}`));
   expect(await screen.findByTestId('editor-attachments-file-0')).toBeTruthy();
 }
@@ -326,7 +326,8 @@ describe('新记录表单的候选值', () => {
     vision.layers.push(layer(['合计 ¥88.00']));
     await shareInto(files, [{ name: 'scan.pdf', mime: 'application/pdf' }]);
     await waitFor(() => expect(chipTexts('amount').length).toBeGreaterThan(0));
-    expect(pdf.calls).toEqual(['lines', 'render']);
+    // 预览页先把 PDF 画出来看（D-457），然后才是识别。
+    expect(pdf.calls).toEqual(['preview', 'lines', 'render']);
     expect(recognized(vision)[0]!.uri).toMatch(/^runs\/prefill-.+\/pdf-1-1\.jpg$/);
     expect(runsLeft(files)).toEqual([]);
   });
@@ -352,7 +353,7 @@ describe('新记录表单的候选值', () => {
     pdf.hold = new Promise((r) => (release = r));
     pdf.textPages = [layer(['Total 9.00'])];
     await shareInto(files, [{ name: 'doc.pdf', mime: 'application/pdf' }]);
-    await waitFor(() => expect(pdf.calls).toEqual(['lines']));
+    await waitFor(() => expect(pdf.calls).toEqual(['preview', 'lines']));
     expect(screen.getByTestId('suggestions-working')).toBeTruthy();
     await act(() => router.back());
     expect(await screen.findByTestId('share-screen')).toBeTruthy();

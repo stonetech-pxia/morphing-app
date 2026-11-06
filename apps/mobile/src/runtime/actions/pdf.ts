@@ -25,6 +25,7 @@ import {
   rotatePages,
   selectPages,
   splitPdf,
+  replacePageWithImage,
   stampImage,
   stampText,
   type DocumentInput,
@@ -37,6 +38,8 @@ import {
 
 import { deviceLanguageTags } from '../../i18n';
 import type { VisionPlatform } from '../platform';
+import { scaleMarks, type ImageAnnotation } from '../annotations';
+import { drawMarks } from './compose';
 import { formatBytes } from './image';
 import {
   fileItems,
@@ -116,6 +119,8 @@ export async function writePdf(ctx: Ctx, bytes: Uint8Array, name: string): Promi
 }
 
 /** 对每个 PDF 做同一件事。 */
+type AnnotateTool = ImageAnnotation['kind'] | 'note';
+
 async function eachPdf(
   input: Parameters<Impl>[0],
   ctx: Ctx,
@@ -610,6 +615,58 @@ export const PDF_IMPLS: Record<string, Impl> = {
     if (!text) throw new RunError('notFound', { name: fileName(item) });
     // 文字只留在本机，绝不发给 AI（D-036）。
     return { type: 'text', text, name: item.name };
+  },
+
+  async 'pdf.annotate'(input, params, ctx) {
+    return eachPdf(input, ctx, async (bytes, item) => {
+      const previews = await renderPages(ctx, item, { maxSide: 1400, quality: 0.85 });
+      const all = await ctx.services.ui.open('annotate', {
+        items: previews,
+        tool: params.start as AnnotateTool,
+      });
+      if (!all) throw new RunCancelled();
+      let out = bytes;
+      for (const [i, marks] of all.entries()) {
+        const preview = previews[i];
+        if (!preview || marks.length === 0) continue;
+        ctx.throwIfCancelled();
+        if (marks.some((m) => m.kind === 'erase' || m.kind === 'mosaic')) {
+          // 擦除、打码：盖一层只是挡住，下面的文字还能选中复制。这一页换成一张画好的图
+          // （页面文字没有了），用更大的图画，免得放大后发虚。
+          const [big] = await renderPages(ctx, item, { maxSide: 2400, quality: 0.9, pages: [i] });
+          if (!big) throw new RunError('unreadable', { name: fileName(item) });
+          const k = big.width! / preview.width!;
+          const flat = await drawMarks(
+            ctx,
+            big.name,
+            { width: big.width!, height: big.height! },
+            scaleMarks(marks, k),
+            big,
+            'jpeg',
+          );
+          out = await replacePageWithImage(out, i, {
+            bytes: await readItem(ctx.services, flat),
+            kind: 'jpeg',
+          });
+          continue;
+        }
+        // 其余的标注：给这一页盖一层和页面一样大的透明图层，原来的文字和页面不动。
+        const layer = await drawMarks(
+          ctx,
+          preview.name,
+          { width: preview.width!, height: preview.height! },
+          marks,
+        );
+        out = await stampImage(out, {
+          image: { bytes: await readItem(ctx.services, layer), kind: 'png' },
+          pageIndex: i,
+          x: 0,
+          y: 0,
+          width: 1,
+        });
+      }
+      return out;
+    });
   },
 
   async 'pdf.sign'(input, _params, ctx) {

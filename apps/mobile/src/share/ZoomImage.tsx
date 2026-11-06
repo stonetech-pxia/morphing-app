@@ -19,11 +19,14 @@ export function ZoomImage({
   width,
   height,
   onZoomed,
+  top,
 }: {
   uri: string;
   width: number;
   height: number;
   onZoomed?: (zoomed: boolean) => void;
+  /** 图片比框窄或矮时贴着上边（预览页，D-457）；不写就在框里居中（全屏看图）。 */
+  top?: boolean;
 }) {
   const scale = useSharedValue(1);
   const start = useSharedValue(1);
@@ -107,7 +110,12 @@ export function ZoomImage({
   return (
     <GestureDetector gesture={gesture}>
       <Animated.View style={[styles.flex, style]}>
-        <Image source={{ uri }} style={styles.flex} contentFit="contain" />
+        <Image
+          source={{ uri }}
+          style={styles.flex}
+          contentFit="contain"
+          {...(top ? { contentPosition: { top: 0 } } : {})}
+        />
       </Animated.View>
     </GestureDetector>
   );

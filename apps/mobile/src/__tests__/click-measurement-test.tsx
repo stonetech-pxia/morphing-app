@@ -10,8 +10,9 @@ import { renderToolsApp, starterAfterGuide } from '../test-utils/render-app';
 // D-449：首页只有一个「打开文件」，先选相册还是文件，比以前多一下。
 afterEach(() => useIncoming.getState().clear());
 it.each([
-  ['video-too-big', 'media', 4],
-  ['pdf-too-big', 'files', 4],
+  // 一份文件进预览页，要先点开「快捷操作」面板再点运行，比以前多一下（D-457）；两张照片仍进收件页面，不变。
+  ['video-too-big', 'media', 5],
+  ['pdf-too-big', 'files', 5],
   ['document-packet', 'media', 7],
 ] as const)(
   '%s (%s): first and second use finish with %i App taps',
@@ -38,6 +39,7 @@ it.each([
       });
       await press('file-pick-open');
       trace.push(`choose-${source}`);
+      if (preset !== 'document-packet') await press('preview-more');
       await press(`share-run-${preset}`);
       if (preset === 'document-packet') {
         await screen.findByText('裁剪 1/2', {}, { timeout: 3000 });

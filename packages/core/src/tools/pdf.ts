@@ -134,6 +134,17 @@ const positionField = (values: readonly string[]): ParamField => ({
 
 export const STAMP_COLORS = ['#000000', '#C92A2A', '#1864AB', '#868E96'] as const;
 
+/** 标注 PDF 的几种起手工具（桌面工具栏上各占一个按钮，进去以后都能换）。擦除、打码会把那一页换成图片。 */
+const ANNOTATE_TOOLS = [
+  { value: 'text', label: { en: 'Insert text', zh: '插入文字', fr: 'Insérer du texte' } },
+  { value: 'note', label: { en: 'Note', zh: '注释', fr: 'Note' } },
+  { value: 'pen', label: { en: 'Pen', zh: '画笔', fr: 'Stylo' } },
+  { value: 'highlight', label: { en: 'Highlighter', zh: '荧光笔', fr: 'Surligneur' } },
+  { value: 'box', label: { en: 'Insert shape', zh: '插入图形', fr: 'Insérer une forme' } },
+  { value: 'erase', label: { en: 'Erase', zh: '擦除', fr: 'Effacer' } },
+  { value: 'mosaic', label: { en: 'Mosaic', zh: '马赛克', fr: 'Mosaïque' } },
+] as const;
+
 export const PDF_ACTIONS: readonly ActionDefinition[] = [
   {
     id: 'pdf.merge',
@@ -512,7 +523,7 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'pdf.stamp',
-    label: { en: 'Text stamp', zh: '文字戳', fr: 'Tampon texte' },
+    label: { en: 'Add watermark', zh: '添加水印', fr: 'Ajouter un filigrane' },
     description: {
       en: 'Stamp a line of text (e.g. COPY, Confidential, or the date with {date}) on pages.',
       zh: '在页面上盖一行字（例如「副本」「仅供签证使用」，或用 {date} 盖日期）。',
@@ -705,6 +716,39 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
           /^提取\s*pdf\s*(?:里的|的)?文字$|^(?:get|extract) (?:the )?text (?:from|of) (?:the )?pdfs?$/i,
       },
     ],
+  },
+  {
+    id: 'pdf.annotate',
+    ai: '"Mark up a PDF / highlight / underline / draw on a PDF / write a note on a PDF" → this, a local editor when running; the user draws on the pages on the device, without sending anything to AI.',
+    label: { en: 'Mark up PDF', zh: '标注 PDF', fr: 'Annoter le PDF' },
+    description: {
+      en: 'A local editor shows each page; the user adds text (size, angle, color, movable), notes, arrows, boxes, freehand strokes, highlights, erasing and mosaic, and can undo. Most marks are laid over the page as a transparent layer and the original text stays; a page with erasing or mosaic is replaced by a picture so the hidden text is really gone (its text can no longer be selected).',
+      zh: '运行时逐页显示，用户在本机添加文字（可调大小、角度、颜色，可移动）、注释、箭头、方框、自由画笔、荧光笔、擦除和马赛克，可撤销。多数标注以透明图层盖在页面上，原来的文字不变；用了擦除或马赛克的页面会换成一张图片，被遮住的文字才真的没有了（这一页的文字不能再选中）。',
+      fr: 'Un éditeur en local affiche chaque page ; l’utilisateur ajoute du texte (taille, angle, couleur, déplaçable), des notes, des flèches, des cadres, des tracés libres, des surlignages, des effacements et des mosaïques, et peut annuler. La plupart des annotations sont posées sur la page comme un calque transparent et le texte d’origine reste ; une page avec effacement ou mosaïque est remplacée par une image pour que le texte masqué disparaisse vraiment (son texte n’est plus sélectionnable).',
+    },
+    input: ['pdf'],
+    output: 'pdf',
+    params: z.strictObject({
+      start: z.enum(['text', 'note', 'pen', 'highlight', 'box', 'erase', 'mosaic']),
+    }),
+    fields: [
+      {
+        key: 'start',
+        label: { en: 'Start with', zh: '先用', fr: 'Commencer par' },
+        kind: 'choice',
+        ask: false,
+        options: ANNOTATE_TOOLS.map((tool) => ({ value: tool.value, label: tool.label })),
+      },
+    ],
+    presets: ANNOTATE_TOOLS.map((tool) => ({
+      id: tool.value,
+      label: tool.label,
+      values: { start: tool.value },
+    })),
+    local: 'annotate',
+    pack: 'pdfview',
+    requires: [],
+    phrases: [{ match: /^标注(?:\s*pdf)?$|^(?:mark ?up|annotate)(?: (?:the )?pdf)?$/i }],
   },
   {
     id: 'pdf.sign',

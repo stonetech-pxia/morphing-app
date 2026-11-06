@@ -186,3 +186,22 @@ export async function stampImage(bytes: Uint8Array, opts: StampImageOptions): Pr
   page.drawImage(image, { ...placeBox(view, rect), width: w, height: h });
   return doc.save();
 }
+
+/**
+ * 把一页换成一张图（按用户所见的页面大小和方向）。擦除、打码的页面要这样处理：
+ * 盖一层图只是挡住，下面的文字还能选中、复制；换成图以后原来的文字就没有了。
+ */
+export async function replacePageWithImage(
+  bytes: Uint8Array,
+  pageIndex: number,
+  image: { bytes: Uint8Array; kind: ImageKind },
+): Promise<Uint8Array> {
+  const doc = await loadPdf(bytes);
+  assertPageIndices([pageIndex], doc.getPageCount());
+  const view = pageView(doc.getPage(pageIndex));
+  const embedded = await embedImage(doc, image);
+  const fresh = doc.insertPage(pageIndex, [view.width, view.height]);
+  fresh.drawImage(embedded, { x: 0, y: 0, width: view.width, height: view.height });
+  doc.removePage(pageIndex + 1);
+  return doc.save();
+}

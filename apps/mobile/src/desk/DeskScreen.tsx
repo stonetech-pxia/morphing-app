@@ -27,6 +27,7 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -98,7 +99,7 @@ interface Busy {
   unit?: 'percent';
 }
 
-export function DeskScreen({ deskId }: { deskId: string }) {
+export function DeskScreen({ deskId, discard }: { deskId: string; discard?: boolean }) {
   const { repo, files, registry, locale } = useWorkspaceContext();
   // 草稿模式里显示草稿（D-190）：AI 改的工具栏和布局在这里看（D-406）。
   const config = useWorkspace(shownConfig)!;
@@ -130,6 +131,15 @@ export function DeskScreen({ deskId }: { deskId: string }) {
   const alive = useRef(true);
   /** 清空了桌面：离开时不再合上编辑。 */
   const cleared = useRef(false);
+  // 预览页「转 Word」做出来的桌面（D-457）：返回就舍弃，要留下的话在「完成」里保存或分享。
+  useEffect(
+    () => () => {
+      if (!discard) return;
+      cleared.current = true;
+      void clearDesk(files, deskId);
+    },
+    [discard, files, deskId],
+  );
 
   useEffect(() => {
     alive.current = true;
@@ -169,7 +179,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [kind, layout.tools, registry, config.tools, locale, list],
   );
-  const groups = useMemo(() => [...tools, roomEntries(locale)], [tools, locale]);
+  const groups = [...tools, roomEntries(locale, kind)];
 
   const edit = useDeskEdit({
     files,
@@ -570,9 +580,12 @@ export function DeskScreen({ deskId }: { deskId: string }) {
         />
         <Text
           numberOfLines={1}
-          style={[palette.font('title', 16), styles.flex, { color: palette.text }]}>
+          style={[palette.font('title', 17), styles.flex, { color: palette.text }]}>
           {shown ? `${shown.name}.${shown.ext}` : ''}
         </Text>
+        {busy === null ? (
+          <AIEntry about={{ kind: 'desk', fileKind: kind }} palette={palette} />
+        ) : null}
         <HeaderButton
           id="desk-undo"
           text={t(locale, 'undo')}
@@ -591,9 +604,6 @@ export function DeskScreen({ deskId }: { deskId: string }) {
           }
           disabled={busy !== null || !(editRedo || (!edit.dirty && canRedo(desk)))}
         />
-        {busy === null ? (
-          <AIEntry about={{ kind: 'desk', fileKind: kind }} palette={palette} />
-        ) : null}
         <HeaderButton
           id="desk-done"
           text={t(locale, 'done')}
@@ -805,15 +815,17 @@ export function DeskScreen({ deskId }: { deskId: string }) {
                   systemPreview();
                 }}
               />
-              <SheetRow
-                id="desk-leave"
-                label={t(locale, 'deskLeave')}
-                palette={palette}
-                onPress={() => {
-                  setSheet(false);
-                  void leave();
-                }}
-              />
+              {discard ? null : (
+                <SheetRow
+                  id="desk-leave"
+                  label={t(locale, 'deskLeave')}
+                  palette={palette}
+                  onPress={() => {
+                    setSheet(false);
+                    void leave();
+                  }}
+                />
+              )}
               <SheetRow
                 id="desk-clear"
                 label={t(locale, 'deskClear')}
@@ -945,6 +957,8 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingHorizontal: 16,
     paddingVertical: 10,
+    // 和页面栈的导航栏（预览页用的）一样高，从预览页进桌面时顶栏不跳。
+    minHeight: Platform.OS === 'ios' ? 44 : 56,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   toolbar: {

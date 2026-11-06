@@ -74,7 +74,7 @@ async function setup(installed: string[]) {
   const picked = files.offer('policy.jpg', TINY_JPEG, 'image/jpeg');
   await act(async () => useIncoming.getState().receive([picked], [], 'picker'));
   await act(() => router.push('/share'));
-  await fireEvent.press(await screen.findByTestId('share-record-choose'));
+  await fireEvent.press(await screen.findByTestId(/^(preview-record|share-record-choose)$/));
   await fireEvent.press(await screen.findByTestId('share-record-new'));
   return { ...app, vision };
 }

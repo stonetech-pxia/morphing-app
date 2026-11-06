@@ -33,6 +33,14 @@ async function openShare(files: FakeFiles, names: string[], mime = 'image/jpeg')
   return picked;
 }
 
+/** 几份文件一起放到桌上（收件页面不再有「放到桌上」，D-457；这里直接放，再打开桌面）。 */
+async function openDeskFor(files: FakeFiles, names: string[], mime = 'image/jpeg') {
+  const picked = names.map((n) => files.offer(n, TINY_JPEG, mime));
+  const desk = await placeOnDesk(files, picked, Date.now());
+  await act(() => router.push({ pathname: '/desk/[deskId]', params: { deskId: desk.id } }));
+  return picked;
+}
+
 /** 桌面目录里唯一的那个桌面（先等界面更新完再读，不在 waitFor 里读文件：会和别的 act 重叠）。 */
 async function onlyDesk(files: FakeFiles) {
   const list = await listDesks(files);
@@ -40,19 +48,12 @@ async function onlyDesk(files: FakeFiles) {
   return list[0]!;
 }
 
-describe('收件页面 → 放到桌上', () => {
-  it('新用户：「放到桌上」在快捷操作推荐上面；点了复制一份进房间，原件不动', async () => {
+describe('预览页 → 编辑（放到桌上）', () => {
+  it('新用户：预览页底下有「编辑」；点了复制一份进房间，原件不动；返回回到预览页', async () => {
     const { files } = await renderToolsApp();
     const [photo] = await openShare(files, ['IMG_1.jpg']);
-    const desk = await screen.findByTestId('share-desk');
-    const recommended = screen.queryAllByTestId(/^share-workflow-/)[0];
-    expect(desk).toBeTruthy();
-    expect(recommended).toBeTruthy();
-    // 按页面上的顺序：「放到桌上」排在推荐的快捷操作前面。
-    const rows = screen.queryAllByTestId(/^(share-desk|share-workflow-.+)$/);
-    expect(rows[0]!.props.testID).toBe('share-desk');
-
-    await fireEvent.press(screen.getByTestId('share-desk-open'));
+    expect(await screen.findByTestId('preview-bar')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('preview-edit'));
     expect(await screen.findByTestId('desk-screen')).toBeTruthy();
     expect(screen.getByTestId('desk-preview-image')).toBeTruthy();
     const placed = await onlyDesk(files);
@@ -60,8 +61,11 @@ describe('收件页面 → 放到桌上', () => {
     // 原件是选择器的副本：桌上用的是自己的副本，没有移动它。
     expect(files.desk.moved).toEqual([]);
     expect(files.disk.get(`desk/${placed.id}/v1-0.jpg`)).toEqual(TINY_JPEG);
-    // 离开收件页面，收件这一批照旧释放（选择器副本删掉）；桌上的副本还在。
-    await waitFor(() => expect(files.disk.has(photo!.uri)).toBe(false));
+    // 预览页还在底下（桌面是 push 上去的）：收到的这一批不释放；返回回到预览页，文件还在。
+    expect(files.disk.has(photo!.uri)).toBe(true);
+    await act(() => router.back());
+    expect(await screen.findByTestId('preview-bar')).toBeTruthy();
+    expect(files.disk.has(photo!.uri)).toBe(true);
     expect(files.disk.has(`desk/${placed.id}/v1-0.jpg`)).toBe(true);
   });
 });
@@ -70,12 +74,16 @@ describe('房间里的工具', () => {
   it('默认工具栏按文件种类分组；有参数的工具先弹出面板，点「应用」生成新版本，能撤销、重做', async () => {
     const { files } = await renderToolsApp();
     await openShare(files, ['IMG_1.jpg']);
-    await fireEvent.press(await screen.findByTestId('share-desk-open'));
-    const toolbar = await screen.findByTestId('desk-toolbar');
-    expect(within(toolbar).getByText('编辑')).toBeTruthy();
-    expect(within(toolbar).getByText('处理')).toBeTruthy();
-    expect(within(toolbar).getByText('转换')).toBeTruthy();
-    expect(within(toolbar).getByText('快捷操作')).toBeTruthy();
+    await fireEvent.press(await screen.findByTestId('preview-edit'));
+    await screen.findByTestId('desk-toolbar');
+    // 分组名是工具栏上面的小标签，点哪个标签就滑到哪一组。
+    const tabs = within(screen.getByTestId('desk-tabs'));
+    for (const name of ['编辑', '处理', '转换', '快捷操作'])
+      expect(tabs.getByText(name)).toBeTruthy();
+    expect(screen.getByTestId('desk-tab-0')).toBeSelected();
+    await fireEvent.press(screen.getByTestId('desk-tab-2'));
+    expect(screen.getByTestId('desk-tab-2')).toBeSelected();
+    expect(screen.getByTestId('desk-tab-0')).not.toBeSelected();
     // 图片没有 PDF 的工具。
     expect(screen.queryByTestId('desk-tool-pdf.compress')).toBeNull();
     expect(screen.getByTestId('desk-undo')).toBeDisabled();
@@ -104,8 +112,7 @@ describe('房间里的工具', () => {
 
   it('几张照片：工具作用到全部；转 PDF 把几张合成一份（多合一），撤销回到几张照片', async () => {
     const { files } = await renderToolsApp();
-    await openShare(files, ['a.jpg', 'b.jpg', 'c.jpg']);
-    await fireEvent.press(await screen.findByTestId('share-desk-open'));
+    await openDeskFor(files, ['a.jpg', 'b.jpg', 'c.jpg']);
     expect(await screen.findByTestId('desk-targets')).toHaveTextContent('工具作用到这 3 份文件');
     expect(screen.getByTestId('desk-strip')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('desk-tool-pdf.fromImages'));
@@ -138,7 +145,7 @@ describe('房间里的工具', () => {
     };
     const { files } = await renderToolsApp(undefined, undefined, { seed });
     await openShare(files, ['IMG_1.jpg']);
-    await fireEvent.press(await screen.findByTestId('share-desk-open'));
+    await fireEvent.press(await screen.findByTestId('preview-edit'));
     // 自己的快捷操作排在「快捷操作」组的第一个。
     const toolbar = await screen.findByTestId('desk-toolbar');
     const quick = within(toolbar)
@@ -158,7 +165,7 @@ describe('房间里的工具', () => {
   it('识别类（转 Excel）不问语言、不弹面板，直接跑；跑失败时显示原因，桌上不变（D-278、D-363）', async () => {
     const { files } = await renderToolsApp();
     await openShare(files, ['IMG_1.jpg']);
-    await fireEvent.press(await screen.findByTestId('share-desk-open'));
+    await fireEvent.press(await screen.findByTestId('preview-edit'));
     // 测试里没有系统文字识别：转 Excel 报「这台手机不能本机识别」。
     await fireEvent.press(await screen.findByTestId('desk-tool-ocr.toExcel'));
     expect(await screen.findByTestId('desk-error')).toBeTruthy();
@@ -267,7 +274,7 @@ describe('Word 文档在桌上', () => {
       ['合同'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     );
-    await fireEvent.press(await screen.findByTestId('share-desk-open'));
+    await fireEvent.press(await screen.findByTestId('preview-edit'));
     const toolbar = await screen.findByTestId('desk-toolbar');
     expect(screen.queryByTestId('desk-no-tools')).toBeNull();
     expect(within(toolbar).getByTestId('desk-tool-pdf.fromDocument')).not.toBeDisabled();
@@ -283,7 +290,7 @@ describe('Word 文档在桌上', () => {
   it('工具栏里的「分享」把桌上的文件交给系统分享', async () => {
     const { files } = await renderToolsApp();
     await openShare(files, ['IMG_1.jpg']);
-    await fireEvent.press(await screen.findByTestId('share-desk-open'));
+    await fireEvent.press(await screen.findByTestId('preview-edit'));
     await fireEvent.press(await screen.findByTestId('desk-tool-room-share'));
     await waitFor(() => expect(files.shared).toHaveLength(1));
   });
@@ -324,7 +331,7 @@ describe('边界', () => {
   it('认不出的文件：没有工具，能用系统预览看；「完成」里清空桌面要确认，原件不动', async () => {
     const { files } = await renderToolsApp();
     const [zip] = await openShare(files, ['notes.zip'], 'application/zip');
-    await fireEvent.press(await screen.findByTestId('share-desk-open'));
+    await fireEvent.press(await screen.findByTestId('preview-edit'));
     expect(await screen.findByTestId('desk-no-tools')).toBeTruthy();
     expect(screen.getByTestId('desk-preview-generic')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('desk-done'));
@@ -361,9 +368,9 @@ describe('布局配置（D-358）', () => {
   it('配置里写的工具栏、位置和预览上方的说明都用上；没写的种类照旧用默认', async () => {
     const { files } = await renderToolsApp(undefined, undefined, { seed });
     await openShare(files, ['IMG_1.jpg']);
-    await fireEvent.press(await screen.findByTestId('share-desk-open'));
+    await fireEvent.press(await screen.findByTestId('preview-edit'));
     const toolbar = await screen.findByTestId('desk-toolbar');
-    expect(within(toolbar).getByText('常用')).toBeTruthy();
+    expect(within(screen.getByTestId('desk-tabs')).getByText('常用')).toBeTruthy();
     expect(
       within(toolbar)
         .queryAllByTestId(/^desk-tool-/)
@@ -411,15 +418,14 @@ describe('存储空间里的桌面', () => {
 
 describe('三种语言', () => {
   it.each([
-    ['fr', 'Poser sur le bureau', ['Modifier', 'Ajuster', 'Convertir', 'Actions rapides']],
-    ['en', 'Put on the desk', ['Edit', 'Adjust', 'Convert', 'Quick actions']],
-  ] as const)('%s：收件页面的入口和工具栏的组名', async (locale, entry, groups) => {
+    ['fr', ['Modifier', 'Ajuster', 'Convertir', 'Actions rapides']],
+    ['en', ['Edit', 'Adjust', 'Convert', 'Quick actions']],
+  ] as const)('%s：工具栏的组名', async (locale, groups) => {
     const { files } = await renderToolsApp(undefined, undefined, { locale });
-    await openShare(files, ['IMG_1.jpg', 'IMG_2.jpg']);
-    expect(await screen.findByTestId('share-desk')).toHaveTextContent(new RegExp(entry));
-    await fireEvent.press(screen.getByTestId('share-desk-open'));
-    const toolbar = await screen.findByTestId('desk-toolbar');
-    for (const g of groups) expect(within(toolbar).getByText(g)).toBeTruthy();
+    await openDeskFor(files, ['IMG_1.jpg', 'IMG_2.jpg']);
+    await screen.findByTestId('desk-toolbar');
+    for (const g of groups)
+      expect(within(screen.getByTestId('desk-tabs')).getByText(g)).toBeTruthy();
     expect(screen.getByTestId('desk-targets')).toHaveTextContent(
       locale === 'fr' ? 'Les outils s’appliquent à ces 2 fichiers' : 'Tools apply to these 2 files',
     );

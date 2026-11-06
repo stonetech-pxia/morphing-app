@@ -792,6 +792,6 @@ export interface FilePlatform {
   /** 用系统字体（含中日韩文字和 emoji）把一行字画成透明背景的 PNG。 */
   renderText(
     text: string,
-    style: { fontSize: number; color: string; opacity: number },
+    style: { fontSize: number; color: string; opacity: number; background?: string },
   ): Promise<{ bytes: Uint8Array; width: number; height: number }>;
 }

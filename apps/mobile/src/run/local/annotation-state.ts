@@ -1,6 +1,15 @@
 import type { ImageAnnotation, AnnotationPoint } from '../../runtime/annotations';
 
-export type AnnotationTool = ImageAnnotation['kind'];
+export type AnnotationTool = ImageAnnotation['kind'] | 'note';
+type TextMark = Extract<ImageAnnotation, { kind: 'text' }>;
+/** 文字框的大小（原图点）：排版交给调用方（Skia），没给时按字数估一个。 */
+export type Measure = (text: string, fontSize: number) => Size;
+const estimate: Measure = (text, fontSize) => ({
+  width: [...text].length * fontSize * 0.7 + fontSize * 0.4,
+  height: fontSize * 1.6,
+});
+export const NOTE_FILL = '#FDE68A';
+
 type Size = { width: number; height: number };
 export interface AnnotationState {
   index: number;
@@ -10,6 +19,11 @@ export interface AnnotationState {
   color: string;
   text: string;
   start: AnnotationPoint | null;
+  /** 选中的文字（这一页第几个标注）和是不是正在拖它。 */
+  selected?: number | null;
+  drag?: boolean;
+  /** 开始拖时文字的位置（拖动是从这里加上手指移动的距离）。 */
+  dragFrom?: AnnotationPoint | null;
   draft: Exclude<ImageAnnotation, { kind: 'text' }> | null;
 }
 export type AnnotationAction =
@@ -17,7 +31,9 @@ export type AnnotationAction =
   | { type: 'tool'; tool: AnnotationTool }
   | { type: 'color'; color: string }
   | { type: 'text'; text: string }
-  | { type: 'grant'; x: number; y: number }
+  | { type: 'grant'; x: number; y: number; defaultText?: string }
+  | { type: 'style'; patch: Partial<Pick<TextMark, 'text' | 'fontSize' | 'color' | 'rotation'>> }
+  | { type: 'remove' }
   | { type: 'move'; dx: number; dy: number }
   | { type: 'end' }
   | { type: 'undo' }
@@ -38,64 +54,185 @@ export function reduceAnnotations(
   state: AnnotationState,
   action: AnnotationAction,
   sizes: Size[],
+  measure: Measure = estimate,
 ): AnnotationState {
   const size = sizes[state.index]!;
   const { scale } = annotationLayout(state.box, size);
+  const pageMarks = state.marks[state.index]!;
   const append = (mark: ImageAnnotation) =>
     state.marks.map((marks, i) => (i === state.index ? [...marks, mark] : marks));
+  const replace = (at: number, mark: ImageAnnotation | null) =>
+    state.marks.map((marks, i) =>
+      i === state.index
+        ? mark
+          ? marks.map((m, j) => (j === at ? mark : m))
+          : marks.filter((_, j) => j !== at)
+        : marks,
+    );
+  const selectedMark = (): { at: number; mark: TextMark } | null => {
+    const at = state.selected ?? -1;
+    const mark = pageMarks[at];
+    return mark?.kind === 'text' ? { at, mark } : null;
+  };
+  /** 点中了哪个文字（从最上面一个找起）：把点转回文字框没转之前的位置再比。 */
+  const hitText = (p: AnnotationPoint): number => {
+    for (let i = pageMarks.length - 1; i >= 0; i--) {
+      const mark = pageMarks[i]!;
+      if (mark.kind !== 'text') continue;
+      const box = measure(mark.text, mark.fontSize);
+      const cx = mark.point.x + box.width / 2;
+      const cy = mark.point.y + box.height / 2;
+      const rad = (-(mark.rotation ?? 0) * Math.PI) / 180;
+      const dx = p.x - cx;
+      const dy = p.y - cy;
+      const x = cx + dx * Math.cos(rad) - dy * Math.sin(rad);
+      const y = cy + dx * Math.sin(rad) + dy * Math.cos(rad);
+      const slack = 8 / scale;
+      if (
+        x >= mark.point.x - slack &&
+        x <= mark.point.x + box.width + slack &&
+        y >= mark.point.y - slack &&
+        y <= mark.point.y + box.height + slack
+      )
+        return i;
+    }
+    return -1;
+  };
   switch (action.type) {
     case 'layout':
       return { ...state, box: { width: action.width, height: action.height } };
     case 'tool':
-      return { ...state, tool: action.tool, start: null, draft: null };
+      return { ...state, tool: action.tool, start: null, draft: null, selected: null, drag: false };
     case 'color':
       return { ...state, color: action.color };
     case 'text':
       return { ...state, text: action.text.replace(/[\r\n]/g, ' ').slice(0, 160) };
+    case 'style': {
+      const sel = selectedMark();
+      if (!sel) return state;
+      const { patch } = action;
+      const text =
+        patch.text === undefined ? sel.mark.text : patch.text.replace(/[\r\n]/g, ' ').slice(0, 160);
+      const fontSize =
+        patch.fontSize === undefined
+          ? sel.mark.fontSize
+          : Math.max(10, Math.min(Math.min(size.width, size.height) * 0.3, patch.fontSize));
+      const rotation =
+        patch.rotation === undefined
+          ? sel.mark.rotation
+          : ((Math.round(patch.rotation) % 360) + 360) % 360;
+      const next: TextMark = {
+        ...sel.mark,
+        text,
+        fontSize,
+        color: patch.color ?? sel.mark.color,
+        ...(rotation ? { rotation } : {}),
+      };
+      if (!rotation) delete next.rotation;
+      return { ...state, marks: replace(sel.at, next) };
+    }
+    case 'remove': {
+      const sel = selectedMark();
+      if (!sel) return state;
+      return { ...state, marks: replace(sel.at, null), selected: null, drag: false };
+    }
     case 'grant': {
-      if (!scale || state.marks[state.index]!.length >= 100) return state;
+      if (!scale) return state;
       const point = {
         x: clamp(action.x / scale, size.width),
         y: clamp(action.y / scale, size.height),
       };
-      if (state.tool === 'text') {
-        if (!state.text.trim()) return state;
-        const fontSize = Math.max(12, Math.min(size.width, size.height) * 0.045);
-        point.x = Math.min(point.x, Math.max(0, size.width - fontSize));
-        point.y = Math.min(point.y, Math.max(0, size.height - fontSize * 1.4));
+      const texty = state.tool === 'text' || state.tool === 'note';
+      const hit = texty || state.selected != null ? hitText(point) : -1;
+      if (hit >= 0 && (texty || hit === state.selected)) {
+        const mark = pageMarks[hit] as TextMark;
         return {
           ...state,
-          marks: append({
-            kind: 'text',
-            point,
-            text: state.text.trim(),
-            fontSize,
-            color: state.color,
-          }),
+          selected: hit,
+          drag: true,
+          dragFrom: mark.point,
+          start: null,
+          draft: null,
         };
       }
+      if (pageMarks.length >= 100) return state;
+      if (texty) {
+        const text = state.text.trim() || action.defaultText || '';
+        if (!text) return state;
+        const fontSize = Math.max(12, Math.min(size.width, size.height) * 0.045);
+        const box = measure(text, fontSize);
+        const mark: TextMark = {
+          kind: 'text',
+          point: {
+            x: clamp(point.x - box.width / 2, Math.max(0, size.width - box.width)),
+            y: clamp(point.y - box.height / 2, Math.max(0, size.height - box.height)),
+          },
+          text,
+          fontSize,
+          color: state.tool === 'note' ? '#111827' : state.color,
+          ...(state.tool === 'note' ? { fill: NOTE_FILL } : {}),
+        };
+        return {
+          ...state,
+          marks: append(mark),
+          selected: pageMarks.length,
+          drag: false,
+          start: null,
+          draft: null,
+        };
+      }
+      const tool = state.tool as Exclude<ImageAnnotation, { kind: 'text' }>['kind'];
+      const highlight = tool === 'highlight';
       return {
         ...state,
+        selected: null,
+        drag: false,
         start: point,
         draft: {
-          kind: state.tool,
+          kind: tool,
           points: [point, { x: point.x + 0.01, y: point.y + 0.01 }],
-          width: Math.max(2, Math.min(size.width, size.height) * 0.007),
-          color: state.color,
+          // 荧光笔：粗一些、半透明，盖在文字上还看得见字。
+          width: Math.max(2, Math.min(size.width, size.height) * (highlight ? 0.028 : 0.007)),
+          color: highlight
+            ? `${state.color}66`
+            : tool === 'erase'
+              ? '#FFFFFF'
+              : tool === 'mosaic'
+                ? '#808080'
+                : state.color,
         },
       };
     }
     case 'move': {
+      if (state.drag && state.selected != null) {
+        const sel = selectedMark();
+        if (!sel || !scale) return state;
+        const box = measure(sel.mark.text, sel.mark.fontSize);
+        // 起点是按下时的位置：这里用「按下时文字的位置 + 手指移动」，所以先还原按下时的位置。
+        const origin = state.dragFrom ?? sel.mark.point;
+        const point = {
+          x: clamp(origin.x + action.dx / scale, Math.max(0, size.width - box.width)),
+          y: clamp(origin.y + action.dy / scale, Math.max(0, size.height - box.height)),
+        };
+        return {
+          ...state,
+          dragFrom: origin,
+          marks: replace(sel.at, { ...sel.mark, point }),
+        };
+      }
       if (!state.start || !state.draft || !scale) return state;
       const point = {
         x: clamp(state.start.x + action.dx / scale, size.width),
         y: clamp(state.start.y + action.dy / scale, size.height),
       };
       const points =
-        state.draft.kind === 'pen' ? [...thin(state.draft.points), point] : [state.start, point];
+        state.draft.kind === 'pen' || state.draft.kind === 'highlight'
+          ? [...thin(state.draft.points), point]
+          : [state.start, point];
       return { ...state, draft: { ...state.draft, points } };
     }
     case 'end': {
+      if (state.drag) return { ...state, drag: false, dragFrom: null };
       const draft = state.draft;
       const points = draft?.points;
       const first = points?.[0];
@@ -104,18 +241,24 @@ export function reduceAnnotations(
         draft &&
         first &&
         last &&
-        (draft.kind === 'pen' || Math.hypot(last.x - first.x, last.y - first.y) * scale >= 6);
+        (draft.kind === 'pen' ||
+          draft.kind === 'highlight' ||
+          Math.hypot(last.x - first.x, last.y - first.y) * scale >= 6);
       return { ...state, marks: keep ? append(draft) : state.marks, start: null, draft: null };
     }
     case 'undo':
       return {
         ...state,
+        selected: null,
+        drag: false,
         marks: state.marks.map((marks, i) => (i === state.index ? marks.slice(0, -1) : marks)),
       };
     case 'next':
       return {
         ...state,
         index: Math.min(sizes.length - 1, state.index + 1),
+        selected: null,
+        drag: false,
         start: null,
         draft: null,
       };

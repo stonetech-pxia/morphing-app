@@ -9,7 +9,6 @@ import {
   Skia,
   TileMode,
   VertexMode,
-  matchFont,
 } from '@shopify/react-native-skia';
 import { Platform } from 'react-native';
 
@@ -47,35 +46,64 @@ function makeSurface(width: number, height: number) {
 
 // Skia 离屏绘制（Expo Go 自带）。只画我们自己的固定内容，不执行任何配置里的代码。
 
-/** 系统字体：iOS 用苹方（含中文），Android 用默认无衬线字体。 */
-const FONT_FAMILY = Platform.select({ ios: 'PingFang SC', default: 'sans-serif' });
+/** 系统字体：iOS 用苹方（含中文），Android 用默认无衬线字体（缺的字——中文、日文、emoji——由系统换字体补上）。 */
+const FONT_FAMILY = Platform.select({ ios: ['PingFang SC'], default: ['sans-serif'] });
 
-/** 标注预览与导出使用同一字体、字宽、基线和内边距。 */
-export function textLayout(text: string, fontSize: number) {
-  let font = matchFont({ fontFamily: FONT_FAMILY, fontSize, fontWeight: 'bold' });
+/**
+ * 标注文字的排版：预览和导出用同一个。用 Skia 的段落排版而不是单字体画字：
+ * 段落会按每个字找系统里有这个字的字体（Android 默认字体没有中文，直接画会是方块）。
+ * 内边距跟着字号走，字号变了框按比例变。
+ */
+export function textLayout(text: string, fontSize: number, color = '#000000') {
+  const build = (size: number) => {
+    const builder = Skia.ParagraphBuilder.Make({});
+    builder
+      .pushStyle({
+        color: Skia.Color(color),
+        fontFamilies: FONT_FAMILY,
+        fontSize: size,
+        fontStyle: { weight: 700 },
+      })
+      .addText(text)
+      .pop();
+    const paragraph = builder.build();
+    paragraph.layout(1e5);
+    return paragraph;
+  };
+  let size = fontSize;
+  let paragraph = build(size);
   // 很长的一行字会超过画布上限：按比例缩小字号（调用方只用宽高比）。
-  const natural = font.measureText(text).width + 8;
+  const natural = paragraph.getLongestLine() + size * 0.4;
   if (natural > MAX_SURFACE_SIDE) {
-    const fittedSize = Math.max(8, Math.floor((fontSize * (MAX_SURFACE_SIDE - 16)) / natural));
-    font = matchFont({ fontFamily: FONT_FAMILY, fontSize: fittedSize, fontWeight: 'bold' });
+    size = Math.max(8, Math.floor((size * (MAX_SURFACE_SIDE - 16)) / natural));
+    paragraph = build(size);
   }
-  const metrics = font.getMetrics();
-  const width = Math.ceil(font.measureText(text).width) + 8;
-  const height = Math.ceil(metrics.descent - metrics.ascent) + 8;
-  return { font, width, height, baseline: 4 - metrics.ascent };
+  const pad = Math.round(size * 0.2);
+  return {
+    paragraph,
+    pad,
+    width: Math.ceil(paragraph.getLongestLine()) + 2 * pad,
+    height: Math.ceil(paragraph.getHeight()) + 2 * pad,
+  };
 }
 
 export function renderTextPng(
   text: string,
-  style: { fontSize: number; color: string; opacity: number },
+  style: { fontSize: number; color: string; opacity: number; background?: string },
 ): { bytes: Uint8Array; width: number; height: number } {
-  const { font, width, height, baseline } = textLayout(text, style.fontSize);
+  const { paragraph, pad, width, height } = textLayout(text, style.fontSize, style.color);
   const surface = makeSurface(width, height);
   const canvas = surface.getCanvas();
-  const paint = Skia.Paint();
-  paint.setColor(Skia.Color(style.color));
-  paint.setAlphaf(style.opacity);
-  canvas.drawText(text, 4, baseline, paint, font);
+  if (style.background) canvas.drawColor(Skia.Color(style.background));
+  if (style.opacity < 1) {
+    const layer = Skia.Paint();
+    layer.setAlphaf(style.opacity);
+    canvas.saveLayer(layer);
+    paragraph.paint(canvas, pad, pad);
+    canvas.restore();
+  } else {
+    paragraph.paint(canvas, pad, pad);
+  }
   surface.flush();
   const bytes = surface.makeImageSnapshot().encodeToBytes(ImageFormat.PNG, 100);
   return { bytes, width, height };

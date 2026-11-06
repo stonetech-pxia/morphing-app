@@ -40,7 +40,7 @@ import { PackGate } from '../packs/PackGate';
 import { copyResults, releaseShare, useIncoming, type IncomingShare } from '../share/incoming';
 import { usePacks } from '../packs/PackHost';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
-import { placeResultsOnDesk } from '../desk/store';
+import { clearDesk, placeResultsOnDesk } from '../desk/store';
 import { AskPanel } from './AskPanel';
 import { ChainCard } from './ChainCard';
 import { HabitCard } from './HabitCard';
@@ -77,6 +77,8 @@ export function RunScreen({
   onEdit,
   onAskAI,
   incoming,
+  keepIncoming,
+  thenDesk,
   handed,
 }: {
   workflow: Workflow;
@@ -85,6 +87,10 @@ export function RunScreen({
   onAskAI?: () => void;
   /** 分享进来的文件（D-115）：第一步用它们，不打开选择器。关闭运行页面时删掉。 */
   incoming?: IncomingShare;
+  /** 预览页打开的（D-457）：关闭时不删收到的文件，返回就回到预览页，文件还在。 */
+  keepIncoming?: boolean;
+  /** 预览页「转 Word」（D-457）：做好后直接放到桌上进编辑，返回就舍弃这份 Word。 */
+  thenDesk?: boolean;
   /** 容器交的值（D-428）：记录页的这一条、这个字段的值、列表选出的记录。 */
   handed?: RunValue | HandedFiles;
 }) {
@@ -122,6 +128,8 @@ export function RunScreen({
   const alive = useRef(true);
   const transferring = useRef(false);
   const [transferBusy, setTransferBusy] = useState(false);
+  // 转进预览页失败了：照常停在结果页。
+  const [noPreview, setNoPreview] = useState(false);
   const signal = useRef({ cancelled: false });
   const run = useRef<Run | null>(null);
   // 这次运行里「每次运行时问」的回答，结果页据此提议做成快捷操作（D-127）。
@@ -275,6 +283,16 @@ export function RunScreen({
       (incoming || workflow.steps.some((s) => s.action.startsWith('scan.')))
     )
       bundle.offer();
+    const made = started.result.status === 'succeeded' ? started.result.value : null;
+    if (thenDesk && isFileValue(made) && made.items[0]) {
+      void placeResultsOnDesk(files, [made.items[0]], Date.now()).then(
+        (desk) => {
+          if (!alive.current) return void clearDesk(files, desk.id);
+          router.replace({ pathname: '/desk/[deskId]', params: { deskId: desk.id, discard: '1' } });
+        },
+        () => undefined,
+      );
+    }
     // 记一笔（D-187）直接写数据库：页面上的列表和统计要重新读（停在中途也可能已经记了几笔）。
     if (workflow.steps.some((s) => s.action === 'out.addRecord')) bumpRecords();
   }
@@ -288,7 +306,7 @@ export function RunScreen({
       clearTimeout(timer);
       signal.current.cancelled = true;
       void run.current?.dispose();
-      if (incoming) void releaseShare(files, incoming.id);
+      if (incoming && !keepIncoming) void releaseShare(files, incoming.id);
       // 扫描包和文字识别包的页面占几十 MB 内存，离开运行页面就关掉（下次用时再加载）。
       packs?.bridge.close('scan');
       packs?.bridge.close('ocr');
@@ -300,6 +318,32 @@ export function RunScreen({
   const running = current !== null;
   const failedAt = outcome?.status === 'failed' ? outcome.stepIndex : null;
   const value = outcome?.status === 'succeeded' ? outcome.value : null;
+  // 结果只有一个文件：不停在结果页，直接进它的预览页（D-457）。限两种：拍照扫描做出来的，和在收到的文件上
+  // 运行的（从预览页、收件页面来的）。自己会发出去、存起来、记下来的快捷操作（有 out. 步骤）、容器交值的运行和
+  // 「转 Word」进桌面的照旧；工具页里自己选文件的运行也照旧，它们的结果页管保存和文件夹。
+  const first = workflow.steps[0];
+  const scans = first?.action === 'in.photos' && first.params.source === 'scanner';
+  const forwarding =
+    !noPreview &&
+    (scans || incoming !== undefined) &&
+    // 接在上一个结果后面运行的，结果页上有「合成一个快捷操作」（ChainCard），照旧停在结果页。
+    !incoming?.result &&
+    !thenDesk &&
+    !handed &&
+    isFileValue(value) &&
+    value.items.length === 1 &&
+    !workflow.steps.some((st) => st.action.startsWith('out.'));
+
+  // 转 Word 进桌面、扫描、在收到的文件上运行的：运行时不摆出「快捷操作」的步骤列表，只说一句在做什么，做完
+  // 直接进桌面或预览页（D-457）。失败、取消、结果有好几个文件时才露出完整的运行页面。
+  const couldForward =
+    !noPreview &&
+    !handed &&
+    !workflow.steps.some((st) => st.action.startsWith('out.')) &&
+    (thenDesk || ((scans || incoming !== undefined) && !incoming?.result));
+  const compact =
+    couldForward &&
+    (outcome === null || (outcome.status === 'succeeded' && (thenDesk || forwarding)));
 
   async function saveResult() {
     if (!isFileValue(value) || !run.current) return;
@@ -316,7 +360,7 @@ export function RunScreen({
     bumpAssets();
   }
 
-  async function continueProcessing() {
+  async function continueProcessing(auto = false) {
     if (!isFileValue(value) || transferring.current) return;
     transferring.current = true;
     setTransferBusy(true);
@@ -326,20 +370,34 @@ export function RunScreen({
       const picked = await copyResults(files, value.items, runId, run.current?.runId);
       if (!alive.current || previous !== useIncoming.getState().share?.id) {
         await files.removeRun(runId);
+        if (auto && alive.current) setNoPreview(true);
         return;
       }
       useIncoming.getState().receive(picked, [], 'result', { runId, workflow });
       try {
-        router.replace('/share');
+        // 从预览页进来的：这一页关掉，下面那个预览页换成结果；别的情况换成预览页。
+        if (auto && keepIncoming) router.back();
+        else router.replace('/share');
       } catch (error) {
         await releaseShare(files, useIncoming.getState().share!.id);
         throw error;
       }
+    } catch (error) {
+      if (!auto) throw error;
+      if (alive.current) setNoPreview(true);
     } finally {
       transferring.current = false;
       if (alive.current) setTransferBusy(false);
     }
   }
+
+  useEffect(() => {
+    if (!forwarding) return;
+    const timer = setTimeout(() => void continueProcessing(true), 0);
+    return () => clearTimeout(timer);
+    // 只在「要转进预览页」变成真时做一次。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forwarding]);
 
   const LocalScreen = local
     ? (LOCAL_SCREENS[local.kind] as ComponentType<LocalScreenProps<LocalKind>> | undefined)
@@ -354,241 +412,286 @@ export function RunScreen({
       {/* 运行结束才有 AI 入口（D-406）：运行中离开这一页会打断它。 */}
       <Stack.Screen
         options={{
-          headerRight: outcome ? workflowEntry(config, workflow.id, palette) : () => null,
+          ...(compact ? { title: '' } : {}),
+          headerRight:
+            outcome && !compact ? workflowEntry(config, workflow.id, palette) : () => null,
         }}
       />
-      <Card palette={palette}>
-        {workflow.steps.map((s, i) => {
-          const state =
-            failedAt === i
-              ? 'failed'
-              : current?.index === i
-                ? 'current'
-                : (current && i < current.index) ||
-                    outcome?.status === 'succeeded' ||
-                    (failedAt !== null && i < failedAt)
-                  ? 'done'
-                  : 'pending';
-          return (
-            <View key={s.id} style={styles.step} testID={`run-step-${s.id}`}>
-              <View
-                style={[
-                  styles.dot,
-                  {
-                    backgroundColor:
-                      state === 'current'
-                        ? palette.primary
-                        : state === 'failed'
-                          ? palette.danger
-                          : state === 'done'
-                            ? palette.secondary
-                            : palette.primaryTint,
-                  },
-                ]}>
-                {state === 'done' ? (
-                  <Icon name="check" size={14} color="#FFFFFF" />
-                ) : (
+      {compact ? (
+        <View testID="run-compact" style={styles.compact}>
+          <ActivityIndicator size="large" color={palette.primary} />
+          <Text
+            testID="run-compact-name"
+            style={[palette.font('title', 18), { color: palette.text, textAlign: 'center' }]}>
+            {workflow.name}
+          </Text>
+          <Text
+            testID="run-compact-step"
+            style={[palette.font('body', 14), { color: palette.muted, textAlign: 'center' }]}>
+            {current
+              ? `${label(workflow.steps[current.index]?.action ?? '', current.index)}${progressText(current)}`
+              : ''}
+          </Text>
+          {running ? (
+            <Button
+              palette={palette}
+              testID="run-cancel"
+              variant="outline"
+              label={t(locale, 'runCancel')}
+              onPress={() => {
+                signal.current.cancelled = true;
+              }}
+            />
+          ) : null}
+        </View>
+      ) : (
+        <>
+          <Card palette={palette}>
+            {workflow.steps.map((s, i) => {
+              const state =
+                failedAt === i
+                  ? 'failed'
+                  : current?.index === i
+                    ? 'current'
+                    : (current && i < current.index) ||
+                        outcome?.status === 'succeeded' ||
+                        (failedAt !== null && i < failedAt)
+                      ? 'done'
+                      : 'pending';
+              return (
+                <View key={s.id} style={styles.step} testID={`run-step-${s.id}`}>
+                  <View
+                    style={[
+                      styles.dot,
+                      {
+                        backgroundColor:
+                          state === 'current'
+                            ? palette.primary
+                            : state === 'failed'
+                              ? palette.danger
+                              : state === 'done'
+                                ? palette.secondary
+                                : palette.primaryTint,
+                      },
+                    ]}>
+                    {state === 'done' ? (
+                      <Icon name="check" size={14} color="#FFFFFF" />
+                    ) : (
+                      <Text
+                        style={[
+                          palette.font('bodyBold', 12),
+                          { color: state === 'pending' ? palette.primaryText : '#FFFFFF' },
+                        ]}>
+                        {i + 1}
+                      </Text>
+                    )}
+                  </View>
                   <Text
                     style={[
-                      palette.font('bodyBold', 12),
-                      { color: state === 'pending' ? palette.primaryText : '#FFFFFF' },
+                      palette.font(state === 'current' ? 'bodyBold' : 'body', 15),
+                      styles.flex,
+                      { color: state === 'pending' ? palette.muted : palette.text },
                     ]}>
-                    {i + 1}
+                    {label(s.action, i)}
+                    {state === 'current' && current ? progressText(current) : ''}
                   </Text>
-                )}
-              </View>
-              <Text
-                style={[
-                  palette.font(state === 'current' ? 'bodyBold' : 'body', 15),
-                  styles.flex,
-                  { color: state === 'pending' ? palette.muted : palette.text },
-                ]}>
-                {label(s.action, i)}
-                {state === 'current' && current ? progressText(current) : ''}
-              </Text>
-              {state === 'current' && !outcome ? (
-                // 正在处理（D-276）：问参数、等用户确认时也在这一步，转圈只说明还没做完。
-                <ActivityIndicator
-                  testID={`run-busy-${s.id}`}
-                  size="small"
-                  color={palette.primary}
-                />
-              ) : null}
-            </View>
-          );
-        })}
-      </Card>
+                  {state === 'current' && !outcome ? (
+                    // 正在处理（D-276）：问参数、等用户确认时也在这一步，转圈只说明还没做完。
+                    <ActivityIndicator
+                      testID={`run-busy-${s.id}`}
+                      size="small"
+                      color={palette.primary}
+                    />
+                  ) : null}
+                </View>
+              );
+            })}
+          </Card>
 
-      {/* 长步骤（视频、音频）运行时说一句能不能切走（D-160、D-148）。 */}
-      {current && isBackgroundAction(workflow.steps[current.index]?.action ?? '') ? (
-        <Text
-          testID="run-background-hint"
-          style={[palette.font('body', 13), { color: palette.caption }]}>
-          {t(locale, files.background?.continuesInBackground ? 'runCanLeave' : 'runStayInMorph')}
-        </Text>
-      ) : null}
-
-      {running ? (
-        <Button
-          palette={palette}
-          testID="run-cancel"
-          variant="outline"
-          label={t(locale, 'runCancel')}
-          onPress={() => {
-            signal.current.cancelled = true;
-          }}
-        />
-      ) : null}
-
-      {outcome?.status === 'cancelled' ? (
-        <Text testID="run-cancelled" style={[palette.font('body', 15), { color: palette.muted }]}>
-          {t(locale, 'runCancelled')}
-        </Text>
-      ) : null}
-      {outcome?.status === 'failed' ? (
-        <Card palette={palette}>
-          {outcome.stepIndex !== null ? (
-            <Text style={[palette.font('bodyBold', 14), { color: palette.muted }]}>
-              {t(locale, 'runFailedAt', { n: outcome.stepIndex + 1 })}
+          {/* 长步骤（视频、音频）运行时说一句能不能切走（D-160、D-148）。 */}
+          {current && isBackgroundAction(workflow.steps[current.index]?.action ?? '') ? (
+            <Text
+              testID="run-background-hint"
+              style={[palette.font('body', 13), { color: palette.caption }]}>
+              {t(
+                locale,
+                files.background?.continuesInBackground ? 'runCanLeave' : 'runStayInMorph',
+              )}
             </Text>
           ) : null}
-          <Text
-            testID="run-error"
-            style={[palette.font('bodyMedium', 15), { color: palette.danger }]}>
-            {runErrorText(locale, outcome.error.code, outcome.error.detail)}
-          </Text>
-        </Card>
-      ) : null}
-      {/* 翻译的结果下面说明一句（D-172）：本机翻译适合看懂意思，正式文件找专业翻译。 */}
-      {value && workflow.steps.some((st) => st.action === 'translate.text') ? (
-        <Text
-          testID="translate-note"
-          style={[palette.font('body', 13), { color: palette.caption }]}>
-          {t(locale, 'translateNote')}
-        </Text>
-      ) : null}
-      {/* 语音转文字的结果上面说明一句（D-150）：本机自动识别，可能有错字，请核对。 */}
-      {value &&
-      workflow.steps.some(
-        (st) => st.action === 'audio.transcribe' || st.action === 'video.subtitles',
-      ) ? (
-        <Text testID="speech-note" style={[palette.font('body', 13), { color: palette.caption }]}>
-          {t(locale, 'speechNote')}
-        </Text>
-      ) : null}
-      {value && workflow.steps.some((st) => st.action === 'video.subtitles') ? (
-        <Text
-          testID="subtitles-note"
-          style={[palette.font('body', 13), { color: palette.caption }]}>
-          {t(locale, 'subtitlesNote')}
-        </Text>
-      ) : null}
-      {value ? (
-        <ResultView
-          // 编辑后换成了新文件：「已保存」之类的状态从头算。
-          key={isFileValue(value) ? value.items.map((i) => i.uri).join('|') : 'value'}
-          value={value}
-          inputSize={outcome?.status === 'succeeded' ? outcome.inputSize : 0}
-          palette={palette}
-          locale={locale}
-          actions={{
-            save: saveResult,
-            continueProcessing,
-            // 放到桌上改（D-366）：复制一份进新桌面，结果页上的这一份不动。
-            putOnDesk: async (item) => {
-              const desk = await placeResultsOnDesk(files, [item], Date.now());
-              router.push({ pathname: '/desk/[deskId]', params: { deskId: desk.id } });
-            },
-            share: async () => {
-              if (isFileValue(value)) await files.shareUris(value.items);
-            },
-            saveToFolder: async (choose) =>
-              isFileValue(value)
-                ? ((await files.saveToFolder(value.items, workflow.id, choose))?.folder ?? null)
-                : null,
-            rememberedFolder: () => files.rememberedFolder(workflow.id),
-            saveToPhotos: async () => {
-              if (isFileValue(value)) await files.saveToPhotos(value.items.map((i) => i.uri));
-            },
-            print: async () => {
-              if (isFileValue(value)) for (const item of value.items) await files.print(item);
-            },
-            copy: async () => {
-              if (value.type === 'text') await files.copyText(value.text);
-            },
-            preview: (item) =>
-              files.previewFile({
-                uri: item.uri,
-                mimeType: item.mimeType,
-                name: `${item.name}.${item.ext}`,
-              }),
-          }}
-        />
-      ) : null}
 
-      {outcome?.status === 'succeeded' && incoming?.result ? (
-        <ChainCard
-          key={`chain-${runCount}`}
-          source={incoming.result}
-          workflow={workflow}
-          palette={palette}
-        />
-      ) : null}
-
-      {outcome?.status === 'succeeded' && !handed ? (
-        <HabitCard key={runCount} workflow={workflow} answers={answers.current} palette={palette} />
-      ) : null}
-
-      {/* 结果页：「完成」关闭页面；「再来一次」次要；改设置是一个小链接（D-111）。 */}
-      {!running ? (
-        <>
-          <View style={styles.row}>
+          {running ? (
             <Button
               palette={palette}
-              testID="run-again"
-              disabled={transferBusy}
+              testID="run-cancel"
               variant="outline"
-              label={t(locale, 'runAgain')}
-              onPress={() => void restart()}
-              style={styles.flex}
+              label={t(locale, 'runCancel')}
+              onPress={() => {
+                signal.current.cancelled = true;
+              }}
             />
-            <Button
+          ) : null}
+
+          {outcome?.status === 'cancelled' ? (
+            <Text
+              testID="run-cancelled"
+              style={[palette.font('body', 15), { color: palette.muted }]}>
+              {t(locale, 'runCancelled')}
+            </Text>
+          ) : null}
+          {outcome?.status === 'failed' ? (
+            <Card palette={palette}>
+              {outcome.stepIndex !== null ? (
+                <Text style={[palette.font('bodyBold', 14), { color: palette.muted }]}>
+                  {t(locale, 'runFailedAt', { n: outcome.stepIndex + 1 })}
+                </Text>
+              ) : null}
+              <Text
+                testID="run-error"
+                style={[palette.font('bodyMedium', 15), { color: palette.danger }]}>
+                {runErrorText(locale, outcome.error.code, outcome.error.detail)}
+              </Text>
+            </Card>
+          ) : null}
+          {/* 翻译的结果下面说明一句（D-172）：本机翻译适合看懂意思，正式文件找专业翻译。 */}
+          {value && workflow.steps.some((st) => st.action === 'translate.text') ? (
+            <Text
+              testID="translate-note"
+              style={[palette.font('body', 13), { color: palette.caption }]}>
+              {t(locale, 'translateNote')}
+            </Text>
+          ) : null}
+          {/* 语音转文字的结果上面说明一句（D-150）：本机自动识别，可能有错字，请核对。 */}
+          {value &&
+          workflow.steps.some(
+            (st) => st.action === 'audio.transcribe' || st.action === 'video.subtitles',
+          ) ? (
+            <Text
+              testID="speech-note"
+              style={[palette.font('body', 13), { color: palette.caption }]}>
+              {t(locale, 'speechNote')}
+            </Text>
+          ) : null}
+          {value && workflow.steps.some((st) => st.action === 'video.subtitles') ? (
+            <Text
+              testID="subtitles-note"
+              style={[palette.font('body', 13), { color: palette.caption }]}>
+              {t(locale, 'subtitlesNote')}
+            </Text>
+          ) : null}
+          {value && !forwarding ? (
+            <ResultView
+              // 编辑后换成了新文件：「已保存」之类的状态从头算。
+              key={isFileValue(value) ? value.items.map((i) => i.uri).join('|') : 'value'}
+              value={value}
+              inputSize={outcome?.status === 'succeeded' ? outcome.inputSize : 0}
               palette={palette}
-              testID="run-done"
-              disabled={transferBusy}
-              label={t(locale, outcome?.status === 'succeeded' ? 'done' : 'close')}
-              onPress={() => router.back()}
-              style={styles.flex}
+              locale={locale}
+              actions={{
+                save: saveResult,
+                continueProcessing,
+                // 放到桌上改（D-366）：复制一份进新桌面，结果页上的这一份不动。
+                putOnDesk: async (item) => {
+                  const desk = await placeResultsOnDesk(files, [item], Date.now());
+                  router.push({ pathname: '/desk/[deskId]', params: { deskId: desk.id } });
+                },
+                share: async () => {
+                  if (isFileValue(value)) await files.shareUris(value.items);
+                },
+                saveToFolder: async (choose) =>
+                  isFileValue(value)
+                    ? ((await files.saveToFolder(value.items, workflow.id, choose))?.folder ?? null)
+                    : null,
+                rememberedFolder: () => files.rememberedFolder(workflow.id),
+                saveToPhotos: async () => {
+                  if (isFileValue(value)) await files.saveToPhotos(value.items.map((i) => i.uri));
+                },
+                print: async () => {
+                  if (isFileValue(value)) for (const item of value.items) await files.print(item);
+                },
+                copy: async () => {
+                  if (value.type === 'text') await files.copyText(value.text);
+                },
+                preview: (item) =>
+                  files.previewFile({
+                    uri: item.uri,
+                    mimeType: item.mimeType,
+                    name: `${item.name}.${item.ext}`,
+                  }),
+              }}
             />
-          </View>
-          <View style={styles.links}>
-            {onEdit ? (
-              <Pressable
-                testID="run-edit"
-                accessibilityRole="link"
-                hitSlop={8}
-                onPress={onEdit}
-                style={styles.editLink}>
-                <Text style={[palette.font('bodyMedium', 14), { color: palette.primaryText }]}>
-                  {t(locale, 'runEdit')}
-                </Text>
-              </Pressable>
-            ) : null}
-            {onAskAI ? (
-              <Pressable
-                testID="run-ask-ai"
-                accessibilityRole="link"
-                hitSlop={8}
-                onPress={onAskAI}
-                style={styles.editLink}>
-                <Text style={[palette.font('bodyMedium', 14), { color: palette.primaryText }]}>
-                  {t(locale, 'askAIChange')}
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
+          ) : null}
+
+          {outcome?.status === 'succeeded' && !forwarding && incoming?.result ? (
+            <ChainCard
+              key={`chain-${runCount}`}
+              source={incoming.result}
+              workflow={workflow}
+              palette={palette}
+            />
+          ) : null}
+
+          {outcome?.status === 'succeeded' && !handed && !forwarding ? (
+            <HabitCard
+              key={runCount}
+              workflow={workflow}
+              answers={answers.current}
+              palette={palette}
+            />
+          ) : null}
+
+          {/* 结果页：「完成」关闭页面；「再来一次」次要；改设置是一个小链接（D-111）。 */}
+          {!running && !forwarding ? (
+            <>
+              <View style={styles.row}>
+                <Button
+                  palette={palette}
+                  testID="run-again"
+                  disabled={transferBusy}
+                  variant="outline"
+                  label={t(locale, 'runAgain')}
+                  onPress={() => void restart()}
+                  style={styles.flex}
+                />
+                <Button
+                  palette={palette}
+                  testID="run-done"
+                  disabled={transferBusy}
+                  label={t(locale, outcome?.status === 'succeeded' ? 'done' : 'close')}
+                  onPress={() => (keepIncoming ? router.dismissAll() : router.back())}
+                  style={styles.flex}
+                />
+              </View>
+              <View style={styles.links}>
+                {onEdit ? (
+                  <Pressable
+                    testID="run-edit"
+                    accessibilityRole="link"
+                    hitSlop={8}
+                    onPress={onEdit}
+                    style={styles.editLink}>
+                    <Text style={[palette.font('bodyMedium', 14), { color: palette.primaryText }]}>
+                      {t(locale, 'runEdit')}
+                    </Text>
+                  </Pressable>
+                ) : null}
+                {onAskAI ? (
+                  <Pressable
+                    testID="run-ask-ai"
+                    accessibilityRole="link"
+                    hitSlop={8}
+                    onPress={onAskAI}
+                    style={styles.editLink}>
+                    <Text style={[palette.font('bodyMedium', 14), { color: palette.primaryText }]}>
+                      {t(locale, 'askAIChange')}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </>
+          ) : null}
         </>
-      ) : null}
+      )}
 
       {ask ? (
         <AskPanel
@@ -647,6 +750,7 @@ export function RunScreen({
 }
 
 const styles = StyleSheet.create({
+  compact: { alignItems: 'center', justifyContent: 'center', gap: 20, paddingVertical: 120 },
   step: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 28 },
   dot: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1 },

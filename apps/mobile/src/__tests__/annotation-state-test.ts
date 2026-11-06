@@ -1,4 +1,4 @@
-import { annotationPaths } from '../runtime/annotations';
+import { annotationPaths, markRect } from '../runtime/annotations';
 import { reduceAnnotations, type AnnotationState } from '../run/local/annotation-state';
 
 const sizes = [
@@ -75,4 +75,103 @@ it('keeps outline rectangles and freehand paths, ignores tiny accidental arrows,
   // 末尾不能是一条从旧点直接拉到手指的直线。
   const [a, b] = points.slice(-2);
   expect(Math.hypot(b!.x - a!.x, b!.y - a!.y)).toBeLessThan(5);
+});
+
+describe('文字：选中、拖动、改样式、删除', () => {
+  const textState = () => reduceAnnotations(initial(), { type: 'tool', tool: 'text' }, sizes);
+  const placed = () => {
+    let state = reduceAnnotations(textState(), { type: 'text', text: '你好' }, sizes);
+    state = reduceAnnotations(state, { type: 'grant', x: 100, y: 50 }, sizes);
+    return reduceAnnotations(state, { type: 'end' }, sizes);
+  };
+
+  it('puts the text at the tap, centered, selects it, and uses the default text when none was typed', () => {
+    const state = placed();
+    expect(state.selected).toBe(0);
+    expect(state.marks[0]![0]).toMatchObject({ kind: 'text', text: '你好' });
+    const empty = reduceAnnotations(
+      textState(),
+      { type: 'grant', x: 100, y: 50, defaultText: '文字' },
+      sizes,
+    );
+    expect(empty.marks[0]![0]).toMatchObject({ kind: 'text', text: '文字' });
+  });
+
+  it('tapping a placed text selects and drags it instead of adding another', () => {
+    let state = placed();
+    const at = state.marks[0]![0] as { point: { x: number; y: number } };
+    state = reduceAnnotations(state, { type: 'grant', x: 100, y: 50 }, sizes);
+    expect(state.marks[0]).toHaveLength(1);
+    state = reduceAnnotations(state, { type: 'move', dx: 20, dy: 10 }, sizes);
+    state = reduceAnnotations(state, { type: 'move', dx: 40, dy: 10 }, sizes);
+    state = reduceAnnotations(state, { type: 'end' }, sizes);
+    const moved = state.marks[0]![0] as { point: { x: number; y: number } };
+    // 按下时的位置加手指移动的总距离（200 点的框对应 1000 点的页：每个屏幕点 5 个页面点）。
+    expect(moved.point).toEqual({ x: at.point.x + 200, y: at.point.y + 50 });
+    expect(state.selected).toBe(0);
+  });
+
+  it('changes size, angle, color and text of the selected text; clamps size; angle wraps', () => {
+    let state = placed();
+    state = reduceAnnotations(
+      state,
+      { type: 'style', patch: { fontSize: 99999, rotation: -90 } },
+      sizes,
+    );
+    state = reduceAnnotations(
+      state,
+      { type: 'style', patch: { color: '#2563EB', text: '再见' } },
+      sizes,
+    );
+    expect(state.marks[0]![0]).toMatchObject({
+      text: '再见',
+      color: '#2563EB',
+      rotation: 270,
+      fontSize: 150,
+    });
+    state = reduceAnnotations(state, { type: 'style', patch: { fontSize: 1, rotation: 0 } }, sizes);
+    const mark = state.marks[0]![0]!;
+    expect(mark).toMatchObject({ fontSize: 10 });
+    expect('rotation' in mark).toBe(false);
+  });
+
+  it('deletes the selected text, and a rotated text is hit where it appears', () => {
+    let state = placed();
+    state = reduceAnnotations(state, { type: 'remove' }, sizes);
+    expect(state.marks[0]).toEqual([]);
+    expect(state.selected).toBeNull();
+    // 一长条文字转 90° 后竖起来：原来的位置（横着的两端）点不中，竖着的两端点得中。
+    state = reduceAnnotations(textState(), { type: 'text', text: '你好你好你好' }, sizes);
+    state = reduceAnnotations(state, { type: 'grant', x: 100, y: 50 }, sizes);
+    state = reduceAnnotations(state, { type: 'style', patch: { rotation: 90 } }, sizes);
+    state = reduceAnnotations(state, { type: 'end' }, sizes);
+    const mark = state.marks[0]![0] as { point: { x: number; y: number }; fontSize: number };
+    const width = 6 * mark.fontSize * 0.7 + mark.fontSize * 0.4;
+    const height = mark.fontSize * 1.6;
+    const cx = mark.point.x + width / 2;
+    const cy = mark.point.y + height / 2;
+    const tap = (x: number, y: number) =>
+      reduceAnnotations(state, { type: 'grant', x: x / 5, y: y / 5 }, sizes);
+    expect(tap(cx, cy + 90).drag).toBe(true);
+    expect(tap(cx + 90, cy).marks[0]).toHaveLength(2);
+  });
+
+  it('erase and mosaic are boxes between two points, filled white / gray', () => {
+    for (const [tool, color] of [
+      ['erase', '#FFFFFF'],
+      ['mosaic', '#808080'],
+    ] as const) {
+      let state = reduceAnnotations(initial(), { type: 'tool', tool }, sizes);
+      state = reduceAnnotations(state, { type: 'grant', x: 20, y: 10 }, sizes);
+      state = reduceAnnotations(state, { type: 'move', dx: 40, dy: 20 }, sizes);
+      state = reduceAnnotations(state, { type: 'end' }, sizes);
+      expect(state.marks[0]![0]).toMatchObject({ kind: tool, color });
+      expect(markRect(state.marks[0]![0] as never)).toEqual({
+        x: 100,
+        y: 50,
+        width: 200,
+        height: 100,
+      });
+    }
+  });
 });

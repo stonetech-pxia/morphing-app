@@ -64,16 +64,43 @@ describe('默认工具栏：按文件种类从注册表生成', () => {
     expect(all.filter((a) => /^(pdf\.(compress|sign)|video\.)/.test(a))).toEqual([]);
   });
 
-  it('PDF：签名、整理页面在编辑里，压缩、加页码在处理里，转图片在转换里', () => {
+  it('PDF 按用途分：标注（画、写、签）、页面（整理、拆分）、处理、转换；快捷操作只放自己的', () => {
     const groups = defaultDeskTools('pdf', registry, [], 'zh');
-    expect(actionsIn(groups, 'edit')).toEqual(expect.arrayContaining(['pdf.sign', 'pdf.pages']));
-    expect(actionsIn(groups, 'adjust')).toEqual(
-      expect.arrayContaining(['pdf.compress', 'pdf.pageNumbers', 'pdf.rotate']),
+    expect(groups.map((g) => g.id)).toEqual(['annotate', 'pages', 'adjust', 'convert']);
+    expect(actionsIn(groups, 'annotate')).toEqual(
+      expect.arrayContaining(['pdf.annotate', 'pdf.sign', 'pdf.stamp', 'pdf.fillForm']),
     );
+    expect(actionsIn(groups, 'pages')).toEqual(
+      expect.arrayContaining(['pdf.pages', 'pdf.selectPages', 'pdf.rotate', 'pdf.split']),
+    );
+    expect(actionsIn(groups, 'adjust')).toEqual(expect.arrayContaining(['pdf.protect']));
+    // 压缩不放在 PDF 桌面里；标注 PDF 的每种起手工具各一个按钮。
+    expect(groups.flatMap((g) => g.items.flatMap(actionOf))).not.toContain('pdf.compress');
+    expect(
+      groups
+        .find((g) => g.id === 'annotate')!
+        .items.flatMap((i) =>
+          typeof i === 'object' && i.action === 'pdf.annotate' ? [i.preset] : [],
+        ),
+    ).toEqual(['text', 'note', 'pen', 'highlight', 'box', 'erase', 'mosaic']);
     expect(actionsIn(groups, 'convert')).toEqual(
       expect.arrayContaining(['pdf.toImages', 'pdf.extractText']),
     );
     expect(actionsIn(groups, 'adjust')).not.toContain('image.rotate');
+    // 内设的快捷操作（转音频、翻译……）不在 PDF 桌面里；用户自己的在。
+    const own: Workflow = {
+      id: 'mine',
+      kind: 'quickAction',
+      name: '我的',
+      steps: [
+        { id: 's1', action: 'in.files', params: { accept: 'pdf', min: 1, max: 5 } },
+        { id: 's2', action: 'pdf.compress', params: { maxMB: 5, whenTooBig: 'ask' } },
+      ],
+    };
+    expect(defaultDeskTools('pdf', registry, [], 'zh').some((g) => g.id === 'quick')).toBe(false);
+    expect(
+      defaultDeskTools('pdf', registry, [own], 'zh').find((g) => g.id === 'quick')?.items,
+    ).toEqual(['mine']);
   });
 
   it('Excel、Word：只有转 PDF（合并、打包这种收任何文件的不放）', () => {
@@ -188,12 +215,14 @@ describe('单工具：哪些要先弹参数面板（D-363）', () => {
 describe('工具栏的图标（D-364）', () => {
   it('同一个工具的不同动作图标不一样（旋转、裁剪、压缩、标注、转 PDF……）', () => {
     for (const kind of ['image', 'pdf', 'video', 'audio'] as const) {
-      const ids = defaultDeskTools(kind, registry, [], 'zh').flatMap((g) =>
-        g.items.flatMap(actionOf),
+      const items = defaultDeskTools(kind, registry, [], 'zh').flatMap((g) =>
+        g.items.filter((i): i is { action: string; preset?: string } => typeof i === 'object'),
       );
-      const icons = ids.map((id) => deskToolIcon(registry.actions.get(id)!, registry));
+      const icons = items.map((i) =>
+        deskToolIcon(registry.actions.get(i.action)!, registry, i.preset),
+      );
       // 大部分不一样：只有少数几个共用（例如两种「转成文字」）。
-      expect(new Set(icons).size).toBeGreaterThanOrEqual(Math.ceil(ids.length * 0.75));
+      expect(new Set(icons).size).toBeGreaterThanOrEqual(Math.ceil(items.length * 0.75));
     }
     const icon = (id: string) => deskToolIcon(registry.actions.get(id)!, registry);
     expect(icon('image.rotate')).toBe(icon('pdf.rotate'));

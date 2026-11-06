@@ -8,6 +8,7 @@ import {
   type Workflow,
 } from '@morph/core';
 import { PDFDocument, PDFName } from 'pdf-lib';
+import { stampText } from '@morph/tool-pdf';
 
 import type { PackPageId, PackRuntime } from '../packs/bridge';
 import type { LocalKind, LocalUi } from '../runtime/local';
@@ -193,6 +194,111 @@ describe('PDF actions that need the preview pack or a local screen', () => {
     expect(doc.getPageCount()).toBe(2);
     expect(hasImage(doc, 1)).toBe(true);
     expect(hasImage(doc, 0)).toBe(false);
+  });
+
+  it('annotates: shows the pages, then lays a transparent layer only on pages that got marks', async () => {
+    const mine: Workflow = {
+      kind: 'quickAction',
+      id: 'mine',
+      name: 'Mine',
+      steps: [
+        { id: 'pick', action: 'in.files', params: { accept: 'pdf', min: 1, max: 1 } },
+        { id: 'mark', action: 'pdf.annotate', params: { start: 'pen' } },
+      ],
+    };
+    const { files, packs, run, opened } = setup(mine, {
+      annotate: [
+        [],
+        [
+          {
+            kind: 'highlight',
+            points: [
+              { x: 5, y: 5 },
+              { x: 40, y: 5 },
+            ],
+            width: 4,
+            color: '#FACC15',
+          },
+        ],
+      ],
+    });
+    packs.pageCount = 2;
+    files.nextPick = [files.offer('contract.pdf', await makePdf(2))];
+    const doc = await onlyPdf(files, await run());
+    expect(opened[0]!.kind).toBe('annotate');
+    expect((opened[0]!.input as { items: unknown[] }).items).toHaveLength(2);
+    expect(doc.getPageCount()).toBe(2);
+    expect(hasImage(doc, 1)).toBe(true);
+    expect(hasImage(doc, 0)).toBe(false);
+    // 画的图层和预览页一样大，路径照原样画（荧光笔的半透明颜色在标注里）。
+    expect(files.composed).toHaveLength(1);
+    expect(files.composed[0]!.canvas).toMatchObject({ width: 60, height: 40 });
+    expect(files.composed[0]!.ops).toEqual([expect.objectContaining({ kind: 'path' })]);
+  });
+
+  it('annotates: a page with erase or mosaic becomes a picture, so the hidden text is really gone', async () => {
+    const mine: Workflow = {
+      kind: 'quickAction',
+      id: 'mine',
+      name: 'Mine',
+      steps: [
+        { id: 'pick', action: 'in.files', params: { accept: 'pdf', min: 1, max: 1 } },
+        { id: 'mark', action: 'pdf.annotate', params: { start: 'erase' } },
+      ],
+    };
+    const { files, packs, run, opened } = setup(mine, {
+      annotate: [
+        [
+          {
+            kind: 'erase',
+            points: [
+              { x: 5, y: 5 },
+              { x: 30, y: 20 },
+            ],
+            width: 2,
+            color: '#FFFFFF',
+          },
+          {
+            kind: 'mosaic',
+            points: [
+              { x: 30, y: 20 },
+              { x: 55, y: 35 },
+            ],
+            width: 2,
+            color: '#808080',
+          },
+        ],
+        [],
+      ],
+    });
+    packs.pageCount = 2;
+    const pdf = await makePdf(2);
+    const marked = await stampText(pdf, {
+      text: 'SECRET',
+      position: 'center',
+      fontSize: 20,
+      color: '#000000',
+      opacity: 1,
+    });
+    files.nextPick = [files.offer('contract.pdf', marked)];
+    const out = await run();
+    const doc = await onlyPdf(files, out);
+    expect(opened[0]!.input).toMatchObject({ tool: 'erase' });
+    expect(doc.getPageCount()).toBe(2);
+    expect(hasImage(doc, 0)).toBe(true);
+    // 第一页换成了一张图；页面原来的文字不在了，第二页没有标注，原样。
+    const value = (out as { value?: { items: { uri: string }[] } }).value!;
+    const raw = Buffer.from(files.disk.get(value.items[0]!.uri)!).toString('latin1');
+    expect(raw).not.toContain('SECRET');
+    // 擦除是涂白，打码按格子取原图的平均色：画了几个色块。
+    const rects = files.composed.at(-1)!.ops.filter((op) => op.kind === 'rect');
+    expect(rects.length).toBeGreaterThan(1);
+    expect(rects[0]).toMatchObject({ color: '#FFFFFF' });
+    // 更大的页面图重新渲染过（只渲染有擦除、打码的那一页）。
+    expect(packs.calls.filter((c) => c.method === 'render').at(-1)!.args).toMatchObject({
+      pages: [0],
+      maxSide: 2400,
+    });
   });
 
   it('cancels signing when the user closes the signature screen', async () => {

@@ -20,7 +20,7 @@ import { deskKindOf, type DeskFile, type DeskKind } from './model';
 // 执行照用现有的执行器；快捷操作按钮也一样，把整个快捷操作作用到桌上的文件。
 
 /** 默认工具栏的组：编辑（要用户亲手操作的）、处理（类型不变）、转换（类型变了，或者只出文字）、快捷操作。 */
-export type DeskGroupId = 'edit' | 'adjust' | 'convert' | 'quick';
+export type DeskGroupId = 'annotate' | 'pages' | 'edit' | 'adjust' | 'convert' | 'quick';
 
 export interface DeskDefaultGroup {
   id: DeskGroupId;
@@ -73,7 +73,24 @@ export function deskActionFits(action: ActionDefinition, kind: DeskKind): boolea
   return isDeskAction(action) && actionAccepts(action, VALUE_TYPE[kind]);
 }
 
+/** PDF 的工具栏按用途分：标注（在页面上画、写、签）、页面（整理、拆分）；其余按下面的「处理、转换」。 */
+const PDF_GROUP: Readonly<Record<string, DeskGroupId>> = {
+  'pdf.annotate': 'annotate',
+  'pdf.sign': 'annotate',
+  'pdf.stamp': 'annotate',
+  'pdf.fillForm': 'annotate',
+  'pdf.pages': 'pages',
+  'pdf.selectPages': 'pages',
+  'pdf.rotate': 'pages',
+  'pdf.split': 'pages',
+  'pdf.pageNumbers': 'pages',
+};
+
+/** PDF 桌面不放的工具：压缩（预览页的「更多」里有「PDF 太大传不上去」）。 */
+const PDF_LEFT_OUT: ReadonlySet<string> = new Set(['pdf.compress']);
+
 function groupOf(action: ActionDefinition, kind: DeskKind): DeskGroupId {
+  if (kind === 'pdf' && PDF_GROUP[action.id]) return PDF_GROUP[action.id]!;
   if (action.local) return 'edit';
   const type = VALUE_TYPE[kind];
   const out = outputTypeOf(action, initialParams(action), type);
@@ -90,14 +107,31 @@ export function defaultDeskTools(
   workflows: readonly Workflow[],
   locale: Locale,
 ): DeskDefaultGroup[] {
-  const groups: Record<DeskGroupId, DeskTool[]> = { edit: [], adjust: [], convert: [], quick: [] };
+  const groups: Record<DeskGroupId, DeskTool[]> = {
+    annotate: [],
+    pages: [],
+    edit: [],
+    adjust: [],
+    convert: [],
+    quick: [],
+  };
   for (const action of registry.actions.values()) {
     if (!isDeskAction(action) || !fitsKind(action, kind)) continue;
-    groups[groupOf(action, kind)].push({ action: action.id });
+    if (kind === 'pdf' && PDF_LEFT_OUT.has(action.id)) continue;
+    const group = groupOf(action, kind);
+    // 标注 PDF 的每种起手工具各占一个按钮（插入文字、注释、画笔……）。
+    if (kind === 'pdf' && action.id === 'pdf.annotate' && action.presets) {
+      for (const preset of action.presets)
+        groups[group].push({ action: action.id, preset: preset.id });
+      continue;
+    }
+    groups[group].push({ action: action.id });
   }
   const sample = SAMPLE_FILE[kind];
   if (sample) {
-    const builtIns = builtInWorkflows(workflows, locale);
+    // PDF 桌面只放用户自己的快捷操作：内设的（压缩、转 Word、翻译、转音频……）要么已经是上面的工具，
+    // 要么和编辑 PDF 本身无关，在预览页的「更多」里仍然有。
+    const builtIns = kind === 'pdf' ? [] : builtInWorkflows(workflows, locale);
     const order = sharePresetOrder([sample]);
     const rank = (wf: Workflow) => {
       const i = order.indexOf(wf.id);
@@ -109,7 +143,7 @@ export function defaultDeskTools(
     );
     groups.quick = quick.slice(0, MAX_QUICK).map((wf) => wf.id);
   }
-  return (['edit', 'adjust', 'convert', 'quick'] as const)
+  return (['annotate', 'pages', 'edit', 'adjust', 'convert', 'quick'] as const)
     .filter((id) => groups[id].length > 0)
     .map((id) => ({ id, items: groups[id] }));
 }

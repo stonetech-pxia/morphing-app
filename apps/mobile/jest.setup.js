@@ -21,6 +21,8 @@ jest.mock('@shopify/react-native-skia', () => {
     Image: () => null,
     Rect: () => null,
     Circle: () => null,
+    Group: View,
+    Paragraph: () => null,
     DashPathEffect: () => null,
     useFont: () => null,
     ImageFormat: { JPEG: 3, PNG: 4, WEBP: 6 },

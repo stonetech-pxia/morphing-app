@@ -5,6 +5,7 @@ import {
   type PageNumberOptions,
   addPageNumbers,
   canEncodeStandardText,
+  replacePageWithImage,
   stampImage,
   stampText,
 } from './index';
@@ -200,5 +201,37 @@ describe('stampImage', () => {
     await expect(
       stampImage(bytes, { ...opts, image: { bytes: image.bytes, kind: 'png' } }),
     ).rejects.toMatchObject({ code: 'badImage' });
+  });
+});
+
+describe('replacePageWithImage', () => {
+  const image = { bytes: readJpeg(), kind: 'jpeg' as const };
+
+  it('replaces only that page: the text under it is gone, other pages keep theirs', async () => {
+    const withText = await stampText(await makePdf([600, 600]), {
+      text: 'SECRET',
+      position: 'center',
+      fontSize: 20,
+      color: '#000000',
+      opacity: 1,
+    });
+    const out = await replacePageWithImage(withText, 1, image);
+    const doc = await PDFDocument.load(out);
+    expect(doc.getPageCount()).toBe(2);
+    expect(textDraws(await pageContent(out, 0)).map((d) => d.text)).toEqual(['SECRET']);
+    expect(textDraws(await pageContent(out, 1))).toEqual([]);
+    expect(imageDraws(await pageContent(out, 1))).toHaveLength(1);
+    expect(doc.getPage(1).getSize()).toEqual({ width: 600, height: 800 });
+  });
+
+  it('uses the size the user sees for a rotated page', async () => {
+    const out = await replacePageWithImage(
+      await makePdf([{ size: [600, 800], rotate: 90 }]),
+      0,
+      image,
+    );
+    const page = (await PDFDocument.load(out)).getPage(0);
+    expect(page.getSize()).toEqual({ width: 800, height: 600 });
+    expect(page.getRotation().angle).toBe(0);
   });
 });

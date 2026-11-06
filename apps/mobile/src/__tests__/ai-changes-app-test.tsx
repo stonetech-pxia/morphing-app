@@ -157,13 +157,14 @@ describe('AI changes the app, the user runs it (UI)', () => {
     const photo = files.offer('IMG_1.jpg', TINY_JPEG, 'image/jpeg');
     await act(async () => useIncoming.getState().receive([photo]));
     await act(() => router.push('/share'));
-    expect(await screen.findByTestId('share-ask-ai')).toHaveTextContent(/我要自己说/);
+    // 一份文件进预览页（D-457）：快捷操作在底下的面板里，Tink 在右上角。
+    await fireEvent.press(await screen.findByTestId('preview-more'));
     // 内设的里，第一步收一张照片的才列出来（签证照片收 1 张；签回表格收 PDF，不列）。
     expect(screen.getByTestId('share-workflow-visa-photo')).toBeTruthy();
     expect(screen.queryByTestId('share-workflow-sign-return')).toBeNull();
 
     // 让 AI 搭一个：AI 页说明是给分享进来的文件，只知道类型和个数。
-    await fireEvent.press(screen.getByTestId('share-ask-ai'));
+    await fireEvent.press(screen.getByTestId('page-ai'));
     expect(await screen.findByTestId('change-about')).toHaveTextContent(/给分享进来的 1 张照片/);
     await fireEvent.changeText(
       screen.getByTestId('change-input'),
@@ -189,6 +190,7 @@ describe('AI changes the app, the user runs it (UI)', () => {
     const photo = files.offer('IMG_2.jpg', TINY_JPEG, 'image/jpeg');
     await act(async () => useIncoming.getState().receive([photo]));
     await act(() => router.push('/share'));
+    await fireEvent.press(await screen.findByTestId('preview-more'));
     await fireEvent.press(await screen.findByTestId('share-run-visa-photo'));
     expect(await screen.findByTestId('run-screen')).toBeTruthy();
     expect(quickActionsOf(store.getState().config!).some((w) => w.preset === 'visa-photo')).toBe(

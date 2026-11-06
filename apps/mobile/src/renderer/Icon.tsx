@@ -85,6 +85,13 @@ const TOOL_SYMBOLS: Record<ToolIconName, SymbolName> = {
   share: { ios: 'square.and.arrow.up', android: 'share' },
   save: { ios: 'square.and.arrow.down', android: 'download' },
   preview: { ios: 'eye.fill', android: 'visibility' },
+  textbox: { ios: 'textformat', android: 'text_fields' },
+  sticky: { ios: 'text.bubble.fill', android: 'sticky_note_2' },
+  brush: { ios: 'scribble', android: 'brush' },
+  highlight: { ios: 'highlighter', android: 'ink_highlighter' },
+  shapes: { ios: 'square.on.circle', android: 'category' },
+  erase: { ios: 'eraser.fill', android: 'ink_eraser' },
+  mosaic: { ios: 'square.grid.2x2.fill', android: 'blur_on' },
 };
 
 /** 系统菜单里用的 SF Symbol 名字（长按 Morph 图标的菜单，D-271）；emoji 没有。 */

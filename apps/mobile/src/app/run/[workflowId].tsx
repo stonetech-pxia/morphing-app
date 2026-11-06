@@ -18,7 +18,15 @@ export default function RunRoute() {
     workflowId,
     shared,
     handed: handedKey,
-  } = useLocalSearchParams<{ workflowId: string; shared?: string; handed?: string }>();
+    keep,
+    then,
+  } = useLocalSearchParams<{
+    workflowId: string;
+    shared?: string;
+    handed?: string;
+    keep?: string;
+    then?: string;
+  }>();
   // 从记录页、列表来的（D-428）：它们交的值。键只在这次打开时有效，值不进路由参数。
   const [handed] = useState(() => readHanded(handedKey));
   useEffect(() => () => dropHanded(handedKey), [handedKey]);
@@ -77,6 +85,8 @@ export default function RunRoute() {
       <RunScreen
         workflow={workflow}
         {...(incoming ? { incoming } : {})}
+        {...(keep === '1' ? { keepIncoming: true } : {})}
+        {...(then === 'desk' ? { thenDesk: true } : {})}
         {...(handed ? { handed } : {})}
         onEdit={() => router.push({ pathname: '/workflow/[id]', params: { id: workflow.id } })}
         // AI 只看得到配置里的快捷操作；内设的先在编辑页改一次（D-236）。

@@ -68,6 +68,11 @@ async function openShare(files: FakeFiles, names: string[], mime = 'image/jpeg')
 }
 
 /** 保存，等记录页关掉、回到收件页面（否则 router.back 会落到下一个测试里）。 */
+/** 一份文件在预览页的「存记录」面板里选；多份文件在收件页面的「存成记录」里选（D-457）。 */
+async function openChooser() {
+  await fireEvent.press(await screen.findByTestId(/^(preview-record|share-record-choose)$/));
+}
+
 async function save() {
   await fireEvent.press(screen.getByTestId('editor-save'));
   await waitFor(() => expect(screen.queryByTestId('editor-save')).toBeNull());
@@ -75,7 +80,7 @@ async function save() {
 }
 
 async function choose(id: string) {
-  await fireEvent.press(await screen.findByTestId('share-record-choose'));
+  await openChooser();
   await fireEvent.press(await screen.findByTestId(`share-record-${id}`));
 }
 
@@ -105,16 +110,16 @@ describe('recordChoices', () => {
   });
 });
 
-describe('收件页面 → 存成记录', () => {
+describe('预览页和收件页面 → 存成记录', () => {
   it('新用户：选「新建表单」，选预设，点「记下」才建表，只存一条记录', async () => {
     const { files, repo, store } = await render();
     const [photo] = await openShare(files, ['IMG_1.jpg']);
-    const rows = screen.queryAllByTestId(/^(share-desk|share-record|share-workflow-.+)$/);
-    expect(rows.slice(0, 2).map((r) => r.props.testID)).toEqual(['share-desk', 'share-record']);
+    // 一份文件是预览页，「存记录」是底下一排按钮里的一个，点了才弹出面板（D-457）。
+    expect(await screen.findByTestId('preview-record')).toBeTruthy();
     expect(screen.queryByTestId('share-record-list')).toBeNull();
     const before = store.getState().head!.id;
 
-    await fireEvent.press(screen.getByTestId('share-record-choose'));
+    await openChooser();
     expect(listIds()).toEqual(['share-record-new']);
     expect(screen.queryByText('你的表')).toBeNull();
     await fireEvent.press(screen.getByTestId('share-record-new'));
@@ -173,7 +178,7 @@ describe('收件页面 → 存成记录', () => {
   it('有数据：只列有附件字段的表和「新建表单」；选表不改配置，文件放进它的附件字段', async () => {
     const { files, repo, store } = await render(seeded);
     await openShare(files, ['IMG_1.jpg']);
-    await fireEvent.press(await screen.findByTestId('share-record-choose'));
+    await openChooser();
     expect(listIds()).toEqual(['share-record-new', 'share-record-table-receipts']);
     expect(screen.getByText('你的表')).toBeTruthy();
     const head = store.getState().head!.id;
@@ -206,7 +211,7 @@ describe('收件页面 → 存成记录', () => {
     // 照片一次最多收 10 张，PDF 能收 50 个。
     const names = Array.from({ length: MAX_ATTACHMENTS + 2 }, (_, i) => `P${i}.pdf`);
     await openShare(files, names, 'application/pdf');
-    await fireEvent.press(await screen.findByTestId('share-record-choose'));
+    await openChooser();
     expect(screen.getByTestId('share-record-too-many').props.children).toBe(
       '一条记录最多放 20 个文件，只放前 20 个。',
     );

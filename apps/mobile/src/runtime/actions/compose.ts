@@ -23,7 +23,7 @@ import {
   mainFace,
 } from '@morph/tool-image';
 
-import { annotationPaths } from '../annotations';
+import { annotationPaths, markRect, type ImageAnnotation } from '../annotations';
 import type { DrawOp } from '../platform';
 import { displayName, fileItems, freshName, type RunServices } from './helpers';
 import { t } from '../../i18n';
@@ -208,6 +208,97 @@ async function faceFrames(
   return frames;
 }
 
+/** 一块区域打成马赛克：按格子取原图的平均色，画成一格一格的色块。 */
+async function mosaicOps(
+  ctx: Ctx,
+  base: RunItem,
+  size: { width: number; height: number },
+  rect: { x: number; y: number; width: number; height: number },
+): Promise<DrawOp[]> {
+  const px = await ctx.services.files.imagePixels(base.uri, Math.max(size.width, size.height));
+  const sx = px.width / size.width;
+  const sy = px.height / size.height;
+  // 格子大小跟着框走（短边的 1/8，至少 8 点），看不出原来的字。
+  const cell = Math.max(8, Math.min(rect.width, rect.height) / 8);
+  const ops: DrawOp[] = [];
+  for (let y = rect.y; y < rect.y + rect.height; y += cell) {
+    for (let x = rect.x; x < rect.x + rect.width; x += cell) {
+      const w = Math.min(cell, rect.x + rect.width - x);
+      const h = Math.min(cell, rect.y + rect.height - y);
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let n = 0;
+      const x0 = Math.floor(x * sx);
+      const y0 = Math.floor(y * sy);
+      const x1 = Math.min(px.width, Math.max(x0 + 1, Math.ceil((x + w) * sx)));
+      const y1 = Math.min(px.height, Math.max(y0 + 1, Math.ceil((y + h) * sy)));
+      for (let yy = y0; yy < y1; yy++) {
+        for (let xx = x0; xx < x1; xx++) {
+          const i = (yy * px.width + xx) * 4;
+          r += px.data[i]!;
+          g += px.data[i + 1]!;
+          b += px.data[i + 2]!;
+          n++;
+        }
+      }
+      const hex = (v: number) =>
+        Math.round(n ? v / n : 255)
+          .toString(16)
+          .padStart(2, '0');
+      ops.push({
+        kind: 'rect',
+        rect: { x, y, width: w, height: h },
+        color: `#${hex(r)}${hex(g)}${hex(b)}`,
+      });
+    }
+  }
+  return ops;
+}
+
+/**
+ * 把一页的标注画出来：没有 base 时是一张透明 PNG（盖在 PDF 页面上），有 base 时画在这张图上
+ * （擦除、打码要换掉页面，见 pdf.annotate）。图片标注和 PDF 标注共用。
+ */
+export async function drawMarks(
+  ctx: Ctx,
+  name: string,
+  size: { width: number; height: number },
+  marks: readonly ImageAnnotation[],
+  base?: RunItem,
+  format: 'png' | 'jpeg' = 'png',
+): Promise<RunItem> {
+  const ops: DrawOp[] = base
+    ? [{ kind: 'image', source: { uri: base.uri }, dst: { x: 0, y: 0, ...size } }]
+    : [];
+  // 擦除、打码先画（在原图上），文字、画笔盖在它们上面。
+  for (const mark of marks) {
+    if (mark.kind === 'erase') ops.push({ kind: 'rect', rect: markRect(mark), color: '#FFFFFF' });
+    if (mark.kind === 'mosaic' && base)
+      ops.push(...(await mosaicOps(ctx, base, size, markRect(mark))));
+  }
+  for (const mark of marks) {
+    if (mark.kind === 'text') {
+      const text = await ctx.services.files.renderText(mark.text, {
+        fontSize: mark.fontSize,
+        color: mark.color,
+        opacity: 1,
+        ...(mark.fill ? { background: mark.fill } : {}),
+      });
+      ops.push({
+        kind: 'image',
+        source: { bytes: text.bytes },
+        dst: { ...mark.point, width: text.width, height: text.height },
+        ...(mark.rotation ? { angleDeg: mark.rotation } : {}),
+      });
+    } else if (mark.kind !== 'erase' && mark.kind !== 'mosaic') {
+      for (const points of annotationPaths(mark))
+        ops.push({ kind: 'path', points, width: mark.width, color: mark.color });
+    }
+  }
+  return compose(ctx, name, { ...size, background: '#00000000' }, ops, format);
+}
+
 export const COMPOSE_IMPLS: Record<string, Impl> = {
   async 'image.annotate'(input, _params, ctx) {
     const items: RunItem[] = [];
@@ -230,34 +321,15 @@ export const COMPOSE_IMPLS: Record<string, Impl> = {
     const out: RunItem[] = [];
     for (const [i, item] of items.entries()) {
       ctx.throwIfCancelled();
-      const size = { width: item.width!, height: item.height! };
-      const ops: DrawOp[] = [
-        { kind: 'image', source: { uri: item.uri }, dst: { x: 0, y: 0, ...size } },
-      ];
-      for (const mark of all[i]!) {
-        if (mark.kind === 'text') {
-          const text = await ctx.services.files.renderText(mark.text, {
-            fontSize: mark.fontSize,
-            color: mark.color,
-            opacity: 1,
-          });
-          const k = Math.min(
-            1,
-            (size.width - mark.point.x) / text.width,
-            (size.height - mark.point.y) / text.height,
-          );
-          if (k > 0)
-            ops.push({
-              kind: 'image',
-              source: { bytes: text.bytes },
-              dst: { ...mark.point, width: text.width * k, height: text.height * k },
-            });
-        } else {
-          for (const points of annotationPaths(mark))
-            ops.push({ kind: 'path', points, width: mark.width, color: mark.color });
-        }
-      }
-      out.push(await compose(ctx, item.name, { ...size, background: '#00000000' }, ops, 'png'));
+      out.push(
+        await drawMarks(
+          ctx,
+          item.name,
+          { width: item.width!, height: item.height! },
+          all[i]!,
+          item,
+        ),
+      );
       ctx.progress(i + 1, items.length);
     }
     return { type: 'images', items: out };

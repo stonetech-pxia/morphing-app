@@ -1,49 +1,92 @@
-import { Canvas, Path, Text as SkiaText } from '@shopify/react-native-skia';
+import { Canvas, Group, Paragraph, Path, Rect } from '@shopify/react-native-skia';
 import { Image } from 'expo-image';
 import { useReducer, useState } from 'react';
-import { PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  PanResponder,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { t } from '../../i18n';
 import { textLayout } from '../../runtime/skia';
 import type { ImageAnnotation } from '../../runtime/annotations';
-import { annotationPaths, annotationSvg } from '../../runtime/annotations';
+import { annotationPaths, annotationSvg, markRect } from '../../runtime/annotations';
 import type { LocalScreenProps } from '../RunScreen';
 import { LocalFrame } from './LocalFrame';
+import { Slider } from './Slider';
 import {
   annotationLayout,
   reduceAnnotations,
   type AnnotationState,
   type AnnotationAction,
   type AnnotationTool,
+  type Measure,
 } from './annotation-state';
 
-const COLORS = ['#EF4444', '#F59E0B', '#2563EB', '#16A34A', '#FFFFFF', '#000000'];
-const TOOLS: AnnotationTool[] = ['text', 'arrow', 'box', 'pen'];
+const COLORS = ['#EF4444', '#F59E0B', '#2563EB', '#16A34A', '#FFFFFF', '#000000', '#FACC15'];
+const TOOLS: AnnotationTool[] = [
+  'text',
+  'note',
+  'arrow',
+  'box',
+  'pen',
+  'highlight',
+  'erase',
+  'mosaic',
+];
+const TOOL_LABEL = {
+  text: 'annotateText',
+  note: 'annotateNote',
+  arrow: 'annotateArrow',
+  box: 'annotateBox',
+  pen: 'annotatePen',
+  highlight: 'annotateHighlight',
+  erase: 'annotateErase',
+  mosaic: 'annotateMosaic',
+} as const;
+
+/** 文字框的大小（原图点），预览、点选、导出用同一个排版。 */
+const measure: Measure = (text, fontSize) => {
+  const { width, height } = textLayout(text, fontSize);
+  return { width, height };
+};
 
 function TextMark({
   mark,
-  size,
   scale,
+  selected,
 }: {
   mark: Extract<ImageAnnotation, { kind: 'text' }>;
-  size: { width: number; height: number };
   scale: number;
+  selected: boolean;
 }) {
-  const layout = textLayout(mark.text, mark.fontSize);
-  const fit = Math.min(
-    1,
-    (size.width - mark.point.x) / layout.width,
-    (size.height - mark.point.y) / layout.height,
-  );
-  layout.font.setSize(layout.font.getSize() * fit * scale);
+  const layout = textLayout(mark.text, mark.fontSize * scale, mark.color);
+  const x = mark.point.x * scale;
+  const y = mark.point.y * scale;
   return (
-    <SkiaText
-      text={mark.text}
-      x={(mark.point.x + 4 * fit) * scale}
-      y={(mark.point.y + layout.baseline * fit) * scale}
-      font={layout.font}
-      color={mark.color}
-    />
+    <Group
+      transform={[{ rotate: ((mark.rotation ?? 0) * Math.PI) / 180 }]}
+      origin={{ x: x + layout.width / 2, y: y + layout.height / 2 }}>
+      {mark.fill ? (
+        <Rect x={x} y={y} width={layout.width} height={layout.height} color={mark.fill} />
+      ) : null}
+      <Paragraph paragraph={layout.paragraph} x={x + layout.pad} y={y + layout.pad} width={1e5} />
+      {selected ? (
+        <Rect
+          x={x}
+          y={y}
+          width={layout.width}
+          height={layout.height}
+          color="#14B8A6"
+          style="stroke"
+          strokeWidth={2}
+        />
+      ) : null}
+    </Group>
   );
 }
 
@@ -56,18 +99,20 @@ export function AnnotateScreen({
 }: LocalScreenProps<'annotate'>) {
   const { items } = input;
   const sizes = items.map((it) => ({ width: it.width ?? 1, height: it.height ?? 1 }));
+  const defaultText = t(locale, 'annotateDefaultText');
   const [state, dispatch] = useReducer(
-    (s: AnnotationState, a: AnnotationAction) => reduceAnnotations(s, a, sizes),
+    (s: AnnotationState, a: AnnotationAction) => reduceAnnotations(s, a, sizes, measure),
     null,
     (): AnnotationState => ({
       index: 0,
       marks: items.map(() => []),
       box: { width: 0, height: 0 },
-      tool: 'arrow',
+      tool: input.tool ?? 'arrow',
       color: COLORS[0]!,
       text: '',
       start: null,
       draft: null,
+      selected: null,
     }),
   );
   const [responder] = useState(() =>
@@ -76,7 +121,12 @@ export function AnnotateScreen({
       onMoveShouldSetPanResponder: () => true,
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: (e) =>
-        dispatch({ type: 'grant', x: e.nativeEvent.locationX, y: e.nativeEvent.locationY }),
+        dispatch({
+          type: 'grant',
+          x: e.nativeEvent.locationX,
+          y: e.nativeEvent.locationY,
+          defaultText,
+        }),
       onPanResponderMove: (_e, g) => dispatch({ type: 'move', dx: g.dx, dy: g.dy }),
       onPanResponderRelease: () => dispatch({ type: 'end' }),
       onPanResponderTerminate: () => dispatch({ type: 'end' }),
@@ -88,6 +138,12 @@ export function AnnotateScreen({
   const marks = state.marks[state.index]!;
   const preview = state.draft ? [...marks, state.draft] : marks;
   const last = state.index === items.length - 1;
+  const picked = state.selected != null ? marks[state.selected] : undefined;
+  const selected = picked?.kind === 'text' ? picked : null;
+  const maxFont = Math.min(sizes[state.index]!.width, sizes[state.index]!.height) * 0.3;
+  const activeColor = selected ? selected.color : state.color;
+  const boxTool = state.tool === 'erase' || state.tool === 'mosaic';
+  const textTool = state.tool === 'text' || state.tool === 'note';
   return (
     <LocalFrame
       palette={palette}
@@ -97,7 +153,11 @@ export function AnnotateScreen({
       onCancel={onCancel}
       onDone={() => (last ? onDone(state.marks) : dispatch({ type: 'next' }))}
       avoidKeyboard>
-      <View style={styles.tools}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.toolScroll}
+        contentContainerStyle={styles.tools}>
         {TOOLS.map((tool) => (
           <Pressable
             key={tool}
@@ -114,41 +174,38 @@ export function AnnotateScreen({
                 palette.font('bodyBold', 14),
                 { color: state.tool === tool ? palette.onPrimary : palette.text },
               ]}>
-              {t(
-                locale,
-                tool === 'text'
-                  ? 'annotateText'
-                  : tool === 'arrow'
-                    ? 'annotateArrow'
-                    : tool === 'box'
-                      ? 'annotateBox'
-                      : 'annotatePen',
-              )}
+              {t(locale, TOOL_LABEL[tool as keyof typeof TOOL_LABEL])}
             </Text>
           </Pressable>
         ))}
-      </View>
-      <View style={styles.colors}>
-        {COLORS.map((color, i) => (
-          <Pressable
-            key={color}
-            testID={`annotate-color-${i}`}
-            accessibilityRole="button"
-            accessibilityLabel={t(locale, 'annotateColor', { n: i + 1 })}
-            accessibilityState={{ selected: state.color === color }}
-            onPress={() => dispatch({ type: 'color', color })}
-            style={[
-              styles.swatch,
-              {
-                backgroundColor: color,
-                borderColor: state.color === color ? palette.primary : palette.border,
-                borderWidth: state.color === color ? 3 : 1,
-              },
-            ]}
-          />
-        ))}
-      </View>
-      {state.tool === 'text' ? (
+      </ScrollView>
+      {boxTool ? null : (
+        <View style={styles.colors}>
+          {COLORS.map((color, i) => (
+            <Pressable
+              key={color}
+              testID={`annotate-color-${i}`}
+              accessibilityRole="button"
+              accessibilityLabel={t(locale, 'annotateColor', { n: i + 1 })}
+              accessibilityState={{ selected: activeColor === color }}
+              onPress={() =>
+                selected
+                  ? dispatch({ type: 'style', patch: { color } })
+                  : dispatch({ type: 'color', color })
+              }
+              style={[
+                styles.swatch,
+                {
+                  backgroundColor: color,
+                  borderColor: activeColor === color ? palette.primary : palette.border,
+                  borderWidth: activeColor === color ? 3 : 1,
+                },
+              ]}
+            />
+          ))}
+        </View>
+      )}
+      {textTool && !selected ? (
         <TextInput
           testID="annotate-text"
           accessibilityLabel={t(locale, 'annotateText')}
@@ -165,7 +222,7 @@ export function AnnotateScreen({
         />
       ) : null}
       <Text style={[styles.hint, palette.font('body', 13), { color: palette.muted }]}>
-        {t(locale, state.tool === 'text' ? 'annotateTap' : 'annotateDrag')}
+        {t(locale, textTool ? 'annotateTap' : boxTool ? 'annotateDragBox' : 'annotateDrag')}
       </Text>
       <View
         testID="annotate-area"
@@ -198,23 +255,34 @@ export function AnnotateScreen({
                       <TextMark
                         key={`text-${i}`}
                         mark={mark}
-                        size={sizes[state.index]!}
                         scale={scale}
+                        selected={i === state.selected}
                       />,
                     ]
-                  : annotationPaths(mark).map((points, j) => (
-                      <Path
-                        key={`${i}-${j}`}
-                        path={annotationSvg(
-                          points.map((p) => ({ x: p.x * scale, y: p.y * scale })),
-                        )}
-                        color={mark.color}
-                        style="stroke"
-                        strokeWidth={mark.width * scale}
-                        strokeCap="round"
-                        strokeJoin="round"
-                      />
-                    )),
+                  : mark.kind === 'erase' || mark.kind === 'mosaic'
+                    ? [
+                        <Rect
+                          key={`${mark.kind}-${i}`}
+                          x={markRect(mark).x * scale}
+                          y={markRect(mark).y * scale}
+                          width={markRect(mark).width * scale}
+                          height={markRect(mark).height * scale}
+                          color={mark.kind === 'erase' ? '#FFFFFF' : '#80808099'}
+                        />,
+                      ]
+                    : annotationPaths(mark).map((points, j) => (
+                        <Path
+                          key={`${i}-${j}`}
+                          path={annotationSvg(
+                            points.map((p) => ({ x: p.x * scale, y: p.y * scale })),
+                          )}
+                          color={mark.color}
+                          style="stroke"
+                          strokeWidth={mark.width * scale}
+                          strokeCap="round"
+                          strokeJoin="round"
+                        />
+                      )),
               )}
             </Canvas>
             {preview.map((mark, i) =>
@@ -238,6 +306,62 @@ export function AnnotateScreen({
           </View>
         ) : null}
       </View>
+      {selected ? (
+        <View testID="annotate-style" style={styles.style}>
+          <TextInput
+            testID="annotate-style-text"
+            accessibilityLabel={t(locale, 'annotateText')}
+            value={selected.text}
+            onChangeText={(text) => dispatch({ type: 'style', patch: { text } })}
+            maxLength={160}
+            style={[
+              styles.input,
+              palette.font('body', 16),
+              { color: palette.text, borderColor: palette.border, marginHorizontal: 0 },
+            ]}
+          />
+          <View style={styles.row}>
+            <Text style={[palette.font('body', 14), styles.rowLabel, { color: palette.text }]}>
+              {t(locale, 'annotateSize')}
+            </Text>
+            <View style={styles.rowSlider}>
+              <Slider
+                testID="annotate-size"
+                label={t(locale, 'annotateSize')}
+                palette={palette}
+                min={10}
+                max={maxFont}
+                value={selected.fontSize}
+                onChange={(fontSize) => dispatch({ type: 'style', patch: { fontSize } })}
+              />
+            </View>
+          </View>
+          <View style={styles.row}>
+            <Text style={[palette.font('body', 14), styles.rowLabel, { color: palette.text }]}>
+              {t(locale, 'annotateRotate')} {Math.round(selected.rotation ?? 0)}°
+            </Text>
+            <View style={styles.rowSlider}>
+              <Slider
+                testID="annotate-rotation"
+                label={t(locale, 'annotateRotate')}
+                palette={palette}
+                min={0}
+                max={359}
+                value={selected.rotation ?? 0}
+                onChange={(rotation) => dispatch({ type: 'style', patch: { rotation } })}
+              />
+            </View>
+          </View>
+          <Pressable
+            testID="annotate-delete"
+            accessibilityRole="button"
+            onPress={() => dispatch({ type: 'remove' })}>
+            <Text style={[palette.font('bodyBold', 15), { color: palette.danger }]}>
+              {t(locale, 'annotateDelete')}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
       <View style={styles.footer}>
         <Text testID="annotate-count" style={[palette.font('body', 14), { color: palette.muted }]}>
           {t(locale, 'annotateCount', { n: marks.length })}
@@ -259,8 +383,19 @@ export function AnnotateScreen({
   );
 }
 const styles = StyleSheet.create({
+  toolScroll: { flexGrow: 0 },
   tools: { flexDirection: 'row', gap: 8, paddingHorizontal: 16 },
-  tool: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
+  tool: {
+    minHeight: 44,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+  },
+  style: { paddingHorizontal: 16, paddingBottom: 8, gap: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rowLabel: { width: 76 },
+  rowSlider: { flex: 1 },
   colors: { flexDirection: 'row', justifyContent: 'space-evenly', padding: 12 },
   swatch: { height: 36, width: 36, borderRadius: 18 },
   input: {

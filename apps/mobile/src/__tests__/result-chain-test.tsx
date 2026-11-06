@@ -99,6 +99,7 @@ it('continues without saving or picking again; two transfers offer AI with both 
         .filter((k) => k.startsWith('runs/'))
         .every((k) => k.startsWith(`runs/${incoming.result!.runId}/`)),
     ).toBe(true);
+    await fireEvent.press(await screen.findByTestId('preview-more'));
     await fireEvent.press(await screen.findByTestId('share-run-pdf'));
     await screen.findByTestId('run-result', {}, { timeout: 3000 });
     expect(await app.repo.listAssets()).toEqual([]);
@@ -134,9 +135,8 @@ it('combining with a built-in quick action saves it first so AI can see both (D-
     await screen.findByTestId('run-result', {}, { timeout: 3000 });
     await fireEvent.press(screen.getByTestId('result-continue'));
     await screen.findByTestId('share-screen');
-    // 第一次在「查看全部」里，用过之后排到前面。
-    if (!screen.queryByTestId('share-run-email-photos'))
-      await fireEvent.press(await screen.findByTestId('share-see-all'));
+    // 面板里列出所有收这份文件的快捷操作（D-457），不再有「查看全部」。
+    await fireEvent.press(await screen.findByTestId('preview-more'));
     await fireEvent.press(await screen.findByTestId('share-run-email-photos'));
     await fireEvent.press(await screen.findByTestId('prompt-ok', {}, { timeout: 3000 }));
     await screen.findByTestId('run-result', {}, { timeout: 3000 });
@@ -186,7 +186,7 @@ it('cleans a result batch after cancelling AI and then closing the inbox', async
     useIncoming.getState().receive(picked, [], 'result', { runId: 'ai-cancel', workflow: first });
     router.push('/share');
   });
-  await fireEvent.press(await screen.findByTestId('share-ask-ai'));
+  await fireEvent.press(await screen.findByTestId('page-ai'));
   await screen.findByTestId('change-about');
   await act(async () => router.back());
   await screen.findByTestId('share-screen');

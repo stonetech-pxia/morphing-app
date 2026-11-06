@@ -188,6 +188,9 @@ function ThemedStack() {
         <Stack.Screen name="new-table" options={closable} />
         <Stack.Screen name="run/[workflowId]" options={closable} />
         <Stack.Screen name="share" options={closable} />
+        {/* 多个文件里点开一个看（D-457）：和收件页面一样是弹出页。普通页面会盖住根视图上隐藏的 WebView，PDF 预览
+            用的扩展包页面跟着被挂起，一直转圈（真机上发现）。 */}
+        <Stack.Screen name="file-preview" options={closable} />
         {/* 文件房间（D-360）：全屏，自己画顶栏。不用 fullScreenModal：iOS 会把底下的视图拿出窗口，
             根视图上的扩展包页面（隐藏的 WebView）跟着被挂起，PDF 预览一直装载。 */}
         <Stack.Screen

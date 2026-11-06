@@ -10,11 +10,12 @@ import {
   type Workflow,
   WORKFLOW_PRESETS,
 } from '@morph/core';
-import { act, fireEvent, within } from '@testing-library/react-native';
+import { act, fireEvent, waitFor, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
 import { PDFDocument } from 'pdf-lib';
 
+import { listDesks } from '../desk/store';
 import type { PickedFile } from '../runtime/platform';
 import { startRun } from '../runtime/runner';
 import { nativeCopies, normalizeShare, useIncoming } from '../share/incoming';
@@ -302,9 +303,10 @@ describe('share journeys (UI)', () => {
 
     expect(await screen.findByTestId('share-screen')).toBeTruthy();
     expect(native().clearShareIntent).toHaveBeenCalledWith('morphShareKey');
-    expect(screen.queryByText('报告.pdf')).toBeNull();
-    await fireEvent.press(screen.getByTestId('share-files-toggle'));
+    // 文件一直列在页面上，没有展开收起（D-457）。
     expect(screen.getByText('报告.pdf')).toBeTruthy();
+    expect(screen.queryByTestId('share-files-toggle')).toBeNull();
+    expect(screen.queryByTestId('share-desk')).toBeNull();
     // 「查看全部」在这一页展开：收这些文件的都在，用过但个数不对的说明原因，收不了的不出现。
     await fireEvent.press(screen.getByTestId('share-see-all'));
     expect(screen.queryByTestId('share-see-all')).toBeNull();
@@ -316,19 +318,24 @@ describe('share journeys (UI)', () => {
     expect(screen.queryByTestId('share-workflow-visa-photo')).toBeNull();
     expect(screen.queryByTestId('run-screen')).toBeNull();
     await fireEvent.press(screen.getByTestId(`share-run-${merge.id}`));
-    expect(await screen.findByText('分享进来的文件（2 个）')).toBeTruthy();
+    // 运行时不摆出步骤列表（D-457）：只有转圈和一句在做什么。
+    expect(await screen.findByTestId('run-compact')).toBeTruthy();
+    expect(screen.queryByTestId('run-step-pick')).toBeNull();
     // 合并 PDF 每次运行时问文件名。
     await fireEvent.press(await screen.findByTestId('prompt-ok', {}, { timeout: 3000 }));
-    expect(await screen.findByTestId('result-item-报告-合并.pdf')).toBeTruthy();
-    const [asset] = await repo.listAssets();
-    const merged = await PDFDocument.load(await files.readBytes(asset!.path));
+    // 结果是一个文件：不停在结果页，直接进它的预览页（D-457）；收到的两个文件跟着运行页面释放。
+    expect(await screen.findByTestId('preview-bar')).toBeTruthy();
+    const result = useIncoming.getState().share!;
+    expect(result.source).toBe('result');
+    const merged = await PDFDocument.load(await files.readUri(result.files[0]!.uri));
     expect(merged.getPageCount()).toBe(5);
-    expect(files.sharedFiles()).toHaveLength(2);
-
-    // 关掉运行页面：共享目录里的副本删掉，待处理的分享清空。
-    await act(() => router.back());
     expect(files.sharedFiles()).toEqual([]);
+    expect(screen.queryByTestId('run-screen')).toBeNull();
+
+    // 关掉预览页：结果的副本删掉，待处理的清空。
+    await act(() => router.back());
     expect(useIncoming.getState().share).toBeNull();
+    expect(files.disk.has(result.files[0]!.uri)).toBe(false);
   });
 
   // D-455：分享进来的文件留一份在文档库；收件的临时副本关掉时照样删掉。
@@ -379,10 +386,9 @@ describe('share journeys (UI)', () => {
         type: 'file',
       }),
     );
-    expect(await screen.findByTestId('share-screen')).toBeTruthy();
-    await fireEvent.press(screen.getByTestId('share-files-toggle'));
-    expect(screen.getByText('lease.jpg')).toBeTruthy();
-    expect(screen.getByTestId('share-run-visa-photo')).toBeTruthy();
+    expect(await screen.findByTestId('preview-bar')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('preview-more'));
+    expect(await screen.findByTestId('share-workflow-visa-photo')).toBeTruthy();
     await act(() => router.back());
     expect(files.disk.has(copy)).toBe(false);
     expect(files.disk.has(content)).toBe(true);
@@ -402,12 +408,11 @@ describe('share journeys (UI)', () => {
       height: 1080,
     });
     await share([trip]);
-    expect(await screen.findByTestId('share-screen')).toBeTruthy();
-    await fireEvent.press(screen.getByTestId('share-files-toggle'));
-    expect(screen.getByText('trip.MOV')).toBeTruthy();
-    expect(await screen.findByText('1:15 · 120.0 MB')).toBeTruthy();
+    expect(await screen.findByTestId('preview-bar')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('preview-more'));
     // 证件照、合并 PDF 都不收视频；内设的「视频太大发不出去」直接运行（视频不超过 4 GB，不受 50 MB 限制）。
     expect(screen.queryByTestId('share-too-large')).toBeNull();
+    expect(await screen.findByTestId('share-workflow-video-too-big')).toBeTruthy();
     expect(screen.queryByTestId('share-workflow-visa-photo')).toBeNull();
     await fireEvent.press(screen.getByTestId('share-run-video-too-big'));
     await fireEvent.press(await screen.findByTestId('prompt-ok', {}, { timeout: 3000 }));
@@ -417,70 +422,203 @@ describe('share journeys (UI)', () => {
     expect(files.runFiles()).toHaveLength(1);
   });
 
-  it('one photo: a new user sees the five most common quick actions, then 「我要自己说」 (D-237)', async () => {
+  it('one photo opens its preview page; the five most common quick actions come first in the panel (D-237, D-457)', async () => {
     const { files } = await renderToolsApp();
     await share([files.offerShared('IMG_0001.jpg', TINY_JPEG, 'image/jpeg')]);
-    await screen.findByTestId('share-ask-ai');
-    // 按页面上从上到下的顺序。
+    expect(await screen.findByTestId('preview-bar')).toBeTruthy();
+    // 一份文件直接是预览页，不是收件页面：没有「我要自己说」，Tink 在右上角。
+    expect(screen.queryByTestId('share-ask-ai')).toBeNull();
+    expect(screen.getByTestId('page-ai')).toBeTruthy();
+    expect(screen.getByTestId('desk-preview-image')).toBeTruthy();
+    // 进来什么都不跑。
+    expect(screen.queryByTestId('run-screen')).toBeNull();
+    await fireEvent.press(screen.getByTestId('preview-more'));
+    await screen.findByTestId('preview-panel-more');
     const ids = screen
-      .getAllByTestId(/^share-(workflow-.*|ask-ai|see-all)$/)
-      .map((n) => n.props.testID as string);
+      .getAllByTestId(/^share-workflow-/)
+      .map((n) => n.props.testID as string)
+      .slice(0, 5);
     expect(ids).toEqual([
       'share-workflow-email-photos',
       'share-workflow-scan-document',
       'share-workflow-scan-table-excel',
       'share-workflow-document-packet',
       'share-workflow-visa-photo',
-      'share-see-all',
-      'share-ask-ai',
     ]);
   });
 
-  it('one photo or video is shown on the page; tapping the photo opens it full screen (D-238)', async () => {
+  it('a photo has edit and to-Word buttons; a video only edit; both are plain buttons that run nothing on open (D-457)', async () => {
     const { files } = await renderToolsApp();
     await share([files.offerShared('IMG_0001.jpg', TINY_JPEG, 'image/jpeg')]);
-    const preview = await screen.findByTestId('share-preview-image');
-    // expo-image 的替身把 source 包成数组。
-    expect([within(preview).getByTestId('share-preview-image-file').props.source].flat()).toEqual([
-      { uri: 'file:///group/IMG_0001.jpg' },
-    ]);
-    await fireEvent.press(preview);
-    expect(screen.getByTestId('share-viewer')).toBeTruthy();
-    expect(screen.getByTestId('share-viewer-count')).toHaveTextContent('1 / 1');
-    await fireEvent.press(screen.getByTestId('share-viewer-close'));
-    expect(screen.queryByTestId('share-viewer')).toBeNull();
+    expect(await screen.findByTestId('preview-word')).toBeTruthy();
+    expect(screen.getByTestId('preview-edit')).toHaveTextContent('编辑');
+    expect(screen.getByTestId('preview-record')).toBeTruthy();
+    expect(screen.getByTestId('preview-more')).toBeTruthy();
     await act(() => router.back());
 
     await share([files.offerShared('clip.mp4', TINY_JPEG, 'video/mp4')]);
-    expect(await screen.findByTestId('share-preview-video')).toBeTruthy();
+    expect(await screen.findByTestId('desk-preview-video')).toBeTruthy();
+    expect(screen.queryByTestId('preview-word')).toBeNull();
+    expect(screen.getByTestId('preview-edit')).toBeTruthy();
   });
 
-  it('several photos and videos open at the one tapped and page through all of them (D-238)', async () => {
-    const { files } = await renderToolsApp();
-    await share([
-      files.offerShared('a.jpg', TINY_JPEG, 'image/jpeg'),
-      files.offerShared('b.mp4', TINY_JPEG, 'video/mp4'),
-      files.offerShared('c.jpg', TINY_JPEG, 'image/jpeg'),
-    ]);
-    await screen.findByTestId('share-ask-ai');
-    // 多个文件不在页面上放大图，点开文件列表里的一个再看。
-    expect(screen.queryByTestId('share-preview-image')).toBeNull();
-    await fireEvent.press(screen.getByTestId('share-files-toggle'));
-    await fireEvent.press(screen.getByTestId('share-file-1'));
-    expect(screen.getByTestId('share-viewer-count')).toHaveTextContent('2 / 3');
-  });
-
-  it('a PDF opens in the system preview; one PDF opens straight from the summary (D-238)', async () => {
+  it('a PDF: edit PDF and to-Word; the pack is asked for when missing, the system preview still opens it (D-457)', async () => {
     const { files } = await renderToolsApp();
     const pdf = files.offerShared('报告.pdf', await makePdf(2));
     await share([pdf]);
-    await fireEvent.press(await screen.findByTestId('share-files-toggle'));
+    expect(await screen.findByTestId('preview-bar')).toBeTruthy();
+    expect(screen.getByTestId('preview-edit')).toHaveTextContent('编辑 PDF');
+    expect(screen.getByTestId('preview-word')).toHaveTextContent('转 Word');
+    await fireEvent.press(await screen.findByTestId('desk-system-preview'));
     expect(files.previewed).toEqual([{ uri: pdf.uri, mimeType: 'application/pdf' }]);
-    expect(screen.queryByTestId('share-viewer')).toBeNull();
     // 没有能打开它的 App（Android）时说明原因，页面照常能用。
     files.previewFails = true;
-    await fireEvent.press(screen.getByTestId('share-files-toggle'));
-    expect(screen.getByTestId('share-preview-error')).toHaveTextContent(/没有能打开/);
+    await fireEvent.press(screen.getByTestId('desk-system-preview'));
+    expect(await screen.findByTestId('share-preview-error')).toHaveTextContent(/没有能打开/);
+    expect(screen.getByTestId('preview-bar')).toBeTruthy();
+  });
+
+  it('several files stay listed; tapping one opens its preview without tools, and back keeps the batch (D-457)', async () => {
+    const { files } = await renderToolsApp();
+    const shared = [
+      files.offerShared('a.jpg', TINY_JPEG, 'image/jpeg'),
+      files.offerShared('b.mp4', TINY_JPEG, 'video/mp4'),
+      files.offerShared('c.jpg', TINY_JPEG, 'image/jpeg'),
+    ];
+    await share(shared);
+    await screen.findByTestId('share-ask-ai');
+    expect(screen.queryByTestId('desk-preview-image')).toBeNull();
+    expect(screen.queryByTestId('share-files-toggle')).toBeNull();
+    await fireEvent.press(screen.getByTestId('share-file-1'));
+    expect(await screen.findByTestId('desk-preview-video')).toBeTruthy();
+    expect(screen.queryByTestId('preview-bar')).toBeNull();
+    await act(() => router.back());
+    expect(await screen.findByTestId('share-ask-ai')).toBeTruthy();
+    expect(files.sharedFiles()).toHaveLength(3);
+  });
+
+  it('to Word runs on the shown file and back returns to the preview with the file still there (D-457)', async () => {
+    const { files } = await renderToolsApp();
+    const pdf = files.offerShared('报告.pdf', await makePdf(1));
+    await share([pdf]);
+    await fireEvent.press(await screen.findByTestId('preview-word'));
+    expect(await screen.findByText('分享进来的文件（1 个）')).toBeTruthy();
+    await act(() => router.back());
+    expect(await screen.findByTestId('preview-bar')).toBeTruthy();
+    expect(files.sharedFiles()).toHaveLength(1);
+    expect(useIncoming.getState().share).not.toBeNull();
+  });
+
+  it('a run opened with then=desk puts the result on a desk that is thrown away on back; the shared files stay (D-457)', async () => {
+    const { files, merge } = await setupApp();
+    const shared = [
+      files.offerShared('报告.pdf', await makePdf(2)),
+      files.offerShared('附录.pdf', await makePdf(3)),
+    ];
+    await share(shared);
+    await screen.findByTestId('share-screen');
+    const batch = useIncoming.getState().share!.id;
+    await act(() =>
+      router.push({
+        pathname: '/run/[workflowId]',
+        params: { workflowId: merge.id, shared: String(batch), keep: '1', then: 'desk' },
+      }),
+    );
+    await fireEvent.press(await screen.findByTestId('prompt-ok', {}, { timeout: 3000 }));
+    expect(await screen.findByTestId('desk-screen', {}, { timeout: 5000 })).toBeTruthy();
+    expect(await listDesks(files)).toHaveLength(1);
+    // 返回：回到进来前的页面，这份桌面舍弃，收到的文件还在。
+    await act(() => router.back());
+    expect(await screen.findByTestId('share-screen')).toBeTruthy();
+    await waitFor(async () => expect(await listDesks(files)).toHaveLength(0));
+    expect(files.sharedFiles()).toHaveLength(2);
+    expect(useIncoming.getState().share?.id).toBe(batch);
+  });
+
+  const photoPdf = (id: string, source: 'scanner' | 'library'): Workflow => ({
+    id,
+    kind: 'quickAction',
+    name: id,
+    steps: [
+      { id: 'pick', action: 'in.photos', params: { source, min: 1, max: 1 } },
+      {
+        id: 'pdf',
+        action: 'pdf.fromImages',
+        params: { pageSize: 'a4', orientation: 'auto', marginMm: 10, fit: 'contain', maxMB: 4 },
+      },
+    ],
+  });
+
+  it('a scan that makes one file goes straight to its preview page, not the result page (D-457)', async () => {
+    const app = await renderToolsApp();
+    await app.store
+      .getState()
+      .proposeOps([{ op: 'addTool', tool: photoPdf('scan-pdf', 'scanner') }], '准备');
+    await act(() => app.store.getState().confirm());
+    app.files.camera.push(app.files.offerImage('page.jpg', 1000, 1400));
+    await act(() =>
+      router.push({ pathname: '/run/[workflowId]', params: { workflowId: 'scan-pdf' } }),
+    );
+    expect(await screen.findByTestId('preview-bar', {}, { timeout: 5000 })).toBeTruthy();
+    expect(screen.queryByTestId('run-result')).toBeNull();
+    expect(useIncoming.getState().share!.source).toBe('result');
+    expect(useIncoming.getState().share!.files[0]!.name).toMatch(/\.pdf$/);
+    // 预览页是容器：进来什么都没存、没发。
+    expect(await app.repo.listAssets()).toEqual([]);
+    expect(app.files.shared).toHaveLength(0);
+  });
+
+  it('a run where the person picks the photo inside it keeps its result page (D-457)', async () => {
+    const app = await renderToolsApp();
+    await app.store
+      .getState()
+      .proposeOps([{ op: 'addTool', tool: photoPdf('lib-pdf', 'library') }], '准备');
+    await act(() => app.store.getState().confirm());
+    app.files.nextPhotos = [app.files.offerImage('page.jpg', 1000, 1400)];
+    await act(() =>
+      router.push({ pathname: '/run/[workflowId]', params: { workflowId: 'lib-pdf' } }),
+    );
+    expect(await screen.findByTestId('run-result', {}, { timeout: 5000 })).toBeTruthy();
+    expect(screen.queryByTestId('preview-bar')).toBeNull();
+  });
+
+  it('the share panel shares, saves to a folder and prints; photos also save to the album (D-457)', async () => {
+    const { files } = await renderToolsApp();
+    const pdf = files.offerShared('报告.pdf', await makePdf(1));
+    await share([pdf]);
+    await fireEvent.press(await screen.findByTestId('preview-share'));
+    expect(await screen.findByTestId('preview-share-send')).toBeTruthy();
+    // 面板标题是「分享」，第一项不能也叫「分享」（出现两行一样的字）。
+    expect(within(screen.getByTestId('preview-panel-share')).getAllByText('分享')).toHaveLength(1);
+    expect(screen.getByTestId('preview-share-folder')).toBeTruthy();
+    expect(screen.getByTestId('preview-share-print')).toBeTruthy();
+    expect(screen.queryByTestId('preview-share-photos')).toBeNull();
+    await fireEvent.press(screen.getByTestId('preview-share-send'));
+    expect(files.shared).toEqual([pdf.uri]);
+    // 点完面板关上，页面还在、文件还在。
+    expect(screen.queryByTestId('preview-share-send')).toBeNull();
+    expect(screen.getByTestId('preview-bar')).toBeTruthy();
+    await act(() => router.back());
+
+    await share([files.offerShared('IMG_1.jpg', TINY_JPEG, 'image/jpeg')]);
+    await fireEvent.press(await screen.findByTestId('preview-share'));
+    expect(await screen.findByTestId('preview-share-photos')).toBeTruthy();
+  });
+
+  it('a to-Word run that fails shows the full run page with the error and the steps (D-457)', async () => {
+    const { files } = await renderToolsApp();
+    const pdf = files.offerShared('报告.pdf', await makePdf(1));
+    await share([pdf]);
+    await fireEvent.press(await screen.findByTestId('preview-word'));
+    // 测试环境没有文字识别：失败了就露出完整的运行页面，能看到停在哪一步、能再来一次。
+    expect(await screen.findByTestId('run-error', {}, { timeout: 5000 })).toBeTruthy();
+    expect(screen.queryByTestId('run-compact')).toBeNull();
+    expect(screen.getByTestId('run-step-pages')).toBeTruthy();
+    expect(screen.getByTestId('run-again')).toBeTruthy();
+    // 返回回到预览页，文件还在。
+    await act(() => router.back());
+    expect(await screen.findByTestId('preview-bar')).toBeTruthy();
+    expect(files.sharedFiles()).toHaveLength(1);
   });
 
   it('says so when nothing usable was shared', async () => {

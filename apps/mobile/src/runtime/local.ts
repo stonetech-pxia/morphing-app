@@ -15,7 +15,10 @@ export interface Rect {
 }
 
 export interface LocalSteps {
-  annotate: { in: { items: RunItem[] }; out: ImageAnnotation[][] };
+  annotate: {
+    in: { items: RunItem[]; tool?: ImageAnnotation['kind'] | 'note' };
+    out: ImageAnnotation[][];
+  };
   /** 逐张框选裁剪区域（原图像素）。aspect 为 null 时自由比例。 */
   /** initial：每张照片先摆好的框（证件照自动框脸，D-252）；null 或没有时居中。 */
   crop: { in: { items: RunItem[]; aspect: number | null; initial?: (Rect | null)[] }; out: Rect[] };

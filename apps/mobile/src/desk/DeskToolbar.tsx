@@ -8,13 +8,22 @@ import {
   type DeskIcon,
   type DeskGroup,
   type DeskGroupId,
+  type DeskKind,
   type DeskTool,
   type IconValue,
   type Locale,
   type Registry,
   type Workflow,
 } from '@morph/core';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import {
+  Pressable,
+  ScrollView,
+  type ScrollViewInstance,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { t, type StringKey } from '../i18n';
 import { Icon } from '../renderer/Icon';
@@ -28,6 +37,8 @@ import { runsHere, UNSUPPORTED_ACTIONS } from '../runtime/device-support';
 
 const GROUP_TITLE: Record<DeskGroupId, StringKey> = {
   edit: 'deskGroupEdit',
+  annotate: 'deskGroupAnnotate',
+  pages: 'deskGroupPages',
   adjust: 'deskGroupAdjust',
   convert: 'deskGroupConvert',
   quick: 'deskGroupQuick',
@@ -68,7 +79,7 @@ export function toolEntries(
             key: `${item.action}-${item.preset ?? ''}-${i}`,
             item,
             label: localize(preset?.label ?? action.label, locale) ?? action.id,
-            icon: deskToolIcon(action, registry),
+            icon: deskToolIcon(action, registry, item.preset),
             enabled:
               deskToolWorkflow(
                 action.id,
@@ -96,7 +107,11 @@ export function toolEntries(
 }
 
 /** 「文件」这一组（每种文件都有）。 */
-export function roomEntries(locale: Locale): { title: string; entries: ToolEntry[] } {
+export function roomEntries(
+  locale: Locale,
+  /** PDF 桌面只留分享（保存是「完成」的事，系统预览用不上）。 */
+  kind?: DeskKind,
+): { title: string; entries: ToolEntry[] } {
   const entry = (room: RoomTool, label: StringKey, icon: DeskIcon): ToolEntry => ({
     key: `room-${room}`,
     room,
@@ -106,11 +121,14 @@ export function roomEntries(locale: Locale): { title: string; entries: ToolEntry
   });
   return {
     title: t(locale, 'deskGroupFile'),
-    entries: [
-      entry('share', 'resultShare', 'share'),
-      entry('save', 'resultSave', 'save'),
-      entry('preview', 'deskToolPreview', 'preview'),
-    ],
+    entries:
+      kind === 'pdf'
+        ? [entry('share', 'resultShare', 'share')]
+        : [
+            entry('share', 'resultShare', 'share'),
+            entry('save', 'resultSave', 'save'),
+            entry('preview', 'deskToolPreview', 'preview'),
+          ],
   };
 }
 
@@ -126,52 +144,110 @@ export function DeskToolbar({
   disabled: boolean;
   onPress: (entry: ToolEntry) => void;
 }) {
+  const scroll = useRef<ScrollViewInstance>(null);
+  // 每组在滑动内容里的左边位置；点上面的小标签就滑到那一组，滑动时标签跟着亮。
+  const lefts = useRef<number[]>([]);
+  const [active, setActive] = useState(0);
+  const tabs = groups.length > 1;
+  const onScroll = (x: number) => {
+    let at = 0;
+    lefts.current.forEach((left, i) => {
+      if (left <= x + 40) at = i;
+    });
+    setActive((now) => (now === at ? now : at));
+  };
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      testID="desk-toolbar"
-      contentContainerStyle={styles.row}>
-      {groups.map((g, gi) => (
-        <View
-          key={`${gi}-${g.title}`}
-          style={[
-            styles.group,
-            gi > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderColor: palette.border },
-          ]}>
-          {g.title ? (
-            <Text style={[palette.font('bodyBold', 11), styles.title, { color: palette.caption }]}>
-              {g.title}
-            </Text>
-          ) : null}
-          <View style={styles.items}>
-            {g.entries.map((entry) => {
-              const off = disabled || !entry.enabled;
-              return (
-                <Pressable
-                  key={entry.key}
-                  testID={`desk-tool-${toolTestId(entry)}`}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: off }}
-                  disabled={off}
-                  onPress={() => onPress(entry)}
-                  style={({ pressed }) => [
-                    styles.item,
-                    { opacity: off ? 0.35 : pressed ? 0.6 : 1 },
-                  ]}>
-                  <Icon name={entry.icon} size={22} color={palette.primaryText} />
-                  <Text
-                    numberOfLines={2}
-                    style={[palette.font('body', 11), styles.label, { color: palette.text }]}>
-                    {entry.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
+    <View>
+      {tabs ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          testID="desk-tabs"
+          contentContainerStyle={styles.tabs}>
+          {groups.map((g, gi) => (
+            <Pressable
+              key={`${gi}-${g.title}`}
+              testID={`desk-tab-${gi}`}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: gi === active }}
+              onPress={() => {
+                setActive(gi);
+                scroll.current?.scrollTo({
+                  x: Math.max(0, (lefts.current[gi] ?? 0) - 8),
+                  animated: true,
+                });
+              }}
+              style={styles.tab}>
+              <Text
+                style={[
+                  palette.font(gi === active ? 'bodyBold' : 'body', 14),
+                  { color: gi === active ? palette.primaryText : palette.caption },
+                ]}>
+                {g.title}
+              </Text>
+              <View
+                style={[
+                  styles.tabBar,
+                  { backgroundColor: gi === active ? palette.primaryText : 'transparent' },
+                ]}
+              />
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
+      <ScrollView
+        ref={scroll}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        testID="desk-toolbar"
+        scrollEventThrottle={32}
+        onScroll={(e) => onScroll(e.nativeEvent.contentOffset.x)}
+        contentContainerStyle={styles.row}>
+        {groups.map((g, gi) => (
+          <View
+            key={`${gi}-${g.title}`}
+            onLayout={(e) => {
+              lefts.current[gi] = e.nativeEvent.layout.x;
+            }}
+            style={[
+              styles.group,
+              gi > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderColor: palette.border },
+            ]}>
+            {!tabs && g.title ? (
+              <Text
+                style={[palette.font('bodyBold', 11), styles.title, { color: palette.caption }]}>
+                {g.title}
+              </Text>
+            ) : null}
+            <View style={styles.items}>
+              {g.entries.map((entry) => {
+                const off = disabled || !entry.enabled;
+                return (
+                  <Pressable
+                    key={entry.key}
+                    testID={`desk-tool-${toolTestId(entry)}`}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: off }}
+                    disabled={off}
+                    onPress={() => onPress(entry)}
+                    style={({ pressed }) => [
+                      styles.item,
+                      { opacity: off ? 0.35 : pressed ? 0.6 : 1 },
+                    ]}>
+                    <Icon name={entry.icon} size={22} color={palette.primaryText} />
+                    <Text
+                      numberOfLines={2}
+                      style={[palette.font('body', 11), styles.label, { color: palette.text }]}>
+                      {entry.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
-        </View>
-      ))}
-    </ScrollView>
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -185,6 +261,9 @@ const toolTestId = (entry: ToolEntry) =>
 const styles = StyleSheet.create({
   row: { paddingHorizontal: 8, paddingVertical: 6, alignItems: 'flex-start' },
   group: { paddingHorizontal: 6, gap: 2 },
+  tabs: { paddingHorizontal: 12, gap: 20 },
+  tab: { paddingTop: 8, gap: 4 },
+  tabBar: { height: 3, borderRadius: 2 },
   title: { paddingHorizontal: 4, letterSpacing: 0.4 },
   items: { flexDirection: 'row' },
   item: { width: 68, alignItems: 'center', gap: 4, paddingVertical: 6 },

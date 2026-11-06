@@ -1,8 +1,6 @@
 import {
   type IconName,
   localize,
-  MAX_ATTACHMENTS,
-  MEDIA_LIMITS,
   type MediaKind,
   mediaKindOf,
   quickActionsOf,
@@ -13,7 +11,6 @@ import {
 
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image } from 'expo-image';
 import {
   Pressable,
   ScrollView,
@@ -26,32 +23,23 @@ import {
 import { useFileBundleOffer } from '../packs/FileBundleOffer';
 import { AIEntryButton } from '../shell/ai-entry';
 import { runErrorText, t } from '../i18n';
-import { IMPORT_PROBLEMS } from '../renderer/Attachments';
 import { formatSize } from '../renderer/FileList';
 import { Icon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
 import { Button, Card, Pill, SectionLabel } from '../renderer/ui';
-import { placeOnDesk } from '../desk/store';
-import { copyUserFiles } from '../renderer/slot-file';
 import { mimeOf } from '../runtime/actions/helpers';
-import { recordTargets } from '../runtime/actions/records';
 import { formatTime } from '../run/local/TrimScreen';
 import { stepChain } from '../shell/WorkflowsScreen';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
-import { FileViewer, InlineVideo } from './FileViewer';
 import { releaseShare, useIncoming } from './incoming';
+import { RecordChooser, useSaveAsRecord } from './RecordChooser';
 import { shareRecommendations } from './recommendations';
-import { holdFormCopies, recordChoices, type RecordChoice } from './save-as-record';
 import type { SucceededRuns } from '../storage/types';
-import { deleteUserFiles } from '../storage/user-files';
 
 /**
  * 收件页面（TOOLS_DESIGN §11，D-117）：「收到 N 个文件」，列出能接这些文件的工作流，点一个才运行
  * （不会自动运行）。文件名和大小只在本机显示，不发给 AI。由内核提供，AI 不能修改。
  */
-// 页面上那一张照片、一个视频的高度（D-238）：iPhone 17e 上连同 5 个快捷操作和「我要自己说」不用上滑。
-const PREVIEW_HEIGHT = 132;
-
 const ICONS: Partial<Record<MediaKind, IconName>> = {
   image: 'photo',
   video: 'video',
@@ -64,7 +52,6 @@ export function ShareScreen() {
   const palette = usePalette(config.theme);
   const share = useIncoming((s) => s.share);
   const router = useRouter();
-  const bumpAssets = useWorkspace((s) => s.bumpAssets);
   // 分享或打开文件后，一次问完文件处理包（D-456）；问过就不再问。
   const bundle = useFileBundleOffer(palette, locale);
   const fromOutside = !!share && share.files.length > 0 && share.source !== 'result';
@@ -74,18 +61,13 @@ export function ShareScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [share?.id]);
 
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  const expanded = expandedId === share?.id;
   // 读到使用次数之前不排推荐：否则先按「都没用过」排一遍，读到后卡片跳位置，快点时会点错。
   const [usage, setUsage] = useState<SucceededRuns | null>(null);
   const [showAll, setShowAll] = useState(false);
-  // 全屏看的照片或视频是第几个（D-238）；null 时没打开。
-  const [viewing, setViewing] = useState<number | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
-  // 正在复制到桌上（大视频要一会儿）。
-  const [placing, setPlacing] = useState(false);
   // 「存成记录」的表列表展开了（D-392）。
   const [choosing, setChoosing] = useState(false);
+  const record = useSaveAsRecord(share?.files ?? [], () => setChoosing(false));
+  const placing = record.placing;
   useEffect(() => {
     let alive = true;
     void repo
@@ -189,35 +171,12 @@ export function ShareScreen() {
     size: f.size,
   }));
   const sizeProblem = sharedSizeProblem(infos);
-  // 预览（D-238）：一张照片、一个视频直接显示在页面上；多个照片和视频点文件列表里的一个，全屏左右翻看；
-  // PDF 等别的文件用系统预览打开（一个时点摘要就打开）。只在本机显示。
-  const viewerKind = (i: number) => {
-    const kind = mediaKindOf(infos[i]!.mimeType, share.files[i]!.name);
-    return kind === 'image' || kind === 'video' ? kind : undefined;
-  };
-  const viewable = share.files.flatMap((f, i) => {
-    const kind = viewerKind(i);
-    return kind ? [{ uri: f.uri, kind }] : [];
-  });
-  const single =
-    share.files.length === 1 ? { uri: share.files[0]!.uri, kind: viewerKind(0) } : undefined;
-  async function open(i: number) {
-    setPreviewError(null);
-    if (viewerKind(i)) {
-      setViewing(viewable.findIndex((v) => v.uri === share!.files[i]!.uri));
-      return;
-    }
-    try {
-      await files.previewFile({
-        uri: share!.files[i]!.uri,
-        mimeType: infos[i]!.mimeType,
-        name: share!.files[i]!.name,
-      });
-    } catch (e) {
-      const code = (e as { code?: string }).code;
-      setPreviewError(code ? runErrorText(locale, code) : String(e));
-    }
-  }
+  // 点一个文件进它的预览页（D-457，取代 D-238 的全屏看图和系统预览）；只在本机显示。
+  const open = (i: number) =>
+    router.push({
+      pathname: '/file-preview',
+      params: { shared: String(share.id), index: String(i) },
+    });
   const counts = usage ?? new Map();
   const { all, recommended, anyUsed } = shareRecommendations(
     quickActionsOf(config),
@@ -290,135 +249,12 @@ export function ShareScreen() {
     });
   }
 
-  /**
-   * 放到桌上（D-361，创始人 2026-10-30 在会话里确认：做第一项，快捷操作推荐留在下面）：复制一份工作副本，
-   * 进入文件房间。原件和收件这一批照旧（离开收件页面时释放），桌上的是自己的副本。
-   */
-  async function placeAndOpen() {
-    if (placing) return;
-    setPlacing(true);
-    setPreviewError(null);
-    try {
-      const desk = await placeOnDesk(files, share!.files, Date.now());
-      router.replace({ pathname: '/desk/[deskId]', params: { deskId: desk.id } });
-    } catch (e) {
-      const code = (e as { code?: string }).code;
-      setPreviewError(
-        code
-          ? runErrorText(locale, code, (e as { detail?: Record<string, string> }).detail)
-          : String(e),
-      );
-      setPlacing(false);
-    }
-  }
-
-  /**
-   * 存成记录（D-392，创始人 2026-10-31 在对话里选定）：收到的文件复制成用户文件（收件这一批照旧，离开收件页面
-   * 时释放）。放进已有的表：打开新记录表单，附件已经放好。新建：打开新建表单页，点「记下」才建表（D-444）。
-   * 没保存就离开时，下一页删掉这些副本。
-   */
-  async function saveAsRecord(choice: RecordChoice | null) {
-    if (placing) return;
-    setPlacing(true);
-    setPreviewError(null);
-    let copied: string[] = [];
-    try {
-      const result = await copyUserFiles(share!.files.slice(0, MAX_ATTACHMENTS), files, repo);
-      // 打开、分享时已经存进文档库的不算副本（D-455）：放弃时只删这一次新复制的。
-      copied = result.created;
-      const attached = result.assetIds;
-      if (result.problem) {
-        setPreviewError(
-          t(locale, IMPORT_PROBLEMS[result.problem], {
-            gb: MEDIA_LIMITS.maxFileBytes / 1024 / 1024 / 1024,
-          }),
-        );
-        return;
-      }
-      if (!choice) {
-        const ids = copied;
-        copied = [];
-        bumpAssets();
-        setChoosing(false);
-        router.push({
-          pathname: '/new-table',
-          params: { copies: holdFormCopies(ids), attached: JSON.stringify(attached) },
-        });
-        return;
-      }
-      const table = config.data.tables.find((c) => c.id === choice.tableId);
-      const field = table && recordTargets(table).fileField;
-      if (!table || !field) return;
-      const ids = copied;
-      copied = [];
-      bumpAssets();
-      setChoosing(false);
-      router.push({
-        pathname: '/record/[collectionId]',
-        params: {
-          collectionId: table.id,
-          prefill: JSON.stringify({ [field]: attached }),
-          copies: holdFormCopies(ids),
-        },
-      });
-    } catch (e) {
-      setPreviewError(String(e));
-    } finally {
-      // 没交给下一页的副本不留下。
-      if (copied.length > 0) await deleteUserFiles(copied, repo, files).catch(() => undefined);
-      setPlacing(false);
-    }
-  }
-
   /** 让 AI 搭一个：AI 只知道文件的类型和个数（D-124）。做好后回到这里，新的排在最前面。 */
   function askAI() {
     setKnownIds(new Set(quickActionsOf(config).map((w) => w.id)));
     // AI 的修改先进草稿、这个页面会关掉（D-190）：分享的文件留着，应用后回到这里还能用。
     handed.current = true;
     router.push({ pathname: '/change', params: { shared: String(share!.id) } });
-  }
-
-  /** 存成记录的列表：「新建表单」在最前（表多了不用滚动），再是有附件字段的表。 */
-  function recordChooser() {
-    const tables = recordChoices(config);
-    const row = (id: string, name: string, about: string | null, choice: RecordChoice | null) => (
-      <Pressable
-        key={id}
-        testID={id}
-        accessibilityRole="button"
-        disabled={placing}
-        onPress={() => void saveAsRecord(choice)}
-        style={({ pressed }) => [styles.choice, (pressed || placing) && { opacity: 0.6 }]}>
-        <View style={styles.flex}>
-          <Text numberOfLines={1} style={[palette.font('bodyMedium', 15), { color: palette.text }]}>
-            {name}
-          </Text>
-          {about ? <Text style={caption}>{about}</Text> : null}
-        </View>
-        <Text style={[palette.font('title', 18), { color: palette.caption }]}>›</Text>
-      </Pressable>
-    );
-    return (
-      <View testID="share-record-list" style={styles.chooser}>
-        {share!.files.length > MAX_ATTACHMENTS ? (
-          <Text testID="share-record-too-many" style={caption}>
-            {t(locale, 'shareRecordTooMany', { n: MAX_ATTACHMENTS })}
-          </Text>
-        ) : null}
-        {row(
-          'share-record-new',
-          t(locale, 'shareRecordNew'),
-          t(locale, 'shareRecordNewAbout'),
-          null,
-        )}
-        {tables.length > 0 ? (
-          <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
-            {t(locale, 'shareRecordTables')}
-          </Text>
-        ) : null}
-        {tables.map((c) => row(`share-record-table-${c.tableId}`, c.name, null, c))}
-      </View>
-    );
   }
 
   return (
@@ -432,90 +268,64 @@ export function ShareScreen() {
           headerRight: () => <AIEntryButton palette={palette} locale={locale} onPress={askAI} />,
         }}
       />
+      {/* 文件一直列在这里（没有展开收起），点一个进它的预览页（D-457）；列表最高一屏的一半，多了在里面滚动。 */}
       <Card palette={palette}>
-        {single?.kind === 'image' ? (
-          <Pressable testID="share-preview-image" onPress={() => void open(0)}>
-            <Image
-              testID="share-preview-image-file"
-              source={{ uri: single.uri }}
-              style={[styles.preview, { borderRadius: 8 }]}
-              contentFit="contain"
-            />
-          </Pressable>
-        ) : single?.kind === 'video' ? (
-          <InlineVideo uri={single.uri} height={PREVIEW_HEIGHT} />
-        ) : null}
-        <Button
-          palette={palette}
-          variant="text"
-          testID="share-files-toggle"
-          label={`${t(locale, infos.every((f) => f.mimeType.startsWith('image/')) ? 'sharePhotoSummary' : 'shareSummary', { n: share.files.length })}${
+        <Text testID="share-files-summary" style={caption}>
+          {`${t(locale, infos.every((f) => f.mimeType.startsWith('image/')) ? 'sharePhotoSummary' : 'shareSummary', { n: share.files.length })}${
             infos.every((f) => f.size !== null)
               ? ` · ${formatSize(
                   infos.reduce((n, f) => n + (f.size ?? 0), 0),
                   locale,
                 )}`
               : ''
-          } · ${t(locale, single && !single.kind ? 'sharePreview' : expanded ? 'shareCollapse' : 'shareExpand')}`}
-          onPress={() =>
-            single && !single.kind ? void open(0) : setExpandedId(expanded ? null : share.id)
-          }
-        />
-        {expanded
-          ? share.files.map((f, i) => (
-              <Pressable
-                key={`${i}-${f.uri}`}
-                testID={`share-file-${i}`}
-                onPress={() => void open(i)}
-                style={({ pressed }) => [
-                  styles.file,
-                  i > 0 && {
-                    borderTopWidth: StyleSheet.hairlineWidth,
-                    borderColor: palette.border,
-                  },
-                  pressed && { opacity: 0.6 },
-                ]}>
-                <Icon
-                  name={ICONS[mediaKindOf(infos[i]!.mimeType, f.name)] ?? 'document'}
-                  size={18}
-                  color={palette.secondary}
-                />
-                <Text
-                  numberOfLines={1}
-                  style={[styles.flex, palette.font('bodyMedium', 15), { color: palette.text }]}>
-                  {f.name}
+          }`}
+        </Text>
+        <ScrollView nestedScrollEnabled style={styles.fileList} testID="share-files">
+          {share.files.map((f, i) => (
+            <Pressable
+              key={`${i}-${f.uri}`}
+              testID={`share-file-${i}`}
+              onPress={() => open(i)}
+              style={({ pressed }) => [
+                styles.file,
+                i > 0 && {
+                  borderTopWidth: StyleSheet.hairlineWidth,
+                  borderColor: palette.border,
+                },
+                pressed && { opacity: 0.6 },
+              ]}>
+              <Icon
+                name={ICONS[mediaKindOf(infos[i]!.mimeType, f.name)] ?? 'document'}
+                size={18}
+                color={palette.secondary}
+              />
+              <Text
+                numberOfLines={1}
+                style={[styles.flex, palette.font('bodyMedium', 15), { color: palette.text }]}>
+                {f.name}
+              </Text>
+              {f.size !== null || durations[f.uri] ? (
+                <Text style={[palette.font('body', 13), { color: palette.caption }]}>
+                  {[
+                    durations[f.uri] ? formatTime(durations[f.uri]!, false, locale) : null,
+                    f.size !== null ? formatSize(f.size, locale) : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
                 </Text>
-                {f.size !== null || durations[f.uri] ? (
-                  <Text style={[palette.font('body', 13), { color: palette.caption }]}>
-                    {[
-                      durations[f.uri] ? formatTime(durations[f.uri]!, false, locale) : null,
-                      f.size !== null ? formatSize(f.size, locale) : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </Text>
-                ) : null}
-                <Text style={[palette.font('title', 18), { color: palette.caption }]}>›</Text>
-              </Pressable>
-            ))
-          : null}
-        {previewError ? (
+              ) : null}
+              <Text style={[palette.font('title', 18), { color: palette.caption }]}>›</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+        {record.error ? (
           <Text
             testID="share-preview-error"
             style={[palette.font('bodyMedium', 14), { color: palette.danger }]}>
-            {previewError}
+            {record.error}
           </Text>
         ) : null}
       </Card>
-      {viewing !== null ? (
-        <FileViewer
-          items={viewable}
-          start={viewing}
-          onClose={() => setViewing(null)}
-          palette={palette}
-          locale={locale}
-        />
-      ) : null}
 
       {sizeProblem ? (
         <Card palette={palette}>
@@ -527,33 +337,9 @@ export function ShareScreen() {
         </Card>
       ) : (
         <>
-          {/* 放到桌上做第一项（D-361）。 */}
           <Card palette={palette} style={styles.list}>
-            <View testID="share-desk" style={styles.row}>
-              <View style={styles.flex}>
-                <Text
-                  numberOfLines={2}
-                  style={[palette.font('title', 15), { color: palette.text }]}>
-                  {t(locale, 'deskPlace')}
-                </Text>
-                <Text numberOfLines={2} style={caption}>
-                  {t(locale, 'deskPlaceAbout')}
-                </Text>
-              </View>
-              <Pill
-                palette={palette}
-                testID="share-desk-open"
-                label={placing ? '…' : t(locale, 'open')}
-                onPress={() => void placeAndOpen()}
-              />
-            </View>
-            {/* 存成记录（D-392）：放在「放到桌上」下面、快捷操作推荐上面；点了才展开表的列表，不自动做什么。 */}
-            <View
-              testID="share-record"
-              style={[
-                styles.row,
-                { borderTopWidth: StyleSheet.hairlineWidth, borderColor: palette.border },
-              ]}>
+            {/* 存成记录（D-392）：放在文件下面、快捷操作推荐上面；点了才展开表的列表，不自动做什么。 */}
+            <View testID="share-record" style={styles.row}>
               <View style={styles.flex}>
                 <Text
                   numberOfLines={2}
@@ -571,7 +357,15 @@ export function ShareScreen() {
                 onPress={() => setChoosing(!choosing)}
               />
             </View>
-            {choosing ? recordChooser() : null}
+            {choosing ? (
+              <RecordChooser
+                count={share.files.length}
+                placing={placing}
+                palette={palette}
+                locale={locale}
+                onChoose={(choice) => void record.saveAsRecord(choice)}
+              />
+            ) : null}
           </Card>
           {candidates.length > 0 ? (
             <SectionLabel palette={palette}>
@@ -614,9 +408,7 @@ const styles = StyleSheet.create({
   empty: { flex: 1, gap: 16, justifyContent: 'center' },
   file: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 36 },
   flex: { flex: 1 },
-  preview: { height: PREVIEW_HEIGHT, width: '100%' },
+  fileList: { maxHeight: 200 },
   list: { paddingVertical: 2, gap: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 6 },
-  chooser: { gap: 4, paddingBottom: 8 },
-  choice: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingLeft: 8 },
 });

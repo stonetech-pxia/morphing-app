@@ -76,6 +76,63 @@ describe('网页进程被系统结束', () => {
   });
 });
 
+describe('扩展包页面所在的视图重新渲染', () => {
+  const files = {
+    packFile: async () => '',
+    isInstalled: async () => true,
+    runFile: async () => '',
+  };
+
+  // React 每次重新渲染（例如运行页面关闭时 close 了别的页面）都会先用 null、再用同一个 WebView 调一次 ref。
+  // 页面还在用时不算掉线：下一次调用直接发，不能再等一个不会再来的 ready（真机上 PDF 预览一直转圈、30 秒后失败）。
+  it('同一个 WebView 先 null 再挂上，页面仍是就绪的', async () => {
+    const bridge = new PackBridge(files);
+    const posted: string[] = [];
+    const webview = { postMessage: (m: string) => posted.push(m) };
+    bridge.attach('pdfview', webview);
+    const first = bridge.call('pdfview', 'preview', {});
+    await Promise.resolve();
+    await bridge.onMessage('pdfview', JSON.stringify({ t: 'ready' }));
+    await Promise.resolve();
+    expect(posted).toHaveLength(1);
+
+    bridge.attach('pdfview', null);
+    bridge.attach('pdfview', webview);
+    const second = bridge.call('pdfview', 'preview', {});
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(posted).toHaveLength(2);
+
+    bridge.processGone('pdfview');
+    await expect(first).rejects.toThrow('page stopped');
+    await expect(second).rejects.toThrow('page stopped');
+  });
+
+  it('页面真的卸下（不再在用）之后，下次调用要重新等 ready', async () => {
+    const bridge = new PackBridge(files);
+    const posted: string[] = [];
+    const webview = { postMessage: (m: string) => posted.push(m) };
+    bridge.attach('pdfview', webview);
+    const first = bridge.call('pdfview', 'preview', {});
+    await Promise.resolve();
+    await bridge.onMessage('pdfview', JSON.stringify({ t: 'ready' }));
+    await Promise.resolve();
+    bridge.processGone('pdfview');
+    await expect(first).rejects.toThrow();
+    bridge.attach('pdfview', null);
+    bridge.attach('pdfview', webview);
+
+    const again = bridge.call('pdfview', 'preview', {});
+    await Promise.resolve();
+    expect(posted).toHaveLength(1);
+    await bridge.onMessage('pdfview', JSON.stringify({ t: 'ready' }));
+    await Promise.resolve();
+    expect(posted).toHaveLength(2);
+    bridge.processGone('pdfview');
+    await expect(again).rejects.toThrow();
+  });
+});
+
 describe('pdf.js 读文字在 iOS WebView 上', () => {
   // iOS 的 WebView 里 ReadableStream 不能 for await 遍历，pdf.js 的 getTextContent 报
   // 「undefined is not a function (near '...t of e...')」（2026-10-31 iPhone 真机）。

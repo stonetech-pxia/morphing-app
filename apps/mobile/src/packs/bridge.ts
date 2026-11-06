@@ -57,7 +57,9 @@ export class PackBridge implements PackRuntime {
     if (webview) this.webviews.set(page, webview);
     else {
       this.webviews.delete(page);
-      this.readyPages.delete(page);
+      // 重新渲染时 React 会先用 null、再用同一个 WebView 调一次：页面还在用就不算掉线，
+      // 否则之后的调用都在等一个不会再来的 ready。页面从使用中拿掉（close）之后才算真的卸下。
+      if (!this.active.includes(page)) this.readyPages.delete(page);
     }
   }
 

@@ -23,6 +23,7 @@ import { createAISettingsStore, type SecretStore } from '../ai/settings';
 import ChangeRoute from '../app/change';
 import DataRoute from '../app/data';
 import DeskRoute from '../app/desk/[deskId]';
+import FilePreviewRoute from '../app/file-preview';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
 import PresetsRoute from '../app/presets';
@@ -162,6 +163,7 @@ export async function renderToolsApp(
     'quick-actions/[kind]': QuickActionCategoryRoute,
     'workflow/[id]': WorkflowRoute,
     share: ShareRoute,
+    'file-preview': FilePreviewRoute,
     'desk/[deskId]': DeskRoute,
     storage: StorageRoute,
     files: FilesRoute,

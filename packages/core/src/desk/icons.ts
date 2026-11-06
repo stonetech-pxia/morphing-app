@@ -42,6 +42,13 @@ export const TOOL_ICON_NAMES = [
   'share',
   'save',
   'preview',
+  'textbox',
+  'sticky',
+  'brush',
+  'highlight',
+  'shapes',
+  'erase',
+  'mosaic',
 ] as const;
 export type ToolIconName = (typeof TOOL_ICON_NAMES)[number];
 export type DeskIcon = IconName | ToolIconName;
@@ -99,10 +106,26 @@ const BY_VERB: Readonly<Record<string, DeskIcon>> = {
   subtitles: 'captions',
 };
 
-/** 工具栏上一个动作的图标。 */
-export function deskToolIcon(action: ActionDefinition, registry: Registry): DeskIcon {
+/** 同一个动作的不同起手工具（标注 PDF 的插入文字、注释、画笔……）各用各的图标。 */
+const BY_PRESET: Readonly<Record<string, DeskIcon>> = {
+  'pdf.annotate:text': 'textbox',
+  'pdf.annotate:note': 'sticky',
+  'pdf.annotate:pen': 'brush',
+  'pdf.annotate:highlight': 'highlight',
+  'pdf.annotate:box': 'shapes',
+  'pdf.annotate:erase': 'erase',
+  'pdf.annotate:mosaic': 'mosaic',
+};
+
+/** 工具栏上一个动作的图标（带起手工具时先看起手工具）。 */
+export function deskToolIcon(
+  action: ActionDefinition,
+  registry: Registry,
+  preset?: string,
+): DeskIcon {
   const verb = action.id.slice(action.id.indexOf('.') + 1);
   return (
+    (preset ? BY_PRESET[`${action.id}:${preset}`] : undefined) ??
     BY_ID[action.id] ??
     BY_VERB[verb] ??
     registry.tools.get(registry.actionOwner.get(action.id) ?? '')?.icon ??

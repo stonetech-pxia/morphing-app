@@ -32,7 +32,14 @@ describe('French journeys', () => {
     const { files, store } = await start();
     files.nextMedia = [files.offerImage('private-photo.jpg', 2400, 1600)];
     await openPick('media');
-    expect(await screen.findByTestId('share-screen')).toHaveTextContent(/1\s*photo/);
+    expect(await screen.findByTestId('preview-edit')).toHaveTextContent('Modifier');
+    expect(screen.getByTestId('preview-word')).toHaveTextContent('En Word');
+    expect(screen.getByTestId('preview-record')).toHaveTextContent('Entrée');
+    expect(screen.getByTestId('preview-share')).toHaveTextContent('Partager');
+    expect(screen.getByTestId('preview-more')).toHaveTextContent('Plus');
+    await fireEvent.press(screen.getByTestId('preview-more'));
+    expect(await screen.findByTestId('preview-panel-more')).toHaveTextContent(/actions rapides/i);
+    expect(screen.getByTestId('preview-panel-more')).toHaveTextContent(/outils/i);
     expect(await screen.findByTestId('share-workflow-email-photos')).toHaveTextContent(
       /Photos pour l’e-mail/,
     );

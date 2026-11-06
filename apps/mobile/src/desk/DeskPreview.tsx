@@ -35,13 +35,16 @@ const PDF_KEEP = 2;
 
 export function DeskPreview({
   desk,
+  uri: shownUri,
   file,
   files,
   palette,
   locale,
   onSystemPreview,
 }: {
-  desk: Desk;
+  /** 桌上的文件；预览页（收到的一份文件，不在桌上）改给 `uri`。 */
+  desk?: Desk;
+  uri?: string;
   file: DeskFile;
   files: FilePlatform;
   palette: Palette;
@@ -56,12 +59,12 @@ export function DeskPreview({
     const { width, height } = e.nativeEvent.layout;
     setSize((s) => (s && s.width === width && s.height === height ? s : { width, height }));
   };
-  const uri = deskFileUri(files, desk, file.path);
+  const uri = shownUri ?? deskFileUri(files, desk!, file.path);
   const kind = deskKindOf(file);
   let body: React.ReactNode = null;
   {
     if (kind === 'image') {
-      body = <ZoomImage key={uri} uri={uri} width={size.width} height={size.height} />;
+      body = <ZoomImage key={uri} uri={uri} width={size.width} height={size.height} top />;
     } else if (kind === 'pdf') {
       body = (
         <PdfPages
@@ -254,7 +257,7 @@ function PdfPages({
           return (
             <View style={{ width, height }} testID={`desk-pdf-page-${item}`}>
               {page ? (
-                <ZoomImage uri={page} width={width} height={height} />
+                <ZoomImage uri={page} width={width} height={height} top />
               ) : (
                 <ActivityIndicator style={styles.flex} color={palette.primary} />
               )}

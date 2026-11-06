@@ -815,6 +815,24 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    // 预览页的「转 Word」（D-457）：扫描件 PDF 先变成图片再认字；不是电子版 PDF 保留版面的转换（D-186 不做）。
+    id: 'pdf-doc-word',
+    scenario: 'paperwork',
+    name: { en: 'PDF to Word', zh: 'PDF 转 Word', fr: 'PDF en Word' },
+    description: {
+      en: 'Choose a scanned PDF → read its pages → one Word document, a page per PDF page → check and edit it on the result page.',
+      zh: '选一个扫描件 PDF → 识别每一页 → 转成一个 Word 文件，每页一页 → 在结果页核对和修改。',
+      fr: 'Choisissez un PDF numérisé → lisez ses pages → un document Word, une page par page de PDF → vérifiez-le et modifiez-le sur la page de résultat.',
+    },
+    icon: 'document',
+    packs: ['pdfview'],
+    steps: () => [
+      { id: 'pick', action: 'in.files', params: { accept: 'pdf', min: 1, max: 1 } },
+      { id: 'pages', action: 'pdf.toImages', params: { maxSide: 2000 } },
+      toWord,
+    ],
+  },
+  {
     id: 'paper-to-audio',
     scenario: 'study',
     name: { en: 'Read paper pages aloud', zh: '拍纸张读成音频', fr: 'Lire des pages papier' },

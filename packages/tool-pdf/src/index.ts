@@ -42,6 +42,7 @@ export {
   type StampPosition,
   type StampTextOptions,
   addPageNumbers,
+  replacePageWithImage,
   stampImage,
   stampText,
 } from './stamp';
