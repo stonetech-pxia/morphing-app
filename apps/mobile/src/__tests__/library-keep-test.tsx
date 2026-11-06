@@ -67,9 +67,10 @@ describe('opened files go into the library with their text (D-455)', () => {
     const { files, repo } = await start();
     files.nextMedia = [files.offerImage('收据.jpg', 400, 300)];
     await openPick('media');
-    await screen.findByTestId('share-screen');
+    // 一份文件进预览页（D-457），存记录在底栏上。
+    await screen.findByTestId('preview-bar');
     expect(await repo.listAssets()).toHaveLength(1);
-    await fireEvent.press(await screen.findByTestId('share-record-choose'));
+    await fireEvent.press(await screen.findByTestId('preview-record'));
     await fireEvent.press(await screen.findByTestId('share-record-new'));
     await screen.findByTestId('new-table-save');
     // 没有再复制一份。
