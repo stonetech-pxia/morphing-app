@@ -37,11 +37,14 @@ describe('rankPresets', () => {
   });
 });
 
-describe('rankPresets 的 folded（有金额时账单、贷款、报销、税务并进购物凭证，D-476）', () => {
-  it('有金额：这四种不给模型选，列表里还在', () => {
+describe('rankPresets 的 folded（带合计的金额类别并进购物凭证，D-480）', () => {
+  it('有合计和金额：银行、账单、贷款、工资单、报销、税务都不给模型选，列表里还在', () => {
     const r = rankPresets(doc('Total 48.60 €'));
-    expect(r.folded).toEqual(['bill', 'loan', 'reimbursement', 'tax']);
+    expect(r.folded).toEqual(['bank', 'bill', 'loan', 'payslip', 'reimbursement', 'tax']);
     expect(r.likely).toEqual(expect.arrayContaining(['bill', 'purchase', 'bank', 'payslip']));
+  });
+  it('有金额但没有合计字样：不并', () => {
+    expect(rankPresets(doc('Premium 45.00 €')).folded).toEqual([]);
   });
   it('没有金额时没有 folded', () => {
     expect(rankPresets(doc('Dose 1: 3 March 2025')).folded).toEqual([]);
@@ -179,25 +182,22 @@ describe('rulePreset（没有本机模型时，很明显的小票也要推荐购
       'purchase',
     );
   });
-  it('银行（IBAN）和工资单不归购物凭证', () => {
+  it('带合计的银行单和工资单也用购物凭证（D-480）', () => {
     expect(
       rulePreset(doc('Invoice 2025-03', 'Amount due 120.00 €', 'IBAN FR7612345678901234567890123')),
-    ).toBeNull();
+    ).toBe('purchase');
     expect(
       rulePreset(doc('Payslip March', 'Gross 3000.00', 'Net pay 2300.00', 'Total 2300.00')),
-    ).toBeNull();
+    ).toBe('purchase');
+    expect(rulePreset(doc('工资条', '应发合计 8 000.00', '实发合计 6 512.30'))).toBe('purchase');
   });
-  it('没有金额、没有文字、合同都不推荐', () => {
+  it('没有金额、没有文字、合同和保单都不推荐', () => {
     expect(
       rulePreset(
-        doc(
-          'Invoice 2025-03',
-          'Due date 1 April',
-          'Amount due 120.00 €',
-          'IBAN FR7612345678901234567890123',
-        ),
+        doc('SERVICE AGREEMENT', 'between Acme Ltd and Beta SARL', 'Total fee 5 000.00 €'),
       ),
     ).toBeNull();
+    expect(rulePreset(doc('Policy number 88-221', 'Total premium 45.00 €'))).toBeNull();
     expect(rulePreset(doc('Vaccination record', 'Dose 1: 3 March 2025'))).toBeNull();
     expect(rulePreset([])).toBeNull();
   });
