@@ -689,6 +689,8 @@ export const zh: MessageTable = {
   send: '发送',
   changeAsk: '想怎么改？说一句就行',
   pickStyleChip: '换个风格',
+  wantReceiptsChip: '我想要记录收据',
+  wantCardsChip: '我想要存名片',
   draftRenderFailed: '刚才那一步显示不出来，已经撤掉。',
 
   // 功能和外观分开改（D-191）

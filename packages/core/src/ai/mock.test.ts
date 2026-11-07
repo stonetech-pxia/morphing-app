@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from '../change';
+import { t } from '../messages';
+import { sampleOps } from '../samples';
 import { THEME_PRESETS, THEME_PRESET_IDS, presetRequest, type ThemePresetId } from '../presets';
 import {
   allComponents,
@@ -206,6 +208,24 @@ describe('mock AI — style', () => {
       expect(p).toEqual({ kind: 'ops', ops: [{ op: 'setTheme', preset: id }] });
     },
   );
+
+  // AI 页的两个预设标签：句子不经模型，直接套整套样板（收据、名片）。
+  it.each(
+    (['zh', 'en', 'fr'] as const).flatMap((l) =>
+      (
+        [
+          ['wantReceiptsChip', 'receipts'],
+          ['wantCardsChip', 'business-cards'],
+        ] as const
+      ).map(([key, sample]) => [key, sample, l] as const),
+    ),
+  )('B12d the %s sentence (%s, %s) adds the whole sample', async (key, sample, locale) => {
+    const config = workspace(locale);
+    const p = await plan(t(locale, key), config, locale);
+    const expected = sampleOps(sample, config, locale);
+    expect(expected.ok).toBe(true);
+    expect(p).toEqual({ kind: 'ops', ops: expected.ok ? expected.ops : [] });
+  });
 
   it('B9d page backdrop', async () => {
     expect((await change('背景改成极光', workspace())).after.theme.backdrop).toBe('aurora');

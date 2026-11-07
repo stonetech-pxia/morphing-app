@@ -52,6 +52,8 @@ import {
   type DataTemplate,
 } from '../templates';
 import { homeFileEntryOps } from '../starter';
+import { sampleOps } from '../samples';
+import { t } from '../messages';
 import { homeScreenFull } from '../home-screen';
 import { checkTools } from '../tool-check';
 import { splitOps } from './kinds';
@@ -1937,6 +1939,12 @@ function fixPlan(ctx: PlanContext): Plan {
   };
 }
 
+/** AI 页的两个预设句子（标签文字）→ 对应的整套样板。 */
+const WANT_SAMPLES = [
+  ['wantReceiptsChip', 'receipts'],
+  ['wantCardsChip', 'business-cards'],
+] as const;
+
 export function createMockAIProvider(): AIProvider {
   const failedOnce = new Set<string>();
   const provider: AIProvider = {
@@ -1955,6 +1963,13 @@ export function createMockAIProvider(): AIProvider {
         }
       }
       const uiLocale = ctx.locale;
+      // 「我想要记录收据 / 我想要存名片」两个标签填进输入框的句子：直接套整套样板，不看别的规则、不问模型。
+      const wanted = WANT_SAMPLES.find(([key]) => input.trim() === t(uiLocale, key));
+      if (wanted) {
+        const result = sampleOps(wanted[1], ctx.config, uiLocale);
+        if (result.ok) return { kind: 'ops', ops: result.ops };
+        return { kind: 'reject', reason: 'unknown', message: result.message, examples: [] };
+      }
       // 内置规则只识别中英文句式；法语界面使用英文示例和回复（P-037）。
       if (ctx.locale === 'fr') ctx = { ...ctx, locale: 'en' };
       if (input.startsWith(FIX_REQUEST_PREFIX)) return fixPlan(ctx);

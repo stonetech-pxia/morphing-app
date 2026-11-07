@@ -661,6 +661,27 @@ export function ChangeScreen() {
                 onPress={() => setInput(text)}
               />
             ))}
+            {/* 两个预设句子（不通过模型）：点了填进输入框，发送时用内置规则套整套样板。 */}
+            {about && !place
+              ? null
+              : (
+                  [
+                    ['change-want-receipts', 'wantReceiptsChip'],
+                    ['change-want-cards', 'wantCardsChip'],
+                  ] as const
+                ).map(([testID, key]) => (
+                  <Chip
+                    key={key}
+                    testID={testID}
+                    label={t(locale, key)}
+                    palette={palette}
+                    onPress={() => {
+                      const text = t(locale, key);
+                      setInput(text);
+                      setPresetText(text);
+                    }}
+                  />
+                ))}
             {about && !place ? null : (
               <Chip
                 testID="change-pick-style"

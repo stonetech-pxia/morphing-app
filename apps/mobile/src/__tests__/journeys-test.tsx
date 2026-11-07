@@ -7,7 +7,7 @@ import {
   quickActionsOf,
   THEME_PRESETS,
 } from '@morph/core';
-import { act, fireEvent, within } from '@testing-library/react-native';
+import { act, fireEvent, waitFor, within } from '@testing-library/react-native';
 import { Stack } from 'expo-router';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
@@ -361,6 +361,27 @@ describe('user journeys (UI)', () => {
       examples: [],
     })),
   });
+
+  it.each([
+    ['change-want-receipts', '我想要记录收据', 'receipts'],
+    ['change-want-cards', '我想要存名片', 'contacts'],
+  ])(
+    '%s: fills the sentence, send adds the whole sample without the model',
+    async (id, text, tableId) => {
+      const ai = configuredAI();
+      const { store } = await renderApp(undefined, undefined, ai);
+      await fireEvent.press(screen.getByTestId('nav-ai'));
+      await fireEvent.press(await screen.findByTestId(id));
+      expect(screen.getByTestId('change-input').props.value).toBe(text);
+      expect(store.getState().config!.data.tables.some((c) => c.id === tableId)).toBe(false);
+
+      await fireEvent.press(screen.getByTestId('change-submit'));
+      await waitFor(() =>
+        expect(store.getState().config!.data.tables.some((c) => c.id === tableId)).toBe(true),
+      );
+      expect(ai.plan).not.toHaveBeenCalled();
+    },
+  );
 
   it('pick a style: the built-in rules draft it, apply, marked, undo restores', async () => {
     const ai = configuredAI();

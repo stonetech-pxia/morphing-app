@@ -732,6 +732,8 @@ export const en = {
   send: 'Send',
   changeAsk: 'What should change? One sentence is enough',
   pickStyleChip: 'Pick a style',
+  wantReceiptsChip: 'I want to keep my receipts',
+  wantCardsChip: 'I want to save business cards',
   draftRenderFailed: 'The last change couldn’t be shown, so it was undone.',
 
   // 功能和外观分开改（D-191）

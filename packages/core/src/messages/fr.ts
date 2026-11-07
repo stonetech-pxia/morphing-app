@@ -772,6 +772,8 @@ export const fr: MessageTable = {
   send: 'Envoyer',
   changeAsk: 'Que faut-il changer ? Une phrase suffit',
   pickStyleChip: 'Choisir un style',
+  wantReceiptsChip: 'Je veux garder mes reçus',
+  wantCardsChip: 'Je veux enregistrer des cartes de visite',
   draftRenderFailed: 'La dernière modification n’a pas pu s’afficher, elle a donc été annulée.',
 
   // 功能和外观分开改（D-191）
