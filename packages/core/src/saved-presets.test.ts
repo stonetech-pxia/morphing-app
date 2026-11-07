@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from './change';
+import { appConfigFile } from './config-file';
 import { describePresetApply } from './describe';
 import { createDefaultWorkspace } from './defaults';
 import { V4_FIXED_NAME } from './fixtures/v4';
@@ -9,6 +10,8 @@ import {
   MAX_PRESET_NAME,
   MAX_SAVED_PRESETS,
   canSavePreset,
+  importedPreset,
+  importedPresetName,
   preparePreset,
   presetName,
   presetSnapshot,
@@ -155,5 +158,90 @@ describe('saved presets (D-410)', () => {
     const plain = createDefaultWorkspace('zh');
     const quiet = describePresetApply(plain, presetSnapshot(plain), '极简', ctx);
     expect(quiet.join('\n')).not.toContain('重新选');
+  });
+});
+
+// 「我的预设 → 从文件导入」：门户下载的预设文件存成一个新预设，应用时才生效。
+describe('imported presets', () => {
+  const file = (config: unknown = withFiles()) =>
+    appConfigFile(config as WorkspaceConfig, new Date());
+  const fallback = '导入的文件';
+
+  it('names the preset after the file: no extension, at most 40 characters', () => {
+    expect(importedPresetName('收据.json', [], fallback)).toBe('收据');
+    expect(importedPresetName('personal-finance.v2.JSON', [], fallback)).toBe(
+      'personal-finance.v2',
+    );
+    expect(importedPresetName('  a   b .json', [], fallback)).toBe('a b');
+    expect(importedPresetName('.json', [], fallback)).toBe(fallback);
+    expect(importedPresetName('', [], fallback)).toBe(fallback);
+    const long = importedPresetName(`${'😀'.repeat(60)}.json`, [], fallback);
+    expect(Array.from(long)).toHaveLength(MAX_PRESET_NAME);
+  });
+
+  it('a name that is taken gets a number, still within 40 characters', () => {
+    expect(importedPresetName('收据.json', ['收据'], fallback)).toBe('收据 2');
+    expect(importedPresetName('收据.json', ['收据', '收据 2', '收据 3'], fallback)).toBe('收据 4');
+    expect(importedPresetName('收据.json', ['收据 2'], fallback)).toBe('收据');
+    const base = 'x'.repeat(MAX_PRESET_NAME);
+    const next = importedPresetName(`${base}.json`, [base], fallback);
+    expect(Array.from(next)).toHaveLength(MAX_PRESET_NAME);
+    expect(next.endsWith(' 2')).toBe(true);
+    expect(next).not.toBe(base);
+    // 比较不分大小写：列表里看起来是同一个名字。
+    expect(importedPresetName('Receipts.json', ['receipts'], fallback)).toBe('Receipts 2');
+  });
+
+  it('turns an exported file into a preset with no reference to a user file (底线 3)', () => {
+    const result = importedPreset(file(), '我的收据.json', ['别的'], fallback, registry);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.name).toBe('我的收据');
+    for (const id of [FILE_A, FILE_B, FILE_C, FILE_D])
+      expect(JSON.stringify(result.config)).not.toContain(id);
+    expect(result.config.data.tables.map((t) => t.id)).toContain('notes');
+    expect(validateWorkspace(result.config, registry).ok).toBe(true);
+  });
+
+  it('upgrades an old file to the current version before it is stored (底线 12)', () => {
+    const result = importedPreset(file(V4_FIXED_NAME), 'old.json', [], fallback, registry);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.config.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+  });
+
+  it('refuses a file that is not an app configuration, naming the problem', () => {
+    expect(importedPreset('nope', 'a.json', [], fallback, registry)).toEqual({
+      ok: false,
+      problem: 'notJson',
+    });
+    expect(importedPreset('{"hello":1}', 'a.json', [], fallback, registry)).toEqual({
+      ok: false,
+      problem: 'wrongFormat',
+    });
+  });
+
+  it('refuses a configuration that points at things that are not there, with the reasons (底线 18)', () => {
+    const broken = JSON.parse(JSON.stringify(createDefaultWorkspace('zh'))) as WorkspaceConfig;
+    broken.containers.pages[0]!.blocks = [
+      {
+        id: 'go',
+        look: 'entry',
+        show: { title: 'x', icon: 'star' },
+        opens: 'no-such-page' as never,
+      },
+    ];
+    const result = importedPreset(file(broken), 'broken.json', [], fallback, registry);
+    expect(result.ok).toBe(false);
+    if (result.ok || result.problem !== 'invalid') throw new Error('expected invalid');
+    expect(result.issues.length).toBeGreaterThan(0);
+    expect(result.issues.every((issue) => issue.length > 0)).toBe(true);
+  });
+
+  it('a configuration with a newer schema than this app is refused as newerApp', () => {
+    const future = { ...createDefaultWorkspace('zh'), schemaVersion: CURRENT_SCHEMA_VERSION + 1 };
+    expect(importedPreset(file(future), 'f.json', [], fallback, registry)).toEqual({
+      ok: false,
+      problem: 'newerApp',
+    });
   });
 });

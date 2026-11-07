@@ -460,6 +460,10 @@ export const fr: MessageTable = {
   presetsNamePlaceholder: 'Nom du préréglage',
   presetsFull:
     'Vous pouvez garder {max} préréglages au maximum. Supprimez-en un pour en ajouter un autre.',
+  presetsImport: 'Importer depuis un fichier',
+  presetsImportHint:
+    'Vous avez un fichier, par exemple téléchargé sur le site de Tinkrum ? Un fichier d’app est ajouté comme nouvelle app, à côté des vôtres. Un fichier de préréglage complet rejoint seulement cette liste ; votre app ne change que lorsque vous l’appliquez.',
+  presetImported: 'Préréglage « {name} » ajouté. Touchez Appliquer pour l’utiliser.',
   presetApply: 'Appliquer',
   presetRename: 'Renommer',
   presetDeleted: 'Préréglage « {name} » supprimé',
@@ -525,17 +529,22 @@ export const fr: MessageTable = {
   appConfigHint:
     'Pages, structure des tableaux, actions rapides et rappels, dans un seul fichier. Vos entrées et vos fichiers n’y sont pas.',
   exportAppConfig: 'Exporter la configuration de l’app',
-  importAppConfig: 'Importer la configuration de l’app',
   importAppConfigInvalid:
     'Ce fichier n’est pas une configuration d’app Tinkrum, rien n’a été importé.',
   importAppConfigName: 'fichier importé',
-  importAppConfigConfirm:
-    'Passer à l’app de ce fichier ? Vos entrées restent, et vous pouvez annuler dans l’historique des modifications.',
   importAppConfirm:
     'Ajouter « {name} » comme nouvelle app ? Rien de ce que vous avez n’est remplacé. Vous pourrez annuler dans l’historique des modifications.',
   importAppSummary: 'Ajouter l’app « {name} »',
   importAppClash:
     'Cette app est déjà ajoutée, ou ses noms entrent en conflit avec ce que vous avez : {reason}',
+  importAppConfigNotJson:
+    'Ce fichier n’est pas un JSON valide, ce n’est donc pas une configuration d’app. Rien n’a été importé.',
+  importAppConfigTooLarge:
+    'Ce fichier est trop volumineux pour être une configuration d’app (limite : {max} Mo). Rien n’a été importé.',
+  importAppConfigNewer:
+    'Ce fichier a été créé par une version plus récente de Tinkrum. Mettez l’app à jour puis réessayez. Rien n’a été importé.',
+  importAppConfigBroken:
+    'L’app de ce fichier ne peut pas être utilisée ici, rien n’a été importé :',
   localModelTitle: 'Modèle sur l’appareil',
   localModelHint:
     'Une fois téléchargé, les nouvelles entrées avec une pièce jointe reçoivent aussi des valeurs d’un petit modèle qui tourne sur ce téléphone, surtout utile pour les noms et les montants. Sans lui, les suggestions fonctionnent avec les règles seules. Rien ne quitte ce téléphone.',

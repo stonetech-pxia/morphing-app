@@ -437,6 +437,10 @@ export const en = {
   presetsNew: 'Save the current app as a preset',
   presetsNamePlaceholder: 'Name this preset',
   presetsFull: 'You can keep up to {max} presets. Delete one to save another.',
+  presetsImport: 'Import from a file',
+  presetsImportHint:
+    'Have a file, for example one downloaded from the Tinkrum website? An app file is added as a new app next to yours. A whole-app preset file only joins this list; your app changes when you apply it.',
+  presetImported: 'Added the preset “{name}”. Tap Apply when you want to use it.',
   presetApply: 'Apply',
   presetRename: 'Rename',
   presetDeleted: 'Preset “{name}” deleted',
@@ -496,15 +500,19 @@ export const en = {
   appConfigHint:
     'Pages, table structures, quick actions and reminders, saved as one file. Your entries and files are not included.',
   exportAppConfig: 'Export app design',
-  importAppConfig: 'Import app configuration',
   importAppConfigInvalid: 'This file isn’t a Tinkrum app configuration, so nothing was imported.',
   importAppConfigName: 'imported file',
-  importAppConfigConfirm:
-    'Switch to the app in this file? Your entries stay, and you can undo it in the change history.',
   importAppConfirm:
     'Add “{name}” as a new app? Nothing you have is replaced. You can undo it in the change log.',
   importAppSummary: 'Add app “{name}”',
   importAppClash: 'This app is already added, or its names clash with something you have: {reason}',
+  importAppConfigNotJson:
+    'This file isn’t valid JSON, so it can’t be an app configuration. Nothing was imported.',
+  importAppConfigTooLarge:
+    'This file is too large to be an app configuration (the limit is {max} MB). Nothing was imported.',
+  importAppConfigNewer:
+    'This file was made by a newer version of Tinkrum. Update the app and try again. Nothing was imported.',
+  importAppConfigBroken: 'The app in this file can’t be used here, so nothing was imported:',
   localModelTitle: 'On-device model',
   localModelHint:
     'After you download it, new entries with an attachment also get values from a small model that runs on this phone. It helps most with names and amounts. Without it, suggestions still work with rules only. Nothing leaves this phone.',
