@@ -4,14 +4,13 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { prepareOps } from '../packages/core/src/change';
+import { prepareOps, prepareSnapshot } from '../packages/core/src/change';
 import {
   appFileFromWorkspace,
   appFileOps,
   appFileText,
   readAppFile,
 } from '../packages/core/src/app-file';
-import { prepareSnapshot } from '../packages/core/src/change';
 import { readAppConfigFile } from '../packages/core/src/config-file';
 import { createRegistry } from '../packages/core/src/registry';
 import { createStarterWorkspace } from '../packages/core/src/starter';

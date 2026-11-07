@@ -94,7 +94,16 @@ export function NewTableScreen() {
     [fileField(draftTable('blank', config, locale))]: attachedIds,
   }));
   const [pages, setPages] = useState<TextPage[]>([]);
-  const [recommended, setRecommended] = useState<NewTablePreset | null>(null);
+  // 推荐的类型：规则的是读出的文字（pages）算出来的，本机模型的答案另存、带着它回答的那批文字；
+  // 用户自己选过类型、或者换了文件（pages 变了），旧答案和旧推荐都不再用。
+  const ruled = useMemo(() => (pages.length === 0 ? null : rulePreset(pages)), [pages]);
+  const [modelPick, setModelPick] = useState<{
+    pages: TextPage[];
+    preset: NewTablePreset | null;
+  } | null>(null);
+  const [chosenFor, setChosenFor] = useState<TextPage[] | null>(null);
+  const recommended: NewTablePreset | null =
+    chosenFor === pages ? null : ((modelPick?.pages === pages ? modelPick.preset : null) ?? ruled);
   const [working, setWorking] = useState(false);
   // 手机能用本机模型却还没下载：问一次要不要下载（点了才下，D-064），下完重新判断。
   const [modelMissing, setModelMissing] = useState(false);
@@ -134,8 +143,6 @@ export function NewTableScreen() {
   const store = packs?.store;
   useEffect(() => {
     if (pages.length === 0) return;
-    const ruled = rulePreset(pages);
-    setRecommended(ruled);
     if (!store) return;
     const abort = new AbortController();
     void (async () => {
@@ -149,7 +156,7 @@ export function NewTableScreen() {
       setWorking(true);
       const got = await recommendPreset(openLocalModel(store), pages, abort.signal);
       if (abort.signal.aborted) return;
-      setRecommended(got ?? ruled);
+      setModelPick({ pages, preset: got });
       setWorking(false);
     })();
     return () => abort.abort();
@@ -198,7 +205,7 @@ export function NewTableScreen() {
     setDraft(table);
     setPreset(next);
     setChoosing(false);
-    setRecommended(null);
+    setChosenFor(pages);
   }
 
   function addField(name: string) {
