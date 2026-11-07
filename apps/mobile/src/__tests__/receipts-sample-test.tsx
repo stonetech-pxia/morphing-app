@@ -69,6 +69,21 @@ const day = (offset: number) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 
+describe('in the app shell', () => {
+  it('the pinned buttons sit right above the navigation bar, not a bar-height higher', async () => {
+    // 导航栏在页面下面（不是盖在页面上），下方固定区不能再给它留一份高度（手机上两者之间一大片空白）。
+    const repo = new MemoryWorkspaceRepo();
+    await repo.setMeta('guide', 'done');
+    await act(() => useGuide.getState().load(repo));
+    await renderToolsApp(repo, undefined, { locale: 'zh', seed });
+    await settle();
+    await fireEvent.press(await screen.findByTestId('nav-page:receipts'));
+    await settle();
+    const zone = StyleSheet.flatten((await screen.findByTestId('page-bottom-zone')).props.style);
+    expect(zone.paddingBottom).toBe(10);
+  });
+});
+
 describe('new user', () => {
   it.each([
     ['zh', '还没有收据。扫一张就有了。', '扫描', '开销', '手动添加'],

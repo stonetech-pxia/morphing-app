@@ -137,14 +137,16 @@ export function Shell() {
   const lookGuide = bubbleGuide && guideStage === 'look';
   if (pageId !== null) {
     const page = config.containers.pages.find((p) => p.id === pageId)!;
-    // 页面下方的固定区让开导航栏，有浮动按钮时也让开浮动按钮（bottomInset 里那 64 是给滚动内容留的）。
+    // 导航栏在页面下面（不是盖在页面上），页面不用再给它留一份高度；编辑模式没有导航栏，才要让开系统的
+    // 底部区域。有浮动按钮时让开浮动按钮（bottomInset 里那 64 是给滚动内容留的）。
     const floatingShown = config.nav.floating.length > 0 && !editing && !inDraft;
+    const below = editing ? insets.bottom : 0;
     content = (
       <EditablePage
         page={page}
         env={env}
-        bottomInset={barSpace + (editing ? 0 : 64)}
-        zoneInset={barSpace + (floatingShown ? 64 : 0)}
+        bottomInset={below + (editing ? 0 : 64)}
+        zoneInset={below + (floatingShown ? 64 : 0)}
       />
     );
   } else if (active === 'tools') {
