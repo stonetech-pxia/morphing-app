@@ -1075,6 +1075,7 @@ export const en = {
   describe_file_list_a11dd: 'file list “{v0}”',
   homeRecentActions: 'Recent actions',
   homeRecentFiles: 'Recent files',
+  homeTagline: 'Paper in. Clean PDF, Word or Excel out.',
   describe_recent_quick_actions: 'Recently used quick actions',
   describe_quick_action_list: 'quick action list',
   describe_quick_action_list_kind: '“{v0}” quick action list',

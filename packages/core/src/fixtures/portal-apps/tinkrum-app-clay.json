@@ -1,0 +1,303 @@
+{
+  "format": "tinkrum-app",
+  "version": 1,
+  "exportedAt": "2026-11-07T11:00:00.000Z",
+  "schemaVersion": 39,
+  "app": {
+    "id": "clay",
+    "name": "Clay",
+    "icon": "paper",
+    "bar": [
+      "page:clay-home",
+      "page:clay-files",
+      "page:clay-toolbox",
+      "ai"
+    ],
+    "theme": {
+      "primaryColor": "#C8623A",
+      "mode": "light",
+      "colors": {},
+      "font": "clay",
+      "fontScale": 1,
+      "radius": 26,
+      "density": "comfortable",
+      "cardStyle": "puffy",
+      "backdrop": "gradient",
+      "navStyle": "iconLabel",
+      "iconStyle": "tint"
+    }
+  },
+  "pages": [
+    {
+      "id": "clay-home",
+      "title": "Home",
+      "icon": "home",
+      "blocks": [
+        {
+          "id": "hello",
+          "look": "header",
+          "show": {
+            "title": "Tinkrum",
+            "subtitle": "Paper in. Clean PDF, Word or Excel out."
+          }
+        },
+        {
+          "id": "file-entries",
+          "look": "group",
+          "show": {
+            "layout": "grid",
+            "columns": 2
+          },
+          "children": [
+            {
+              "id": "scan",
+              "look": "action",
+              "show": {
+                "shape": "tile"
+              },
+              "tools": [
+                {
+                  "tool": "scan-camera"
+                }
+              ]
+            },
+            {
+              "id": "scan-word",
+              "look": "action",
+              "show": {
+                "shape": "tile"
+              },
+              "tools": [
+                {
+                  "tool": "scan-doc-word"
+                }
+              ]
+            },
+            {
+              "id": "scan-excel",
+              "look": "action",
+              "show": {
+                "shape": "tile"
+              },
+              "tools": [
+                {
+                  "tool": "scan-table-excel"
+                }
+              ]
+            },
+            {
+              "id": "combine",
+              "look": "action",
+              "show": {
+                "shape": "tile"
+              },
+              "tools": [
+                {
+                  "tool": "combine-documents"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "open-files",
+          "look": "picker",
+          "tools": [
+            {
+              "tool": "$pick.open"
+            }
+          ]
+        },
+        {
+          "id": "recent-actions",
+          "look": "library",
+          "show": {
+            "title": "Recent actions"
+          },
+          "source": {
+            "catalog": "quickActions",
+            "recent": true
+          }
+        },
+        {
+          "id": "recent-files",
+          "look": "files",
+          "show": {
+            "title": "Recent files"
+          },
+          "source": {
+            "table": "$files",
+            "limit": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "clay-toolbox",
+      "title": "Toolbox",
+      "icon": "apps",
+      "blocks": [
+        {
+          "id": "toolbox-header",
+          "look": "header",
+          "show": {
+            "title": "Toolbox"
+          }
+        },
+        {
+          "id": "tools-media",
+          "look": "packages",
+          "show": {
+            "title": "Photos, video and audio"
+          },
+          "source": {
+            "catalog": "packages",
+            "ids": [
+              "image",
+              "video",
+              "audio"
+            ]
+          }
+        },
+        {
+          "id": "tools-files",
+          "look": "packages",
+          "show": {
+            "title": "Files and documents"
+          },
+          "source": {
+            "catalog": "packages",
+            "ids": [
+              "pdf",
+              "scan",
+              "zip"
+            ]
+          }
+        },
+        {
+          "id": "tools-text",
+          "look": "packages",
+          "show": {
+            "title": "Text"
+          },
+          "source": {
+            "catalog": "packages",
+            "ids": [
+              "ocr",
+              "translate",
+              "text"
+            ]
+          }
+        },
+        {
+          "id": "tools-more",
+          "look": "packages",
+          "show": {
+            "title": "More tools"
+          },
+          "source": {
+            "catalog": "packages"
+          }
+        },
+        {
+          "id": "toolbox-manage",
+          "look": "button",
+          "show": {
+            "label": "Manage tools",
+            "variant": "text"
+          },
+          "opens": "tools"
+        }
+      ]
+    },
+    {
+      "id": "clay-files",
+      "title": "Files",
+      "icon": "document",
+      "blocks": [
+        {
+          "id": "files-hello",
+          "look": "header",
+          "show": {
+            "title": "Files",
+            "subtitle": "Everything you scan, convert or open, by type."
+          }
+        },
+        {
+          "id": "shelf-pdf",
+          "look": "files",
+          "show": {
+            "title": "PDFs"
+          },
+          "source": {
+            "table": "$files",
+            "filter": [
+              {
+                "field": "kind",
+                "op": "is",
+                "value": "pdf"
+              }
+            ],
+            "limit": 5
+          }
+        },
+        {
+          "id": "shelf-doc",
+          "look": "files",
+          "show": {
+            "title": "Word"
+          },
+          "source": {
+            "table": "$files",
+            "filter": [
+              {
+                "field": "kind",
+                "op": "is",
+                "value": "doc"
+              }
+            ],
+            "limit": 5
+          }
+        },
+        {
+          "id": "shelf-sheet",
+          "look": "files",
+          "show": {
+            "title": "Excel"
+          },
+          "source": {
+            "table": "$files",
+            "filter": [
+              {
+                "field": "kind",
+                "op": "is",
+                "value": "sheet"
+              }
+            ],
+            "limit": 5
+          }
+        },
+        {
+          "id": "shelf-image",
+          "look": "files",
+          "show": {
+            "title": "Pictures"
+          },
+          "source": {
+            "table": "$files",
+            "filter": [
+              {
+                "field": "kind",
+                "op": "is",
+                "value": "image"
+              }
+            ],
+            "limit": 5
+          }
+        }
+      ]
+    }
+  ],
+  "tables": [],
+  "tools": []
+}

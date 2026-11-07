@@ -1139,6 +1139,7 @@ export const fr: MessageTable = {
   describe_file_list_a11dd: 'liste de fichiers « {v0} »',
   homeRecentActions: 'Actions récentes',
   homeRecentFiles: 'Fichiers récents',
+  homeTagline: 'Du papier en entrée, un PDF, Word ou Excel propre en sortie.',
   describe_recent_quick_actions: 'Actions rapides récentes',
   describe_quick_action_list: 'liste d’actions rapides',
   describe_quick_action_list_kind: 'liste d’actions rapides « {v0} »',

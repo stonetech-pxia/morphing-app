@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from '../change';
 import type { Op } from '../ops';
-import { fromV33, registry, v33Fixture, withScanKeep } from '../test-helpers';
+import { fromV33, registry, v33Fixture, withScanKeep, withStarterTheme } from '../test-helpers';
 import { EVAL_CASES, buildSetup, runEvalCase, type EvalSetup } from './eval-cases';
 import { createMockAIProvider } from './mock';
 import type { AIProvider, Plan, WorkKind } from './types';
@@ -29,7 +29,9 @@ describe('eval setups are the same as the v33 ones', () => {
   it.each(setups)('%s', (setup) => {
     const name = setup === 'default' || setup === 'starter' ? `${setup}-zh` : `setup-${setup}-zh`;
     expect(buildSetup(setup, 'zh', registry)).toStrictEqual(
-      setup === 'starter' ? withScanKeep(fromV33(v33Fixture(name))) : fromV33(v33Fixture(name)),
+      setup === 'starter'
+        ? withStarterTheme(withScanKeep(fromV33(v33Fixture(name))))
+        : fromV33(v33Fixture(name)),
     );
   });
 });

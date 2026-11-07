@@ -16,8 +16,8 @@ const start = () =>
 describe('French journeys', () => {
   it('opens the category library and prefills a French request from the starter home', async () => {
     await start();
-    // D-449：首页的两个入口只有图标，读屏标签是法语。
-    expect(await screen.findByLabelText('Ouvrir les fichiers')).toBeTruthy();
+    // D-487：首页有一个主色的「打开文件」按钮（法语）和内设的「扫描成 PDF」方块。
+    expect(await screen.findByText('Ouvrir les fichiers')).toBeTruthy();
     expect(screen.getByTestId('run-scan-camera')).toBeTruthy();
     await act(() => router.push('/quick-actions'));
     await fireEvent.press(await screen.findByTestId('category-audio'));

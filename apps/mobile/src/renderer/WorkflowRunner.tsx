@@ -129,12 +129,19 @@ export function WorkflowRunner({
         onLongPress={env.onLongPress}
         style={styles.tile}>
         <IconTile palette={palette} icon={icon} size={40} {...iconColors(palette, 'tint')} />
-        <Text numberOfLines={2} style={[palette.font('title', 15), { color: palette.text }]}>
+        {/* 名字放不下两行时缩一点字号，不截断（法语的名字长，D-487）。 */}
+        <Text
+          numberOfLines={2}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
+          style={[palette.font('title', 15), { color: palette.text }]}>
           {workflow.name}
         </Text>
-        {detail ? (
+        {/* D-487：多步的快捷操作（扫成 PDF、合并文件……）方块上只有图标和名字：步骤链几个方块都差不多又长，不放；
+            单功能的（压缩照片……）名字说不全，照旧放固定的设置。 */}
+        {workflow.steps.length <= 2 && settings ? (
           <Text numberOfLines={2} style={[palette.font('body', 12), { color: palette.caption }]}>
-            {detail}
+            {settings}
           </Text>
         ) : null}
       </Card>
@@ -172,6 +179,7 @@ export function WorkflowRunner({
 const styles = StyleSheet.create({
   steps: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 6, rowGap: 2 },
   run: { marginTop: 6 },
+  // 图标加最多两行的名字，内容约 124pt：同一行的方块一样高（D-487）。
   tile: { flex: 1, minHeight: 132 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   rowText: { flex: 1, gap: 2 },

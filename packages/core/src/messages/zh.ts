@@ -1013,6 +1013,7 @@ export const zh: MessageTable = {
   describe_file_list_a11dd: '文件列表「{v0}」',
   homeRecentActions: '最近操作',
   homeRecentFiles: '最近文件',
+  homeTagline: '纸质文件进，干净的 PDF、Word、Excel 出。',
   describe_recent_quick_actions: '最近用过的快捷操作',
   describe_quick_action_list: '快捷操作列表',
   describe_quick_action_list_kind: '「{v0}」快捷操作列表',
