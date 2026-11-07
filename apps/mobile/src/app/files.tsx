@@ -18,7 +18,7 @@ import { FileRow, openAsset } from '@/renderer/FileList';
 import { Icon, UiIcon } from '@/renderer/Icon';
 import { usePalette } from '@/renderer/theme';
 import { Pill } from '@/renderer/ui';
-import { newAssetId } from '@/runtime/runner';
+import { newAssetId } from '@/runtime/ids';
 import { loadAssetUsage } from '@/storage/asset-uses';
 import type { AssetRecord } from '@/storage/types';
 import { deleteUserFiles, mergeUserPdfs, renameUserFile } from '@/storage/user-files';

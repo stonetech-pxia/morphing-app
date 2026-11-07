@@ -1,7 +1,7 @@
 import { checkSizes, sanitizeFileName, uniqueFileName } from '@morph/core';
 import { mergePdfs } from '@morph/tool-pdf';
 
-import { guard } from '../runtime/actions/pdf';
+import { guard } from '../runtime/pdf-errors';
 import type { FilePlatform } from '../runtime/platform';
 import { indexAssetText } from './asset-text';
 import type { AssetRecord, WorkspaceRepo } from './types';

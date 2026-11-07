@@ -1,7 +1,7 @@
 import { FILE_LIMITS, sanitizeFileName, uniqueFileName } from '@morph/core';
 
 import type { FilePlatform } from '../runtime/platform';
-import { newAssetId } from '../runtime/runner';
+import { newAssetId } from '../runtime/ids';
 import type { WorkspaceRepo } from '../storage/types';
 
 // 用户在页面上选的照片（图片组件 D-046、图片背景 D-258）：从相册选一张，重新编码、缩小后存成用户文件，

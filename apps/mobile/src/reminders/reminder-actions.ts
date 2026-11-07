@@ -13,7 +13,7 @@ import {
   type WorkspaceConfig,
 } from '@morph/core';
 
-import { newAssetId } from '../runtime/runner';
+import { newAssetId } from '../runtime/ids';
 import type { RecordWrite, WorkspaceRepo } from '../storage/types';
 import type { NotificationPlatform, ReminderAction } from './platform';
 import { syncReminders } from './useReminders';

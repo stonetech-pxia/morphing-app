@@ -10,7 +10,7 @@ import { AppState } from 'react-native';
 
 import { serial } from '../data/record-actions';
 import { t } from '../i18n';
-import { newAssetId } from '../runtime/runner';
+import { newAssetId } from '../runtime/ids';
 import type { WorkspaceRepo } from '../storage/types';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { applyInMemory, planWidgetOp } from './ops';

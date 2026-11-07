@@ -15,7 +15,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 
 import { t } from '../i18n';
-import { newAssetId } from '../runtime/runner';
+import { newAssetId } from '../runtime/ids';
 import type { StoredRecord } from '../storage/types';
 import { useCalendar, useWorkspace, useWorkspaceContext } from '../workspace/context';
 

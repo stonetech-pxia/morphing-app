@@ -34,7 +34,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { useRecordActionRunner } from '../data/record-actions';
 import { useLinkResolver } from '../data/records';
-import { edgeSpeed } from '../editing/ArrangeView';
+import { edgeSpeed } from '../editing/edge-speed';
 import { setInnerGesture } from '../editing/useSingleDrag';
 import { LONG_PRESS_MS } from '../editing/entry';
 import { t } from '../i18n';

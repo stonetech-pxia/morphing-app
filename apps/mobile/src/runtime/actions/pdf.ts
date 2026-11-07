@@ -37,6 +37,7 @@ import {
 } from '@morph/tool-pdf';
 
 import { deviceLanguageTags } from '../../i18n';
+import { guard, pdfError } from '../pdf-errors';
 import type { VisionPlatform } from '../platform';
 import { scaleMarks, type ImageAnnotation } from '../annotations';
 import { drawMarks } from './compose';
@@ -59,38 +60,8 @@ type Ctx = Parameters<Impl>[2];
 const MB = 1024 * 1024;
 const fileName = (item: RunItem) => `${item.name}.${item.ext}`;
 
-/** tool-pdf 的错误 → 运行错误（带出错的文件名）。 */
-export function pdfError(e: unknown, name = ''): never {
-  if (e instanceof RunError || e instanceof RunCancelled) throw e;
-  // pdf-lib 读坏文件时会抛各种普通错误：对用户来说都是「无法读取」。
-  if (!(e instanceof PdfError)) throw new RunError('unreadable', { name });
-  const file = e.fileName ?? name;
-  switch (e.code) {
-    case 'tooFew':
-      throw new RunError('tooFew', { min: 2, kind: 'PDF' });
-    case 'encrypted':
-    case 'unreadable':
-    case 'badRange':
-    case 'unsupportedText':
-      throw new RunError(e.code, {
-        name: e.code === 'unsupportedText' ? (e.fieldName ?? file) : file,
-      });
-    case 'badField':
-      throw new RunError('badField', { name: e.fieldName ?? '' });
-    case 'badImage':
-      throw new RunError('unreadable', { name: file });
-    default:
-      throw new RunError('unexpected', { detail: e.code });
-  }
-}
-
-export async function guard<T>(name: string, fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn();
-  } catch (e) {
-    return pdfError(e, name);
-  }
-}
+// pdfError / guard 在 ../pdf-errors（存储也用）；这里照旧导出，其他动作文件还是从 ./pdf 引。
+export { guard, pdfError };
 
 /** 文件已经打开之后出的错：PDF 自己的问题照常说明，其他的照实报出来（不说成「文件可能已损坏」）。 */
 function arrangeError(e: unknown): unknown {

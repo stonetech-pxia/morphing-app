@@ -1,7 +1,7 @@
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import type { AssetRecord } from '../storage/types';
 import { mergeUserPdfs } from '../storage/user-files';
-import { copyUserFiles } from '../renderer/slot-file';
+import { copyUserFiles } from '../storage/copy-files';
 import { FakeFiles, makePdf } from '../test-utils/fake-files';
 
 // R10：文件已经复制进 App、数据库里却登记不上时，这一个新副本要删掉（否则存储空间页看不到、也删不掉）。

@@ -1,6 +1,6 @@
 import { canSavePreset, presetName, presetSnapshot } from '@morph/core';
 
-import { newAssetId } from '../../runtime/runner';
+import { newAssetId } from '../../runtime/ids';
 import type { Kernel } from './kernel';
 import type { WorkspaceState } from './types';
 

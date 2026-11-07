@@ -4,7 +4,7 @@ import { type HostInstance, type ScrollViewInstance, type ScrollViewProps } from
 import { useNativeGesture } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 
-import { edgeSpeed } from './ArrangeView';
+import { edgeSpeed } from './edge-speed';
 import { findDropTarget, type DropTarget, type ItemBox } from './drop-target';
 
 function measure(view: HostInstance | null | undefined): Promise<ItemBox | null> {

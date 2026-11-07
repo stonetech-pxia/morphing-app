@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { t } from '../i18n';
 import { IMPORT_PROBLEMS } from '../renderer/Attachments';
 import type { Palette } from '../renderer/theme';
-import { copyUserFiles } from '../renderer/slot-file';
+import { copyUserFiles } from '../storage/copy-files';
 import { recordTargets } from '../runtime/actions/records';
 import type { PickedFile } from '../runtime/platform';
 import { useReceiptLike } from './receipt-like';

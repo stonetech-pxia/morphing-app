@@ -1,7 +1,7 @@
 import { sanitizeFileName } from '@morph/core';
 
 import type { FilePlatform, PickedFile } from '../runtime/platform';
-import { copyUserFiles } from '../renderer/slot-file';
+import { copyUserFiles } from './copy-files';
 import type { WorkspaceRepo } from './types';
 
 /**

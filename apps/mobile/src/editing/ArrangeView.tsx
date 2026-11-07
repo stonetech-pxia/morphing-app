@@ -25,6 +25,7 @@ import { t } from '../i18n';
 import type { RenderEnv } from '../renderer/components';
 import { ComponentView } from '../renderer/registry';
 import { Pill } from '../renderer/ui';
+import { edgeSpeed } from './edge-speed';
 
 // 编辑模式（D-052–D-054）：每个组件带拖动把手和 ↑ ↓ 按钮，隐藏的组件也显示出来，点组件打开操作面板。
 // 拖动只在界面上移动；松手时翻译成一个 moveComponent 加入编辑草稿，「完成」时整份草稿合成一个版本。
@@ -42,17 +43,6 @@ interface Drag {
 
 const sameSlot = (a: DropSlot | null, b: DropSlot) =>
   a !== null && a.parentId === b.parentId && a.index === b.index;
-
-/** 手指离可见区域上下边缘多近时开始自动滚动，以及最快每帧滚动多少（pt）。 */
-const EDGE = 80;
-const MAX_SPEED = 14;
-
-/** 拖动时的自动滚动速度：越靠近边缘越快；负数向上。 */
-export function edgeSpeed(pageY: number, top: number, bottom: number): number {
-  if (pageY < top + EDGE) return -MAX_SPEED * Math.min(1, (top + EDGE - pageY) / EDGE);
-  if (pageY > bottom - EDGE) return MAX_SPEED * Math.min(1, (pageY - (bottom - EDGE)) / EDGE);
-  return 0;
-}
 
 function measure(view: HostInstance | undefined): Promise<{ y: number; height: number } | null> {
   return new Promise((resolve) => {
