@@ -64,6 +64,7 @@ export const en = {
   historyTitle: 'Change history',
   current: 'Now',
   restoreThis: 'Restore this version',
+  historyMore: 'Show older changes',
   restoreSummary: 'Back to {when}',
   source_seed: 'Start',
   source_ai: 'By Tink',

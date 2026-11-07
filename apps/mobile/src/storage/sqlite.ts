@@ -214,11 +214,18 @@ export class SQLiteWorkspaceRepo implements WorkspaceRepo {
     return row ? toRevision(row) : null;
   }
 
-  async listRevisions(limit: number) {
-    const rows = await this.db.getAllAsync<RevisionRow>(
-      'SELECT * FROM revisions ORDER BY id DESC LIMIT ?',
-      limit,
-    );
+  async listRevisions(limit: number, beforeId?: number) {
+    const rows =
+      beforeId === undefined
+        ? await this.db.getAllAsync<RevisionRow>(
+            'SELECT * FROM revisions ORDER BY id DESC LIMIT ?',
+            limit,
+          )
+        : await this.db.getAllAsync<RevisionRow>(
+            'SELECT * FROM revisions WHERE id < ? ORDER BY id DESC LIMIT ?',
+            beforeId,
+            limit,
+          );
     return rows.map(toRevision);
   }
 

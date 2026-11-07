@@ -70,6 +70,7 @@ export const fr: MessageTable = {
   historyTitle: 'Historique des modifications',
   current: 'État actuel',
   restoreThis: 'Revenir à ce moment',
+  historyMore: 'Afficher les modifications plus anciennes',
   restoreSummary: 'Retour à {when}',
   source_seed: 'Début',
   source_ai: 'Par Tink',

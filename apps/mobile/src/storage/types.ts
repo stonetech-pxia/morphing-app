@@ -103,7 +103,8 @@ export interface WorkspaceRepo {
   getHead(): Promise<RevisionRecord | null>;
   getRevision(id: number): Promise<RevisionRecord | null>;
   /** 最新的在前。 */
-  listRevisions(limit: number): Promise<RevisionRecord[]>;
+  /** 从新到旧取 limit 个版本；beforeId 给了就只取比它更早的（翻页：下一页用上一页最后一个的 id）。 */
+  listRevisions(limit: number, beforeId?: number): Promise<RevisionRecord[]>;
   /** 原子操作：检查 head、写入新 revision、移动 head。冲突时抛 RevisionConflictError。 */
   commitRevision(input: CommitInput): Promise<RevisionRecord>;
 

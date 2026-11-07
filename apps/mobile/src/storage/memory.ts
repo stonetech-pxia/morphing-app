@@ -63,8 +63,9 @@ export class MemoryWorkspaceRepo implements WorkspaceRepo {
     return r ? this.toRecord(r) : null;
   }
 
-  async listRevisions(limit: number) {
+  async listRevisions(limit: number, beforeId?: number) {
     return [...this.revisions]
+      .filter((r) => beforeId === undefined || r.id < beforeId)
       .reverse()
       .slice(0, limit)
       .map((r) => this.toRecord(r));

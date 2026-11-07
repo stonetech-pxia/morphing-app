@@ -449,6 +449,31 @@ describe('底线 7：外观修改先进草稿；功能修改直接生效，随�
     await store.getState().confirm();
     expect(store.getState().config!.data.tables.some((t) => t.id === 'books')).toBe(true);
   });
+
+  // R02（创始人 2026-11-07 定：做翻页）：改动记录永远能回到以前任何时候——一页一页往下翻，翻得到第一个版本。
+  it('the change history pages back to the very first version however many there are', async () => {
+    const { repo, store } = await bootedStore(fixedPlanner(themePlan));
+    const first = store.getState().head!;
+    let base = first.id;
+    for (let n = 0; n < 120; n++)
+      base = (
+        await repo.commitRevision({
+          baseId: base,
+          config: store.getState().config!,
+          source: 'user',
+          summary: `v${n}`,
+        })
+      ).id;
+    let before: number | undefined;
+    let reached = false;
+    for (;;) {
+      const page = await store.getState().listRevisions(50, before);
+      if (page.length === 0) break;
+      reached ||= page.some((r) => r.id === first.id);
+      before = page[page.length - 1]!.id;
+    }
+    expect(reached).toBe(true);
+  });
 });
 
 // ---- 渲染：看页面不写数据（底线 15、16），写数据能撤销（底线 11）----

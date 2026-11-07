@@ -63,6 +63,7 @@ export const zh: MessageTable = {
   historyTitle: '改动记录',
   current: '现在的样子',
   restoreThis: '回到这时候的样子',
+  historyMore: '显示更早的改动',
   restoreSummary: '回到 {when} 的样子',
   source_seed: '一开始',
   source_ai: 'Tink 改的',

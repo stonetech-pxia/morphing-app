@@ -10,12 +10,11 @@ import {
 import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
-import type { SQLiteDatabase } from 'expo-sqlite';
 import { Alert } from 'react-native';
 
 import { MemoryWorkspaceRepo } from '../storage/memory';
-import { SQLiteWorkspaceRepo, migrateDatabase } from '../storage/sqlite';
 import type { SavedPreset, WorkspaceRepo } from '../storage/types';
+import { sqliteRepo } from '../test-utils/node-sqlite';
 import { acceptNextAlert, renderToolsApp, testRegistry } from '../test-utils/render-app';
 import { V4_FIXED_NAME } from '../../../../packages/core/src/fixtures/v4';
 
@@ -84,42 +83,6 @@ const stored = (id: string, overrides: Partial<SavedPreset> = {}): SavedPreset =
   config: createDefaultWorkspace('zh'),
   ...overrides,
 });
-
-// node:sqlite 跑真实的 SQL，和 delete-asset-test 一样包一层。
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { DatabaseSync } = require('node:sqlite') as {
-  DatabaseSync: new (path: string) => {
-    exec(sql: string): void;
-    prepare(sql: string): {
-      run(...p: unknown[]): { lastInsertRowid: number | bigint; changes: number | bigint };
-      get(...p: unknown[]): unknown;
-      all(...p: unknown[]): unknown[];
-    };
-  };
-};
-
-function nodeSqlite(): SQLiteDatabase {
-  const db = new DatabaseSync(':memory:');
-  const api = {
-    execAsync: async (sql: string) => db.exec(sql),
-    runAsync: async (sql: string, ...params: unknown[]) => {
-      const r = db.prepare(sql).run(...params);
-      return { lastInsertRowId: Number(r.lastInsertRowid), changes: Number(r.changes) };
-    },
-    getFirstAsync: async (sql: string, ...params: unknown[]) =>
-      db.prepare(sql).get(...params) ?? null,
-    getAllAsync: async (sql: string, ...params: unknown[]) => db.prepare(sql).all(...params),
-    withTransactionAsync: async (fn: () => Promise<void>) => fn(),
-    withExclusiveTransactionAsync: async (fn: (txn: unknown) => Promise<void>) => fn(api),
-  };
-  return api as unknown as SQLiteDatabase;
-}
-
-async function sqliteRepo() {
-  const db = nodeSqlite();
-  await migrateDatabase(db);
-  return new SQLiteWorkspaceRepo(db);
-}
 
 describe.each([
   ['memory', async () => new MemoryWorkspaceRepo()],

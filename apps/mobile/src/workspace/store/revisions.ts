@@ -487,7 +487,7 @@ export function createRevisions(
       set({ banner: { kind: 'rolledBack', message: msg('rolledBack') } });
     },
 
-    listRevisions: (limit = 50) => repo.listRevisions(limit),
+    listRevisions: (limit = 50, beforeId) => repo.listRevisions(limit, beforeId),
   };
   return { actions, opsProposal, restoreProposal, bootHead };
 }

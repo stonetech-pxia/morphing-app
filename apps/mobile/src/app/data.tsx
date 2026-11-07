@@ -38,9 +38,9 @@ import { LocalModelCard } from '@/packs/LocalModelCard';
 import { Card, PageTitle, Pill, SectionLabel } from '@/renderer/ui';
 import { usePalette } from '@/renderer/theme';
 import { useWorkflowChange } from '@/run/workflow-change';
+import { findRevisionTables } from '@/storage/revision-pages';
 import type { StoredRecord } from '@/storage/types';
 import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
-import { revisionTables } from '@/workspace/revision-tables';
 
 /**
  * 「设置 → 数据」：用户记录的管理页，由内核提供，AI 不能修改。
@@ -93,14 +93,7 @@ export default function DataRoute() {
           (id) => !config.data.tables.some((c) => c.id === id),
         ),
       );
-      const found = new Map<string, Collection>();
-      if (missing.size > 0) {
-        for (const rev of await repo.listRevisions(1000)) {
-          for (const table of revisionTables(rev.config)) {
-            if (missing.has(table.id) && !found.has(table.id)) found.set(table.id, table);
-          }
-        }
-      }
+      const found = await findRevisionTables(repo, missing);
       if (!alive) return;
       setCounts(new Map(rows.map((r) => [r.collectionId, r.count])));
       setOrphans(

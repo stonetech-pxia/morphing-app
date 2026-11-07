@@ -315,7 +315,7 @@ export interface WorkspaceState {
   dismissToast(): void;
   holdBanner(held: boolean): void;
   holdToast(held: boolean): void;
-  listRevisions(limit?: number): Promise<RevisionRecord[]>;
+  listRevisions(limit?: number, beforeId?: number): Promise<RevisionRecord[]>;
   bumpAssets(): void;
   /**
    * AI 修改页的一句话（D-191）：功能类直接应用，外观类进草稿（没有草稿时新建一份）；
