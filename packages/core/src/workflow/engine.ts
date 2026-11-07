@@ -1,3 +1,5 @@
+import type { z } from 'zod';
+
 import type { DataRecord } from '../data';
 import type { Registry } from '../registry';
 import type { Locale, Workflow, WorkflowStep } from '../schema';
@@ -167,6 +169,19 @@ export type ActionImpl<S> = (
   params: Record<string, unknown>,
   ctx: StepContext<S>,
 ) => Promise<RunValue>;
+
+/**
+ * 把一个动作的参数 schema 和它的实现连起来（R14）：实现里的 params 类型是从 schema 推出来的。
+ * schema 在 core 里导出，定义（ActionDefinition.params）和实现用同一个；在 core 里改了参数的名字或取值，
+ * 实现这边编译就报错，不会漏改。schema 只用来推类型，运行时参数已经按它校验过了。
+ * 新增 / 修改动作时优先这样写，不要再手写 params as { ... }。
+ */
+export function implOf<S, P extends Record<string, unknown>>(
+  _schema: z.ZodType<P>,
+  impl: (input: RunValue | null, params: P, ctx: StepContext<S>) => Promise<RunValue>,
+): ActionImpl<S> {
+  return (input, params, ctx) => impl(input, params as P, ctx);
+}
 
 export type RunEvent =
   /** items：这一步要处理几个文件（输入是文件时），images：是不是图片，运行页据此写「第 n/N 张」（D-276）。 */

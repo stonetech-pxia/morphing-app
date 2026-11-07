@@ -23,6 +23,14 @@ import type { ActionDefinition } from '../workflow/contract';
 export const AUDIO_TOOL_ID = 'audio';
 export const AUDIO_PAGE_ID = 'tool-audio';
 
+/** 压小音频、转格式的参数。导出给 App 里的实现用（implOf），定义和实现是同一个 schema。 */
+export const AUDIO_COMPRESS_PARAMS = z.strictObject({
+  by: z.enum(['size', 'quality']),
+  maxMB: z.number().min(0.1).max(2000),
+  quality: z.enum(AUDIO_QUALITIES),
+});
+export const AUDIO_CONVERT_PARAMS = z.strictObject({ format: z.enum(AUDIO_FORMATS) });
+
 const formatField = {
   key: 'format',
   label: { en: 'Format', zh: '格式', fr: 'Format' },
@@ -176,11 +184,7 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
     },
     input: ['audio'],
     output: 'audio',
-    params: z.strictObject({
-      by: z.enum(['size', 'quality']),
-      maxMB: z.number().min(0.1).max(2000),
-      quality: z.enum(AUDIO_QUALITIES),
-    }),
+    params: AUDIO_COMPRESS_PARAMS,
     fields: [
       {
         key: 'by',
@@ -267,7 +271,7 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
     },
     input: ['audio'],
     output: 'audio',
-    params: z.strictObject({ format: z.enum(AUDIO_FORMATS) }),
+    params: AUDIO_CONVERT_PARAMS,
     fields: [formatField],
     presets: [
       { id: 'm4a', label: { en: 'M4A', zh: 'M4A', fr: 'M4A' }, values: { format: 'm4a' } },
