@@ -39,7 +39,7 @@ import { useFileBundleOffer } from '../packs/FileBundleOffer';
 import { PackGate } from '../packs/PackGate';
 import { copyResults, releaseShare, useIncoming, type IncomingShare } from '../share/incoming';
 import { usePacks } from '../packs/PackHost';
-import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '../workspace/context';
 import { clearDesk, placeResultsOnDesk } from '../desk/store';
 import { AskPanel } from './AskPanel';
 import { ChainCard } from './ChainCard';
@@ -97,7 +97,7 @@ export function RunScreen({
 }) {
   const { repo, files, registry, locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config!);
-  const theme = config.theme;
+  const theme = useAppTheme(config);
   const collections = useWorkspace((s) => s.config!.data.tables);
   const calendarSettings = useWorkspace((s) => s.config!.data.calendar);
   const revisionId = useWorkspace((s) => s.head!.id);

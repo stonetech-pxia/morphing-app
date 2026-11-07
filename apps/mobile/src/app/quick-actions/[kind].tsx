@@ -6,11 +6,11 @@ import { usePalette } from '@/renderer/theme';
 import { releaseShare } from '@/share/incoming';
 import { quickActionsEntry } from '@/shell/ai-entry';
 import { WorkflowsScreen } from '@/shell/WorkflowsScreen';
-import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { useWorkspaceContext, useAppTheme } from '@/workspace/context';
 
 export default function QuickActionCategoryRoute() {
   const { locale, registry, files } = useWorkspaceContext();
-  const palette = usePalette(useWorkspace((s) => s.config!.theme));
+  const palette = usePalette(useAppTheme());
   const { kind, shared } = useLocalSearchParams<{ kind: string; shared?: string }>();
   const valid = isQuickActionKind(kind);
   // 链接里的分类不对：这一页用不上带进来的文件，照样释放（分类页面没挂上，它自己的清理不会跑）。

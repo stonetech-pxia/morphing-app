@@ -6,7 +6,7 @@ import { usePalette } from '@/renderer/theme';
 import { HistoryView } from '@/shell/HistoryView';
 import { useShellEnv } from '@/shell/Shell';
 import { Toast } from '@/shell/Toast';
-import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '@/workspace/context';
 import { shownConfig } from '@/workspace/store';
 
 /**
@@ -16,7 +16,7 @@ import { shownConfig } from '@/workspace/store';
 export default function HistoryRoute() {
   const { registry, locale } = useWorkspaceContext();
   const config = useWorkspace(shownConfig)!;
-  const palette = usePalette(config.theme);
+  const palette = usePalette(useAppTheme(config));
   const { navigate, locked } = useShellEnv();
   const router = useRouter();
   const insets = useSafeAreaInsets();

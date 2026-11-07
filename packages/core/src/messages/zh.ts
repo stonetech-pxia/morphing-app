@@ -482,6 +482,17 @@ export const zh: MessageTable = {
     '把「{name}」加成一个新的 App？你现有的东西都不会被替换，之后可以在改动记录里撤销。',
   importAppSummary: '导入 App「{name}」',
   importAppClash: '这个 App 已经添加过了，或者里面的名字和你现有的重名：{reason}',
+  importAppChoose:
+    '导入主页（换成它的风格，它的页面加进导航栏），还是做成一个新 App（原来的主页不变，主页上多一个入口）？',
+  importAppToHome: '导入主页',
+  importAppToApp: '做成新 App',
+  importHomeConfirm:
+    '把「{name}」导入主页？主页会换成它的风格，它的页面加进导航栏。你现有的页面和记录都留着，之后可以在改动记录里撤销。',
+  importHomeSummary: '把「{name}」导入主页',
+  appResetItem: '恢复初始样子',
+  appResetConfirm:
+    '把「{name}」恢复成刚导入时的样子？你在里面加的页面和快捷操作会去掉，风格和页面恢复成原来的；你自己建的表和所有记录都留着。之后可以在改动记录里撤销。',
+  appResetSummary: '恢复「{name}」的初始样子',
   localModelTitle: '本机模型',
   localModelHint:
     '下载以后，新记录带附件时，也会问一个在这台手机上运行的小模型，人名和金额的候选更准一些。不下载也有候选，只用规则。内容不出手机。',

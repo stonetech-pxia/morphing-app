@@ -234,7 +234,7 @@ describe('updateData', () => {
     expect(
       errorOf(tasksConfig(), [{ op: 'updateData', table: 'tasks', changes: { fields: [] } }]),
     ).toBe(
-      'table tasks can change name, icon, readAttachments, prefillRules, recordRow; not fields',
+      'table tasks can change name, icon, readAttachments, prefillRules, recordRow, app; not fields',
     );
   });
 

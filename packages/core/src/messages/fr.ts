@@ -535,6 +535,17 @@ export const fr: MessageTable = {
   importAppSummary: 'Ajouter l’app « {name} »',
   importAppClash:
     'Cette app est déjà ajoutée, ou ses noms entrent en conflit avec ce que vous avez : {reason}',
+  importAppChoose:
+    'Importer dans votre page d’accueil (son style remplace celui de l’accueil et ses pages rejoignent la barre de navigation), ou en faire une nouvelle app (votre accueil reste tel quel, avec un nouvel accès) ?',
+  importAppToHome: 'Importer dans l’accueil',
+  importAppToApp: 'Créer une nouvelle app',
+  importHomeConfirm:
+    'Importer « {name} » dans votre page d’accueil ? Le style de l’accueil devient le sien et ses pages rejoignent la barre de navigation. Vos pages et entrées restent. Vous pourrez annuler dans l’historique des modifications.',
+  importHomeSummary: 'Importer « {name} » dans la page d’accueil',
+  appResetItem: 'Rétablir l’aspect d’origine',
+  appResetConfirm:
+    'Rétablir « {name} » tel qu’il était à l’import ? Les pages et actions rapides que vous y avez ajoutées disparaissent, son style et ses pages reviennent. Les tableaux que vous avez créés et toutes vos entrées restent. Vous pourrez annuler dans l’historique des modifications.',
+  appResetSummary: 'Rétablir l’aspect d’origine de « {name} »',
   localModelTitle: 'Modèle sur l’appareil',
   localModelHint:
     'Une fois téléchargé, les nouvelles entrées avec une pièce jointe reçoivent aussi des valeurs d’un petit modèle qui tourne sur ce téléphone, surtout utile pour les noms et les montants. Sans lui, les suggestions fonctionnent avec les règles seules. Rien ne quitte ce téléphone.',

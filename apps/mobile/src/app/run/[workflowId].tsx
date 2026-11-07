@@ -10,7 +10,7 @@ import { RunScreen } from '@/run/RunScreen';
 import { useIncoming } from '@/share/incoming';
 import { useToolDownloads } from '@/tool-download/context';
 import { toolRevoked } from '@/tool-download/state';
-import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '@/workspace/context';
 
 /** 运行一个工作流（工具页的单功能工作流、内设的预设或用户自己的工作流）。 */
 export default function RunRoute() {
@@ -37,7 +37,7 @@ export default function RunRoute() {
   });
   const { locale, registry } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
-  const palette = usePalette(config.theme);
+  const palette = usePalette(useAppTheme(config));
   const router = useRouter();
   const workflow = findWorkflow(quickActionsOf(config), workflowId, locale);
   // 下载的工具被停用了（D-178）：它的快捷操作不能运行，配置和文件都留着。

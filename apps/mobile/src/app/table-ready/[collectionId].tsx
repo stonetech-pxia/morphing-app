@@ -5,7 +5,7 @@ import { t } from '@/i18n';
 import { usePalette } from '@/renderer/theme';
 import { tableEntry } from '@/shell/ai-entry';
 import { TableReadyScreen } from '@/shell/TableReadyScreen';
-import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '@/workspace/context';
 import { readyNotes } from '@/draft/useApplyDraft';
 
 /** AI 新建的数据表（D-191）。被撤销后打开时说明它已经不在了。 */
@@ -13,7 +13,7 @@ export default function TableReadyRoute() {
   const { collectionId, notes } = useLocalSearchParams<{ collectionId: string; notes?: string }>();
   const { locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
-  const palette = usePalette(config.theme);
+  const palette = usePalette(useAppTheme(config));
   const collection = config.data.tables.find((c) => c.id === collectionId);
   if (!collection) {
     return (

@@ -14,7 +14,7 @@ import type { AIMode, ConnectionResult, EndpointResult } from '../ai/settings';
 import { t, type StringKey } from '../i18n';
 import { usePalette, type Palette } from '../renderer/theme';
 import { Button, Card, SectionLabel } from '../renderer/ui';
-import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { useWorkspaceContext, useAppTheme } from '../workspace/context';
 
 const RESULT_MESSAGES: Record<Exclude<ConnectionResult, { ok: true }>['kind'], StringKey> = {
   no_key: 'byokNoKey',
@@ -94,7 +94,7 @@ function Option({
 /** 「设置 → AI」：选择 AI 来源；自带 key 时选 provider（D-241）、管理 key、选择模型、测试连接。 */
 export function AISettingsScreen() {
   const { locale } = useWorkspaceContext();
-  const theme = useWorkspace((s) => s.config!.theme);
+  const theme = useAppTheme();
   const palette = usePalette(theme);
   const mode = useAISettings((s) => s.mode);
   const model = useAISettings((s) => s.model);

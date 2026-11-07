@@ -15,7 +15,7 @@ import { Icon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
 import { Button, Card } from '../renderer/ui';
 import { HomeScreenCard } from '../home-screen/HomeScreenCard';
-import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '../workspace/context';
 import { openRunAfterClosing } from './navigation';
 import { NextCard } from './NextCard';
 import { Banner } from './Shell';
@@ -29,7 +29,7 @@ import { Banner } from './Shell';
 export function ReadyScreen({ workflow, notes = [] }: { workflow: Workflow; notes?: string[] }) {
   const { locale, registry } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
-  const palette = usePalette(config.theme);
+  const palette = usePalette(useAppTheme(config));
   const router = useRouter();
   const onHome = config.containers.pages.some(
     (p) =>

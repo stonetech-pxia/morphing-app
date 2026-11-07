@@ -7,14 +7,14 @@ import { t } from '@/i18n';
 import { usePalette } from '@/renderer/theme';
 import { workflowEntry } from '@/shell/ai-entry';
 import { ReadyScreen } from '@/shell/ReadyScreen';
-import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '@/workspace/context';
 
 /** AI 新做的快捷操作（D-125）。被撤销后打开时说明它已经不在了。 */
 export default function ReadyRoute() {
   const { workflowId, notes } = useLocalSearchParams<{ workflowId: string; notes?: string }>();
   const { locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
-  const palette = usePalette(config.theme);
+  const palette = usePalette(useAppTheme(config));
   const workflow = quickActionsOf(config).find((w) => w.id === workflowId);
   if (!workflow) {
     return (

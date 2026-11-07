@@ -2,11 +2,11 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { usePalette } from '@/renderer/theme';
 import { quickActionsEntry } from '@/shell/ai-entry';
 import { WorkflowsScreen } from '@/shell/WorkflowsScreen';
-import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { useWorkspaceContext, useAppTheme } from '@/workspace/context';
 
 export default function QuickActionsRoute() {
   const { locale, registry } = useWorkspaceContext();
-  const palette = usePalette(useWorkspace((s) => s.config!.theme));
+  const palette = usePalette(useAppTheme());
   const { shared } = useLocalSearchParams<{ shared?: string }>();
   return (
     <>

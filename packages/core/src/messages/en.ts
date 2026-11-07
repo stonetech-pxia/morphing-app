@@ -504,6 +504,17 @@ export const en = {
     'Add “{name}” as a new app? Nothing you have is replaced. You can undo it in the change log.',
   importAppSummary: 'Add app “{name}”',
   importAppClash: 'This app is already added, or its names clash with something you have: {reason}',
+  importAppChoose:
+    'Import into your home page (its style replaces the home style and its pages join the navigation bar), or make it a new app (your home page stays as it is, with a new entry on it)?',
+  importAppToHome: 'Import into home',
+  importAppToApp: 'Make a new app',
+  importHomeConfirm:
+    'Import “{name}” into your home page? The home style changes to its style and its pages join the navigation bar. Your pages and entries stay. You can undo it in the change log.',
+  importHomeSummary: 'Import “{name}” into the home page',
+  appResetItem: 'Restore its original look',
+  appResetConfirm:
+    'Restore “{name}” to how it was when you imported it? Pages and quick actions you added to it go away, and its style and pages come back. Tables you made and all your entries stay. You can undo it in the change log.',
+  appResetSummary: 'Restore “{name}” to its original look',
   localModelTitle: 'On-device model',
   localModelHint:
     'After you download it, new entries with an attachment also get values from a small model that runs on this phone. It helps most with names and amounts. Without it, suggestions still work with rules only. Nothing leaves this phone.',

@@ -15,6 +15,7 @@ import { DraftBar } from '@/draft/DraftBar';
 import { SampleHint } from '@/guide/SampleHint';
 import { directEditEntry } from '@/editing/entry';
 import { AIEntry } from '@/shell/ai-entry';
+import { stackScreenOptions } from '@/shell/header';
 import { Banner, DraftNotice, useShellEnv } from '@/shell/Shell';
 import { Toast } from '@/shell/Toast';
 import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
@@ -84,6 +85,7 @@ export default function PageRoute() {
     <>
       <Stack.Screen
         options={{
+          ...stackScreenOptions(palette),
           // 给一条记录用的页面以这条记录为标题（在本机拼，AI 看不到）。
           title:
             opened && collection

@@ -1,9 +1,11 @@
 import {
   CURRENT_SCHEMA_VERSION,
+  appResetOps,
   appTarget,
   homeScreenFull,
   homeScreenOp,
   remindersOf,
+  type AppFile,
 } from '@morph/core';
 import { MODELS } from '@morph/planner';
 import { useRouter } from 'expo-router';
@@ -18,7 +20,8 @@ import { useLanguage } from '../language';
 import { t, type StringKey } from '../i18n';
 import type { RenderEnv } from '../renderer/components';
 import { ListRow, PageTitle, SectionLabel } from '../renderer/ui';
-import { useWorkspace } from '../workspace/context';
+import { loadAppOrigin } from '../apps/origin';
+import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 
 /**
  * 设置页由内核固定提供「AI 修改」「历史版本」「工具」入口（§5.1）：
@@ -46,7 +49,47 @@ export function SettingsView({ env }: { env: RenderEnv }) {
   // 长按一个 App：放到手机桌面的菜单里，或拿掉；Android 上放进去以后还能单独放一个图标（D-271、D-485）。
   const change = useWorkflowChange();
   const homeScreen = useHomeScreenPlatform();
-  function homeScreenMenu(appId: string, name: string, icon: string | undefined, onHome: boolean) {
+  const { repo, registry } = useWorkspaceContext();
+  const proposeOps = useWorkspace((s) => s.proposeOps);
+  const confirm = useWorkspace((s) => s.confirm);
+  const cancel = useWorkspace((s) => s.cancel);
+
+  /** 恢复这个 App 的初始样子（D-485）：先预览，确认后生效，能在改动记录里撤销；记录一条不动。 */
+  async function restoreApp(appId: string, name: string, origin: AppFile) {
+    const plan = appResetOps(origin, env.config, registry);
+    if (!plan.ok) {
+      Alert.alert(
+        t(locale, 'importAppConfig'),
+        t(locale, 'importAppClash', { reason: plan.error }),
+      );
+      return;
+    }
+    const result = await proposeOps(plan.ops, t(locale, 'appResetSummary', { name }));
+    if (result.kind !== 'preview') {
+      Alert.alert(
+        t(locale, 'invalidPlan'),
+        result.kind === 'invalid' ? result.issues.join('\n') : result.message,
+      );
+      return;
+    }
+    Alert.alert(
+      name,
+      [t(locale, 'appResetConfirm', { name }), ...result.proposal.lines].join('\n'),
+      [
+        { text: t(locale, 'cancel'), style: 'cancel', onPress: () => void cancel() },
+        { text: t(locale, 'presetApply'), onPress: () => void confirm() },
+      ],
+    );
+  }
+
+  async function homeScreenMenu(
+    appId: string,
+    name: string,
+    icon: string | undefined,
+    onHome: boolean,
+  ) {
+    // 从文件导入的 App 才有初始样子；Tink 或自己搭的没有，不显示这一项。
+    const origin = await loadAppOrigin(repo, appId);
     const id = appTarget(appId);
     const toggle = () => {
       if (!onHome && homeScreenFull(env.config)) {
@@ -61,6 +104,9 @@ export function SettingsView({ env }: { env: RenderEnv }) {
     const symbol = icon ? iosSymbolName(icon) : undefined;
     Alert.alert(name, undefined, [
       { text: t(locale, onHome ? 'homeScreenRemove' : 'homeScreenAdd'), onPress: toggle },
+      ...(origin
+        ? [{ text: t(locale, 'appResetItem'), onPress: () => void restoreApp(appId, name, origin) }]
+        : []),
       ...(onHome && homeScreen?.canPin()
         ? [
             {

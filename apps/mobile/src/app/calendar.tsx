@@ -5,7 +5,7 @@ import { t } from '@/i18n';
 import { useWorkflowChange } from '@/run/workflow-change';
 import { usePalette } from '@/renderer/theme';
 import { Card } from '@/renderer/ui';
-import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '@/workspace/context';
 
 const HOURS = [0, 1, 2, 3, 4, 5, 6];
 
@@ -16,7 +16,7 @@ const HOURS = [0, 1, 2, 3, 4, 5, 6];
 export default function CalendarRoute() {
   const { locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
-  const palette = usePalette(config.theme);
+  const palette = usePalette(useAppTheme(config));
   const change = useWorkflowChange();
   const cal = calendarOf(config);
   const caption = [palette.font('body', 13), { color: palette.caption }];

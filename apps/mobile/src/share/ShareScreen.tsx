@@ -30,7 +30,7 @@ import { Button, Card, Pill, SectionLabel } from '../renderer/ui';
 import { mimeOf } from '../runtime/actions/helpers';
 import { formatTime } from '../run/local/TrimScreen';
 import { stepChain } from '../shell/WorkflowsScreen';
-import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '../workspace/context';
 import { releaseShare, useIncoming } from './incoming';
 import { RecordChooser, useSaveAsRecord } from './RecordChooser';
 import { shareRecommendations } from './recommendations';
@@ -49,7 +49,7 @@ const ICONS: Partial<Record<MediaKind, IconName>> = {
 export function ShareScreen() {
   const { repo, files, registry, locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
-  const palette = usePalette(config.theme);
+  const palette = usePalette(useAppTheme(config));
   const share = useIncoming((s) => s.share);
   const router = useRouter();
   // 分享或打开文件后，一次问完文件处理包（D-456）；问过就不再问。

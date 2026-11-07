@@ -8,14 +8,14 @@ import { BannerAnchor } from '@/shell/Banner';
 import { useShellEnv } from '@/shell/Shell';
 import { Toast } from '@/shell/Toast';
 import { ToolsView } from '@/shell/ToolsView';
-import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '@/workspace/context';
 import { shownConfig } from '@/workspace/store';
 
 /** 从设置或页面上的入口打开的工具页（不在导航栏里时）：单独的页面，返回回到原来的地方。 */
 export default function ToolsRoute() {
   const { registry, locale } = useWorkspaceContext();
   const config = useWorkspace(shownConfig)!;
-  const palette = usePalette(config.theme);
+  const palette = usePalette(useAppTheme(config));
   const { navigate, locked } = useShellEnv();
   const insets = useSafeAreaInsets();
   const env: RenderEnv = {

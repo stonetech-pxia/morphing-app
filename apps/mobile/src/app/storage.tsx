@@ -26,7 +26,7 @@ import { FileViewer, type ViewerItem } from '@/share/FileViewer';
 import { loadAssetUsage } from '@/storage/asset-uses';
 import type { AssetRecord } from '@/storage/types';
 import { deleteUserFiles } from '@/storage/user-files';
-import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '@/workspace/context';
 
 /**
  * 「设置 → 存储空间」（D-264）：Morph 保存的全部用户文件、总大小，每个文件用在哪里（哪张表的哪条记录、
@@ -67,7 +67,7 @@ export default function StorageRoute() {
   const recordsVersion = useWorkspace((s) => s.recordsVersion);
   const assetsVersion = useWorkspace((s) => s.assetsVersion);
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
-  const palette = usePalette(config.theme);
+  const palette = usePalette(useAppTheme(config));
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [viewing, setViewing] = useState<ViewerItem | null>(null);
   const router = useRouter();

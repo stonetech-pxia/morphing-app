@@ -6,7 +6,7 @@ import { useNotificationState } from '@/reminders/useReminders';
 import { useWorkflowChange } from '@/run/workflow-change';
 import { usePalette } from '@/renderer/theme';
 import { Button, Card } from '@/renderer/ui';
-import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '@/workspace/context';
 
 /**
  * 「设置 → 提醒」（D-251）：列出提醒，可以开关、移除（都生成一个可撤销的版本）。
@@ -15,7 +15,7 @@ import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 export default function RemindersRoute() {
   const { locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
-  const palette = usePalette(config.theme);
+  const palette = usePalette(useAppTheme(config));
   const permission = useNotificationState((s) => s.permission);
   const change = useWorkflowChange();
   const reminders = remindersOf(config);

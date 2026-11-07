@@ -26,12 +26,14 @@ import {
   loadLinkResolver,
   recordsToCsv,
   type AppFile,
+  type ImportMode,
   type Collection,
 } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 
+import { saveAppOrigin } from '@/apps/origin';
 import { useRecordActions } from '@/data/records';
 import { t } from '@/i18n';
 import { LocalModelCard } from '@/packs/LocalModelCard';
@@ -39,7 +41,7 @@ import { Card, PageTitle, Pill, SectionLabel } from '@/renderer/ui';
 import { usePalette } from '@/renderer/theme';
 import { useWorkflowChange } from '@/run/workflow-change';
 import type { StoredRecord } from '@/storage/types';
-import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '@/workspace/context';
 import { revisionTables } from '@/workspace/revision-tables';
 
 /**
@@ -60,7 +62,7 @@ export default function DataRoute() {
   const config = useWorkspace((s) => s.config)!;
   const version = useWorkspace((s) => s.recordsVersion);
   const bump = useWorkspace((s) => s.bumpRecords);
-  const palette = usePalette(config.theme);
+  const palette = usePalette(useAppTheme(config));
   const actions = useRecordActions();
   const change = useWorkflowChange();
   const proposeImport = useWorkspace((s) => s.proposeImport);
@@ -171,7 +173,7 @@ export default function DataRoute() {
     // App 文件（一个 App，D-485）：加到现有的工作区里，不替换任何东西。
     const appFile = readAppFile(text);
     if (appFile) {
-      await importApp(appFile);
+      importApp(appFile, text);
       return;
     }
     const raw: unknown = readAppConfigFile(text);
@@ -209,9 +211,26 @@ export default function DataRoute() {
     );
   }
 
-  /** 导入一个 App 文件：先预览，确认后加成一个新 App，能在改动记录里撤销；原来的一个都不动（底线 5、7）。 */
-  async function importApp(appFile: AppFile) {
-    const plan = appFileOps(appFile, config);
+  /**
+   * 导入一个 App 文件（D-485）：先问怎么导入——导入主页（换主页风格，页面加进导航栏），或者做成一个新 App
+   * （主页多一个入口）；再预览，确认后生效，能在改动记录里撤销；原来的页面和记录一个都不动（底线 5、7）。
+   */
+  function importApp(appFile: AppFile, text: string) {
+    Alert.alert(appFile.app.name, t(locale, 'importAppChoose'), [
+      {
+        text: t(locale, 'importAppToHome'),
+        onPress: () => void proceedImport(appFile, text, 'home'),
+      },
+      {
+        text: t(locale, 'importAppToApp'),
+        onPress: () => void proceedImport(appFile, text, 'app'),
+      },
+      { text: t(locale, 'cancel'), style: 'cancel' },
+    ]);
+  }
+
+  async function proceedImport(appFile: AppFile, text: string, mode: ImportMode) {
+    const plan = appFileOps(appFile, config, { mode });
     if (!plan.ok) {
       Alert.alert(
         t(locale, 'importAppConfig'),
@@ -219,7 +238,10 @@ export default function DataRoute() {
       );
       return;
     }
-    const result = await proposeOps(plan.ops, t(locale, 'importAppSummary', { name: plan.name }));
+    const result = await proposeOps(
+      plan.ops,
+      t(locale, mode === 'home' ? 'importHomeSummary' : 'importAppSummary', { name: plan.name }),
+    );
     if (result.kind !== 'preview') {
       Alert.alert(
         t(locale, 'invalidPlan'),
@@ -229,7 +251,10 @@ export default function DataRoute() {
     }
     Alert.alert(
       t(locale, 'importAppConfig'),
-      [t(locale, 'importAppConfirm', { name: plan.name }), ...result.proposal.lines].join('\n'),
+      [
+        t(locale, mode === 'home' ? 'importHomeConfirm' : 'importAppConfirm', { name: plan.name }),
+        ...result.proposal.lines,
+      ].join('\n'),
       [
         { text: t(locale, 'cancel'), style: 'cancel', onPress: () => void cancel() },
         {
@@ -237,7 +262,9 @@ export default function DataRoute() {
           onPress: () =>
             void (async () => {
               if (!(await confirm())) return;
-              // 回到主页，新 App 的入口就在那里。
+              // 做成 App 的，原文件记在本机：以后能「恢复初始样子」。
+              if (mode === 'app') await saveAppOrigin(repo, appFile.app.id, text);
+              // 回到主页，新 App 的入口（或新页面）就在那里。
               leaveApp();
               selectTab(pageTarget(HOME_PAGE_ID));
               router.back();

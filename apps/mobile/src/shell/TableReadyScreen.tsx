@@ -6,7 +6,7 @@ import { t } from '../i18n';
 import { Icon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
 import { Button, Card } from '../renderer/ui';
-import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '../workspace/context';
 import { NextCard } from './NextCard';
 import { Banner } from './Shell';
 
@@ -24,7 +24,7 @@ export function TableReadyScreen({
   const { locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
   const next = useWorkspace((s) => s.next);
-  const palette = usePalette(config.theme);
+  const palette = usePalette(useAppTheme(config));
   const router = useRouter();
   const body = [palette.font('body', 15), { color: palette.text }];
 

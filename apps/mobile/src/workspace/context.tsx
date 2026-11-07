@@ -1,4 +1,12 @@
-import { calendarOf, type Calendar, type Locale, type Registry } from '@morph/core';
+import {
+  appViewOf,
+  calendarOf,
+  type Calendar,
+  type Locale,
+  type Registry,
+  type Theme,
+  type WorkspaceConfig,
+} from '@morph/core';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useStore } from 'zustand';
 
@@ -35,6 +43,16 @@ export function useWorkspaceContext(): WorkspaceContextValue {
 
 export function useWorkspace<T>(selector: (state: WorkspaceState) => T): T {
   return useStore(useWorkspaceContext().store, selector);
+}
+
+/**
+ * 在某个 App 里打开的页面（设置、Tink、记录页……）都用这个 App 的风格，顶栏和内容一致（D-485）。
+ * 不在 App 里就是主页的风格。config 不传就用已保存的那份。
+ */
+export function useAppTheme(config?: WorkspaceConfig): Theme {
+  const appId = useWorkspace((s) => s.appId);
+  const saved = useWorkspace((s) => s.config)!;
+  return appViewOf(config ?? saved, appId).theme;
 }
 
 /** 一天、一周从什么时候开始（D-286）：按天、按周归类的计算都用它。 */

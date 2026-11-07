@@ -23,7 +23,7 @@ import { Card, SectionLabel } from '../renderer/ui';
 import { baseName, extOf, mimeOf } from '../runtime/actions/helpers';
 import { AIEntryButton } from '../shell/ai-entry';
 import type { SucceededRuns } from '../storage/types';
-import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '../workspace/context';
 import { releaseShare, useIncoming } from './incoming';
 import { RecordChooser, useSaveAsRecord } from './RecordChooser';
 import { shareRecommendations } from './recommendations';
@@ -62,7 +62,7 @@ type Panel = 'share' | 'record' | 'more';
 export function FilePreviewScreen({ index }: { index?: number }) {
   const { repo, files, locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
-  const palette = usePalette(config.theme);
+  const palette = usePalette(useAppTheme(config));
   const share = useIncoming((s) => s.share);
   const router = useRouter();
   const insets = useSafeAreaInsets();

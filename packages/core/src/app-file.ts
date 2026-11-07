@@ -1,5 +1,7 @@
-import type { Op } from './ops';
+import { homeScreenOp } from './home-screen';
+import { applyOps, type Op } from './ops';
 import { migrateWorkspace } from './migrate';
+import type { Registry } from './registry';
 import {
   CURRENT_SCHEMA_VERSION,
   HOME_PAGE_ID,
@@ -96,14 +98,29 @@ export function readAppFile(text: string): AppFile | null {
 
 export type AppImport = { ok: true; ops: Op[]; name: string } | { ok: false; error: string };
 
-/** 导入成一个 App 的操作（加到现有的工作区里）；ID 和现有的重名、一次改不完时返回原因。 */
-export function appFileOps(file: AppFile, config: WorkspaceConfig): AppImport {
+/** 怎么导入（D-485）：做成一个新 App（主页多一个入口），或者导入主页（换主页风格，页面加进导航栏）。 */
+export type ImportMode = 'app' | 'home';
+
+/**
+ * 导入一个 App 文件的操作。表的 ID 已经在、并且在主页手里（例如之前删过这个 App，表转给了主页）：
+ * 接回来，缺的字段补上，记录不动（底线 5）；页面、快捷操作、提醒、App 的 ID 重名，或表属于别的 App 时拒绝。
+ */
+export function appFileOps(
+  file: AppFile,
+  config: WorkspaceConfig,
+  options: { mode?: ImportMode } = {},
+): AppImport {
+  const mode = options.mode ?? 'app';
+  const id = file.app.id;
+  const existingTable = new Map(config.data.tables.map((t) => [t.id, t]));
   const taken = (what: string, ids: string[], have: Set<string>) => {
-    const clash = ids.filter((id) => have.has(id));
+    const clash = ids.filter((x) => have.has(x));
     return clash.length > 0 ? `${what} ${clash.join(', ')} already exist` : null;
   };
   const clash =
-    taken('app', [file.app.id], new Set((config.nav.apps ?? []).map((a) => a.id))) ??
+    (mode === 'app'
+      ? taken('app', [id], new Set((config.nav.apps ?? []).map((a) => a.id)))
+      : null) ??
     taken(
       'page',
       file.pages.map((p) => p.id),
@@ -111,7 +128,7 @@ export function appFileOps(file: AppFile, config: WorkspaceConfig): AppImport {
     ) ??
     taken(
       'table',
-      file.tables.map((t) => t.id),
+      file.tables.filter((t) => existingTable.get(t.id)?.app !== undefined).map((t) => t.id),
       new Set(config.data.tables.map((t) => t.id)),
     ) ??
     taken(
@@ -120,11 +137,10 @@ export function appFileOps(file: AppFile, config: WorkspaceConfig): AppImport {
       new Set(config.tools.map((t) => t.id)),
     );
   if (clash) return { ok: false, error: clash };
-  const id = file.app.id;
-  const home = config.containers.pages.some((p) => p.id === HOME_PAGE_ID);
-  const entry = `go-${id}`.slice(0, 48);
-  const ops: Op[] = [
-    {
+  const owner = mode === 'app' ? { app: id } : {};
+  const ops: Op[] = [];
+  if (mode === 'app')
+    ops.push({
       op: 'addContainer',
       app: {
         id,
@@ -133,23 +149,71 @@ export function appFileOps(file: AppFile, config: WorkspaceConfig): AppImport {
         bar: file.app.bar,
         theme: file.app.theme,
       },
-    },
-    ...file.tables.map((table): Op => ({ op: 'addData', table: { ...table, app: id } as never })),
-    ...file.tools.map((tool): Op => ({ op: 'addTool', tool: { ...tool, app: id } as never })),
-    ...file.pages.map((page): Op => ({ op: 'addContainer', page: { ...page, app: id } as never })),
+    });
+  for (const table of file.tables) {
+    const have = existingTable.get(table.id);
+    if (!have) {
+      ops.push({ op: 'addData', table: { ...table, ...owner } as never });
+      continue;
+    }
+    // 接回来：属于这个 App，缺的字段补上，已有的不改。
+    if (mode === 'app')
+      ops.push({ op: 'updateData', table: table.id, changes: { app: id } } as never);
+    const fields = new Set(have.fields.map((f) => f.id));
+    for (const field of table.fields)
+      if (!fields.has(field.id)) ops.push({ op: 'addData', table: table.id, field } as never);
+  }
+  for (const tool of file.tools) ops.push({ op: 'addTool', tool: { ...tool, ...owner } as never });
+  for (const page of file.pages)
+    ops.push({ op: 'addContainer', page: { ...page, ...owner } as never });
+  if (mode === 'app') {
     // 主页上放一个入口（用户随时能删；设置 → 我的 App 照样进得去）。
-    ...(home
-      ? [
-          {
-            op: 'addContainer',
-            page: HOME_PAGE_ID,
-            block: { id: entry, look: 'entry', opens: `app:${id}` },
-          } as unknown as Op,
-        ]
-      : []),
-  ];
+    if (config.containers.pages.some((p) => p.id === HOME_PAGE_ID))
+      ops.push({
+        op: 'addContainer',
+        page: HOME_PAGE_ID,
+        block: { id: `go-${id}`.slice(0, 48), look: 'entry', opens: `app:${id}` },
+      } as unknown as Op);
+  } else {
+    // 导入主页：换成它的风格，它的页面加进主页的导航栏（放得下的）；放不下的由主页上的入口接住。
+    ops.push({ op: 'setTheme', reset: true });
+    ops.push({ op: 'setTheme', ...file.app.theme } as unknown as Op);
+    const wanted = file.app.bar.filter((t) => t.startsWith('page:'));
+    const bar = [...config.nav.bar];
+    const room = 5 - bar.length;
+    if (room > 0 && wanted.length > 0) {
+      const at = bar.findIndex((t) => t === 'ai' || t === 'settings');
+      bar.splice(at < 0 ? bar.length : at, 0, ...wanted.slice(0, room));
+      ops.push({ op: 'updateContainer', nav: { bar } });
+    }
+  }
   if (ops.length > MAX_OPS_PER_CHANGE)
     return { ok: false, error: `too big to import in one go (${ops.length} steps)` };
+  return { ok: true, ops, name: file.app.name };
+}
+
+/**
+ * 恢复这个 App 的初始样子（D-485）：把现在的 App 删掉（页面、快捷操作、提醒、入口一起去掉，表和记录转给主页，
+ * 底线 5），再用原来的 App 文件装回来：表接回来、缺的字段补上，用户自己建的表留在主页。
+ * 在桌面菜单里的还放回去。能在改动记录里撤销。
+ */
+export function appResetOps(file: AppFile, config: WorkspaceConfig, registry: Registry): AppImport {
+  const id = file.app.id;
+  if (!(config.nav.apps ?? []).some((a) => a.id === id))
+    return { ok: false, error: `app ${id} is not installed` };
+  const removal: Op = { op: 'removeContainer', app: id };
+  const mid = applyOps(config, [removal], { registry, locale: 'en' });
+  if (!mid.ok) return { ok: false, error: mid.error };
+  const plan = appFileOps(file, mid.config);
+  if (!plan.ok) return plan;
+  const onMenu = (config.nav.phoneHomeScreen ?? []).includes(`app:${id}`);
+  const ops: Op[] = [
+    removal,
+    ...plan.ops,
+    ...(onMenu ? [homeScreenOp(mid.config, `app:${id}`, true)] : []),
+  ];
+  if (ops.length > MAX_OPS_PER_CHANGE)
+    return { ok: false, error: `too big to restore in one go (${ops.length} steps)` };
   return { ok: true, ops, name: file.app.name };
 }
 

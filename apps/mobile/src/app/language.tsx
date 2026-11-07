@@ -3,12 +3,12 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { t, type StringKey } from '@/i18n';
 import { LANGUAGE_CHOICES, LANGUAGE_META_KEY, useLanguage } from '@/language';
 import { usePalette } from '@/renderer/theme';
-import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { useWorkspaceContext, useAppTheme } from '@/workspace/context';
 
 /** 「设置 → 语言」：跟随系统，或固定一种语言。选了马上生效（外壳按新语言重建）。 */
 export default function LanguageRoute() {
   const { repo, locale } = useWorkspaceContext();
-  const palette = usePalette(useWorkspace((s) => s.config)!.theme);
+  const palette = usePalette(useAppTheme());
   const preference = useLanguage((s) => s.preference);
   return (
     <ScrollView

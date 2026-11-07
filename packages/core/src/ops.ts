@@ -709,7 +709,7 @@ function updateData(config: WorkspaceConfig, op: OpOf<'updateData'>): void {
   if (op.field === undefined) {
     onlyKeys(
       changes,
-      ['name', 'icon', 'readAttachments', 'prefillRules', 'recordRow'],
+      ['name', 'icon', 'readAttachments', 'prefillRules', 'recordRow', 'app'],
       `table ${table.id}`,
     );
     if (changes.name === null) throw new OpError(`table ${table.id} needs a name`);

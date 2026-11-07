@@ -6,12 +6,12 @@ import { usePacks } from '@/packs/PackHost';
 import { usePalette } from '@/renderer/theme';
 import { PacksScreen } from '@/shell/PacksScreen';
 import { useToolDownloads } from '@/tool-download/context';
-import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '@/workspace/context';
 
 /** 「设置 → 扩展包」：已下载的扩展包和占用空间（D-064）。由内核提供，AI 不能修改。 */
 export default function PacksRoute() {
   const { locale, files, registry } = useWorkspaceContext();
-  const theme = useWorkspace((s) => s.config!.theme);
+  const theme = useAppTheme();
   const added = useWorkspace((s) => s.config!.packages);
   const downloaded = useToolDownloads((s) => s.downloaded);
   const removeTool = useToolDownloads((s) => s.remove);

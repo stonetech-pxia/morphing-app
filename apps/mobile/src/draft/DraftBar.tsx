@@ -1,4 +1,4 @@
-import { localize, quickActionsOf, type Workflow } from '@morph/core';
+import { appViewOf, localize, quickActionsOf, type Workflow } from '@morph/core';
 
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -132,7 +132,10 @@ export function DraftBar({ palette, bottom }: { palette: Palette; bottom: number
 export function DraftChatSheet() {
   const open = useWorkspace((s) => !!s.draft?.open);
   // 用草稿的样子；根布局的导航栏头部仍跟着已保存的版本。
-  const palette = usePalette(useWorkspace(shownConfig)!.theme);
+  // 在 App 里就用这个 App 的风格（D-485）。
+  const config = useWorkspace(shownConfig)!;
+  const appId = useWorkspace((s) => s.appId);
+  const palette = usePalette(appViewOf(config, appId).theme);
   const chatOpen = useDraftUi((s) => s.chatOpen);
   const setChatOpen = useDraftUi((s) => s.setChatOpen);
   // 功能生效后草稿一步都套不上时草稿就没了（D-411）：聊天框一起收起，下一份草稿不要一打开就是它。

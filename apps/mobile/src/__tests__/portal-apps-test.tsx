@@ -14,16 +14,23 @@ import { renderToolsApp, starterAfterGuide } from '../test-utils/render-app';
 // 门户网站的展示预设（App 文件，D-485）：每一份从「设置 → 数据 → 导入」选进来，加成一个新 App，原来的不动；
 // 进到这个 App 里，导航栏每一项、每个页面、每张表的新记录页和记录页都要能渲染，不能出错、不能被回退。
 
+// 每个预设要走完所有页面，几十个测试一起跑时比较慢。
+jest.setTimeout(30000);
+
 const DIR = join(__dirname, '../../../../packages/core/src/fixtures/portal-apps');
 const manifest = JSON.parse(readFileSync(join(DIR, 'manifest.json'), 'utf8')) as {
   apps: { id: string; name: string; file: string }[];
 };
 
 /** 每张表放三条记录（字段按类型填一个合法的例子值，选项轮着用，关联指向对方表的第一条）。 */
-async function fillTables(repo: MemoryWorkspaceRepo, config: WorkspaceConfig, appId: string) {
+async function fillTables(
+  repo: MemoryWorkspaceRepo,
+  config: WorkspaceConfig,
+  mine: (table: WorkspaceConfig['data']['tables'][number]) => boolean,
+) {
   const ids = new Map<string, string[]>();
   let n = 0;
-  const tables = config.data.tables.filter((t) => t.app === appId);
+  const tables = config.data.tables.filter(mine);
   for (const table of tables)
     ids.set(
       table.id,
@@ -64,6 +71,26 @@ describe.each(manifest.apps.map((a) => [a.name, a] as const))('app file %s', (_n
   });
   afterEach(() => jest.restoreAllMocks());
 
+  const fileIds = (() => {
+    const f = JSON.parse(readFileSync(join(DIR, entry.file), 'utf8')) as {
+      pages: { id: string }[];
+      tables: { id: string }[];
+    };
+    return { pages: new Set(f.pages.map((p) => p.id)), tables: new Set(f.tables.map((t) => t.id)) };
+  })();
+  // 做成 App 的按 app 字段认；导入主页的没有 app，按文件里的 ID 认。
+  let mode: 'app' | 'home' = 'app';
+  const ownedPage = (p: { id: string; app?: string | undefined }) =>
+    mode === 'app' ? p.app === entry.id : fileIds.pages.has(p.id);
+  const ownedTable = (t: { id: string; app?: string | undefined }) =>
+    mode === 'app' ? t.app === entry.id : fileIds.tables.has(t.id);
+  const readTheme = () =>
+    (
+      JSON.parse(readFileSync(join(DIR, entry.file), 'utf8')) as {
+        app: { theme: { primaryColor: string } };
+      }
+    ).app.theme.primaryColor;
+
   /** 从「设置 → 数据」的导入选进来（和用户做的一样），点「应用」。 */
   async function importThroughUi(withData: boolean) {
     const repo = new MemoryWorkspaceRepo();
@@ -76,18 +103,29 @@ describe.each(manifest.apps.map((a) => [a.name, a] as const))('app file %s', (_n
     const uri = `file:///picked/${entry.file}`;
     files.pickedTexts.set(uri, readFileSync(join(DIR, entry.file), 'utf8'));
     files.nextPick = [{ uri, name: entry.file, size: null, mimeType: 'application/json' }];
+    // 先问怎么导入（导入主页 / 做成新 App），再预览，点「应用」。
     jest
       .spyOn(Alert, 'alert')
+      .mockImplementationOnce(
+        (_title, _message, buttons) => void buttons?.[mode === 'home' ? 0 : 1]?.onPress?.(),
+      )
       .mockImplementationOnce((_title, _message, buttons) => void buttons?.[1]?.onPress?.());
     await act(() => router.push('/data'));
     await fireEvent.press(await screen.findByTestId('import-app-config'));
-    await waitFor(() => expect(store.getState().config!.nav.apps?.[0]?.id).toBe(entry.id));
+    await waitFor(() =>
+      expect(
+        mode === 'home'
+          ? store.getState().config!.theme.primaryColor
+          : store.getState().config!.nav.apps?.[0]?.id,
+      ).toBe(mode === 'home' ? readTheme() : entry.id),
+    );
     const config = store.getState().config!;
-    const filled = withData ? await fillTables(repo, config, entry.id) : null;
+    const filled = withData ? await fillTables(repo, config, ownedTable) : null;
     return { repo, store, config, filled };
   }
 
-  async function visitEverything(withData: boolean) {
+  async function visitEverything(withData: boolean, how: 'app' | 'home' = 'app') {
+    mode = how;
     const { repo, store, config, filled } = await importThroughUi(withData);
     const healthy = () => {
       const s = store.getState();
@@ -95,16 +133,25 @@ describe.each(manifest.apps.map((a) => [a.name, a] as const))('app file %s', (_n
       expect(s.renderAttempt).toBe(0);
       expect(errors).toEqual([]);
     };
-    // 导入是一个版本（改动记录里能撤销），主页上多了进这个 App 的入口。
     const home = config.containers.pages.find((p) => p.id === 'home')!;
-    expect(JSON.stringify(home.blocks)).toContain(`app:${entry.id}`);
-    healthy();
-
-    // 进到这个 App 里：底栏每一项。
-    await act(async () => store.getState().enterApp(entry.id));
-    const app = config.nav.apps!.find((a) => a.id === entry.id)!;
-    await screen.findByTestId(`nav-${app.bar[0]}`);
-    for (const target of app.bar) {
+    let bar: readonly string[];
+    if (mode === 'app') {
+      // 导入是一个版本（改动记录里能撤销），主页上多了进这个 App 的入口。
+      expect(JSON.stringify(home.blocks)).toContain(`app:${entry.id}`);
+      healthy();
+      // 进到这个 App 里：底栏每一项。
+      await act(async () => store.getState().enterApp(entry.id));
+      bar = config.nav.apps!.find((a) => a.id === entry.id)!.bar;
+    } else {
+      // 导入主页：风格换成了它的，没有做成 App，它的页面进了主页的导航栏。
+      expect(config.nav.apps).toBeUndefined();
+      expect(config.theme.primaryColor).toBe(readTheme());
+      expect(config.nav.bar.some((t) => t.startsWith('page:') && t !== 'page:home')).toBe(true);
+      healthy();
+      bar = config.nav.bar;
+    }
+    await screen.findByTestId(`nav-${bar[0]}`);
+    for (const target of bar) {
       await fireEvent.press(await screen.findByTestId(`nav-${target}`));
       healthy();
       if (target === 'ai') await act(async () => router.back());
@@ -112,7 +159,7 @@ describe.each(manifest.apps.map((a) => [a.name, a] as const))('app file %s', (_n
 
     // 这个 App 的每个页面（给一条记录用的页面带一条记录）。
     let n = 0;
-    for (const page of config.containers.pages.filter((p) => p.app === entry.id)) {
+    for (const page of config.containers.pages.filter(ownedPage)) {
       let params: Record<string, string> = { pageId: page.id };
       if (page.of !== undefined) {
         let id = filled?.get(page.of)?.[0];
@@ -135,7 +182,7 @@ describe.each(manifest.apps.map((a) => [a.name, a] as const))('app file %s', (_n
     }
 
     // 每张表的新记录页；有数据时再打开第一条记录。
-    for (const table of config.data.tables.filter((t) => t.app === entry.id)) {
+    for (const table of config.data.tables.filter(ownedTable)) {
       await act(async () =>
         router.push({ pathname: '/record/[collectionId]', params: { collectionId: table.id } }),
       );
@@ -161,5 +208,85 @@ describe.each(manifest.apps.map((a) => [a.name, a] as const))('app file %s', (_n
 
   it('renders everything when every table has entries (lists, charts, formulas, calendars)', async () => {
     await visitEverything(true);
+  });
+
+  it('imports into the home page from the data screen and renders everything (empty)', async () => {
+    await visitEverything(false, 'home');
+  });
+
+  it('imports into the home page and renders everything with entries', async () => {
+    await visitEverything(true, 'home');
+  });
+});
+
+describe('restore the original look (D-485)', () => {
+  const entry = manifest.apps.find((a) => a.id === 'habits')!;
+  afterEach(() => jest.restoreAllMocks());
+
+  it('long-press an imported app in Settings and restore it; a hand-made app has no such item', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    const files = new FakeFiles();
+    const { store } = await renderToolsApp(repo, files, { seed: starterAfterGuide, locale: 'en' });
+    await screen.findByTestId('nav-settings');
+    const uri = `file:///picked/${entry.file}`;
+    files.pickedTexts.set(uri, readFileSync(join(DIR, entry.file), 'utf8'));
+    files.nextPick = [{ uri, name: entry.file, size: null, mimeType: 'application/json' }];
+    jest
+      .spyOn(Alert, 'alert')
+      .mockImplementationOnce((_t, _m, buttons) => void buttons?.[1]?.onPress?.())
+      .mockImplementationOnce((_t, _m, buttons) => void buttons?.[1]?.onPress?.());
+    await act(() => router.push('/data'));
+    await fireEvent.press(await screen.findByTestId('import-app-config'));
+    await waitFor(() => expect(store.getState().config!.nav.apps?.[0]?.id).toBe('habits'));
+    const original = store.getState().config!.nav.apps![0]!;
+
+    // 用户把它改了：删一页、改风格、改名。
+    await act(async () => {
+      await store.getState().proposeOps(
+        [
+          { op: 'removeContainer', page: 'habits-insights' },
+          { op: 'setTheme', app: 'habits', primaryColor: '#000000' },
+          { op: 'updateContainer', app: { id: 'habits', name: 'Changed' } },
+        ],
+        'edit',
+      );
+      await store.getState().confirm();
+    });
+    expect(store.getState().config!.nav.apps![0]!.name).toBe('Changed');
+
+    // 长按这个 App：菜单里有「恢复初始样子」；点它，预览里点「应用」。
+    let menu: string[] = [];
+    jest
+      .spyOn(Alert, 'alert')
+      .mockImplementationOnce((_t, _m, buttons) => {
+        menu = (buttons ?? []).map((b) => b.text ?? '');
+        void buttons?.find((b) => b.text === 'Restore its original look')?.onPress?.();
+      })
+      .mockImplementationOnce((_t, _m, buttons) => void buttons?.[1]?.onPress?.());
+    await act(async () => router.back());
+    await fireEvent.press(await screen.findByTestId('nav-settings'));
+    await fireEvent(await screen.findByTestId('settings-app-habits'), 'longPress');
+    await waitFor(() => expect(store.getState().config!.nav.apps![0]!.name).toBe(original.name));
+    expect(menu).toContain('Restore its original look');
+    const after = store.getState().config!;
+    expect(after.nav.apps![0]!.theme).toEqual(original.theme);
+    expect(after.containers.pages.some((p) => p.id === 'habits-insights')).toBe(true);
+    // 记录的表都还在。
+    expect(after.data.tables.filter((t) => t.app === 'habits').length).toBeGreaterThan(0);
+
+    // 不是从文件导入的 App（这里手做一个）没有这一项。
+    await act(async () => {
+      await store
+        .getState()
+        .proposeOps([{ op: 'addContainer', app: { id: 'mine', name: 'Mine' } }], 'add');
+      await store.getState().confirm();
+    });
+    let mineMenu: string[] = [];
+    jest.spyOn(Alert, 'alert').mockImplementationOnce((_t, _m, buttons) => {
+      mineMenu = (buttons ?? []).map((b) => b.text ?? '');
+    });
+    await fireEvent(await screen.findByTestId('settings-app-mine'), 'longPress');
+    await waitFor(() => expect(mineMenu.length).toBeGreaterThan(0));
+    expect(mineMenu).not.toContain('Restore its original look');
   });
 });

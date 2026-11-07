@@ -57,7 +57,7 @@ import { useShellEnv } from '../shell/Shell';
 import { useConfirmLeave } from '../shell/useConfirmLeave';
 import { Toast } from '../shell/Toast';
 import { deleteUserFiles } from '../storage/user-files';
-import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '../workspace/context';
 import { shownConfig } from '../workspace/store';
 import { DraftBar } from '../draft/DraftBar';
 import type { Box, DocDoc, DocPage, TableDoc } from '@morph/tool-office';
@@ -110,7 +110,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
   const revisionId = useWorkspace((s) => s.head!.id);
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
   const bumpRecords = useWorkspace((s) => s.bumpRecords);
-  const palette = usePalette(config.theme);
+  const palette = usePalette(useAppTheme(config));
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { height: screenHeight, width: screenWidth } = useWindowDimensions();

@@ -54,7 +54,12 @@ import { ToolDownloadStore } from '@/tool-download/store';
 import { openRepo } from '@/storage/open';
 import type { SQLiteWorkspaceRepo } from '@/storage/sqlite';
 import { useStopBuildInBackground } from '@/shell/BuildPanel';
-import { WorkspaceProvider, useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import {
+  WorkspaceProvider,
+  useWorkspace,
+  useWorkspaceContext,
+  useAppTheme,
+} from '@/workspace/context';
 import { createNeedSender, createRemoteAIProvider } from '@/workspace/remote-ai';
 import { createWorkspaceStore, type WorkspaceStore } from '@/workspace/store';
 import { WidgetProvider } from '@/widgets/context';
@@ -147,7 +152,7 @@ function RootStack() {
 
 function ThemedStack() {
   const { locale } = useWorkspaceContext();
-  const theme = useWorkspace((s) => s.config!.theme);
+  const theme = useAppTheme();
   // 别的 App 分享进来的文件 → 收件页面（D-114）。
   useIncomingShare(expoFilePlatform);
   // 提醒：配置或记录变了就重排；点提醒只打开页面或快捷操作（D-251）。

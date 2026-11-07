@@ -5,14 +5,14 @@ import { Text, View } from 'react-native';
 import { usePalette } from '@/renderer/theme';
 import { WorkflowEditor } from '@/run/WorkflowEditor';
 import { workflowEntry } from '@/shell/ai-entry';
-import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '@/workspace/context';
 
 /** 编辑一个工作流（参数、每次运行时问、步骤）。保存生成一个可撤销的版本。 */
 export default function WorkflowRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { locale, registry } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
-  const palette = usePalette(config.theme);
+  const palette = usePalette(useAppTheme(config));
   const workflow = findWorkflow(quickActionsOf(config), id, locale);
   if (!workflow) {
     return (

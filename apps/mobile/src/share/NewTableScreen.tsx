@@ -49,7 +49,7 @@ import { Button, Pill } from '../renderer/ui';
 import { deviceFitsLocalModel, openLocalModel } from '../runtime/local-model';
 import { aboutParams } from '../shell/ai-entry';
 import { deleteUserFiles } from '../storage/user-files';
-import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '../workspace/context';
 import { holdFormCopies, takeFormCopies } from './save-as-record';
 
 // 导入文件后新建表单（D-444，创始人 2026-11-05 在对话里定）：匹配到预设和没匹配到是同一个页面，只是一开始的字段不同。
@@ -72,7 +72,7 @@ export function NewTableScreen() {
   const proposeOps = useWorkspace((s) => s.proposeOps);
   const confirm = useWorkspace((s) => s.confirm);
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
-  const palette = usePalette(config.theme);
+  const palette = usePalette(useAppTheme(config));
   const actions = useRecordActions();
   const headerHeight = useHeaderHeight();
   const packs = usePacks();

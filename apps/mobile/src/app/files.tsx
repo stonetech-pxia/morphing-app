@@ -22,7 +22,7 @@ import { newAssetId } from '@/runtime/runner';
 import { loadAssetUsage } from '@/storage/asset-uses';
 import type { AssetRecord } from '@/storage/types';
 import { deleteUserFiles, mergeUserPdfs, renameUserFile } from '@/storage/user-files';
-import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '@/workspace/context';
 
 type Sort = 'newest' | 'name' | 'size';
 const SORTS: { id: Sort; label: StringKey }[] = [
@@ -67,7 +67,7 @@ export default function FilesScreen() {
   const { repo, files, locale } = useWorkspaceContext();
   const router = useRouter();
   const config = useWorkspace((s) => s.config!);
-  const theme = config.theme;
+  const theme = useAppTheme(config);
   const version = useWorkspace((s) => s.assetsVersion);
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
   const palette = usePalette(theme);

@@ -3,7 +3,15 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { appFileFromWorkspace, appFileOps, readAppFile, type AppFile } from './app-file';
+import {
+  appFileFromWorkspace,
+  appFileOps,
+  appResetOps,
+  readAppFile,
+  type AppFile,
+  type ImportMode,
+} from './app-file';
+import { homeScreenOp } from './home-screen';
 import { prepareOps } from './change';
 import { newFileRefs } from './file-refs';
 import { referenceProblems } from './reference-checks';
@@ -40,8 +48,8 @@ const NOW = new Date(2026, 10, 7);
 const ctx = { registry, locale: 'en' as const, now: NOW };
 const starter = () => createStarterWorkspace('en', registry);
 
-function importApp(config: WorkspaceConfig, file: AppFile): WorkspaceConfig {
-  const plan = appFileOps(file, config);
+function importApp(config: WorkspaceConfig, file: AppFile, mode?: ImportMode): WorkspaceConfig {
+  const plan = appFileOps(file, config, mode ? { mode } : {});
   if (!plan.ok) throw new Error(plan.error);
   const result = prepareOps(config, plan.ops, ctx);
   if (!result.ok) throw new Error(result.issues.join('\n'));
@@ -196,5 +204,172 @@ describe('appFileFromWorkspace', () => {
     expect(block.source.table).toBe('todo-tasks');
     expect(block.show.title).toBe('tasks');
     expect(() => importApp(starter(), file as AppFile)).not.toThrow();
+  });
+});
+
+// ---- 导入主页、接回已有的表、恢复初始样子（D-485）----
+
+const load = (entry: Entry) => readAppFile(text(entry.file))!;
+const run = (config: WorkspaceConfig, ops: Parameters<typeof prepareOps>[1]) => {
+  const result = prepareOps(config, ops, ctx);
+  if (!result.ok) throw new Error(result.issues.join('\n'));
+  return result.after;
+};
+
+describe.each(manifest.apps.map((a) => [a.name, a] as const))('导入主页 %s', (_name, entry) => {
+  const file = load(entry);
+
+  it('changes the home style and puts the pages in the bar, without making an app', () => {
+    const before = starter();
+    const after = importApp(before, file, 'home');
+    expect(after.nav.apps).toBeUndefined();
+    expect(after.theme).toEqual(file.app.theme);
+    expect(after.nav.bar.length).toBeLessThanOrEqual(5);
+    // 放得下的页面进了导航栏；原来的 home、Tink、设置还在。
+    const added = after.nav.bar.filter((t) => t.startsWith('page:') && t !== 'page:home');
+    expect(added.length).toBeGreaterThan(0);
+    expect(after.nav.bar).toContain('page:home');
+    expect(after.nav.bar).toContain('settings');
+    // 页面、表、快捷操作、提醒都是主页的（没有 app）。
+    expect(after.containers.pages.filter((p) => p.app !== undefined)).toEqual([]);
+    expect(after.data.tables.filter((t) => t.app !== undefined)).toEqual([]);
+    expect(after.data.tables.length).toBe(before.data.tables.length + entry.tables.length);
+    expect(remindersOf(after)).toHaveLength(entry.reminders);
+  });
+
+  it('keeps every page reachable and the workspace consistent (底线 18)', () => {
+    const before = starter();
+    const after = importApp(before, file, 'home');
+    expect(referenceProblems(after, registry)).toEqual([]);
+    expect(newFileRefs(before, after)).toEqual([]);
+    expect(checkTools(after, registry).issues.filter((i) => i.severity === 'blocker')).toEqual([]);
+  });
+
+  it('cannot be imported into the home twice', () => {
+    const once = importApp(starter(), file, 'home');
+    const again = appFileOps(file, once, { mode: 'home' });
+    expect(again.ok).toBe(false);
+  });
+});
+
+describe('接回已有的表和恢复初始样子', () => {
+  const entry = manifest.apps.find((a) => a.id === 'habits')!;
+  const file = load(entry);
+  const habits = 'habits-habits';
+  /** 比装上去的版本多一个字段的原文件（App 文件升级了）。 */
+  const newer: AppFile = {
+    ...file,
+    tables: file.tables.map((t) =>
+      t.id === habits
+        ? { ...t, fields: [...t.fields, { id: 'extra', name: 'Extra', type: 'text' as const }] }
+        : t,
+    ),
+  };
+
+  it('imports again after the app was removed: its tables are taken back (底线 5)', () => {
+    const installed = importApp(starter(), file);
+    const removed = run(installed, [{ op: 'removeContainer', app: 'habits' }]);
+    expect(removed.data.tables.find((t) => t.id === habits)!.app).toBeUndefined();
+    const back = importApp(removed, file);
+    expect(back.data.tables.find((t) => t.id === habits)!.app).toBe('habits');
+    expect(back.data.tables.length).toBe(installed.data.tables.length);
+  });
+
+  it('adds a field the file has and the table lacks, and keeps the ones the user added', () => {
+    const installed = importApp(starter(), file);
+    const edited = run(installed, [
+      { op: 'addData', table: habits, field: { id: 'mine', name: 'Mine', type: 'text' } } as never,
+    ]);
+    const removed = run(edited, [{ op: 'removeContainer', app: 'habits' }]);
+    const back = importApp(removed, newer);
+    const fields = back.data.tables.find((t) => t.id === habits)!.fields.map((f) => f.id);
+    expect(fields).toContain('extra');
+    expect(fields).toContain('mine');
+  });
+
+  it('refuses a table that belongs to another app', () => {
+    const removed = run(importApp(starter(), file), [{ op: 'removeContainer', app: 'habits' }]);
+    const owned = run(removed, [
+      { op: 'addContainer', app: { id: 'other', name: 'Other' } },
+      { op: 'updateData', table: habits, changes: { app: 'other' } } as never,
+    ]);
+    const clash = appFileOps(file, owned);
+    expect(clash.ok).toBe(false);
+    expect(!clash.ok && clash.error).toMatch(/table habits-habits/);
+  });
+
+  it('restores the app to the file: pages, style, bar, reminders; user tables stay on the home', () => {
+    const base = starter();
+    let config = importApp(base, file);
+    // 放进桌面菜单。
+    config = run(config, [homeScreenOp(config, 'app:habits', true)]);
+    // 用户把它改得面目全非：删一页、加一页、改风格、改名、加自己的表、删一个提醒。
+    const reminder = remindersOf(config).find((r) => r.app === 'habits')!;
+    config = run(config, [
+      { op: 'removeContainer', page: 'habits-insights' },
+      { op: 'addContainer', page: { id: 'habits-mine', title: 'Mine', app: 'habits', blocks: [] } },
+      { op: 'setTheme', app: 'habits', primaryColor: '#000000' },
+      { op: 'updateContainer', app: { id: 'habits', name: 'Changed' } },
+      {
+        op: 'addData',
+        table: {
+          id: 'habits-extra',
+          name: 'Extra',
+          app: 'habits',
+          fields: [{ id: 'x', name: 'x', type: 'text' }],
+        },
+      } as never,
+      { op: 'removeTool', tool: reminder.id },
+    ]);
+    const plan = appResetOps(newer, config, registry);
+    if (!plan.ok) throw new Error(plan.error);
+    const after = run(config, plan.ops);
+    const app = after.nav.apps!.find((a) => a.id === 'habits')!;
+    expect(app.name).toBe(entry.name);
+    expect(app.theme).toEqual(file.app.theme);
+    expect(app.bar).toEqual(file.app.bar);
+    expect(
+      after.containers.pages
+        .filter((p) => p.app === 'habits')
+        .map((p) => p.id)
+        .sort(),
+    ).toEqual(file.pages.map((p) => p.id).sort());
+    expect(remindersOf(after).filter((r) => r.app === 'habits')).toHaveLength(entry.reminders);
+    // 用户自己的表留着，转给了主页，记录不动。
+    expect(after.data.tables.find((t) => t.id === 'habits-extra')!.app).toBeUndefined();
+    // 原文件多出来的字段补上了；桌面菜单还在；主页入口只有一个。
+    expect(after.data.tables.find((t) => t.id === habits)!.fields.map((f) => f.id)).toContain(
+      'extra',
+    );
+    expect(after.nav.phoneHomeScreen).toEqual(['app:habits']);
+    const home = after.containers.pages.find((p) => p.id === HOME_PAGE_ID)!;
+    expect(JSON.stringify(home.blocks).match(/app:habits/g)).toHaveLength(1);
+    expect(referenceProblems(after, registry)).toEqual([]);
+  });
+
+  it('restoring leaves other apps and the home untouched', () => {
+    let config = importApp(starter(), file);
+    config = importApp(config, load(manifest.apps.find((a) => a.id === 'wallet')!));
+    const walletBefore = JSON.stringify([
+      config.nav.apps!.find((a) => a.id === 'wallet'),
+      config.containers.pages.filter((p) => p.app === 'wallet'),
+      config.data.tables.filter((t) => t.app === 'wallet'),
+    ]);
+    const plan = appResetOps(file, config, registry);
+    if (!plan.ok) throw new Error(plan.error);
+    const after = run(config, plan.ops);
+    expect(
+      JSON.stringify([
+        after.nav.apps!.find((a) => a.id === 'wallet'),
+        after.containers.pages.filter((p) => p.app === 'wallet'),
+        after.data.tables.filter((t) => t.app === 'wallet'),
+      ]),
+    ).toBe(walletBefore);
+    expect(after.theme).toEqual(config.theme);
+  });
+
+  it('has nothing to restore when the app is not there', () => {
+    const plan = appResetOps(file, starter(), registry);
+    expect(plan.ok).toBe(false);
   });
 });

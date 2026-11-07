@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { t, type StringKey } from '../i18n';
 import { usePalette } from '../renderer/theme';
 import { Button } from '../renderer/ui';
-import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { useWorkspaceContext, useAppTheme } from '../workspace/context';
 import { useGuide } from './store';
 import { WelcomeArt, type WelcomeArtKind } from './WelcomeArt';
 
@@ -32,7 +32,7 @@ const PAGES: { art: WelcomeArtKind; text: StringKey; sub?: StringKey }[] = [
  */
 export function WelcomeScreen() {
   const { locale } = useWorkspaceContext();
-  const theme = useWorkspace((s) => s.config!.theme);
+  const theme = useAppTheme();
   const palette = usePalette(theme);
   const setStage = useGuide((s) => s.setStage);
   const router = useRouter();

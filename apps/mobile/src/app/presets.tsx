@@ -19,7 +19,7 @@ import { usePalette, type Palette } from '@/renderer/theme';
 import { Button, Card, Pill } from '@/renderer/ui';
 import { Toast } from '@/shell/Toast';
 import type { SavedPreset } from '@/storage/types';
-import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '@/workspace/context';
 
 /**
  * 「设置 → 我的预设」（D-410）：把整个 App 存起来，以后换回来。系统层的页面，AI 改不了（底线 8）。
@@ -28,7 +28,7 @@ import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 export default function PresetsRoute() {
   const { repo, locale, registry } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
-  const palette = usePalette(config.theme);
+  const palette = usePalette(useAppTheme(config));
   const version = useWorkspace((s) => s.presetsVersion);
   const savePreset = useWorkspace((s) => s.savePreset);
   const renamePreset = useWorkspace((s) => s.renamePreset);

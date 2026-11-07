@@ -7,7 +7,7 @@ import { usePalette } from '@/renderer/theme';
 import { Button, Card } from '@/renderer/ui';
 import { workflowEntry } from '@/shell/ai-entry';
 import { openRunAfterClosing } from '@/shell/navigation';
-import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { useWorkspace, useWorkspaceContext, useAppTheme } from '@/workspace/context';
 
 /**
  * 点了提醒、提醒要打开一个快捷操作（D-251）：只把它摆出来，用户自己点「开始」才运行。
@@ -19,7 +19,7 @@ export default function ReminderRoute() {
   const entry = from === 'entry';
   const { locale, registry } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
-  const palette = usePalette(config.theme);
+  const palette = usePalette(useAppTheme(config));
   const router = useRouter();
   const workflow = (entry ? findWorkflowTarget : findWorkflow)(
     quickActionsOf(config),
