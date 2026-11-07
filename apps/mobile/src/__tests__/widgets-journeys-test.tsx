@@ -48,12 +48,21 @@ const seed = (locale: Locale, registry: Registry) => {
   return result.config as never;
 };
 
+/** 假的小组件平台。队列像真的一样：读不删，removeQueue 才删（R07）；每条点按一个文件、有自己的 id。 */
 function fakeWidgets(queue: string[] = [], canPin = false) {
   const written: string[] = [];
-  const platform: WidgetPlatform & { written: string[] } = {
+  const entries = queue.map((text, i) => ({ id: `q${i + 1}`, text }));
+  const platform: WidgetPlatform & { written: string[]; entries: typeof entries } = {
     written,
+    entries,
     setSnapshot: jest.fn(async (json: string) => void written.push(json)),
-    takeQueue: jest.fn(async () => queue.splice(0)),
+    readQueue: jest.fn(async () => entries.map((e) => ({ ...e }))),
+    removeQueue: jest.fn(async (ids: string[]) => {
+      for (const id of ids) {
+        const i = entries.findIndex((e) => e.id === id);
+        if (i >= 0) entries.splice(i, 1);
+      }
+    }),
     canPin: () => canPin,
     pin: jest.fn(async () => true),
     onQueue: () => () => undefined,

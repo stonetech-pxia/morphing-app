@@ -19,6 +19,8 @@ export interface DeskFs {
   writeBytes(path: string, bytes: Uint8Array): Promise<number>;
   /** 读不到时返回 null。 */
   readText(path: string): Promise<string | null>;
+  /** 同一个桌面里改名（原生的 rename，不复制）；目标已经有一个就先删掉它。 */
+  rename(from: string, to: string): Promise<void>;
   /** 删掉几个文件；只删桌面目录里的，已经不在了不算错。 */
   remove(paths: readonly string[]): Promise<void>;
   /** 删掉整个桌面。 */

@@ -3,14 +3,8 @@ import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
-import {
-  BUILTIN_TOOLS,
-  buildSetup,
-  createRegistry,
-  quickActionsOf,
-  type EvalSetup,
-  type Locale,
-} from '@morph/core';
+import { BUILTIN_TOOLS, createRegistry, quickActionsOf, type Locale } from '@morph/core';
+import { buildSetup, type EvalSetup } from '@morph/core/src/eval';
 
 import { loadRootEnv } from '../src/config';
 

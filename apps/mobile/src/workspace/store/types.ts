@@ -1,5 +1,6 @@
 import type {
   AIProvider,
+  AppConfigFileProblem,
   BuildStep,
   Locale,
   NavTarget,
@@ -227,6 +228,16 @@ export type SavePresetResult =
   /** 到上限了（MAX_SAVED_PRESETS）。 */
   | { kind: 'full' };
 
+/** 从文件导入预设的结果（D-485）。 */
+export type ImportPresetResult =
+  | { kind: 'saved'; preset: SavedPreset }
+  /** 到上限了（MAX_SAVED_PRESETS）。 */
+  | { kind: 'full' }
+  /** 文件本身读不了（太大、不是 JSON、不是 App 配置、版本太新）。 */
+  | { kind: 'refused'; problem: AppConfigFileProblem }
+  /** 是 App 配置，但迁移或校验没过：issues 是具体原因，什么都没存。 */
+  | { kind: 'invalid'; issues: string[] };
+
 export interface WorkspaceState {
   status: 'loading' | 'ready' | 'error';
   error: string | null;
@@ -276,10 +287,13 @@ export interface WorkspaceState {
   proposeRestore(revisionId: number): Promise<ProposeResult>;
   /** 换成一个保存的预设（D-410）：和恢复历史版本一样先预览，确认才生效，能撤销。 */
   proposePreset(presetId: string): Promise<ProposeResult>;
-  /** 导入一份导出的 App 配置：先预览，确认后换成它，能撤销；记录都留着。 */
-  proposeImport(raw: unknown, name: string): Promise<ProposeResult>;
   /** 把当前的 App 存成预设（D-410）：不带记录和文件引用，不产生新版本。 */
   savePreset(name: string): Promise<SavePresetResult>;
+  /**
+   * 把一份 App 配置文件的内容存成一个新预设（D-485）：名字取文件名，当前的 App 不变，
+   * 用户在列表里点「应用」才换。迁移、校验、清文件引用都在存之前做；不联网。
+   */
+  importPreset(text: string, fileName: string): Promise<ImportPresetResult>;
   /** 名字是空的时不改，返回 false。 */
   renamePreset(presetId: string, name: string): Promise<boolean>;
   /** 真删；提示条能撤销（底线 11）。 */
@@ -315,7 +329,7 @@ export interface WorkspaceState {
   dismissToast(): void;
   holdBanner(held: boolean): void;
   holdToast(held: boolean): void;
-  listRevisions(limit?: number): Promise<RevisionRecord[]>;
+  listRevisions(limit?: number, beforeId?: number): Promise<RevisionRecord[]>;
   bumpAssets(): void;
   /**
    * AI 修改页的一句话（D-191）：功能类直接应用，外观类进草稿（没有草稿时新建一份）；

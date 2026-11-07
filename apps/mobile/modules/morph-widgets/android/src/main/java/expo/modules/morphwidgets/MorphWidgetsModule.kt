@@ -40,7 +40,9 @@ class MorphWidgetsModule : Module() {
       WidgetRender.scheduleNext(ctx)
     }
 
-    AsyncFunction("takeQueue") { WidgetStore.takeQueue(context) }
+    AsyncFunction("readQueue") { WidgetStore.readQueue(context) }
+
+    AsyncFunction("removeQueue") { ids: List<String> -> WidgetStore.removeQueue(context, ids) }
 
     Function("canPin") {
       Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&

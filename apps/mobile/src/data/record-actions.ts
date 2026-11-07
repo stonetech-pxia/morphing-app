@@ -104,10 +104,31 @@ export function useRecordActionRunner() {
       ),
     );
     if (!confirmed) return;
+    // 在一个事务里全改；每条都要求「现在还是算出这些改动时的样子」（确认的时候别处改过的不覆盖）。
+    // 失败或有记录变了：一条也不改（R09）。
     const at = Date.now();
-    for (const c of changes) await repo.updateRecord(c.id, c.after, at);
+    let outcome: 'applied' | 'conflict';
+    try {
+      outcome = await repo.applyRecordWrites(
+        changes.map((c) => ({
+          kind: 'update' as const,
+          id: c.id,
+          values: c.after,
+          updatedAt: at,
+          expected: c.before,
+        })),
+      );
+    } catch {
+      showToast({ message: t(locale, 'recordActionFailed') });
+      return;
+    }
     bump();
-    showToast({ message: t(locale, 'recordActionChanged', { n: changes.length }) });
+    showToast({
+      message:
+        outcome === 'applied'
+          ? t(locale, 'recordActionChanged', { n: changes.length })
+          : t(locale, 'recordActionChangedMeanwhile'),
+    });
   }
 
   return {

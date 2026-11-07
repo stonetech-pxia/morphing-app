@@ -3,6 +3,31 @@
   "version": 1,
   "apps": [
     {
+      "id": "clay",
+      "name": "Clay",
+      "tagline": "The Tinkrum look, refined: scan shortcuts up front, a shelf for every file",
+      "style": "Clay",
+      "file": "tinkrum-app-clay.json",
+      "schemaVersion": 39,
+      "pages": [
+        "Home",
+        "Toolbox",
+        "Files"
+      ],
+      "tables": [],
+      "reminders": 0,
+      "quickActions": 0,
+      "features": [
+        "One-tap scan to PDF, Word or Excel, and combine documents",
+        "Open files from the photo library or Files",
+        "Recent actions and recent files on the home page",
+        "Files shelved by type: PDF, Word, Excel, pictures",
+        "Toolbox in the bar; light and dark follow the phone"
+      ],
+      "includesRecords": false,
+      "icon": "paper"
+    },
+    {
       "id": "wallet",
       "name": "Wallet",
       "tagline": "Budgets, bills and net worth you control",

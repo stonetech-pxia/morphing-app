@@ -215,7 +215,11 @@ export function DeskEditor({
       onPress={onPress}
       style={({ pressed }) => [
         styles.action,
-        { borderColor: danger ? palette.danger : palette.border, opacity: pressed ? 0.6 : 1 },
+        {
+          borderColor: danger ? palette.danger : 'transparent',
+          backgroundColor: danger ? palette.surface : palette.primaryTint,
+          opacity: pressed ? 0.6 : 1,
+        },
       ]}>
       <Text
         style={[
@@ -229,6 +233,13 @@ export function DeskEditor({
 
   const actions = sheetActions();
   const source = sourceOf();
+  const radius = palette.radius;
+  // 底部的编辑层：浮在页面上的圆角面板，跟着主题的卡片样式。
+  const layer = [
+    styles.layer,
+    palette.cardStyle(palette.surface),
+    { borderRadius: Math.min(radius + 6, 32) },
+  ];
   const empty = layout && layout.cells.length === 0;
 
   return (
@@ -243,18 +254,21 @@ export function DeskEditor({
           {t(locale, 'tableEmpty')}
         </Text>
       ) : table && layout ? (
-        <SheetView
-          layout={layout}
-          palette={palette}
-          selected={sheetCell}
-          {...(readOnly ? {} : { onPressCell: pressSheetCell })}
-        />
+        // D-488：表格放在圆角的「纸张卡片」里（外层给阴影，里层裁圆角），和预览页、桌面一样。
+        <View style={[styles.paper, palette.cardStyle(palette.surface), { borderRadius: radius }]}>
+          <View style={[styles.paperClip, { borderRadius: Math.max(0, radius - 2) }]}>
+            <SheetView
+              layout={layout}
+              palette={palette}
+              selected={sheetCell}
+              {...(readOnly ? {} : { onPressCell: pressSheetCell })}
+            />
+          </View>
+        </View>
       ) : null}
 
       {editing ? (
-        <View
-          testID="desk-edit-panel"
-          style={[styles.layer, { borderColor: palette.border, backgroundColor: palette.surface }]}>
+        <View testID="desk-edit-panel" style={layer}>
           <TextInput
             testID="desk-edit-input"
             autoFocus
@@ -273,9 +287,7 @@ export function DeskEditor({
           </View>
         </View>
       ) : selected ? (
-        <View
-          testID="desk-edit-bar"
-          style={[styles.layer, { borderColor: palette.border, backgroundColor: palette.surface }]}>
+        <View testID="desk-edit-bar" style={layer}>
           <View style={styles.sourceRow}>
             <Text style={[palette.font('bodyBold', 13), styles.flex, { color: palette.muted }]}>
               {t(locale, 'tableSource')}
@@ -291,7 +303,8 @@ export function DeskEditor({
             </Pressable>
           </View>
           {source?.box ? (
-            <Crop page={source.page} box={source.box} maxWidth={width - 24} palette={palette} />
+            // 面板左右各留 12，面板里再缩进 14（D-488）。
+            <Crop page={source.page} box={source.box} maxWidth={width - 52} palette={palette} />
           ) : (
             <Text style={[palette.font('body', 13), { color: palette.muted }]}>
               {t(locale, 'tableNoSource')}
@@ -365,7 +378,9 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   hint: { paddingHorizontal: 12, paddingVertical: 6 },
   empty: { flex: 1, padding: 24, textAlign: 'center' },
-  layer: { borderTopWidth: StyleSheet.hairlineWidth, padding: 12, gap: 8 },
+  layer: { marginHorizontal: 12, marginTop: 8, marginBottom: 12, padding: 14, gap: 10 },
+  paper: { flex: 1, marginHorizontal: 12, marginTop: 2 },
+  paperClip: { flex: 1, overflow: 'hidden' },
   sourceRow: { flexDirection: 'row', alignItems: 'center' },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   action: {

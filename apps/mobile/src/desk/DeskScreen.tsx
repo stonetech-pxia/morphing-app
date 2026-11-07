@@ -528,10 +528,14 @@ export function DeskScreen({ deskId }: { deskId: string }) {
     <View
       style={[
         styles.toolbar,
+        palette.cardStyle(palette.surface),
         {
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
-          ...(layout.toolbar === 'bottom' ? { paddingBottom: insets.bottom } : {}),
+          borderRadius: Math.min(palette.radius + 6, 32),
+          margin: 0,
+          padding: 0,
+          marginHorizontal: 12,
+          marginVertical: 8,
+          ...(layout.toolbar === 'bottom' ? { marginBottom: Math.max(insets.bottom, 12) } : {}),
         },
       ]}>
       {targets.length > 1 ? (
@@ -589,14 +593,20 @@ export function DeskScreen({ deskId }: { deskId: string }) {
       />
     )
   ) : (
-    <DeskPreview
-      desk={desk}
-      file={shown}
-      files={files}
-      palette={palette}
-      locale={locale}
-      onSystemPreview={systemPreview}
-    />
+    // D-488：图片、PDF 的大预览放在圆角的「纸张卡片」里（和预览页一样）：外层给阴影，里层裁圆角。
+    <View
+      style={[styles.paper, palette.cardStyle(palette.surface), { borderRadius: palette.radius }]}>
+      <View style={[styles.paperClip, { borderRadius: Math.max(0, palette.radius - 2) }]}>
+        <DeskPreview
+          desk={desk}
+          file={shown}
+          files={files}
+          palette={palette}
+          locale={locale}
+          onSystemPreview={systemPreview}
+        />
+      </View>
+    </View>
   );
 
   return (
@@ -625,7 +635,8 @@ export function DeskScreen({ deskId }: { deskId: string }) {
         ) : null}
         <HeaderButton
           id="desk-undo"
-          text={t(locale, 'undo')}
+          text="↶"
+          label={t(locale, 'undo')}
           palette={palette}
           onPress={() =>
             editUndo ? edit.undo() : void undo(files, desk, Date.now()).then(setDesk)
@@ -634,7 +645,8 @@ export function DeskScreen({ deskId }: { deskId: string }) {
         />
         <HeaderButton
           id="desk-redo"
-          text={t(locale, 'tableRedo')}
+          text="↷"
+          label={t(locale, 'tableRedo')}
           palette={palette}
           onPress={() =>
             editRedo ? edit.redo() : void redo(files, desk, Date.now()).then(setDesk)
@@ -644,6 +656,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
         <HeaderButton
           id="desk-done"
           text={t(locale, 'done')}
+          primary
           palette={palette}
           onPress={() =>
             void edit.seal().then(() => {
@@ -872,6 +885,10 @@ export function DeskScreen({ deskId }: { deskId: string }) {
   );
 }
 
+/**
+ * 顶栏的按钮（D-488）：返回和撤销、重做是浅色圆底的小按钮，「完成」是主色实心的药丸（主操作）。
+ * text 是显示的字；disabled 时变淡。
+ */
 function HeaderButton({
   id,
   text,
@@ -879,6 +896,8 @@ function HeaderButton({
   onPress,
   disabled = false,
   bold = false,
+  primary = false,
+  label,
 }: {
   id: string;
   text: string;
@@ -886,16 +905,29 @@ function HeaderButton({
   onPress: () => void;
   disabled?: boolean;
   bold?: boolean;
+  /** 主操作：主色实心。 */
+  primary?: boolean;
+  /** 读屏的名字（text 是符号时用）。 */
+  label?: string;
 }) {
   return (
     <Pressable
       testID={id}
       accessibilityRole="button"
-      hitSlop={8}
+      accessibilityLabel={label ?? text}
+      hitSlop={6}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => ({ opacity: disabled ? 0.35 : pressed ? 0.6 : 1 })}>
-      <Text style={[palette.font(bold ? 'bodyBold' : 'body', 16), { color: palette.primaryText }]}>
+      style={({ pressed }) => [
+        styles.headerButton,
+        { backgroundColor: primary ? palette.primary : palette.primaryTint },
+        { opacity: disabled ? 0.35 : 1, transform: [{ scale: pressed ? 0.94 : 1 }] },
+      ]}>
+      <Text
+        style={[
+          palette.font(bold || primary ? 'bodyBold' : 'bodyMedium', primary ? 15 : 16),
+          { color: primary ? palette.onPrimary : palette.primaryText },
+        ]}>
         {text}
       </Text>
     </Pressable>
@@ -979,17 +1011,23 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    paddingHorizontal: 16,
+    gap: 10,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     // 和页面栈的导航栏（预览页用的）一样高，从预览页进桌面时顶栏不跳。
     minHeight: Platform.OS === 'ios' ? 44 : 56,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  toolbar: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+  headerButton: {
+    minWidth: 36,
+    height: 36,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  toolbar: { marginHorizontal: 12, marginVertical: 8, overflow: 'hidden' },
+  paper: { flex: 1, marginHorizontal: 12, marginTop: 2 },
+  paperClip: { flex: 1, overflow: 'hidden' },
   targets: { paddingHorizontal: 14, paddingTop: 6 },
   slot: { paddingHorizontal: 12, paddingVertical: 8 },
   error: { paddingHorizontal: 16, paddingVertical: 6 },

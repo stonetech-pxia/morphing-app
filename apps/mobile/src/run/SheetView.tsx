@@ -82,7 +82,7 @@ export function SheetView({
     <ScrollView horizontal style={styles.flex} testID={testID}>
       <ScrollView stickyHeaderIndices={[0]} contentContainerStyle={{ width: sheetWidth }}>
         {/* 列字母（上下滚动时停在顶上）。按位置摆：iOS 上停靠的那一行不按 flexDirection 排。 */}
-        <View style={[styles.colHeads, { width: sheetWidth, backgroundColor: palette.surface }]}>
+        <View style={[styles.colHeads, { width: sheetWidth, backgroundColor: palette.background }]}>
           {colPx.map((w, c) => (
             <Pressable
               key={c}
@@ -91,9 +91,20 @@ export function SheetView({
               style={[
                 styles.head,
                 styles.abs,
-                { left: ROW_HEAD + colAt[c]!, top: 0, width: w, borderColor: palette.border },
+                {
+                  left: ROW_HEAD + colAt[c]!,
+                  top: 0,
+                  width: w,
+                  borderColor: palette.border,
+                  // D-488：选中的格子所在的列和行，表头换成浅主色。
+                  ...(selected?.col === c ? { backgroundColor: palette.primaryTint } : {}),
+                },
               ]}>
-              <Text style={[palette.font('bodyBold', 12), { color: palette.muted }]}>
+              <Text
+                style={[
+                  palette.font('bodyBold', 12),
+                  { color: selected?.col === c ? palette.primaryText : palette.muted },
+                ]}>
                 {columnName(c)}
               </Text>
             </Pressable>
@@ -114,10 +125,16 @@ export function SheetView({
                   width: ROW_HEAD,
                   height: h,
                   borderColor: palette.border,
-                  backgroundColor: palette.surface,
+                  backgroundColor: selected?.row === r ? palette.primaryTint : palette.background,
                 },
               ]}>
-              <Text style={[palette.font('bodyBold', 12), { color: palette.muted }]}>{r + 1}</Text>
+              <Text
+                style={[
+                  palette.font('bodyBold', 12),
+                  { color: selected?.row === r ? palette.primaryText : palette.muted },
+                ]}>
+                {r + 1}
+              </Text>
             </Pressable>
           ))}
           {layout.cells.map((cell) => {
@@ -145,7 +162,7 @@ export function SheetView({
                     height,
                     borderColor: on ? palette.primary : table ? palette.border : 'transparent',
                     borderWidth: on ? 2 : StyleSheet.hairlineWidth,
-                    backgroundColor: palette.surface,
+                    backgroundColor: on ? palette.primaryTint : palette.surface,
                   },
                 ]}>
                 <Text
@@ -153,7 +170,7 @@ export function SheetView({
                     ? { numberOfLines: Math.max(1, Math.floor((height - 8) / LINE_PX)) }
                     : {})}
                   style={[
-                    palette.font('body', 13),
+                    palette.font(on ? 'bodyMedium' : 'body', 13),
                     { color: palette.text, textAlign: textAlignOf(cell) },
                   ]}>
                   {cell.text}

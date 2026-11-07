@@ -3,6 +3,18 @@ import type { DataRecord, WorkspaceConfig } from '@morph/core';
 // 本地存储契约（M1/M2 以设备本地为唯一权威来源，§5.4）。
 // SQLite 实现用于 App，内存实现用于测试；两者必须满足同样的语义。
 
+/** applyRecordWrites 的一条写入。 */
+export type RecordWrite =
+  | { kind: 'insert'; record: DataRecord }
+  | {
+      kind: 'update';
+      id: string;
+      values: Record<string, unknown>;
+      updatedAt: number;
+      /** 给了就要求现在存的还是这份，否则整批不做。 */
+      expected?: Record<string, unknown>;
+    };
+
 export type RevisionSource = 'seed' | 'ai' | 'user' | 'restore' | 'rollback' | 'recovery';
 
 export interface RevisionRecord {
@@ -103,7 +115,8 @@ export interface WorkspaceRepo {
   getHead(): Promise<RevisionRecord | null>;
   getRevision(id: number): Promise<RevisionRecord | null>;
   /** 最新的在前。 */
-  listRevisions(limit: number): Promise<RevisionRecord[]>;
+  /** 从新到旧取 limit 个版本；beforeId 给了就只取比它更早的（翻页：下一页用上一页最后一个的 id）。 */
+  listRevisions(limit: number, beforeId?: number): Promise<RevisionRecord[]>;
   /** 原子操作：检查 head、写入新 revision、移动 head。冲突时抛 RevisionConflictError。 */
   commitRevision(input: CommitInput): Promise<RevisionRecord>;
 
@@ -169,6 +182,25 @@ export interface WorkspaceRepo {
   getRecord(id: string): Promise<StoredRecord | null>;
   insertRecord(record: DataRecord): Promise<void>;
   updateRecord(id: string, values: Record<string, unknown>, updatedAt: number): Promise<void>;
+  /**
+   * 条件写入（R05）：记录现在存的值还是 expected（表单打开时的那份）才写；已经被别处改过返回 'conflict'，
+   * 不写；不存在或在「最近删除」里返回 'gone'。判断和写入在同一个事务里，中间插不进别的写入。
+   */
+  updateRecordIfUnchanged(
+    id: string,
+    expected: Record<string, unknown>,
+    values: Record<string, unknown>,
+    updatedAt: number,
+  ): Promise<'updated' | 'conflict' | 'gone'>;
+  /**
+   * 几条记录的写入（和一个可选的标记）在同一个事务里做完，要么全做、要么全不做（R06、R09）。
+   * 某条写不进去就抛错，前面的也不生效；update 带了 expected 的，现在存的不是这份（改过了、删了）
+   * 就整批不做，返回 'conflict'。meta 是和写入一起生效的标记（例如「这次点击处理过了」）。
+   */
+  applyRecordWrites(
+    writes: readonly RecordWrite[],
+    meta?: { key: string; value: string },
+  ): Promise<'applied' | 'conflict'>;
   /** 软删除：可以撤销，「最近删除」里保留 30 天。 */
   deleteRecord(id: string, deletedAt: number): Promise<void>;
   restoreRecord(id: string): Promise<void>;

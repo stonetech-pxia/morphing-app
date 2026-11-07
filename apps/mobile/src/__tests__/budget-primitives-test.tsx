@@ -170,7 +170,6 @@ it('"assign" on a category opens the form with the category filled in; saving up
   expect(screen.getByTestId('editor-category')).toHaveTextContent(/餐饮/);
   await fireEvent.changeText(screen.getByTestId('editor-amount'), '120');
   await fireEvent.press(screen.getByTestId('editor-save'));
-  // eslint-disable-next-line no-console
   const [saved] = await waitFor(async () => {
     const list = await repo.listRecords('assigned');
     expect(list).toHaveLength(1);

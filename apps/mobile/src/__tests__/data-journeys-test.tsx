@@ -1,6 +1,5 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import {
-  appConfigFile,
   BUILTIN_TOOLS,
   createMockAIProvider,
   LAYOUT_STORE_KEY,
@@ -13,7 +12,7 @@ import {
   type WorkspaceConfig,
 } from '@morph/core';
 import { createClaudePlanner, type PlannerMessage } from '@morph/planner';
-import { fireEvent, waitFor } from '@testing-library/react-native';
+import { fireEvent } from '@testing-library/react-native';
 import { Stack } from 'expo-router';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
 import { Alert, type AlertButton } from 'react-native';
@@ -366,72 +365,14 @@ describe('Settings → Data: app design and prefill memory', () => {
   });
 });
 
-describe('import app configuration', () => {
-  const openData = async () => {
+describe('Settings → Data: app configuration', () => {
+  it('only exports; importing a configuration lives under My presets (D-485)', async () => {
+    await renderApp();
     await fireEvent.press(await screen.findByTestId('nav-settings'));
     await fireEvent.press(await screen.findByTestId('settings-more'));
     await fireEvent.press(await screen.findByTestId('settings-data'));
-  };
-  const pick = (files: { nextPick: unknown; pickedTexts: Map<string, string> }, text: string) => {
-    files.nextPick = [
-      {
-        uri: 'file:///cache/DocumentPicker/config.json',
-        name: 'config.json',
-        size: 1,
-        mimeType: 'application/json',
-      },
-    ];
-    files.pickedTexts.set('file:///cache/DocumentPicker/config.json', text);
-  };
-
-  it('replaces the app with the file after a preview, keeps entries, and can be undone', async () => {
-    // 先在另一个 App 里做出带「笔记」表的配置，导出成文件。
-    const source = await renderApp();
-    await source.store
-      .getState()
-      .proposeOps(templateOps('notes', source.store.getState().config!, 'zh'), '笔记');
-    await source.store.getState().confirm();
-    const text = appConfigFile(source.store.getState().config!, new Date());
-
-    const repo = new MemoryWorkspaceRepo();
-    const { files, store } = await renderApp({ repo });
-    await repo.insertRecord({
-      id: 'keep',
-      collectionId: 'ghost',
-      values: { title: '留着' },
-      createdAt: 1,
-      updatedAt: 1,
-    });
-    expect(store.getState().config!.data.tables.some((c) => c.id === 'notes')).toBe(false);
-    await openData();
-    pick(files, text);
-    const alert = jest.spyOn(Alert, 'alert');
-    alert.mockImplementationOnce((_t, _m, buttons) => {
-      buttons?.find((b) => b.style !== 'cancel')?.onPress?.();
-    });
-    await fireEvent.press(await screen.findByTestId('import-app-config'));
-    await waitFor(() =>
-      expect(store.getState().config!.data.tables.some((c) => c.id === 'notes')).toBe(true),
-    );
-    expect(store.getState().head).toMatchObject({ source: 'restore' });
-    expect(await repo.listRecords('ghost')).toHaveLength(1);
-
-    await store.getState().undo();
-    expect(store.getState().config!.data.tables.some((c) => c.id === 'notes')).toBe(false);
-  });
-
-  it('refuses a file that is not an app configuration and changes nothing', async () => {
-    const { files, store } = await renderApp();
-    const before = store.getState().head!.id;
-    await openData();
-    pick(files, '{"hello":1}');
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    await fireEvent.press(await screen.findByTestId('import-app-config'));
-    expect(alert).toHaveBeenCalledWith(
-      '导入 App 配置',
-      '这个文件不是 Tinkrum 的 App 配置，没有导入。',
-    );
-    expect(store.getState().head!.id).toBe(before);
+    expect(await screen.findByTestId('export-app-config')).toBeTruthy();
+    expect(screen.queryByTestId('import-app-config')).toBeNull();
   });
 });
 

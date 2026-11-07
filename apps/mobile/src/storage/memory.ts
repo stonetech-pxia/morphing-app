@@ -11,7 +11,9 @@ import {
   type ToolRunRecord,
   type WorkspaceRepo,
   type RecordRange,
+  type RecordWrite,
 } from './types';
+import { sameValues } from './record-values';
 
 // 内存实现：用于测试，语义与 SQLite 实现一致。数据以 JSON 字符串保存，模拟“写入后重新读取”。
 
@@ -63,8 +65,9 @@ export class MemoryWorkspaceRepo implements WorkspaceRepo {
     return r ? this.toRecord(r) : null;
   }
 
-  async listRevisions(limit: number) {
+  async listRevisions(limit: number, beforeId?: number) {
     return [...this.revisions]
+      .filter((r) => beforeId === undefined || r.id < beforeId)
       .reverse()
       .slice(0, limit)
       .map((r) => this.toRecord(r));
@@ -269,6 +272,57 @@ export class MemoryWorkspaceRepo implements WorkspaceRepo {
   async updateRecord(id: string, values: Record<string, unknown>, updatedAt: number) {
     const r = this.readRecord(id);
     if (r) this.writeRecord({ ...r, values, updatedAt });
+  }
+
+  async applyRecordWrites(
+    writes: readonly RecordWrite[],
+    meta?: { key: string; value: string },
+  ): Promise<'applied' | 'conflict'> {
+    // 做在副本上，全部成功才换过来：和数据库的事务一样，中途失败什么都不留下。
+    const records = new Map(this.records);
+    const metaCopy = new Map(this.meta);
+    const take = this.records;
+    const takeMeta = this.meta;
+    this.records = records;
+    this.meta = metaCopy;
+    let result: 'applied' | 'conflict' = 'applied';
+    try {
+      for (const w of writes) {
+        if (w.kind === 'insert') {
+          await this.insertRecord(w.record);
+        } else {
+          const r = this.readRecord(w.id);
+          if (w.expected && (!r || r.deletedAt !== null || !sameValues(r.values, w.expected))) {
+            result = 'conflict';
+            break;
+          }
+          await this.updateRecord(w.id, w.values, w.updatedAt);
+        }
+      }
+      if (result === 'applied' && meta) metaCopy.set(meta.key, meta.value);
+    } catch (e) {
+      this.records = take;
+      this.meta = takeMeta;
+      throw e;
+    }
+    if (result === 'conflict') {
+      this.records = take;
+      this.meta = takeMeta;
+    }
+    return result;
+  }
+
+  async updateRecordIfUnchanged(
+    id: string,
+    expected: Record<string, unknown>,
+    values: Record<string, unknown>,
+    updatedAt: number,
+  ) {
+    const r = this.readRecord(id);
+    if (!r || r.deletedAt !== null) return 'gone' as const;
+    if (!sameValues(r.values, expected)) return 'conflict' as const;
+    this.writeRecord({ ...r, values, updatedAt });
+    return 'updated' as const;
   }
 
   async deleteRecord(id: string, deletedAt: number) {

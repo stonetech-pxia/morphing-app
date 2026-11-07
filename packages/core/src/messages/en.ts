@@ -64,6 +64,7 @@ export const en = {
   historyTitle: 'Change history',
   current: 'Now',
   restoreThis: 'Restore this version',
+  historyMore: 'Show older changes',
   restoreSummary: 'Back to {when}',
   source_seed: 'Start',
   source_ai: 'By Tink',
@@ -436,6 +437,10 @@ export const en = {
   presetsNew: 'Save the current app as a preset',
   presetsNamePlaceholder: 'Name this preset',
   presetsFull: 'You can keep up to {max} presets. Delete one to save another.',
+  presetsImport: 'Import from a file',
+  presetsImportHint:
+    'Have a file, for example one downloaded from the Tinkrum website? An app file is added as a new app next to yours. A whole-app preset file only joins this list; your app changes when you apply it.',
+  presetImported: 'Added the preset “{name}”. Tap Apply when you want to use it.',
   presetApply: 'Apply',
   presetRename: 'Rename',
   presetDeleted: 'Preset “{name}” deleted',
@@ -495,11 +500,8 @@ export const en = {
   appConfigHint:
     'Pages, table structures, quick actions and reminders, saved as one file. Your entries and files are not included.',
   exportAppConfig: 'Export app design',
-  importAppConfig: 'Import app configuration',
   importAppConfigInvalid: 'This file isn’t a Tinkrum app configuration, so nothing was imported.',
   importAppConfigName: 'imported file',
-  importAppConfigConfirm:
-    'Switch to the app in this file? Your entries stay, and you can undo it in the change history.',
   importAppConfirm:
     'Add “{name}” as a new app? Nothing you have is replaced. You can undo it in the change log.',
   importAppSummary: 'Add app “{name}”',
@@ -515,6 +517,13 @@ export const en = {
   appResetConfirm:
     'Restore “{name}” to how it was when you imported it? Pages and quick actions you added to it go away, and its style and pages come back. Tables you made and all your entries stay. You can undo it in the change log.',
   appResetSummary: 'Restore “{name}” to its original look',
+  importAppConfigNotJson:
+    'This file isn’t valid JSON, so it can’t be an app configuration. Nothing was imported.',
+  importAppConfigTooLarge:
+    'This file is too large to be an app configuration (the limit is {max} MB). Nothing was imported.',
+  importAppConfigNewer:
+    'This file was made by a newer version of Tinkrum. Update the app and try again. Nothing was imported.',
+  importAppConfigBroken: 'The app in this file can’t be used here, so nothing was imported:',
   localModelTitle: 'On-device model',
   localModelHint:
     'After you download it, new entries with an attachment also get values from a small model that runs on this phone. It helps most with names and amounts. Without it, suggestions still work with rules only. Nothing leaves this phone.',
@@ -1086,6 +1095,7 @@ export const en = {
   describe_file_list_a11dd: 'file list “{v0}”',
   homeRecentActions: 'Recent actions',
   homeRecentFiles: 'Recent files',
+  homeTagline: 'Paper in. Clean PDF, Word or Excel out.',
   describe_recent_quick_actions: 'Recently used quick actions',
   describe_quick_action_list: 'quick action list',
   describe_quick_action_list_kind: '“{v0}” quick action list',
@@ -1665,6 +1675,10 @@ export const en = {
   recordActionConfirm: 'This changes {n} entries.',
   recordActionConfirmButton: 'Change',
   recordActionNothing: 'Nothing to change',
+  recordActionFailed:
+    'Nothing was changed: something went wrong, so not a single entry was edited.',
+  recordActionChangedMeanwhile:
+    'Some entries changed before you confirmed, so nothing was changed. Tap again to use the latest.',
   recordActionTooMany: 'At most {max} entries can change at once; this would change {n}.',
   recordActionGone: 'This entry was deleted.',
   // 月历、显示格式、统计的目标和比较（D-305–D-308）
@@ -1738,6 +1752,14 @@ export const en = {
   discardTitle: 'Discard changes?',
   deskDiscardMessage: 'Your changes on the desk are not saved yet. They will be lost if you leave.',
   formDiscardMessage: 'What you entered is not saved yet. It will be lost if you leave.',
+  recordConflictTitle: 'This entry was just changed elsewhere',
+  recordConflictMessage:
+    'After you opened it, a notification button, a widget or another page changed it. “Keep my changes” saves only what you edited here and keeps everything else up to date; “Use the latest” drops your edits.',
+  recordConflictKeep: 'Keep my changes',
+  recordConflictLatest: 'Use the latest',
+  recordConflictGoneTitle: 'This entry was deleted while you were editing',
+  recordConflictGoneMessage:
+    'Your changes were not saved. You can bring the entry back from Recently deleted.',
   importSaving: 'Saving to your files {done} / {total}',
   deskClear: 'Clear the desk',
   deskClearTitle: 'Clear the desk?',

@@ -58,10 +58,7 @@ export function SettingsView({ env }: { env: RenderEnv }) {
   async function restoreApp(appId: string, name: string, origin: AppFile) {
     const plan = appResetOps(origin, env.config, registry);
     if (!plan.ok) {
-      Alert.alert(
-        t(locale, 'importAppConfig'),
-        t(locale, 'importAppClash', { reason: plan.error }),
-      );
+      Alert.alert(t(locale, 'appResetItem'), t(locale, 'importAppClash', { reason: plan.error }));
       return;
     }
     const result = await proposeOps(plan.ops, t(locale, 'appResetSummary', { name }));

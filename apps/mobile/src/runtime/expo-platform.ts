@@ -297,6 +297,12 @@ export const expoFilePlatform: FilePlatform = {
     return { path: `${ROOT}/${assetId}/${name}`, size: dest.size };
   },
 
+  async contentDigest(uri) {
+    // File.digest 是原生的（iOS 64 KB 一块、Android 同样），但 expo-file-system 58 的类型里没声明。
+    const file = new File(uri) as File & { digest(algorithm: 'SHA-256'): Promise<string> };
+    return file.digest('SHA-256');
+  },
+
   async removeAssetFile(path) {
     // 只删 assets/<id>/ 这一层目录：用户文件都放在自己的目录里（importFile、writeBytes、saveRunFile）。
     const [root, id] = path.split('/');

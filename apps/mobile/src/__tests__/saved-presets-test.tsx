@@ -1,7 +1,12 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import {
   CURRENT_SCHEMA_VERSION,
+  MAX_APP_CONFIG_SIZE,
   MAX_PRESET_NAME,
   MAX_SAVED_PRESETS,
+  appConfigFile,
   applyOps,
   createDefaultWorkspace,
   type Op,
@@ -10,18 +15,23 @@ import {
 import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
-import type { SQLiteDatabase } from 'expo-sqlite';
 import { Alert } from 'react-native';
 
 import { MemoryWorkspaceRepo } from '../storage/memory';
-import { SQLiteWorkspaceRepo, migrateDatabase } from '../storage/sqlite';
 import type { SavedPreset, WorkspaceRepo } from '../storage/types';
-import { acceptNextAlert, renderToolsApp, testRegistry } from '../test-utils/render-app';
+import { sqliteRepo } from '../test-utils/node-sqlite';
+import {
+  acceptNextAlert,
+  renderToolsApp,
+  starterAfterGuide,
+  testRegistry,
+} from '../test-utils/render-app';
 import { V4_FIXED_NAME } from '../../../../packages/core/src/fixtures/v4';
 
 // 「设置 → 我的预设」（D-410）：存整个 App，不带记录和文件；换回来走恢复版本的流程，能撤销。
 
 const FILE = 'presetfile01';
+const PORTAL = join(__dirname, '../../../../packages/core/src/fixtures/portal-apps');
 
 function seed(): WorkspaceConfig {
   const ops: Op[] = [
@@ -84,42 +94,6 @@ const stored = (id: string, overrides: Partial<SavedPreset> = {}): SavedPreset =
   config: createDefaultWorkspace('zh'),
   ...overrides,
 });
-
-// node:sqlite 跑真实的 SQL，和 delete-asset-test 一样包一层。
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { DatabaseSync } = require('node:sqlite') as {
-  DatabaseSync: new (path: string) => {
-    exec(sql: string): void;
-    prepare(sql: string): {
-      run(...p: unknown[]): { lastInsertRowid: number | bigint; changes: number | bigint };
-      get(...p: unknown[]): unknown;
-      all(...p: unknown[]): unknown[];
-    };
-  };
-};
-
-function nodeSqlite(): SQLiteDatabase {
-  const db = new DatabaseSync(':memory:');
-  const api = {
-    execAsync: async (sql: string) => db.exec(sql),
-    runAsync: async (sql: string, ...params: unknown[]) => {
-      const r = db.prepare(sql).run(...params);
-      return { lastInsertRowId: Number(r.lastInsertRowid), changes: Number(r.changes) };
-    },
-    getFirstAsync: async (sql: string, ...params: unknown[]) =>
-      db.prepare(sql).get(...params) ?? null,
-    getAllAsync: async (sql: string, ...params: unknown[]) => db.prepare(sql).all(...params),
-    withTransactionAsync: async (fn: () => Promise<void>) => fn(),
-    withExclusiveTransactionAsync: async (fn: (txn: unknown) => Promise<void>) => fn(api),
-  };
-  return api as unknown as SQLiteDatabase;
-}
-
-async function sqliteRepo() {
-  const db = nodeSqlite();
-  await migrateDatabase(db);
-  return new SQLiteWorkspaceRepo(db);
-}
 
 describe.each([
   ['memory', async () => new MemoryWorkspaceRepo()],
@@ -397,5 +371,279 @@ describe('保存预设时的检查', () => {
     await fireEvent.changeText(screen.getByTestId('preset-name-input'), '半成品');
     await fireEvent.press(screen.getByTestId('preset-save'));
     await waitFor(async () => expect(await repo.listPresets()).toHaveLength(1));
+  });
+});
+
+// 「从文件导入」：门户下载的预设文件存成一个新预设，点「应用」才换（D-485）。
+describe('import a preset from a file', () => {
+  // 前面的测试留下的 Alert.alert 监视和调用记录不能带进来。
+  beforeEach(() => jest.restoreAllMocks());
+  const PICKED = 'file:///cache/DocumentPicker/收据.json';
+  const pickFile = (
+    files: Awaited<ReturnType<typeof app>>['files'],
+    text: string,
+    overrides: { name?: string; size?: number | null } = {},
+  ) => {
+    files.nextPick = [
+      {
+        uri: PICKED,
+        name: overrides.name ?? '收据.json',
+        size: overrides.size === undefined ? text.length : overrides.size,
+        mimeType: 'application/json',
+      },
+    ];
+    files.pickedTexts.set(PICKED, text);
+  };
+  const exported = (config: unknown = seed()) =>
+    appConfigFile(config as WorkspaceConfig, new Date(2026, 10, 7));
+  // 路由状态是模块级的，上一个测试可能还停在预设页，也可能回到了首页：哪种都能打开。
+  const openScreen = async () => {
+    if (await screen.findByTestId('presets-screen', {}, { timeout: 300 }).catch(() => null))
+      return screen.getByTestId('presets-screen');
+    if (screen.queryByTestId('nav-settings')) return openPresets();
+    await act(async () => router.push('/presets'));
+    return screen.findByTestId('presets-screen');
+  };
+  const importThroughScreen = async () => {
+    await openScreen();
+    await fireEvent.press(await screen.findByTestId('preset-import'));
+  };
+
+  it('stores a new preset named after the file, changes nothing else, and applies only on request', async () => {
+    const { repo, files, store } = await app();
+    const text = exported();
+    // 先把 App 改成和文件里不一样的样子。
+    await act(() => changeApp(store, [{ op: 'removeData', table: 'notes' }]));
+    const before = store.getState().config!;
+    const head = store.getState().head!.id;
+
+    pickFile(files, text);
+    await importThroughScreen();
+    const preset = (
+      await waitFor(async () => {
+        const list = await repo.listPresets();
+        expect(list).toHaveLength(1);
+        return list;
+      })
+    )[0]!;
+    expect(preset.name).toBe('收据');
+    expect(preset.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    expect(JSON.stringify(preset.config)).not.toContain(FILE);
+    // 只选了文件的类型，没联网；当前的 App 一点没变，也没有新版本。
+    expect(files.lastPickTypes).toContain('application/json');
+    expect(store.getState().config).toEqual(before);
+    expect(store.getState().head!.id).toBe(head);
+    expect(await screen.findByTestId(`preset-${preset.id}`)).toBeTruthy();
+
+    // 点「应用」：先问，确认后换，记录还在，能撤销。
+    acceptNextAlert();
+    await fireEvent.press(screen.getByTestId(`preset-${preset.id}-apply`));
+    await waitFor(() => expect(store.getState().head!.id).toBeGreaterThan(head));
+    expect(store.getState().config!.data.tables.map((t) => t.id)).toContain('notes');
+    expect(await repo.listRecords('notes')).toHaveLength(1);
+    await act(() => store.getState().undo());
+    expect(store.getState().config!.data.tables.map((t) => t.id)).not.toContain('notes');
+    expect(await repo.listRecords('notes')).toHaveLength(1);
+  });
+
+  it('a name that is taken gets a number', async () => {
+    const { repo, files } = await app();
+    await repo.insertPreset(stored('taken000', { name: '收据' }));
+    pickFile(files, exported());
+    await importThroughScreen();
+    await waitFor(async () => expect(await repo.listPresets()).toHaveLength(2));
+    expect((await repo.listPresets()).map((p) => p.name).sort()).toEqual(['收据', '收据 2']);
+  });
+
+  it('an older file is upgraded before it is stored (底线 12)', async () => {
+    const { repo, files } = await app();
+    pickFile(files, exported(V4_FIXED_NAME), { name: 'old.json' });
+    await importThroughScreen();
+    const [preset] = await waitFor(async () => {
+      const list = await repo.listPresets();
+      expect(list).toHaveLength(1);
+      return list;
+    });
+    expect(preset!.name).toBe('old');
+    expect((preset!.config as WorkspaceConfig).schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+  });
+
+  it.each([
+    ['not json at all', 'nope', 'importAppConfigNotJson', '不是有效的 JSON'],
+    ['another kind of file', '{"hello":1}', 'importAppConfigInvalid', '不是 Tinkrum 的 App 配置'],
+    [
+      'another export format',
+      '{"format":"morph-layout-store","version":1,"config":{"schemaVersion":1}}',
+      'importAppConfigInvalid',
+      '不是 Tinkrum 的 App 配置',
+    ],
+    [
+      'a file from a newer Tinkrum',
+      `{"format":"morph-app-config","version":9,"config":{"schemaVersion":${CURRENT_SCHEMA_VERSION}}}`,
+      'importAppConfigNewer',
+      '更新版本的 Tinkrum',
+    ],
+  ])('refuses %s, says why and stores nothing', async (_name, text, _key, reason) => {
+    const { repo, files, store } = await app();
+    const head = store.getState().head!.id;
+    pickFile(files, text);
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await importThroughScreen();
+    await waitFor(() => expect(alert).toHaveBeenCalled());
+    expect(alert.mock.calls[0]![0]).toBe('从文件导入');
+    expect(String(alert.mock.calls[0]![1])).toContain(reason);
+    expect(await repo.listPresets()).toEqual([]);
+    expect(store.getState().head!.id).toBe(head);
+  });
+
+  it('refuses a configuration that does not hold together, listing the reasons (底线 18)', async () => {
+    const { repo, files } = await app();
+    const broken = JSON.parse(JSON.stringify(seed())) as WorkspaceConfig;
+    broken.containers.pages[0]!.blocks.push({
+      id: 'dangling',
+      look: 'entry',
+      show: { title: 'x', icon: 'star' },
+      opens: 'no-such-page' as never,
+    });
+    pickFile(files, exported(broken));
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await importThroughScreen();
+    await waitFor(() => expect(alert).toHaveBeenCalled());
+    const message = String(alert.mock.calls[0]![1]);
+    expect(message).toContain('没有导入');
+    expect(message.split('\n').length).toBeGreaterThan(1);
+    expect(await repo.listPresets()).toEqual([]);
+  });
+
+  it('a file over the size limit is refused without being read', async () => {
+    const { repo, files } = await app();
+    pickFile(files, exported(), { size: MAX_APP_CONFIG_SIZE + 1 });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await importThroughScreen();
+    await waitFor(() => expect(alert).toHaveBeenCalled());
+    expect(String(alert.mock.calls[0]![1])).toContain('太大');
+    expect(files.readPicked).toEqual([]);
+    expect(await repo.listPresets()).toEqual([]);
+  });
+
+  it('cancelling the picker does nothing', async () => {
+    const { repo, files } = await app();
+    files.nextPick = null;
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await importThroughScreen();
+    expect(alert).not.toHaveBeenCalled();
+    expect(await repo.listPresets()).toEqual([]);
+  });
+
+  it('with 50 presets a configuration file is refused (nothing stored), but the import is still offered', async () => {
+    const { repo, files, store } = await app();
+    for (let i = 0; i < MAX_SAVED_PRESETS; i++)
+      await repo.insertPreset(stored(`preset${i}`, { createdAt: i }));
+    await openScreen();
+    expect(await screen.findByTestId('presets-full')).toBeTruthy();
+    // App 文件不占预设的名额，所以入口还在；整份配置存不下，只提示。
+    expect(screen.getByTestId('preset-import')).toBeTruthy();
+    pickFile(files, exported());
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await fireEvent.press(screen.getByTestId('preset-import'));
+    await waitFor(() => expect(alert).toHaveBeenCalled());
+    expect((await store.getState().importPreset(exported(), 'a.json')).kind).toBe('full');
+    expect(await repo.listPresets()).toHaveLength(MAX_SAVED_PRESETS);
+  });
+
+  describe('an App file (D-485: one app, tinkrum-app)', () => {
+    // 门户上的 App 文件是在新用户的起始配置上做的（要有它的工具包和页面），所以用起始配置当底子。
+    const starterApp = () =>
+      renderToolsApp(new MemoryWorkspaceRepo(), undefined, {
+        seed: starterAfterGuide,
+        locale: 'zh',
+      });
+    // 门户里现成的一份 App 文件（Clay）。
+    // 先问「导入主页」还是「做成新 App」：选做成新 App（第二个按钮）。
+    const chooseNewApp = () =>
+      jest.spyOn(Alert, 'alert').mockImplementationOnce((_t, _m, buttons) => {
+        buttons?.[1]?.onPress?.();
+      });
+    const clay = () => readFileSync(join(PORTAL, 'tinkrum-app-clay.json'), 'utf8');
+
+    it('is added as a new app after asking; no preset is stored, what is there stays, and it can be undone', async () => {
+      const { repo, files, store } = await starterApp();
+      const before = store.getState().config!;
+      pickFile(files, clay(), { name: 'tinkrum-app-clay.json' });
+      chooseNewApp();
+      acceptNextAlert();
+      await importThroughScreen();
+      await waitFor(() => expect(store.getState().config!.nav.apps?.[0]?.id).toBe('clay'));
+      expect(await repo.listPresets()).toEqual([]);
+      // 原来的页面和表一个不少。
+      const after = store.getState().config!;
+      for (const p of before.containers.pages)
+        expect(after.containers.pages.some((x) => x.id === p.id)).toBe(true);
+      for (const tb of before.data.tables)
+        expect(after.data.tables.some((x) => x.id === tb.id)).toBe(true);
+      // 能在改动记录里撤销，撤销后没有这个 App。
+      await act(() => store.getState().undo());
+      expect(store.getState().config!.nav.apps ?? []).toEqual([]);
+    });
+
+    it('asking is not skipped: cancelling changes nothing', async () => {
+      const { repo, files, store } = await starterApp();
+      const head = store.getState().head!.id;
+      pickFile(files, clay(), { name: 'tinkrum-app-clay.json' });
+      const alert = jest
+        .spyOn(Alert, 'alert')
+        .mockImplementationOnce((_t, _m, buttons) => void buttons?.[0]?.onPress?.());
+      await importThroughScreen();
+      await waitFor(() => expect(alert).toHaveBeenCalled());
+      expect(store.getState().head!.id).toBe(head);
+      expect(store.getState().config!.nav.apps ?? []).toEqual([]);
+      expect(await repo.listPresets()).toEqual([]);
+    });
+
+    it('the same app twice: the second is refused and says why, nothing changes', async () => {
+      const { files, store } = await starterApp();
+      pickFile(files, clay(), { name: 'tinkrum-app-clay.json' });
+      chooseNewApp();
+      acceptNextAlert();
+      await importThroughScreen();
+      await waitFor(() => expect(store.getState().config!.nav.apps?.[0]?.id).toBe('clay'));
+      const head = store.getState().head!.id;
+      await openScreen();
+      pickFile(files, clay(), { name: 'tinkrum-app-clay.json' });
+      // 第一次导入时 acceptNextAlert 装的监视还在，调用记录要清掉再看这一次。
+      const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+      alert.mockClear();
+      chooseNewApp();
+      await fireEvent.press(await screen.findByTestId('preset-import'));
+      await waitFor(() => expect(alert).toHaveBeenCalledTimes(2));
+      expect(String(alert.mock.calls[1]![1])).toContain('已经添加过');
+      expect(store.getState().head!.id).toBe(head);
+    });
+
+    it('with 50 presets an App file is still added', async () => {
+      const { repo, files, store } = await starterApp();
+      for (let i = 0; i < MAX_SAVED_PRESETS; i++)
+        await repo.insertPreset(stored(`preset${i}`, { createdAt: i }));
+      pickFile(files, clay(), { name: 'tinkrum-app-clay.json' });
+      chooseNewApp();
+      acceptNextAlert();
+      await importThroughScreen();
+      await waitFor(() => expect(store.getState().config!.nav.apps?.[0]?.id).toBe('clay'));
+      expect(await repo.listPresets()).toHaveLength(MAX_SAVED_PRESETS);
+    });
+  });
+
+  it('French: the button, the hint and the refusal are in French', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    const { files } = await renderToolsApp(repo, undefined, { locale: 'fr' });
+    pickFile(files, '{"hello":1}');
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await openScreen();
+    expect(await screen.findByText('Importer depuis un fichier')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('preset-import'));
+    await waitFor(() => expect(alert).toHaveBeenCalled());
+    expect(alert.mock.calls[0]![0]).toBe('Importer depuis un fichier');
+    expect(String(alert.mock.calls[0]![1])).toMatch(/rien n’a été importé/i);
+    expect(await repo.listPresets()).toEqual([]);
   });
 });

@@ -2,18 +2,24 @@ import {
   HOME_PAGE_ID,
   MAX_PRESET_NAME,
   MAX_SAVED_PRESETS,
+  appFileOps,
   canSavePreset,
   checkTools,
   issueReason,
   pageTarget,
   quickActionsOf,
+  readAppFile,
   sessionIsEmpty,
+  type AppFile,
+  type ImportMode,
 } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { saveAppOrigin } from '@/apps/origin';
+import { configFileProblemText, pickConfigText } from '@/data/config-file-import';
 import { formatWhen, t } from '@/i18n';
 import { usePalette, type Palette } from '@/renderer/theme';
 import { Button, Card, Pill } from '@/renderer/ui';
@@ -24,13 +30,16 @@ import { useWorkspace, useWorkspaceContext, useAppTheme } from '@/workspace/cont
 /**
  * 「设置 → 我的预设」（D-410）：把整个 App 存起来，以后换回来。系统层的页面，AI 改不了（底线 8）。
  * 应用和恢复历史版本一样先问一句，确认后生成一个版本，能撤销（底线 7）；记录都留着（底线 5）。
+ * 「从文件导入」也在这里（D-497）：App 文件加成新 App，整份配置存成预设。
  */
 export default function PresetsRoute() {
-  const { repo, locale, registry } = useWorkspaceContext();
+  const { repo, files, locale, registry } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(useAppTheme(config));
   const version = useWorkspace((s) => s.presetsVersion);
   const savePreset = useWorkspace((s) => s.savePreset);
+  const importPreset = useWorkspace((s) => s.importPreset);
+  const proposeOps = useWorkspace((s) => s.proposeOps);
   const renamePreset = useWorkspace((s) => s.renamePreset);
   const deletePreset = useWorkspace((s) => s.deletePreset);
   const proposePreset = useWorkspace((s) => s.proposePreset);
@@ -66,6 +75,92 @@ export default function PresetsRoute() {
         { text: t(locale, 'sessionKeep'), style: 'cancel' },
         { text: t(locale, 'sessionClear'), onPress: () => void clearSession() },
       ]);
+  }
+
+  /**
+   * 从文件导入（D-497）：App 文件（tinkrum-app，D-485）先问一句，确认后加成一个新 App，能撤销；
+   * 整份配置的文件（morph-app-config）存成一个新预设，当前的 App 不变，点「应用」才换。
+   */
+  async function importFile() {
+    const title = t(locale, 'presetsImport');
+    const picked = await pickConfigText(files);
+    if (picked.kind === 'cancelled') return;
+    if (picked.kind === 'refused') {
+      Alert.alert(title, configFileProblemText(locale, picked.problem));
+      return;
+    }
+    const appFile = readAppFile(picked.text);
+    if (appFile) {
+      importApp(appFile, picked.text, title);
+      return;
+    }
+    const result = await importPreset(picked.text, picked.fileName);
+    if (result.kind === 'refused')
+      Alert.alert(title, configFileProblemText(locale, result.problem));
+    else if (result.kind === 'invalid')
+      Alert.alert(
+        title,
+        [t(locale, 'importAppConfigBroken'), ...result.issues.slice(0, 5)].join('\n'),
+      );
+    else if (result.kind === 'full')
+      Alert.alert(title, t(locale, 'presetsFull', { max: MAX_SAVED_PRESETS }));
+  }
+
+  /** 导入一个 App 文件：先选「导入主页」还是「做成新 App」，再预览，确认后生效，能在改动记录里撤销（底线 5、7）。 */
+  function importApp(appFile: AppFile, text: string, title: string) {
+    Alert.alert(appFile.app.name, t(locale, 'importAppChoose'), [
+      {
+        text: t(locale, 'importAppToHome'),
+        onPress: () => void proceedImport(appFile, text, 'home', title),
+      },
+      {
+        text: t(locale, 'importAppToApp'),
+        onPress: () => void proceedImport(appFile, text, 'app', title),
+      },
+      { text: t(locale, 'cancel'), style: 'cancel' },
+    ]);
+  }
+
+  async function proceedImport(appFile: AppFile, text: string, mode: ImportMode, title: string) {
+    const plan = appFileOps(appFile, config, { mode });
+    if (!plan.ok) {
+      Alert.alert(title, t(locale, 'importAppClash', { reason: plan.error }));
+      return;
+    }
+    const result = await proposeOps(
+      plan.ops,
+      t(locale, mode === 'home' ? 'importHomeSummary' : 'importAppSummary', { name: plan.name }),
+    );
+    if (result.kind !== 'preview') {
+      Alert.alert(
+        t(locale, 'invalidPlan'),
+        result.kind === 'invalid' ? result.issues.join('\n') : result.message,
+      );
+      return;
+    }
+    Alert.alert(
+      title,
+      [
+        t(locale, mode === 'home' ? 'importHomeConfirm' : 'importAppConfirm', { name: plan.name }),
+        ...result.proposal.lines,
+      ].join('\n'),
+      [
+        { text: t(locale, 'cancel'), style: 'cancel', onPress: () => void cancel() },
+        {
+          text: t(locale, 'presetApply'),
+          onPress: () =>
+            void (async () => {
+              if (!(await confirm())) return;
+              // 做成 App 的，原文件记在本机：以后能「恢复初始样子」。
+              if (mode === 'app') await saveAppOrigin(repo, appFile.app.id, text);
+              // 回到主页，新 App 的入口（或新页面）就在那里。
+              leaveApp();
+              selectTab(pageTarget(HOME_PAGE_ID));
+              router.back();
+            })(),
+        },
+      ],
+    );
   }
 
   async function rename() {
@@ -136,42 +231,54 @@ export default function PresetsRoute() {
             </Text>
           </Card>
         ) : (
-          <Card palette={palette}>
-            <Text style={[palette.font('title', 16), { color: palette.text }]}>
-              {t(locale, 'presetsNew')}
-            </Text>
-            <NameInput
-              palette={palette}
-              testID="preset-name-input"
-              value={name}
-              placeholder={t(locale, 'presetsNamePlaceholder')}
-              onChangeText={setName}
-            />
-            <Text testID="preset-check-tools" style={caption}>
-              {t(locale, 'presetCheckTools', { n: check.tools })}
-            </Text>
-            <Text testID="preset-check-summary" style={caption}>
-              {check.blockers.length > 0
-                ? t(locale, 'presetCheckProblems', { n: check.blockers.length })
-                : t(locale, 'presetCheckOk')}
-            </Text>
-            {check.blockers.slice(0, 4).map((issue) => (
-              <Text
-                key={`${issue.code}|${issue.target}`}
-                testID="preset-check-problem"
-                style={caption}>
-                • {issueReason(issue, config, locale)}
+          <>
+            <Card palette={palette}>
+              <Text style={[palette.font('title', 16), { color: palette.text }]}>
+                {t(locale, 'presetsNew')}
               </Text>
-            ))}
-            <Button
-              palette={palette}
-              testID="preset-save"
-              label={t(locale, check.blockers.length > 0 ? 'presetSaveAnyway' : 'save')}
-              disabled={!name.trim()}
-              onPress={() => void save()}
-            />
-          </Card>
+              <NameInput
+                palette={palette}
+                testID="preset-name-input"
+                value={name}
+                placeholder={t(locale, 'presetsNamePlaceholder')}
+                onChangeText={setName}
+              />
+              <Text testID="preset-check-tools" style={caption}>
+                {t(locale, 'presetCheckTools', { n: check.tools })}
+              </Text>
+              <Text testID="preset-check-summary" style={caption}>
+                {check.blockers.length > 0
+                  ? t(locale, 'presetCheckProblems', { n: check.blockers.length })
+                  : t(locale, 'presetCheckOk')}
+              </Text>
+              {check.blockers.slice(0, 4).map((issue) => (
+                <Text
+                  key={`${issue.code}|${issue.target}`}
+                  testID="preset-check-problem"
+                  style={caption}>
+                  • {issueReason(issue, config, locale)}
+                </Text>
+              ))}
+              <Button
+                palette={palette}
+                testID="preset-save"
+                label={t(locale, check.blockers.length > 0 ? 'presetSaveAnyway' : 'save')}
+                disabled={!name.trim()}
+                onPress={() => void save()}
+              />
+            </Card>
+          </>
         )}
+        <Card palette={palette}>
+          <Text style={caption}>{t(locale, 'presetsImportHint')}</Text>
+          <Button
+            palette={palette}
+            testID="preset-import"
+            variant="outline"
+            label={t(locale, 'presetsImport')}
+            onPress={() => void importFile()}
+          />
+        </Card>
         {presets?.length === 0 ? (
           <Card palette={palette}>
             <Text testID="presets-none" style={caption}>

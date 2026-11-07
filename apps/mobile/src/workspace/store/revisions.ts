@@ -151,10 +151,6 @@ export function createRevisions(
     });
   }
 
-  /** 换成从文件导入的一份 App 配置（导出的文件）：和应用预设同一个流程，先预览，确认后生成新版本，能撤销。 */
-  const importProposal = (raw: unknown, name: string): Promise<ProposeResult> =>
-    configProposal(raw, name, `import ${name}`, { kind: 'import' });
-
   async function configProposal(
     raw: unknown,
     name: string,
@@ -266,7 +262,6 @@ export function createRevisions(
     | 'propose'
     | 'proposeRestore'
     | 'proposePreset'
-    | 'proposeImport'
     | 'proposeOps'
     | 'setHomeEntry'
     | 'confirm'
@@ -337,7 +332,6 @@ export function createRevisions(
     proposeRestore: (revisionId) => restoreProposal(revisionId, `restore #${revisionId}`),
 
     proposePreset: presetProposal,
-    proposeImport: importProposal,
 
     proposeOps: (ops, summary) => opsProposal(summary, ops, 'user', summary),
 
@@ -487,7 +481,7 @@ export function createRevisions(
       set({ banner: { kind: 'rolledBack', message: msg('rolledBack') } });
     },
 
-    listRevisions: (limit = 50) => repo.listRevisions(limit),
+    listRevisions: (limit = 50, beforeId) => repo.listRevisions(limit, beforeId),
   };
   return { actions, opsProposal, restoreProposal, bootHead };
 }

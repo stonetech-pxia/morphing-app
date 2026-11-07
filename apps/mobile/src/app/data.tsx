@@ -8,41 +8,32 @@ import {
   parsePickStore,
   PICK_STORE_KEY,
   pickCount,
-  appFileOps,
-  readAppConfigFile,
-  readAppFile,
   readLayoutStoreFile,
   readPickStoreFile,
   RECORD_LIMITS,
   serializeLayoutStore,
   serializePickStore,
   formatRef,
-  HOME_PAGE_ID,
-  pageTarget,
   formatTimestamp,
   calendarOf,
   linkedCollectionIds,
   loadComputedRecords,
   loadLinkResolver,
   recordsToCsv,
-  type AppFile,
-  type ImportMode,
   type Collection,
 } from '@morph/core';
-import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 
-import { saveAppOrigin } from '@/apps/origin';
 import { useRecordActions } from '@/data/records';
 import { t } from '@/i18n';
 import { LocalModelCard } from '@/packs/LocalModelCard';
 import { Card, PageTitle, Pill, SectionLabel } from '@/renderer/ui';
 import { usePalette } from '@/renderer/theme';
 import { useWorkflowChange } from '@/run/workflow-change';
+import { findRevisionTables } from '@/storage/revision-pages';
 import type { StoredRecord } from '@/storage/types';
-import { useWorkspace, useWorkspaceContext, useAppTheme } from '@/workspace/context';
-import { revisionTables } from '@/workspace/revision-tables';
+import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
 /**
  * 「设置 → 数据」：用户记录的管理页，由内核提供，AI 不能修改。
@@ -62,18 +53,9 @@ export default function DataRoute() {
   const config = useWorkspace((s) => s.config)!;
   const version = useWorkspace((s) => s.recordsVersion);
   const bump = useWorkspace((s) => s.bumpRecords);
-  const palette = usePalette(useAppTheme(config));
+  const palette = usePalette(config.theme);
   const actions = useRecordActions();
   const change = useWorkflowChange();
-  const proposeImport = useWorkspace((s) => s.proposeImport);
-  const proposeOps = useWorkspace((s) => s.proposeOps);
-  const confirm = useWorkspace((s) => s.confirm);
-  const cancel = useWorkspace((s) => s.cancel);
-  const clearNext = useWorkspace((s) => s.clearNext);
-  const clearSuggest = useWorkspace((s) => s.clearSuggest);
-  const selectTab = useWorkspace((s) => s.selectTab);
-  const leaveApp = useWorkspace((s) => s.leaveApp);
-  const router = useRouter();
   const [counts, setCounts] = useState<Map<string, number>>(new Map());
   const [orphans, setOrphans] = useState<
     { collection: Collection | null; id: string; count: number }[]
@@ -95,14 +77,7 @@ export default function DataRoute() {
           (id) => !config.data.tables.some((c) => c.id === id),
         ),
       );
-      const found = new Map<string, Collection>();
-      if (missing.size > 0) {
-        for (const rev of await repo.listRevisions(1000)) {
-          for (const table of revisionTables(rev.config)) {
-            if (missing.has(table.id) && !found.has(table.id)) found.set(table.id, table);
-          }
-        }
-      }
+      const found = await findRevisionTables(repo, missing);
       if (!alive) return;
       setCounts(new Map(rows.map((r) => [r.collectionId, r.count])));
       setOrphans(
@@ -157,121 +132,6 @@ export default function DataRoute() {
   async function exportConfig() {
     const now = new Date();
     await files.shareText(appConfigFileName(now), appConfigFile(config, now), 'application/json');
-  }
-
-  /** 导入一份 App 配置（导出的文件）：先预览，确认后换成它，能在改动记录里撤销；记录都留着（底线 5、7）。 */
-  async function importConfig() {
-    const picked = await files.pickDocuments(['application/json', 'text/plain'], false);
-    const file = picked?.[0];
-    if (!file) return;
-    let text = '';
-    try {
-      text = await files.readPickedText(file.uri);
-    } catch {
-      text = '';
-    }
-    // App 文件（一个 App，D-485）：加到现有的工作区里，不替换任何东西。
-    const appFile = readAppFile(text);
-    if (appFile) {
-      importApp(appFile, text);
-      return;
-    }
-    const raw: unknown = readAppConfigFile(text);
-    if (!raw) {
-      Alert.alert(t(locale, 'importAppConfig'), t(locale, 'importAppConfigInvalid'));
-      return;
-    }
-    const result = await proposeImport(raw, t(locale, 'importAppConfigName'));
-    if (result.kind !== 'preview') {
-      Alert.alert(
-        t(locale, 'invalidPlan'),
-        result.kind === 'invalid' ? result.issues.join('\n') : result.message,
-      );
-      return;
-    }
-    Alert.alert(
-      t(locale, 'importAppConfig'),
-      [t(locale, 'importAppConfigConfirm'), ...result.proposal.lines].join('\n'),
-      [
-        { text: t(locale, 'cancel'), style: 'cancel', onPress: () => void cancel() },
-        {
-          text: t(locale, 'presetApply'),
-          onPress: () =>
-            void (async () => {
-              if (!(await confirm())) return;
-              // 换了一个 App，上一次修改剩下的那句和下一步的建议也就接不上了。
-              await clearNext();
-              await clearSuggest();
-              leaveApp();
-              selectTab(pageTarget(HOME_PAGE_ID));
-              router.back();
-            })(),
-        },
-      ],
-    );
-  }
-
-  /**
-   * 导入一个 App 文件（D-485）：先问怎么导入——导入主页（换主页风格，页面加进导航栏），或者做成一个新 App
-   * （主页多一个入口）；再预览，确认后生效，能在改动记录里撤销；原来的页面和记录一个都不动（底线 5、7）。
-   */
-  function importApp(appFile: AppFile, text: string) {
-    Alert.alert(appFile.app.name, t(locale, 'importAppChoose'), [
-      {
-        text: t(locale, 'importAppToHome'),
-        onPress: () => void proceedImport(appFile, text, 'home'),
-      },
-      {
-        text: t(locale, 'importAppToApp'),
-        onPress: () => void proceedImport(appFile, text, 'app'),
-      },
-      { text: t(locale, 'cancel'), style: 'cancel' },
-    ]);
-  }
-
-  async function proceedImport(appFile: AppFile, text: string, mode: ImportMode) {
-    const plan = appFileOps(appFile, config, { mode });
-    if (!plan.ok) {
-      Alert.alert(
-        t(locale, 'importAppConfig'),
-        t(locale, 'importAppClash', { reason: plan.error }),
-      );
-      return;
-    }
-    const result = await proposeOps(
-      plan.ops,
-      t(locale, mode === 'home' ? 'importHomeSummary' : 'importAppSummary', { name: plan.name }),
-    );
-    if (result.kind !== 'preview') {
-      Alert.alert(
-        t(locale, 'invalidPlan'),
-        result.kind === 'invalid' ? result.issues.join('\n') : result.message,
-      );
-      return;
-    }
-    Alert.alert(
-      t(locale, 'importAppConfig'),
-      [
-        t(locale, mode === 'home' ? 'importHomeConfirm' : 'importAppConfirm', { name: plan.name }),
-        ...result.proposal.lines,
-      ].join('\n'),
-      [
-        { text: t(locale, 'cancel'), style: 'cancel', onPress: () => void cancel() },
-        {
-          text: t(locale, 'presetApply'),
-          onPress: () =>
-            void (async () => {
-              if (!(await confirm())) return;
-              // 做成 App 的，原文件记在本机：以后能「恢复初始样子」。
-              if (mode === 'app') await saveAppOrigin(repo, appFile.app.id, text);
-              // 回到主页，新 App 的入口（或新页面）就在那里。
-              leaveApp();
-              selectTab(pageTarget(HOME_PAGE_ID));
-              router.back();
-            })(),
-        },
-      ],
-    );
   }
 
   async function exportMemory() {
@@ -466,12 +326,6 @@ export default function DataRoute() {
             testID="export-app-config"
             label={t(locale, 'exportAppConfig')}
             onPress={() => void exportConfig()}
-          />
-          <Pill
-            palette={palette}
-            testID="import-app-config"
-            label={t(locale, 'importAppConfig')}
-            onPress={() => void importConfig()}
           />
         </View>
       </Card>

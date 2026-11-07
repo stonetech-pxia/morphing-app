@@ -71,7 +71,10 @@ describe('first-run guide', () => {
 
   const filePicks = (store: Awaited<ReturnType<typeof startGuide>>['store']) =>
     allComponents(store.getState().config!.containers.pages.find((p) => p.id === 'home')!).filter(
-      (c) => c.look === 'picker' || (c.look === 'action' && c.show?.shape === 'icon'),
+      // 两个入口：扫描（首页宫格里的内设「扫描成 PDF」，D-487）和打开文件。
+      (c) =>
+        c.look === 'picker' ||
+        (c.look === 'action' && c.tools.some((u) => 'tool' in u && u.tool === 'scan-camera')),
     );
 
   it('step 1: the sentence fills the box and waits; sending adds both buttons without a draft', async () => {

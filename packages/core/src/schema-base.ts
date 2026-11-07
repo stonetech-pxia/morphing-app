@@ -64,6 +64,7 @@ export const ICON_NAMES = [
   'board',
   'suitcase',
   'vinyl',
+  'paper',
 ] as const;
 /** 自带图形的图标（ICON_NAMES 里排在最后的）：没有对应的系统图标。 */
 export const CUSTOM_ICON_NAMES = [
@@ -75,6 +76,7 @@ export const CUSTOM_ICON_NAMES = [
   'board',
   'suitcase',
   'vinyl',
+  'paper',
 ] as const satisfies readonly (typeof ICON_NAMES)[number][];
 export type CustomIconName = (typeof CUSTOM_ICON_NAMES)[number];
 

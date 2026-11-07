@@ -831,3 +831,89 @@ describe('a schedule counting from a rollup (D-288 + D-293)', () => {
     expect(status(['2026-10-26', '2026-10-27', '2026-10-28'])?.dueToday).toBe(false);
   });
 });
+
+// 汇总的筛选条件用日程的 due，而日程的 lastDone 指向来源表里的另一个汇总：先要把那个汇总算出来，
+// 否则做完的任务也算「没做完」（展示预设的会话里发现；规则 47 推荐的「项目里数没做完的任务」就是这个写法）。
+describe('a rollup that filters by a schedule counting from another rollup', () => {
+  const projects: Collection = {
+    id: 'projects',
+    name: 'Projects',
+    fields: [
+      { id: 'name', name: 'Name', type: 'text' },
+      {
+        id: 'open',
+        name: 'Open',
+        type: 'rollup',
+        table: 'tasks',
+        via: 'project',
+        aggregate: 'count',
+        filter: [{ field: 'plan', op: 'due', value: 'pending' }],
+      },
+    ],
+  };
+  const tasks: Collection = {
+    id: 'tasks',
+    name: 'Tasks',
+    fields: [
+      { id: 'title', name: 'Title', type: 'text' },
+      { id: 'project', name: 'Project', type: 'link', table: 'projects' },
+      { id: 'plan', name: 'Plan', type: 'schedule', lastDone: 'last' },
+      {
+        id: 'last',
+        name: 'Last',
+        type: 'rollup',
+        table: 'done',
+        via: 'task',
+        aggregate: 'latest',
+        field: 'date',
+      },
+    ],
+  };
+  const doneLog: Collection = {
+    id: 'done',
+    name: 'Done',
+    fields: [
+      { id: 'task', name: 'Task', type: 'link', table: 'tasks' },
+      { id: 'date', name: 'Date', type: 'date' },
+    ],
+  };
+  const tables = [projects, tasks, doneLog];
+  const data = {
+    projects: [rec('projects', 'p1', { name: 'A' })],
+    tasks: [
+      // 做过一次的一次性任务：已经完成，不算没做完。
+      rec('tasks', 't1', {
+        title: 'finished',
+        project: 'p1',
+        plan: { repeat: 'once', date: '2026-10-27' },
+      }),
+      rec('tasks', 't2', {
+        title: 'open',
+        project: 'p1',
+        plan: { repeat: 'once', date: '2026-11-02' },
+      }),
+    ],
+    done: [rec('done', 'd1', { task: 't1', date: '2026-10-28' })],
+  };
+
+  it('counts only the tasks that are not done yet', () => {
+    const [project] = computeRecords(tables, 'projects', new Map(Object.entries(data)), NOW);
+    expect(project!.values.open).toBe(1);
+  });
+
+  it('agrees with filtering the tasks themselves', () => {
+    const records = computeRecords(tables, 'tasks', new Map(Object.entries(data)), NOW);
+    const view = expandCollection(tables, tasks);
+    const pending = filterRecords(
+      records,
+      view,
+      [{ field: 'plan', op: 'due', value: 'pending' }],
+      NOW,
+    );
+    expect(pending.map((r) => r.id)).toEqual(['t2']);
+  });
+
+  it('loads the tables the schedule’s rollup needs', () => {
+    expect(relatedCollectionIds(tables, projects).sort()).toEqual(['done', 'projects', 'tasks']);
+  });
+});

@@ -294,7 +294,7 @@ describe('share journeys (UI)', () => {
   const share = (files: PickedFile[]) => act(async () => native().emit(iosPayload(files)));
 
   it('lists the workflows that fit, runs the chosen one and cleans up afterwards', async () => {
-    const { files, repo, merge } = await setupApp();
+    const { files, merge } = await setupApp();
     const shared = [
       files.offerShared('报告.pdf', await makePdf(2)),
       files.offerShared('附录.pdf', await makePdf(3)),

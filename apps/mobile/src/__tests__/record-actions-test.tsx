@@ -191,6 +191,35 @@ it('setAll asks first, changes only what differs, and shows no undo afterwards',
   expect(screen.queryByTestId('toast-undo')).toBeNull();
 });
 
+// R09：批量修改在一个事务里做完——要么全改、要么一条都不改；确认等待的时候记录被改过也不覆盖。
+it('setAll: when the write fails, none of the entries is changed and it says so', async () => {
+  const repo = new MemoryWorkspaceRepo();
+  await put(repo, 'p1aaaaaa', 'packing', { item: '护照', packed: true });
+  await put(repo, 'p2aaaaaa', 'packing', { item: '充电器', packed: true });
+  await renderToolsApp(repo, undefined, { seed });
+  jest.spyOn(repo, 'applyRecordWrites').mockRejectedValueOnce(new Error('disk write failed'));
+  pressInAlert('修改');
+  await fireEvent.press(await screen.findByText('全部取消'));
+  expect(await screen.findByTestId('toast')).toHaveTextContent(/没有修改.*一条也没改/);
+  expect((await repo.listRecords('packing')).every((r) => r.values.packed === true)).toBe(true);
+});
+
+it('setAll: an entry changed while the confirm box was open is not overwritten, and nothing is changed', async () => {
+  const repo = new MemoryWorkspaceRepo();
+  await put(repo, 'p1aaaaaa', 'packing', { item: '护照', packed: true });
+  await put(repo, 'p2aaaaaa', 'packing', { item: '充电器', packed: true });
+  await renderToolsApp(repo, undefined, { seed });
+  jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => {
+    // 用户还没点「修改」，别处已经把这条改了。
+    void repo.updateRecord('p2aaaaaa', { item: '充电宝', packed: true }, Date.now());
+    buttons?.find((b) => b.text === '修改')?.onPress?.();
+  });
+  await fireEvent.press(await screen.findByText('全部取消'));
+  expect(await screen.findByTestId('toast')).toHaveTextContent(/有记录在你确认前被改过/);
+  expect((await repo.getRecord('p2aaaaaa'))!.values).toEqual({ item: '充电宝', packed: true });
+  expect((await repo.getRecord('p1aaaaaa'))!.values.packed).toBe(true);
+});
+
 it('setAll with nothing to change, or too many entries, changes nothing', async () => {
   const repo = new MemoryWorkspaceRepo();
   await renderToolsApp(repo, undefined, { seed });

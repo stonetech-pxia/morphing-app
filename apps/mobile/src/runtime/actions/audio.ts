@@ -1,4 +1,7 @@
 import {
+  AUDIO_COMPRESS_PARAMS,
+  AUDIO_CONVERT_PARAMS,
+  implOf,
   localize,
   MAX_SPEAK_CHARS,
   RunCancelled,
@@ -19,7 +22,6 @@ import {
   type ActionImpl,
   type AudioFormat,
   type AudioPlan,
-  type AudioQuality,
   type AudioSource,
   type RunItem,
   type RunValue,
@@ -367,12 +369,7 @@ export const AUDIO_IMPLS: Record<string, Impl> = {
 
   'audio.volume': (input, params, ctx) => processSound(input, params, ctx, false),
   'audio.denoise': (input, params, ctx) => processSound(input, params, ctx, true),
-  async 'audio.compress'(input, params, ctx) {
-    const { by, maxMB, quality } = params as {
-      by: 'size' | 'quality';
-      maxMB: number;
-      quality: AudioQuality;
-    };
+  'audio.compress': implOf(AUDIO_COMPRESS_PARAMS, async (input, { by, maxMB, quality }, ctx) => {
     const target = maxMB * MB;
     return eachAudio(input, ctx, async (item, info, media, job) => {
       const source = sourceOf(item, info);
@@ -415,10 +412,9 @@ export const AUDIO_IMPLS: Record<string, Impl> = {
       }
       return result;
     });
-  },
+  }),
 
-  async 'audio.convert'(input, params, ctx) {
-    const format = params.format as AudioFormat;
+  'audio.convert': implOf(AUDIO_CONVERT_PARAMS, async (input, { format }, ctx) => {
     return eachAudio(input, ctx, async (item, info, media, job) => {
       if (alreadyIn(item, info, format)) return null;
       const plan = planAudioConvert(sourceOf(item, info), format);
@@ -431,7 +427,7 @@ export const AUDIO_IMPLS: Record<string, Impl> = {
         job,
       );
     });
-  },
+  }),
 
   async 'audio.fromVideo'(input, params, ctx) {
     const format = params.format as AudioFormat;

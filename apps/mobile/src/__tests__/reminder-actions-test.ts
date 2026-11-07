@@ -17,7 +17,10 @@ import type { ReminderAction } from '../reminders/platform';
 import { handleReminderAction } from '../reminders/reminder-actions';
 import { syncReminders } from '../reminders/useReminders';
 import { MemoryWorkspaceRepo } from '../storage/memory';
+import { SQLiteWorkspaceRepo, migrateDatabase } from '../storage/sqlite';
+import type { WorkspaceRepo } from '../storage/types';
 import { FakeNotifications } from '../test-utils/fake-notifications';
+import { nodeSqlite } from '../test-utils/node-sqlite';
 
 // 提醒通知上的按钮（D-318）：「完成」只写这条记录、写完重排；「稍后提醒」再排一条；同一次点击只做一次。
 
@@ -57,14 +60,13 @@ const base: Reminder = {
 };
 const now = new Date(2026, 9, 22, 20, 1);
 
-async function setup(reminder: Partial<Reminder>) {
+async function setup(reminder: Partial<Reminder>, repo: WorkspaceRepo = new MemoryWorkspaceRepo()) {
   const r = applyOps(
     createDefaultWorkspace('zh'),
     [habitsTable, checkinsTable, { op: 'addTool', tool: { ...base, ...reminder } }],
     { registry, locale: 'zh' },
   );
   if (!r.ok) throw new Error(r.error);
-  const repo = new MemoryWorkspaceRepo();
   await repo.commitRevision({ baseId: null, config: r.config, source: 'user', summary: 'seed' });
   const run: DataRecord = {
     id: 'run',
@@ -205,5 +207,89 @@ describe('Remind me later (D-318)', () => {
     await handleReminderAction(press('done', 'n3:3:x'), deps);
     expect(platform.snoozes).toEqual([]);
     expect(remindersOf(config)).toHaveLength(1);
+  });
+});
+
+// R06：点击的去重标记和记录写入在同一个事务里。写失败了，同一次点击（系统下次启动会再送一次）还能再做，
+// 不会被当成已经处理过；写成功了但标记没写上的情况不存在（要么都写、要么都不写），所以也不会加两次。
+describe('a tap whose write fails is not lost (R06)', () => {
+  it('the write fails once: the same tap done again counts, and only once', async () => {
+    const { repo, deps } = await setup({
+      done: { do: 'increment', table: 'habits', field: 'count', by: 1 },
+    });
+    jest.spyOn(repo, 'applyRecordWrites').mockRejectedValueOnce(new Error('disk write failed'));
+    await expect(handleReminderAction(press('done'), deps)).rejects.toThrow('disk write failed');
+    expect((await repo.getRecord('run'))!.values.count).toBe(2);
+    expect(await handleReminderAction(press('done'), deps)).toEqual({
+      kind: 'done',
+      title: '跑步',
+    });
+    expect((await repo.getRecord('run'))!.values.count).toBe(3);
+    expect(await handleReminderAction(press('done'), deps)).toEqual({ kind: 'skipped' });
+    expect((await repo.getRecord('run'))!.values.count).toBe(3);
+  });
+
+  it('SQLite: the record write and the handled mark go together — failing at the mark undoes the write', async () => {
+    const db = nodeSqlite();
+    await migrateDatabase(db);
+    const original = db.runAsync.bind(db);
+    let failMark = true;
+    (db as unknown as { runAsync: typeof db.runAsync }).runAsync = (async (
+      sql: string,
+      ...params: never[]
+    ) => {
+      if (failMark && sql.includes('app_meta')) {
+        failMark = false;
+        throw new Error('crash before the mark');
+      }
+      return original(sql, ...params);
+    }) as typeof db.runAsync;
+    const { repo, deps } = await setup(
+      { done: { do: 'increment', table: 'habits', field: 'count', by: 1 } },
+      new SQLiteWorkspaceRepo(db),
+    );
+    await expect(handleReminderAction(press('done'), deps)).rejects.toThrow('crash before');
+    // 记录没有留下一半：还是 2，标记也没写。
+    expect((await repo.getRecord('run'))!.values.count).toBe(2);
+    expect(await handleReminderAction(press('done'), deps)).toEqual({
+      kind: 'done',
+      title: '跑步',
+    });
+    expect((await repo.getRecord('run'))!.values.count).toBe(3);
+    expect(await handleReminderAction(press('done'), deps)).toEqual({ kind: 'skipped' });
+    expect((await repo.getRecord('run'))!.values.count).toBe(3);
+  });
+
+  it('the notification is only dismissed once the write is in', async () => {
+    const { repo, platform, deps } = await setup({
+      done: { do: 'increment', table: 'habits', field: 'count', by: 1 },
+    });
+    jest.spyOn(repo, 'applyRecordWrites').mockRejectedValueOnce(new Error('disk write failed'));
+    await expect(handleReminderAction(press('done'), deps)).rejects.toThrow();
+    expect(platform.dismissed).toEqual([]);
+    await handleReminderAction(press('done'), deps);
+    expect(platform.dismissed).toEqual(['habit-run-20748']);
+  });
+
+  it('Remind me later: scheduling fails once, the same tap can be done again', async () => {
+    const { platform, deps } = await setup({
+      done: { do: 'set', table: 'habits', field: 'last', value: 'today' },
+    });
+    jest.spyOn(platform, 'snooze').mockRejectedValueOnce(new Error('cannot schedule'));
+    await expect(handleReminderAction(press('snooze'), deps)).rejects.toThrow('cannot schedule');
+    expect(await handleReminderAction(press('snooze'), deps)).toEqual({ kind: 'snoozed' });
+    expect(await handleReminderAction(press('snooze'), deps)).toEqual({ kind: 'skipped' });
+  });
+
+  it('nothing to do (the entry is gone): the tap is marked handled', async () => {
+    const { repo, deps } = await setup({
+      done: { do: 'set', table: 'habits', field: 'last', value: 'today' },
+    });
+    await repo.deleteRecord('run', 1);
+    expect(await handleReminderAction(press('done'), deps)).toEqual({ kind: 'skipped' });
+    await repo.restoreRecord('run');
+    // 已经处理过的点击（当时什么也没做）不会因为记录回来了又做一遍。
+    expect(await handleReminderAction(press('done'), deps)).toEqual({ kind: 'skipped' });
+    expect((await repo.getRecord('run'))!.values.last).toBeUndefined();
   });
 });

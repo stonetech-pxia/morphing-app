@@ -15,7 +15,7 @@ import {
 } from '@morph/core';
 
 import { deleteUserFiles } from '../../storage/user-files';
-import { newAssetId } from '../runner';
+import { newAssetId } from '../ids';
 import { saveItems } from './io';
 import type { RunServices } from './helpers';
 

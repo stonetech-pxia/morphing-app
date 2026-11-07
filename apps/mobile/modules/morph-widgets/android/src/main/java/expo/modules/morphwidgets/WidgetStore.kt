@@ -45,15 +45,25 @@ object WidgetStore {
       .mapNotNull { f -> try { JSONObject(f.readText()) } catch (e: Exception) { null } }
       .sortedBy { it.optDouble("at") }
 
-  /** App 取走点了的操作；取完就删。 */
-  fun takeQueue(ctx: Context): List<String> {
+  /**
+   * App 读出点了还没处理的操作，不删（R07）：App 一条一条执行、记下做完了，再用 removeQueue 确认删掉。
+   * id 是文件名（不带 .json）。读不出来的留着，下次再读。
+   */
+  fun readQueue(ctx: Context): List<Map<String, String>> {
     val files = (queueDir(ctx).listFiles() ?: emptyArray())
       .filter { it.name.endsWith(".json") }
       .sortedBy { it.name }
     return files.mapNotNull { f ->
-      val text = try { f.readText() } catch (e: Exception) { null }
-      f.delete()
-      text
+      try { mapOf("id" to f.name.removeSuffix(".json"), "text" to f.readText()) } catch (e: Exception) { null }
+    }
+  }
+
+  /** 删掉处理好了的点按。只认队列目录里的文件名：带路径的 id 不删。 */
+  fun removeQueue(ctx: Context, ids: List<String>) {
+    val dir = queueDir(ctx)
+    for (id in ids) {
+      if (id.isEmpty() || id.contains('/') || id.contains("..")) continue
+      File(dir, "$id.json").delete()
     }
   }
 

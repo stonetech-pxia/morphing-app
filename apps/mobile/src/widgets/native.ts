@@ -5,7 +5,8 @@ import type { WidgetPlatform } from './types';
 export const nativeWidgets: WidgetPlatform | null = MorphWidgets
   ? {
       setSnapshot: (json) => MorphWidgets!.setSnapshot(json),
-      takeQueue: () => MorphWidgets!.takeQueue(),
+      readQueue: () => MorphWidgets!.readQueue(),
+      removeQueue: (ids) => MorphWidgets!.removeQueue(ids),
       canPin: () => MorphWidgets!.canPin(),
       pin: (itemId, label) => MorphWidgets!.pin(itemId, label),
       onQueue: (listener) => {

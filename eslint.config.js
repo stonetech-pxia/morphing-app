@@ -15,6 +15,32 @@ module.exports = defineConfig([
     },
   },
   {
+    // 存储这一层不依赖渲染器、外壳、编辑页面和动作执行器（R11）：它们依赖存储，反过来的话，
+    // 一个底层文件会带进整套执行器和平台依赖，单独导入验证不了。存储要用的小工具放在叶子模块
+    // runtime/ids.ts、mime.ts、pdf-errors.ts、platform.ts。
+    files: ['apps/mobile/src/storage/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '**/renderer/**',
+                '**/shell/**',
+                '**/editing/**',
+                '**/runtime/runner',
+                '**/runtime/actions/**',
+              ],
+              message:
+                'storage 不依赖渲染器、外壳、编辑页面和动作执行器；共用的小函数放进 runtime/ids.ts、mime.ts、pdf-errors.ts 这样的叶子模块。',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // .claude/worktrees 是其他会话的工作目录，不属于这个检出。
     // apps/mobile/ios、android 由 expo prebuild 生成（CNG，不进 git）。
     ignores: [

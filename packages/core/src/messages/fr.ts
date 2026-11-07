@@ -70,6 +70,7 @@ export const fr: MessageTable = {
   historyTitle: 'Historique des modifications',
   current: 'État actuel',
   restoreThis: 'Revenir à ce moment',
+  historyMore: 'Afficher les modifications plus anciennes',
   restoreSummary: 'Retour à {when}',
   source_seed: 'Début',
   source_ai: 'Par Tink',
@@ -459,6 +460,10 @@ export const fr: MessageTable = {
   presetsNamePlaceholder: 'Nom du préréglage',
   presetsFull:
     'Vous pouvez garder {max} préréglages au maximum. Supprimez-en un pour en ajouter un autre.',
+  presetsImport: 'Importer depuis un fichier',
+  presetsImportHint:
+    'Vous avez un fichier, par exemple téléchargé sur le site de Tinkrum ? Un fichier d’app est ajouté comme nouvelle app, à côté des vôtres. Un fichier de préréglage complet rejoint seulement cette liste ; votre app ne change que lorsque vous l’appliquez.',
+  presetImported: 'Préréglage « {name} » ajouté. Touchez Appliquer pour l’utiliser.',
   presetApply: 'Appliquer',
   presetRename: 'Renommer',
   presetDeleted: 'Préréglage « {name} » supprimé',
@@ -524,12 +529,9 @@ export const fr: MessageTable = {
   appConfigHint:
     'Pages, structure des tableaux, actions rapides et rappels, dans un seul fichier. Vos entrées et vos fichiers n’y sont pas.',
   exportAppConfig: 'Exporter la configuration de l’app',
-  importAppConfig: 'Importer la configuration de l’app',
   importAppConfigInvalid:
     'Ce fichier n’est pas une configuration d’app Tinkrum, rien n’a été importé.',
   importAppConfigName: 'fichier importé',
-  importAppConfigConfirm:
-    'Passer à l’app de ce fichier ? Vos entrées restent, et vous pouvez annuler dans l’historique des modifications.',
   importAppConfirm:
     'Ajouter « {name} » comme nouvelle app ? Rien de ce que vous avez n’est remplacé. Vous pourrez annuler dans l’historique des modifications.',
   importAppSummary: 'Ajouter l’app « {name} »',
@@ -546,6 +548,14 @@ export const fr: MessageTable = {
   appResetConfirm:
     'Rétablir « {name} » tel qu’il était à l’import ? Les pages et actions rapides que vous y avez ajoutées disparaissent, son style et ses pages reviennent. Les tableaux que vous avez créés et toutes vos entrées restent. Vous pourrez annuler dans l’historique des modifications.',
   appResetSummary: 'Rétablir l’aspect d’origine de « {name} »',
+  importAppConfigNotJson:
+    'Ce fichier n’est pas un JSON valide, ce n’est donc pas une configuration d’app. Rien n’a été importé.',
+  importAppConfigTooLarge:
+    'Ce fichier est trop volumineux pour être une configuration d’app (limite : {max} Mo). Rien n’a été importé.',
+  importAppConfigNewer:
+    'Ce fichier a été créé par une version plus récente de Tinkrum. Mettez l’app à jour puis réessayez. Rien n’a été importé.',
+  importAppConfigBroken:
+    'L’app de ce fichier ne peut pas être utilisée ici, rien n’a été importé :',
   localModelTitle: 'Modèle sur l’appareil',
   localModelHint:
     'Une fois téléchargé, les nouvelles entrées avec une pièce jointe reçoivent aussi des valeurs d’un petit modèle qui tourne sur ce téléphone, surtout utile pour les noms et les montants. Sans lui, les suggestions fonctionnent avec les règles seules. Rien ne quitte ce téléphone.',
@@ -1150,6 +1160,7 @@ export const fr: MessageTable = {
   describe_file_list_a11dd: 'liste de fichiers « {v0} »',
   homeRecentActions: 'Actions récentes',
   homeRecentFiles: 'Fichiers récents',
+  homeTagline: 'Du papier en entrée, un PDF, Word ou Excel propre en sortie.',
   describe_recent_quick_actions: 'Actions rapides récentes',
   describe_quick_action_list: 'liste d’actions rapides',
   describe_quick_action_list_kind: 'liste d’actions rapides « {v0} »',
@@ -1738,6 +1749,10 @@ export const fr: MessageTable = {
   recordActionConfirm: 'Cela modifie {n} entrées.',
   recordActionConfirmButton: 'Modifier',
   recordActionNothing: 'Aucune entrée à modifier',
+  recordActionFailed:
+    'Rien n’a été modifié : un problème est survenu, aucune entrée n’a été changée.',
+  recordActionChangedMeanwhile:
+    'Des entrées ont changé avant votre confirmation : rien n’a été modifié. Appuyez de nouveau pour utiliser les dernières données.',
   recordActionTooMany: 'Au plus {max} entrées peuvent changer à la fois ; cela en modifierait {n}.',
   recordActionGone: 'Cette entrée a été supprimée.',
   // 月历、显示格式、统计的目标和比较（D-305–D-308）
@@ -1816,6 +1831,14 @@ export const fr: MessageTable = {
     'Vos modifications ne sont pas encore enregistrées. Elles seront perdues si vous quittez.',
   formDiscardMessage:
     'Ce que vous avez saisi n’est pas encore enregistré. Ce sera perdu si vous quittez.',
+  recordConflictTitle: 'Cette entrée vient d’être modifiée ailleurs',
+  recordConflictMessage:
+    'Après votre ouverture, un bouton de notification, un widget ou une autre page l’a modifiée. « Garder mes modifications » n’enregistre que ce que vous avez changé ici et garde le reste à jour ; « Utiliser la dernière version » abandonne vos modifications.',
+  recordConflictKeep: 'Garder mes modifications',
+  recordConflictLatest: 'Utiliser la dernière version',
+  recordConflictGoneTitle: 'Cette entrée a été supprimée pendant votre modification',
+  recordConflictGoneMessage:
+    'Vos modifications n’ont pas été enregistrées. Vous pouvez restaurer l’entrée depuis « Supprimés récemment ».',
   importSaving: 'Ajout à vos fichiers {done} / {total}',
   deskClear: 'Vider le bureau',
   deskClearTitle: 'Vider le bureau ?',

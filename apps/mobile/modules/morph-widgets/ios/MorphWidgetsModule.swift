@@ -24,20 +24,29 @@ public class MorphWidgetsModule: Module {
       WidgetCenter.shared.reloadAllTimelines()
     }
 
-    AsyncFunction("takeQueue") { () -> [String] in
+    // 读出点了还没处理的操作，不删（R07）：App 一条一条执行、记下做完了，再用 removeQueue 确认删掉。
+    // id 是文件名（不带 .json）。读不出来的留着，下次再读。
+    AsyncFunction("readQueue") { () -> [[String: String]] in
       guard let queue = self.dir?.appendingPathComponent("queue", isDirectory: true),
         let names = try? FileManager.default.contentsOfDirectory(atPath: queue.path)
       else { return [] }
-      var out: [String] = []
+      var out: [[String: String]] = []
       // 只取写完的（.json）；写到一半的 .tmp 留到下次。
       for name in names.sorted() where name.hasSuffix(".json") {
         let url = queue.appendingPathComponent(name)
         if let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8) {
-          out.append(text)
+          out.append(["id": String(name.dropLast(".json".count)), "text": text])
         }
-        try? FileManager.default.removeItem(at: url)
       }
       return out
+    }
+
+    // 删掉处理好了的点按。只认队列目录里的文件名：带路径的 id 不删。
+    AsyncFunction("removeQueue") { (ids: [String]) in
+      guard let queue = self.dir?.appendingPathComponent("queue", isDirectory: true) else { return }
+      for id in ids where !id.isEmpty && !id.contains("/") && !id.contains("..") {
+        try? FileManager.default.removeItem(at: queue.appendingPathComponent("\(id).json"))
+      }
     }
 
     Function("canPin") { false }

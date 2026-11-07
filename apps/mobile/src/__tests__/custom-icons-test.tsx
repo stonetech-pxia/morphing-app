@@ -6,12 +6,12 @@ import { render } from '@testing-library/react-native';
 
 import { Icon, iosSymbolName } from '../renderer/Icon';
 
-// 预设自带的图形图标（D-485）：8 个，每个有源 SVG 和按主题染色的 PNG，配置里可以当图标名用。
+// 预设自带的图形图标（D-485，D-487 加了第 9 个 paper）：9 个，每个有源 SVG 和按主题染色的 PNG，配置里可以当图标名用。
 
 const ASSETS = join(__dirname, '../../assets');
 
 describe('custom icons', () => {
-  it('are eight, all on the icon whitelist', () => {
+  it('are nine, all on the icon whitelist', () => {
     expect([...CUSTOM_ICON_NAMES]).toEqual([
       'wallet',
       'rings',
@@ -21,6 +21,7 @@ describe('custom icons', () => {
       'board',
       'suitcase',
       'vinyl',
+      'paper',
     ]);
     for (const name of CUSTOM_ICON_NAMES) {
       expect(ICON_NAMES).toContain(name);

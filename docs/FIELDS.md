@@ -1,11 +1,11 @@
 # 新增一种字段类型
 
-数据表的字段（文字、金额、单选、引用……）每种只有一份定义：`packages/core/src/fields/<type>.ts`。结构、写入和读取、显示、CSV、打印报表、公式、筛选和排序、统计和图表、修改说明、发给 AI 的说明都从这份定义读；App 端怎么填写在 `apps/mobile/src/renderer/data.tsx` 的 `FIELD_EDITORS`。下面以引用字段 `link`（D-250）为例。新增页面组件见 `docs/COMPONENTS.md`。
+数据表的字段（文字、金额、单选、引用……）每种只有一份定义：`packages/core/src/fields/<type>.ts`。结构、写入和读取、显示、CSV、打印报表、公式、筛选和排序、统计和图表、修改说明、发给 AI 的说明都从这份定义读；App 端怎么填写在 `apps/mobile/src/renderer/data.tsx` 的 `FIELD_EDITORS`。下面以引用字段 `link`（D-250）为例（代码缩写自 `packages/core/src/fields/link.ts`，以那个文件为准；引用的表在字段里叫 `table`）。新增页面组件见 `docs/COMPONENTS.md`。
 
 ## 1. 定义文件：`packages/core/src/fields/link.ts`
 
 ```ts
-const schema = z.strictObject({ ...fieldBase, type: z.literal('link'), collectionId: IdSchema });
+const schema = z.strictObject({ ...fieldBase, type: z.literal('link'), table: IdSchema });
 
 export const linkField: FieldDefinitionOf<'link', typeof schema> = defineField({
   type: 'link',
@@ -14,12 +14,12 @@ export const linkField: FieldDefinitionOf<'link', typeof schema> = defineField({
   read: (_f, raw) => (isRecordId(raw) ? raw : undefined),
   write: (_f, input) => (isRecordId(input) ? { value: input } : { issue: 'invalid' }),
   format: (f, v, locale, links) =>
-    links ? (links(f.collectionId, v as string) ?? t(locale, 'linkDeleted')) : '',
+    links ? (links(f.table, v as string) ?? t(locale, 'linkDeleted')) : '',
   filter: { is: isText, emptyOnly: true },
   sort: false,
   check: (f, { config, collection }) => /* 引用的表要存在 */ [],
-  ai: { doc: '{collectionId} (picks one entry of another table, …)', docAfter: 'formula' },
-  example: { id: 'parent', name: 'Parent', type: 'link', collectionId: 'expenses' },
+  ai: { doc: '{table} (picks one entry of another table, …)', docAfter: 'formula' },
+  example: { id: 'parent', name: 'Parent', type: 'link', table: 'expenses' },
   exampleValue: 'r1',
 });
 ```

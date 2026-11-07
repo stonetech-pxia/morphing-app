@@ -36,6 +36,9 @@ function collectAssetIds(value: unknown, into: Set<string>): void {
 }
 const ASSET_KEYS = new Set(['assetId', 'asset', 'file']);
 
+/** 一个历史版本的配置 JSON 里所有指向用户文件的 ID，收集进 into。 */
+export const assetIdsIn = collectAssetIds;
+
 /** 当前配置里用到文件的页面和块。 */
 export function configAssetUses(config: WorkspaceConfig): Map<string, AssetUse[]> {
   const uses = new Map<string, AssetUse[]>();
@@ -63,6 +66,8 @@ export function assetUsage(input: {
   collections: readonly Collection[];
   records: readonly (DataRecord & { deletedAt: number | null })[];
   revisions: readonly unknown[];
+  /** 历史版本很多时一页一页读、边读边收集：已经收集到的旧版本用到的文件 ID（用 assetIdsIn 收集）。 */
+  oldAssetIds?: ReadonlySet<string>;
   now: Date;
 }): Map<string, AssetUsage> {
   const { config, now } = input;
@@ -96,7 +101,7 @@ export function assetUsage(input: {
       });
   }
 
-  const old = new Set<string>();
+  const old = new Set<string>(input.oldAssetIds);
   for (const rev of input.revisions) collectAssetIds(rev, old);
   for (const [id, usage] of result) usage.inOldVersions = usage.uses.length === 0 && old.has(id);
   return result;

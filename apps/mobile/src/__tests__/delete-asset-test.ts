@@ -1,50 +1,11 @@
-import type { SQLiteDatabase } from 'expo-sqlite';
-
 import { MemoryWorkspaceRepo } from '../storage/memory';
-import { SQLiteWorkspaceRepo, migrateDatabase } from '../storage/sqlite';
 import type { AssetRecord, WorkspaceRepo } from '../storage/types';
 import { deleteUserFiles } from '../storage/user-files';
 import { FakeFiles } from '../test-utils/fake-files';
+import { sqliteRepo } from '../test-utils/node-sqlite';
 
 // 删除用户文件（D-264）：数据库里的记录、授权和运行结果的引用一起清掉，磁盘上的目录也删掉。
-// SQLite 用 Node 自带的 node:sqlite 跑真实的 SQL（外键开着），和 App 里 expo-sqlite 的接口一样包一层。
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { DatabaseSync } = require('node:sqlite') as {
-  DatabaseSync: new (path: string) => {
-    exec(sql: string): void;
-    prepare(sql: string): {
-      run(...p: unknown[]): { lastInsertRowid: number | bigint; changes: number | bigint };
-      get(...p: unknown[]): unknown;
-      all(...p: unknown[]): unknown[];
-    };
-  };
-};
-
-function nodeSqlite(): SQLiteDatabase {
-  const db = new DatabaseSync(':memory:');
-  const api = {
-    execAsync: async (sql: string) => db.exec(sql),
-    runAsync: async (sql: string, ...params: unknown[]) => {
-      const r = db.prepare(sql).run(...params);
-      return { lastInsertRowId: Number(r.lastInsertRowid), changes: Number(r.changes) };
-    },
-    getFirstAsync: async (sql: string, ...params: unknown[]) =>
-      db.prepare(sql).get(...params) ?? null,
-    getAllAsync: async (sql: string, ...params: unknown[]) => db.prepare(sql).all(...params),
-    withExclusiveTransactionAsync: async (fn: (txn: unknown) => Promise<void>) => {
-      db.exec('BEGIN');
-      try {
-        await fn(api);
-        db.exec('COMMIT');
-      } catch (e) {
-        db.exec('ROLLBACK');
-        throw e;
-      }
-    },
-  };
-  return api as unknown as SQLiteDatabase;
-}
+// SQLite 用 Node 自带的 node:sqlite 跑真实的 SQL（test-utils/node-sqlite.ts）。
 
 const asset = (id: string): AssetRecord => ({
   id,
@@ -55,12 +16,6 @@ const asset = (id: string): AssetRecord => ({
   source: 'generated',
   createdAt: 1,
 });
-
-async function sqliteRepo() {
-  const db = nodeSqlite();
-  await migrateDatabase(db);
-  return new SQLiteWorkspaceRepo(db);
-}
 
 describe.each([
   ['memory', async () => new MemoryWorkspaceRepo()],

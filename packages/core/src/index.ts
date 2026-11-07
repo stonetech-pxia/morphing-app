@@ -1,7 +1,6 @@
 // 固定内核的纯 TypeScript 部分：schema、修改操作、校验、迁移、mock AI。
 // 不得依赖 React Native 或任何平台 API，以便在测试和未来的服务端中复用。
 
-export * from './ai/eval-cases';
 export * from './ai/kinds';
 export * from './ai/mock';
 export * from './ai/preset-ops';
@@ -31,6 +30,7 @@ export * from './app-file';
 export { hiddenIdsForAI, scopedViewForAI } from './app-scope';
 export * from './html';
 export * from './limits';
+export * from './file-size-check';
 export * from './audio';
 export * from './media';
 export * from './migrate';
@@ -102,7 +102,6 @@ export * from './packs';
 export * from './tool-download';
 export * from './tool-keys';
 export * from './tool-check';
-export * from './acceptance';
 
 export * from './subtitles';
 

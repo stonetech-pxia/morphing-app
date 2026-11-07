@@ -217,13 +217,22 @@ it('French: the widget text follows the app language', async () => {
 describe('running the taps the widget queued', () => {
   const tap = (op: string, component: string, hash: string, at: number, record?: string) =>
     JSON.stringify({ op, component, hash, at, ...(record ? { record } : {}) });
+  // 队列里每次点按有自己的 id（R07）；确认删除在 widget-queue-test.ts 里测。
+  const run = (raw: string[], repo: MemoryWorkspaceRepo, config: WorkspaceConfig, now: Date) =>
+    runQueuedWidgetOps(
+      raw.map((text, i) => ({ id: `tap${i}`, text })),
+      repo,
+      config,
+      now,
+      async () => undefined,
+    );
 
   it('creates entries at the time of the tap (yesterday’s tap counts for yesterday)', async () => {
     const config = seed();
     const repo = new MemoryWorkspaceRepo();
     const hash = actionHash(DRINK);
     const yesterday = new Date(2026, 9, 29, 23, 50).getTime();
-    const result = await runQueuedWidgetOps(
+    const result = await run(
       [tap('b:drink', 'drink', hash, NOW.getTime()), tap('b:drink', 'drink', hash, yesterday)],
       repo,
       config,
@@ -246,7 +255,7 @@ describe('running the taps the widget queued', () => {
     const repo = new MemoryWorkspaceRepo();
     await repo.insertRecord(rec('h1', 'habits', { name: '跑步', count: 1 }));
     const hash = actionHash(PLUS_ONE);
-    const result = await runQueuedWidgetOps(
+    const result = await run(
       [1, 2, 3].map((k) => tap('r:habit-tiles:h1', 'habit-tiles', hash, NOW.getTime() + k, 'h1')),
       repo,
       config,
@@ -259,7 +268,7 @@ describe('running the taps the widget queued', () => {
   it('skips taps whose button changed or is gone, and broken lines, and says how many', async () => {
     const config = seed();
     const repo = new MemoryWorkspaceRepo();
-    const result = await runQueuedWidgetOps(
+    const result = await run(
       [
         tap('b:drink', 'drink', 'old-hash', NOW.getTime()),
         tap('b:gone', 'gone', 'x', NOW.getTime()),
@@ -275,6 +284,6 @@ describe('running the taps the widget queued', () => {
     expect(drainMessage(result!, 'fr')).toBe(
       '4 appuis sur le widget n’ont pas été enregistrés, car la page a changé',
     );
-    expect(await runQueuedWidgetOps([], repo, config, NOW)).toBeNull();
+    expect(await run([], repo, config, NOW)).toBeNull();
   });
 });

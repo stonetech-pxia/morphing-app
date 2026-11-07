@@ -1,8 +1,6 @@
 import {
   applyOps,
-  BUILTIN_TOOLS,
   createDefaultWorkspace,
-  createRegistry,
   packById,
   type Locale,
   type Registry,
@@ -125,6 +123,25 @@ describe('新建表单页', () => {
     expect(store.getState().config!.data.tables).toEqual([]);
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
+  });
+
+  // R16：推荐是读出的文字的派生值；本机模型还在想时用户自己选了类型，答案回来也不能把推荐弹回来。
+  it('模型还在想时用户自己选了类型：答案回来后推荐不再出现', async () => {
+    let answer!: (text: string) => void;
+    mockGenerate.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          answer = resolve;
+        }),
+    );
+    await setup(['ppocr', 'prefill-model']);
+    expect(await screen.findByTestId('new-table-working')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('new-table-change-type'));
+    await fireEvent.press(screen.getByTestId('new-table-type-blank'));
+    await act(async () => answer('insurance'));
+    await waitFor(() => expect(screen.queryByTestId('new-table-working')).toBeNull());
+    expect(screen.queryByTestId('new-table-recommend')).toBeNull();
+    expect(screen.getByTestId('new-table-name').props.value).toBe('My entries');
   });
 
   it('文件里的字段名多：先显示前四个，「展开」看全部，「收起」回去', async () => {

@@ -1703,7 +1703,7 @@ export function useRecordRows(
   // 勾的写在工具自己的表（关系规则 12），通常就是列表这张表。
   const toggle = (c: { table: string; field: string }, r: DataRecord, next: boolean) => {
     const table = env.config.data.tables.find((x) => x.id === c.table);
-    if (table) void actions.update(table, r, { [c.field]: next });
+    if (table) void actions.patch(table, r.id, { [c.field]: next });
   };
   const cards = block.look === 'cards';
   const { show } = block;

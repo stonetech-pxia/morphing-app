@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { RunError } from '@morph/core';
 import { zlibSync } from 'fflate';
 import { PDFDocument } from 'pdf-lib';
@@ -141,6 +143,12 @@ export class FakeDeskFs implements DeskFs {
   async readText(path: string) {
     const bytes = this.files.disk.get(this.uri(path));
     return bytes ? new TextDecoder().decode(bytes) : null;
+  }
+  async rename(from: string, to: string) {
+    const bytes = this.files.disk.get(this.uri(from));
+    if (!bytes) throw new Error(`missing ${from}`);
+    this.files.disk.set(this.uri(to), bytes);
+    this.files.disk.delete(this.uri(from));
   }
   async remove(paths: readonly string[]) {
     for (const path of paths) this.files.disk.delete(this.uri(path));
@@ -359,6 +367,11 @@ export class FakeFiles implements FilePlatform {
   }
   async removeRunFile(uri: string) {
     if (uri.startsWith('runs/')) this.disk.delete(uri);
+  }
+  async contentDigest(uri: string) {
+    return createHash('sha256')
+      .update(await this.readUri(uri))
+      .digest('hex');
   }
   async readUri(uri: string) {
     // 用户文件的地址（fileUri）对应磁盘上的相对路径。

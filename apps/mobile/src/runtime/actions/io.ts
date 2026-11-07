@@ -224,15 +224,21 @@ export async function saveItems(
     } catch (e) {
       throw new RunError('saveFailed', { detail: String(e) });
     }
-    await repo.addAsset({
-      id,
-      name,
-      mimeType: item.mimeType,
-      size: stored.size,
-      path: stored.path,
-      source: 'generated',
-      createdAt: ctx.now().getTime(),
-    });
+    try {
+      await repo.addAsset({
+        id,
+        name,
+        mimeType: item.mimeType,
+        size: stored.size,
+        path: stored.path,
+        source: 'generated',
+        createdAt: ctx.now().getTime(),
+      });
+    } catch (e) {
+      // 结果文件已经存进文档库目录、登记不上：删掉这个新副本，别留下看不见的文件（R10）。
+      await files.removeAssetFile(stored.path).catch(() => undefined);
+      throw new RunError('saveFailed', { detail: String(e) });
+    }
     // 工作流产生的文件授权给它（§7G）。
     await repo.grantAsset(grantee, id);
     // 转 Excel、转 Word 的结果：中间格式和原图跟着存，以后还能从存储空间放到桌上改（D-400）。
