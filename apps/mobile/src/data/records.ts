@@ -16,11 +16,40 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { t } from '../i18n';
 import { newAssetId } from '../runtime/ids';
-import type { StoredRecord } from '../storage/types';
+import type { StoredRecord, WorkspaceRepo } from '../storage/types';
 import { useCalendar, useWorkspace, useWorkspaceContext } from '../workspace/context';
 
 // 用户记录的读写。只由用户在页面上的操作触发，直接写数据库，不经过 AI、不生成版本
 // （docs/DATA_DESIGN.md）。AI 拿到的只有 WorkspaceConfig，而记录从不进入配置。
+
+/**
+ * 读一张表的记录。同一个版本（recordsVersion）里、同时在读的几个组件共用一次读取，读完就不留（R13）：
+ * 一次写入之后所有显示这张表的组件一起重新读，不再每个组件各读一遍整张表。
+ * 只共用「还在读」的那一次：版本不同不共用（写入之后的读一定在写入之后开始），读完的不缓存（别处的写入照样读得到）。
+ * 每个组件拿到自己的数组（记录对象共用，只读）。
+ */
+const tableReads = new WeakMap<WorkspaceRepo, Map<string, Promise<DataRecord[]>>>();
+
+export function readTable(
+  repo: WorkspaceRepo,
+  version: number,
+  collectionId: string,
+): Promise<DataRecord[]> {
+  let reads = tableReads.get(repo);
+  if (!reads) tableReads.set(repo, (reads = new Map()));
+  const key = `${version}|${collectionId}`;
+  let read = reads.get(key);
+  if (!read) {
+    const started = repo.listRecords(collectionId);
+    read = started;
+    reads.set(key, started);
+    const done = () => {
+      if (reads.get(key) === started) reads.delete(key);
+    };
+    started.then(done, done);
+  }
+  return read.then((rows) => rows.slice());
+}
 
 /** 某张表未删除的全部记录；增删改后自动刷新。null 表示还在读取。 */
 export function useRecords(collectionId: string): DataRecord[] | null {
@@ -29,7 +58,7 @@ export function useRecords(collectionId: string): DataRecord[] | null {
   const [records, setRecords] = useState<DataRecord[] | null>(null);
   useEffect(() => {
     let alive = true;
-    void repo.listRecords(collectionId).then((r) => alive && setRecords(r));
+    void readTable(repo, version, collectionId).then((r) => alive && setRecords(r));
     return () => {
       alive = false;
     };
@@ -55,7 +84,7 @@ export function useComputedRecords(
     if (!collection) return;
     let alive = true;
     void loadComputedRecords(
-      (id) => repo.listRecords(id),
+      (id) => readTable(repo, version, id),
       collections,
       collection,
       new Date(),
