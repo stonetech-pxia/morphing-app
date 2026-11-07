@@ -1,6 +1,6 @@
 import { localize, t, packById, type Locale, type PackNeed } from '@morph/core';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Palette } from '../renderer/theme';
@@ -38,6 +38,8 @@ export function PackGate({
   const [error, setError] = useState<string | null>(null);
   const [have, setHave] = useState<Set<string> | null>(null);
   const [left, setLeft] = useState<string[]>([]);
+  // 点了「后台下载」：提示框关了，下载接着做，做完由 store 通知（外壳弹一条提示）。
+  const background = useRef(false);
   // 同一次运行接着问下一个扩展包时提示框不会重新挂载，上一个的进度、错误和勾选要清掉。
   const [shownFor, setShownFor] = useState(key);
   if (shownFor !== key) {
@@ -74,8 +76,22 @@ export function PackGate({
           setProgress(all ? [...done.values()].reduce((a, b) => a + b, 0) / all : 0);
         });
       }
+      if (background.current) {
+        store.finishedInBackground(
+          chosen.map((n) => n.pack),
+          true,
+        );
+        return;
+      }
       onDone([...left]);
     } catch (e) {
+      if (background.current) {
+        store.finishedInBackground(
+          chosen.map((n) => n.pack),
+          false,
+        );
+        return;
+      }
       setProgress(null);
       setError(
         t(locale, 'PackGate_The_download_did_not_finish_Check_the__9d7b7', {
@@ -205,6 +221,20 @@ export function PackGate({
                 )}
               </Text>
             </Pressable>
+            {progress !== null ? (
+              <Pressable
+                testID="pack-background"
+                onPress={() => {
+                  // 这次运行照取消处理（必需的不运行，可选的不带它继续）；下完以后用户自己再来一次。
+                  background.current = true;
+                  onDone(anyRequired ? null : needs.map((n) => n.pack));
+                }}
+                hitSlop={8}>
+                <Text style={[palette.font('bodyBold', 16), { color: palette.primaryText }]}>
+                  {t(locale, 'packBackground')}
+                </Text>
+              </Pressable>
+            ) : null}
             {progress === null && chosen.length > 0 ? (
               <Pressable testID="pack-download" onPress={() => void download()} hitSlop={8}>
                 <Text style={[palette.font('bodyBold', 16), { color: palette.primaryText }]}>

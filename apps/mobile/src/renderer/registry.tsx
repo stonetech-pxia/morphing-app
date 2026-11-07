@@ -1,5 +1,6 @@
 import {
   bindRecord,
+  builtinText,
   entryKind,
   isKnownComponent,
   isRecordToolUse,
@@ -310,9 +311,23 @@ export function ComponentView({ component, env }: { component: Component; env: R
   if (!isKnownComponent(component)) return <UnknownComponentView env={env} />;
   const card = PAGE_LOOKS.has(component.look) ? env.palette : onSurface(env.palette);
   return (RENDERERS[component.look] as Renderer<ComponentType>)(
-    component,
+    withBuiltinTexts(component, env),
     card === env.palette ? env : { ...env, palette: card },
   );
+}
+
+/** 组件上的文字（标题、按钮文字等）是内置文字时跟着界面语言显示，用户写的不换；只在显示时换，不写配置。 */
+function withBuiltinTexts<C extends Component>(component: C, env: RenderEnv): C {
+  const show = (component as { show?: Record<string, unknown> }).show;
+  if (!show) return component;
+  let changed = false;
+  const next: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(show)) {
+    const shown = typeof value === 'string' ? builtinText(value, env.locale, env.registry) : value;
+    if (shown !== value) changed = true;
+    next[key] = shown;
+  }
+  return changed ? { ...component, show: next } : component;
 }
 
 /** 更新的 App 加的组件（D-254）：配置里原样保留，这里只说明要更新 App 才能显示。 */

@@ -160,4 +160,31 @@ describe('extension packs', () => {
     expect(await store.installed()).toEqual([]);
     expect(fs.files.size).toBe(0);
   });
+
+  it('two installs of the same pack at once download it once (background download, then asking again)', async () => {
+    const fs = new MemoryPackFs();
+    const lookup = await manifests(fs);
+    const store = new PackStore(fs, sha256, (id) => lookup.get(id));
+    const seen: number[] = [];
+    await Promise.all([store.install('ocr'), store.install('ocr', (p) => seen.push(p.doneBytes))]);
+    expect(fs.downloads).toHaveLength(2);
+    expect(await store.isInstalled('ocr')).toBe(true);
+    // 后来的那次也能看到进度，不是只等着。
+    expect(seen.length).toBeGreaterThan(0);
+  });
+
+  it('tells listeners when a download that went to the background finishes or fails', async () => {
+    const fs = new MemoryPackFs();
+    const store = new PackStore(fs, sha256, () => undefined);
+    const seen: { ids: string[]; ok: boolean }[] = [];
+    const off = store.onBackgroundEnd((e) => seen.push(e));
+    store.finishedInBackground(['ocr'], true);
+    store.finishedInBackground(['ocr-eng'], false);
+    off();
+    store.finishedInBackground(['x'], true);
+    expect(seen).toEqual([
+      { ids: ['ocr'], ok: true },
+      { ids: ['ocr-eng'], ok: false },
+    ]);
+  });
 });

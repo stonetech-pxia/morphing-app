@@ -1,4 +1,5 @@
 import { deskKindOf, type Desk, type DeskFile, type Locale } from '@morph/core';
+import type { DocDoc } from '@morph/tool-office';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -21,6 +22,7 @@ import { InlineVideo } from '../share/FileViewer';
 import { ZoomImage } from '../share/ZoomImage';
 import type { FilePlatform } from '../runtime/platform';
 import { deskFileUri } from './store';
+import { WordPreview } from './WordPreview';
 
 // 房间的大预览（file-room DESIGN §4、§11.3，D-360）：图片能双指放大；PDF 一页一页左右翻（用「PDF 预览」
 // 扩展包把页面画成图，不加原生依赖）；转 Excel / 转 Word 的结果不在这里画，房间直接用编辑器（DeskEditor，D-366）；
@@ -41,7 +43,10 @@ export function DeskPreview({
   palette,
   locale,
   onSystemPreview,
+  wordDoc,
 }: {
+  /** 存过的 Word 的中间格式（D-470）：有时按编辑页的版面显示。 */
+  wordDoc?: DocDoc | null;
   /** 桌上的文件；预览页（收到的一份文件，不在桌上）改给 `uri`。 */
   desk?: Desk;
   uri?: string;
@@ -75,6 +80,15 @@ export function DeskPreview({
           palette={palette}
           locale={locale}
           onSystemPreview={onSystemPreview}
+        />
+      );
+    } else if (wordDoc) {
+      body = (
+        <WordPreview
+          doc={wordDoc}
+          width={size.width}
+          palette={palette}
+          readImage={(u) => files.readUri(u)}
         />
       );
     } else if (kind === 'video') {

@@ -85,7 +85,8 @@ const TOOL_SYMBOLS: Record<ToolIconName, SymbolName> = {
   share: { ios: 'square.and.arrow.up', android: 'share' },
   save: { ios: 'square.and.arrow.down', android: 'download' },
   preview: { ios: 'eye.fill', android: 'visibility' },
-  textbox: { ios: 'textformat', android: 'text_fields' },
+  // textformat、text.cursor 跟着系统语言画字（中文系统是「格式」「字」），换成没有字的符号。
+  textbox: { ios: 'text.insert', android: 'text_fields' },
   sticky: { ios: 'text.bubble.fill', android: 'sticky_note_2' },
   brush: { ios: 'scribble', android: 'brush' },
   highlight: { ios: 'highlighter', android: 'ink_highlighter' },
@@ -174,6 +175,7 @@ const UI_SYMBOLS = {
   mail: { ios: 'envelope.fill', android: 'mail' },
   globe: { ios: 'globe', android: 'language' },
   share: { ios: 'square.and.arrow.up', android: 'share' },
+  trash: { ios: 'trash', android: 'delete' },
 } satisfies Record<string, SymbolName>;
 
 export type UiIconName = keyof typeof UI_SYMBOLS;

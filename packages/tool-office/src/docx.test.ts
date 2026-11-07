@@ -280,6 +280,80 @@ describe('writeDocx', () => {
     expect(xml).toContain('<w:ind w:firstLine="595"/>');
   });
 
+  it('places each paragraph at its left edge and keeps the vertical gaps, as plain paragraphs (D-463)', () => {
+    // 原图宽 1000 像素 = A4 宽 11906 twip；左页边距 1134 twip = 95 像素，左缩进从那里算。
+    const at = (x: number, y: number, width: number) => ({ x, y, width, height: 30 });
+    const doc: DocDoc = {
+      version: 1,
+      pages: [
+        page([
+          { kind: 'paragraph', text: 'CENTRE', align: 'center', box: at(400, 100, 200) },
+          { kind: 'paragraph', text: 'Docteur', box: at(200, 140, 300) },
+          {
+            kind: 'paragraph',
+            text: 'Titre',
+            heading: 2,
+            size: 16,
+            underline: true,
+            box: at(300, 600, 400),
+          },
+          { kind: 'paragraph', text: 'Pantin le 11/05/2026', box: at(700, 640, 290) },
+        ]),
+      ],
+    };
+    const xml = unzip(writeDocx(doc)).text('word/document.xml');
+    const paras = xml.match(/<w:p>.*?<\/w:p>/g)!;
+    expect(paras).toHaveLength(4);
+    // 居中的不缩进；离页边距不到一行的第一段不空。
+    expect(paras[0]).not.toMatch(/<w:ind |<w:spacing /);
+    // 左边 200 像素：缩进 (200 − 95) 像素；上边到上边 40 像素（476 twip）减去上一行在 Word 里的高（11 磅 × 1.28）。
+    expect(paras[1]).toContain('<w:spacing w:before="190"/><w:ind w:left="1250"/>');
+    // 大段空白保留；标题不用标题样式的段前段后；下划线。
+    expect(paras[2]).toContain('<w:spacing w:before="5200" w:after="0"/>');
+    expect(paras[2]).toContain('<w:u w:val="single"/>');
+    // 靠近右边的一行：缩进让出它自己的宽（多留一成），不折到下一行。
+    expect(paras[3]).toContain(`<w:ind w:left="${Math.round((9638 - 3453 * 1.1) / 10) * 10}"/>`);
+    // 没有文本框、没有绝对定位。
+    expect(xml).not.toMatch(/<w:framePr|<wp:anchor|<w:txbxContent/);
+  });
+
+  it('shrinks the gaps so that a one-page original stays one page, but not on a page of prose (D-463)', () => {
+    // 22 行字，Word 里比原图大（24 磅）：字本身放得下一页，加上原来的空白就超了。
+    const lines = (n: number, size: number): DocPage['blocks'] =>
+      Array.from({ length: n }, (_, i) => ({
+        kind: 'paragraph' as const,
+        text: `line ${i}`,
+        size,
+        box: { x: 100, y: 100 + i * 60, width: 300, height: 30 },
+      }));
+    const total = (blocks: DocPage['blocks'], size: number) => {
+      const xml = unzip(writeDocx({ version: 1, pages: [page(blocks)] })).text('word/document.xml');
+      const gaps = [...xml.matchAll(/w:before="(\d+)"/g)].reduce((n, m) => n + Number(m[1]), 0);
+      return { gaps, height: gaps + blocks.length * 1.28 * size * 20 };
+    };
+    // A4 的内容区高 16838 − 2 × 1134 = 14570 twip。
+    expect(total(lines(22, 24), 24).height).toBeLessThanOrEqual(14570);
+    // 字本身就超过一页：空白照样保留。
+    expect(total(lines(30, 24), 24).gaps).toBeGreaterThan(0);
+  });
+
+  it('keeps the plain spacing for blocks without usable positions (text to Word)', () => {
+    const dummy = { x: 0, y: 0, width: 1, height: 1 };
+    const xml = unzip(
+      writeDocx({
+        version: 1,
+        pages: [
+          page([
+            { kind: 'paragraph', text: 'one', box: dummy },
+            { kind: 'paragraph', text: 'two', spaced: true, box: dummy },
+          ]),
+        ],
+      }),
+    ).text('word/document.xml');
+    expect(xml.match(/<w:spacing w:before="160"\/>/g)).toHaveLength(1);
+    expect(xml).not.toContain('<w:ind ');
+  });
+
   it('writes a row of side-by-side blocks as a borderless layout table with nested content (D-331)', () => {
     const table = {
       kind: 'table' as const,
@@ -345,5 +419,91 @@ describe('writeDocx', () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatch(/>A<\/w:t>.*<\/w:tc><w:tc>.*>1<\/w:t>/);
     expect(rows[1]).toMatch(/>BB<\/w:t>.*<\/w:tc><w:tc>.*>2<\/w:t>/);
+  });
+});
+
+describe('writeDocx runs (D-465)', () => {
+  it('writes each run with its own bold, italic, underline and size over the paragraph style', () => {
+    const doc: DocDoc = {
+      version: 1,
+      pages: [
+        page([
+          {
+            kind: 'paragraph',
+            text: 'Hello big world',
+            bold: true,
+            runs: [
+              { text: 'Hello ' },
+              { text: 'big', size: 16, italic: true, underline: true },
+              { text: ' world', bold: false },
+            ],
+            box,
+          },
+        ]),
+      ],
+    };
+    const xml = unzip(writeDocx(doc)).text('word/document.xml');
+    const runs = [...xml.matchAll(/<w:r>(.*?)<\/w:r>/g)].map((m) => m[1]!);
+    const of = (text: string) => runs.find((r) => r.includes(`>${text}</w:t>`))!;
+    expect(of('Hello ')).toContain('<w:b/>');
+    expect(of('Hello ')).not.toContain('<w:i/>');
+    expect(of('big')).toContain('<w:b/>');
+    expect(of('big')).toContain('<w:i/>');
+    expect(of('big')).toContain('<w:u w:val="single"/>');
+    expect(of('big')).toContain('<w:sz w:val="32"/>');
+    expect(of(' world')).not.toContain('<w:b/>');
+  });
+
+  it('writes list item runs and keeps form label runs', () => {
+    const doc: DocDoc = {
+      version: 1,
+      pages: [
+        page([
+          {
+            kind: 'list',
+            ordered: false,
+            items: ['one', 'two'],
+            itemRuns: [null, [{ text: 'two', italic: true }]],
+            box,
+          },
+          {
+            kind: 'paragraph',
+            text: 'Nom\tDupont',
+            tab: 200,
+            runs: [{ text: 'Nom', bold: true }, { text: '\tDupont' }],
+            box: { ...box, y: 300 },
+          },
+        ]),
+      ],
+    };
+    const xml = unzip(writeDocx(doc)).text('word/document.xml');
+    const runs = [...xml.matchAll(/<w:r>(.*?)<\/w:r>/g)].map((m) => m[1]!);
+    const of = (text: string) => runs.find((r) => r.includes(`>${text}</w:t>`))!;
+    expect(of('one')).not.toContain('<w:i/>');
+    expect(of('two')).toContain('<w:i/>');
+    expect(of('Nom')).toContain('<w:b/>');
+    expect(of('Dupont')).not.toContain('<w:b/>');
+  });
+});
+
+describe('left alignment snap (D-473)', () => {
+  it('writes the same left indent for paragraphs whose left edges differ by a few pixels', () => {
+    const para = (text: string, x: number, y: number) => ({
+      kind: 'paragraph' as const,
+      text,
+      box: { x, y, width: 400, height: 20 },
+    });
+    const page: DocPage = {
+      source: 's',
+      width: 1000,
+      height: 1400,
+      bodySize: 11,
+      blocks: [para('a', 187, 100), para('b', 195, 140), para('c', 184, 180)],
+    };
+    const xml = strFromU8(
+      unzipSync(writeDocx({ version: 1, pages: [page] }))['word/document.xml']!,
+    );
+    const lefts = [...xml.matchAll(/<w:ind w:left="(\d+)"/g)].map((m) => m[1]);
+    expect(new Set(lefts).size).toBeLessThanOrEqual(1);
   });
 });

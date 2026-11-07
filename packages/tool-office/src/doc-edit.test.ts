@@ -6,6 +6,9 @@ import {
   blockText,
   deleteBlock,
   editDocTable,
+  originalArea,
+  originalBox,
+  swapToOriginal,
   parseDocDoc,
   setBlockText,
   setTableFrom,
@@ -174,5 +177,69 @@ describe('文档里的表格就地改（file-room R2，D-366）', () => {
     expect(
       editDocTable(doc, { page: 0, block: 0 }, (t) => insertRow(t, { page: 0, block: 0 }, 0)),
     ).toBe(doc);
+  });
+});
+
+describe('swapping text for the original (D-467, D-468)', () => {
+  // 三星真机：签名被认成了三行字，旁边是剪好的印章。
+  const line = (y: number) => ({ x: 600, y, width: 200, height: 40 });
+  const doc: DocDoc = {
+    version: 1,
+    pages: [
+      {
+        source: 'p.jpg',
+        width: 1000,
+        height: 1400,
+        bodySize: 11,
+        blocks: [
+          {
+            kind: 'paragraph',
+            text: 'Oeil gauche',
+            box: { x: 100, y: 900, width: 500, height: 30 },
+          },
+          { kind: 'paragraph', text: 'mod cal & dentaira', box: line(1100) },
+          { kind: 'paragraph', text: 'entre CDSCO PANTN', box: line(1150) },
+          { kind: 'paragraph', text: 'tue', box: line(1200) },
+        ],
+      },
+    ],
+  };
+
+  it('the crop is a little bigger than the text box but stays on the page', () => {
+    expect(originalBox(line(1100), { width: 1000, height: 1400 })).toEqual({
+      x: 590,
+      y: 1090,
+      width: 220,
+      height: 60,
+    });
+    expect(
+      originalBox({ x: 2, y: 1380, width: 990, height: 20 }, { width: 1000, height: 1400 }),
+    ).toEqual({ x: 0, y: 1372, width: 1000, height: 28 });
+  });
+
+  it('swapping the lines one by one ends with ONE image covering the whole signature', () => {
+    let next = doc;
+    for (const y of [1100, 1150, 1200]) {
+      const area = originalArea(next, 0, [line(y)])!;
+      next = swapToOriginal(next, 0, [line(y)], { src: `crop-${y}.jpg`, box: area });
+    }
+    const blocks = next.pages[0]!.blocks;
+    expect(blocks.map((b) => b.kind)).toEqual(['paragraph', 'image']);
+    const image = blocks[1]!;
+    expect(image.box.y).toBeLessThanOrEqual(1090);
+    expect(image.box.y + image.box.height).toBeGreaterThanOrEqual(1250);
+    expect(image.kind === 'image' && image.src).toBe('crop-1200.jpg');
+  });
+
+  it('several selected lines are swapped together, in the place of the first', () => {
+    const boxes = [line(1100), line(1150), line(1200)];
+    const area = originalArea(doc, 0, boxes)!;
+    const next = swapToOriginal(doc, 0, boxes, { src: 'all.jpg', box: area });
+    expect(next.pages[0]!.blocks.map((b) => b.kind)).toEqual(['paragraph', 'image']);
+    expect(area).toEqual({ x: 590, y: 1090, width: 220, height: 160 });
+  });
+
+  it('does nothing when no block matches', () => {
+    expect(swapToOriginal(doc, 0, [line(10)], { src: 'x.jpg', box: line(10) })).toBe(doc);
   });
 });

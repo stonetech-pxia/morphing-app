@@ -330,6 +330,10 @@ export class SQLiteWorkspaceRepo implements WorkspaceRepo {
     return rows.map(toAsset);
   }
 
+  async renameAsset(id: string, name: string) {
+    await this.db.runAsync('UPDATE assets SET name = ? WHERE id = ?', name, id);
+  }
+
   async deleteAsset(id: string) {
     // 授权引用了 assets（外键），先删授权。
     await this.db.withExclusiveTransactionAsync(async (txn) => {

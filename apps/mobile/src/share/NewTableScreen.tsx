@@ -12,6 +12,7 @@ import {
   PREFILL_MODEL_PACK,
   rankPresets,
   recommendPreset,
+  rulePreset,
   removeDraftField,
   renameDraftField,
   templateTableName,
@@ -37,6 +38,7 @@ import {
 
 import { useRecordActions } from '../data/records';
 import { t } from '../i18n';
+import { PackGate } from '../packs/PackGate';
 import { usePacks } from '../packs/PackHost';
 import { FormFilesContext } from '../renderer/Attachments';
 import { SuggestedFields } from '../renderer/SuggestedFields';
@@ -92,6 +94,10 @@ export function NewTableScreen() {
   const [pages, setPages] = useState<TextPage[]>([]);
   const [recommended, setRecommended] = useState<NewTablePreset | null>(null);
   const [working, setWorking] = useState(false);
+  // 手机能用本机模型却还没下载：问一次要不要下载（点了才下，D-064），下完重新判断。
+  const [modelMissing, setModelMissing] = useState(false);
+  const [askingModel, setAskingModel] = useState(false);
+  const [installs, setInstalls] = useState(0);
   const [choosing, setChoosing] = useState(false);
   const [editing, setEditing] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
@@ -122,27 +128,46 @@ export function NewTableScreen() {
   );
 
   // 读出文字后问一次本机模型；模型没装、内存不够就不显示「正在判断」。
+  // 很明显的小票先由规则推荐（没有模型也有）；模型有答案时换成模型的，没有答案时规则的留着。
   const store = packs?.store;
   useEffect(() => {
-    if (!store || pages.length === 0) return;
+    if (pages.length === 0) return;
+    const ruled = rulePreset(pages);
+    setRecommended(ruled);
+    if (!store) return;
     const abort = new AbortController();
     void (async () => {
-      if (!deviceFitsLocalModel() || !(await store.isInstalled(PREFILL_MODEL_PACK))) return;
+      if (!deviceFitsLocalModel()) return;
+      if (!(await store.isInstalled(PREFILL_MODEL_PACK))) {
+        if (!abort.signal.aborted) setModelMissing(!!process.env.EXPO_PUBLIC_MORPH_PACKS_URL);
+        return;
+      }
       if (abort.signal.aborted) return;
+      setModelMissing(false);
       setWorking(true);
       const got = await recommendPreset(openLocalModel(store), pages, abort.signal);
       if (abort.signal.aborted) return;
-      setRecommended(got);
+      setRecommended(got ?? ruled);
       setWorking(false);
     })();
     return () => abort.abort();
-  }, [store, pages]);
+  }, [store, pages, installs]);
 
   const ranking = useMemo(() => rankPresets(pages), [pages]);
   const names = useMemo(() => extractFieldNames(pages), [pages]);
   const rows = useMemo(() => originalRows(pages), [pages]);
   const offered = names.filter((n) => !draftHasField(draft, n));
-  const existing = recommended ? templateTableOf(recommended, config) : undefined;
+  // 文件里认出的字段名多时先显示前几个，其余点「展开」看。
+  const [allNames, setAllNames] = useState(false);
+  const shownNames = allNames ? offered : offered.slice(0, FIRST_NAMES);
+  // 推荐购物凭证时，已经有带收据规则的表（例如样板「收据」，D-421）就放进那张，不再建第二张（D-477）。
+  const receiptTable = config.data.tables.find(
+    (c) => c.prefillRules === 'receipt' && c.fields.some((f) => f.type === 'file'),
+  )?.id;
+  const existing = recommended
+    ? (templateTableOf(recommended, config) ??
+      (recommended === 'purchase' ? receiptTable : undefined))
+    : undefined;
   const open = (p: NewTablePreset) => templateTableOf(p, config) === undefined;
 
   const text = [palette.font('body', 14), { color: palette.text }];
@@ -295,6 +320,29 @@ export function NewTableScreen() {
             {t(locale, 'newTableWorking')}
           </Text>
         ) : null}
+        {modelMissing && !recommended && !working ? (
+          <View testID="new-table-model-need" style={{ gap: 8, alignItems: 'flex-start' }}>
+            <Text style={muted}>{t(locale, 'newTableModelNeed')}</Text>
+            <Pill
+              palette={palette}
+              testID="new-table-model-download"
+              label={t(locale, 'localModelDownload')}
+              onPress={() => setAskingModel(true)}
+            />
+          </View>
+        ) : null}
+        {askingModel && packs ? (
+          <PackGate
+            needs={[{ pack: PREFILL_MODEL_PACK, optional: false }]}
+            store={packs.store}
+            palette={palette}
+            locale={locale}
+            onDone={(left) => {
+              setAskingModel(false);
+              if (left !== null) setInstalls((n) => n + 1);
+            }}
+          />
+        ) : null}
         {recommended && !existing ? (
           <View testID="new-table-recommend" style={styles.wrap}>
             <Text style={text}>
@@ -397,7 +445,7 @@ export function NewTableScreen() {
           <View testID="new-table-in-file" style={{ gap: 8 }}>
             <Text style={label}>{t(locale, 'newTableInFile')}</Text>
             <View style={styles.wrap}>
-              {offered.map((name, i) => (
+              {shownNames.map((name, i) => (
                 <Pill
                   key={name}
                   palette={palette}
@@ -407,6 +455,17 @@ export function NewTableScreen() {
                 />
               ))}
             </View>
+            {offered.length > FIRST_NAMES ? (
+              <Pressable
+                testID="new-table-in-file-toggle"
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={() => setAllNames((v) => !v)}>
+                <Text style={[palette.font('bodyBold', 13), { color: palette.primaryText }]}>
+                  {t(locale, allNames ? 'newTableNamesLess' : 'newTableNamesMore')}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
 
@@ -528,6 +587,9 @@ export function NewTableScreen() {
     </KeyboardAvoidingView>
   );
 }
+
+/** 「文件里还有」先显示几个字段名。 */
+const FIRST_NAMES = 4;
 
 const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 140 },

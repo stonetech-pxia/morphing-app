@@ -1,26 +1,18 @@
 import type { Locale } from '@morph/core';
 import {
   EDITABLE_CELLS,
-  blockAt,
-  blockText,
   canDeleteColumn,
-  deleteBlock,
   deleteColumn,
   deleteRow,
   deleteTextBlock,
-  editDocTable,
   insertColumn,
   insertRow,
   layoutSheet,
   pageCellCount,
-  setBlockText,
   setCellText,
   setScope,
   setTextBlock,
-  tableDocOf,
   type Box,
-  type DocDoc,
-  type DocRef,
   type SheetCell,
   type TableDoc,
 } from '@morph/tool-office';
@@ -30,16 +22,14 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { t, type StringKey } from '../i18n';
 import type { Palette } from '../renderer/theme';
 import { Crop } from '../run/Crop';
-import { DocView, same } from '../run/DocView';
 import { SheetView } from '../run/SheetView';
 
-// 桌上的 Excel、Word 就是编辑器（file-room §11.3，D-366）：大预览就是表格视图、文档视图，点一下选中、
+// 桌上的 Excel 就是编辑器（file-room §11.3，D-366）：大预览就是表格视图，点一下选中、
 // 再点一下编辑。选中时下面换成编辑层：原图里这一块的截图，加上对它有用的操作（编辑、插删行列、删除）；
-// 房间的工具栏这时收起来（编辑层不进工具栏配置，AI 改不了）。docx 里的表格就地改，不再弹出一个编辑页。
+// 房间的工具栏这时收起来（编辑层不进工具栏配置，AI 改不了）。Word 整页直接改，见 WordEditor（D-465）。
 // 一页超过 2000 格时只能看（D-272）。改动交给 onApply，记撤销、合成版本的是房间（useDeskEdit）。
 
-type Selection =
-  { kind: 'sheet'; block: number; cell?: number } | { kind: 'doc'; at: DocRef; cell?: number };
+type Selection = { kind: 'sheet'; block: number; cell?: number };
 
 interface EditLayerAction {
   id: string;
@@ -49,7 +39,6 @@ interface EditLayerAction {
 }
 
 export function DeskEditor({
-  kind,
   doc,
   palette,
   locale,
@@ -57,13 +46,12 @@ export function DeskEditor({
   onApply,
   onSelecting,
 }: {
-  kind: 'table' | 'doc';
-  doc: TableDoc | DocDoc;
+  doc: TableDoc;
   palette: Palette;
   locale: Locale;
   /** 编辑器的宽（点）。 */
   width: number;
-  onApply: (next: TableDoc | DocDoc) => void;
+  onApply: (next: TableDoc) => void;
   /** 选中了东西（房间收起工具栏，换成编辑层）。 */
   onSelecting: (on: boolean) => void;
 }) {
@@ -71,8 +59,7 @@ export function DeskEditor({
   const [selected, setSelected] = useState<Selection | null>(null);
   const [editing, setEditing] = useState<{ text: string } | null>(null);
 
-  const table = kind === 'table' ? (doc as TableDoc) : null;
-  const word = kind === 'doc' ? (doc as DocDoc) : null;
+  const table = doc;
   const pages = table?.pages.length ?? 0;
   const page = table?.pages[Math.min(pageIndex, Math.max(0, pages - 1))] ?? null;
   const layout = useMemo(
@@ -91,7 +78,7 @@ export function DeskEditor({
     setSelected(null);
     setEditing(null);
   };
-  const apply = (next: TableDoc | DocDoc, keep = false) => {
+  const apply = (next: TableDoc, keep = false) => {
     onApply(next);
     if (!keep) clear();
   };
@@ -185,103 +172,9 @@ export function DeskEditor({
     ];
   }
 
-  // ---- 文档（转 Word） ----
-  const docBlock = selected?.kind === 'doc' && word ? blockAt(word, selected.at) : null;
-
-  function pressBlock(at: DocRef) {
-    if (selected?.kind === 'doc' && selected.cell === undefined && same(selected.at, at)) {
-      if (docBlock && blockText(docBlock) !== null) startEdit();
-      return;
-    }
-    setEditing(null);
-    setSelected({ kind: 'doc', at });
-  }
-
-  function pressDocCell(at: DocRef, cell: number) {
-    if (selected?.kind === 'doc' && selected.cell === cell && same(selected.at, at)) {
-      startEdit();
-      return;
-    }
-    setEditing(null);
-    setSelected({ kind: 'doc', at, cell });
-  }
-
-  function docActions(): EditLayerAction[] {
-    if (!word || selected?.kind !== 'doc' || !docBlock) return [];
-    const at = selected.at;
-    const remove = {
-      id: 'desk-block-delete',
-      label: 'wordDeleteBlock' as const,
-      danger: true,
-      run: () => apply(deleteBlock(word, at)),
-    };
-    if (docBlock.kind === 'table' && selected.cell !== undefined) {
-      const cell = docBlock.table.cells[selected.cell];
-      if (!cell) return [remove];
-      const one = { page: 0, block: 0 };
-      const op = (fn: (t: TableDoc) => TableDoc) => apply(editDocTable(word, at, fn));
-      const tablePage = tableDocOf(word, at, '')!.pages[0]!;
-      return [
-        { id: 'desk-edit-text', label: 'tableEditCell', run: startEdit },
-        {
-          id: 'desk-row-above',
-          label: 'tableInsertRowAbove',
-          run: () => op((t) => insertRow(t, one, cell.row)),
-        },
-        {
-          id: 'desk-row-below',
-          label: 'tableInsertRowBelow',
-          run: () => op((t) => insertRow(t, one, cell.row + cell.rowSpan)),
-        },
-        {
-          id: 'desk-col-left',
-          label: 'tableInsertColumnLeft',
-          run: () => op((t) => insertColumn(t, 0, cell.col)),
-        },
-        {
-          id: 'desk-col-right',
-          label: 'tableInsertColumnRight',
-          run: () => op((t) => insertColumn(t, 0, cell.col + cell.colSpan)),
-        },
-        ...(docBlock.table.rows > 1
-          ? [
-              {
-                id: 'desk-row-delete',
-                label: 'tableDeleteRow' as const,
-                danger: true,
-                run: () => op((t) => deleteRow(t, one, cell.row)),
-              },
-            ]
-          : []),
-        ...(canDeleteColumn(tablePage, cell.col)
-          ? [
-              {
-                id: 'desk-col-delete',
-                label: 'tableDeleteColumn' as const,
-                danger: true,
-                run: () => op((t) => deleteColumn(t, 0, cell.col)),
-              },
-            ]
-          : []),
-        remove,
-      ];
-    }
-    return blockText(docBlock) !== null
-      ? [{ id: 'desk-edit-text', label: 'wordEditText', run: startEdit }, remove]
-      : [remove];
-  }
-
   // ---- 共用 ----
   function startEdit() {
     if (selected?.kind === 'sheet' && page) setEditing({ text: sheetText(selected) });
-    if (selected?.kind === 'doc' && word && docBlock) {
-      if (docBlock.kind === 'table' && selected.cell !== undefined) {
-        setEditing({ text: docBlock.table.cells[selected.cell]?.text ?? '' });
-      } else {
-        const text = blockText(docBlock);
-        if (text !== null) setEditing({ text });
-      }
-    }
   }
 
   function commitText() {
@@ -297,19 +190,9 @@ export function DeskEditor({
             )
           : setTextBlock(table, pageIndex, selected.block, editing.text);
       apply(next, true);
-    } else if (selected.kind === 'doc' && word) {
-      const next =
-        selected.cell !== undefined
-          ? editDocTable(word, selected.at, (t) =>
-              setCellText(t, { page: 0, block: 0 }, selected.cell!, editing.text),
-            )
-          : setBlockText(word, selected.at, editing.text);
-      // 段落改成空的会被删掉：那就不再选中它。
-      apply(next, selected.cell !== undefined || !!blockAt(next as DocDoc, selected.at));
     }
     setEditing(null);
   }
-
   /** 选中的这一块在原图里的位置和那一页（截图用）。 */
   function sourceOf(): {
     page: { source: string; width: number; height: number };
@@ -319,14 +202,6 @@ export function DeskEditor({
       const block = page.blocks[sheetCell.block]!;
       const box = block.kind === 'table' ? block.cells[sheetCell.cell!]?.box : block.box;
       return { page, ...(box ? { box } : {}) };
-    }
-    if (selected?.kind === 'doc' && word && docBlock) {
-      const p = word.pages[selected.at.page]!;
-      const box =
-        docBlock.kind === 'table' && selected.cell !== undefined
-          ? (docBlock.table.cells[selected.cell]?.box ?? docBlock.box)
-          : docBlock.box;
-      return { page: p, box };
     }
     return null;
   }
@@ -352,11 +227,9 @@ export function DeskEditor({
     </Pressable>
   );
 
-  const actions = kind === 'table' ? sheetActions() : docActions();
+  const actions = sheetActions();
   const source = sourceOf();
-  const empty =
-    (table && layout && layout.cells.length === 0) ||
-    (word && word.pages.every((p) => p.blocks.length === 0));
+  const empty = layout && layout.cells.length === 0;
 
   return (
     <View style={styles.flex} testID="desk-editor">
@@ -367,7 +240,7 @@ export function DeskEditor({
       ) : null}
       {empty ? (
         <Text style={[palette.font('body', 15), styles.empty, { color: palette.muted }]}>
-          {t(locale, table ? 'tableEmpty' : 'wordEmpty')}
+          {t(locale, 'tableEmpty')}
         </Text>
       ) : table && layout ? (
         <SheetView
@@ -375,17 +248,6 @@ export function DeskEditor({
           palette={palette}
           selected={sheetCell}
           {...(readOnly ? {} : { onPressCell: pressSheetCell })}
-        />
-      ) : word ? (
-        <DocView
-          doc={word}
-          palette={palette}
-          locale={locale}
-          contentWidth={width - 20}
-          selected={selected?.kind === 'doc' ? selected.at : null}
-          selectedCell={selected?.kind === 'doc' ? (selected.cell ?? null) : null}
-          onPress={pressBlock}
-          onPressCell={pressDocCell}
         />
       ) : null}
 

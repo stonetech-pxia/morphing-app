@@ -23,7 +23,8 @@ const DESCRIPTIONS: Record<NewTablePreset, string> = {
   pet: 'veterinary or pet record',
   prescription: 'doctor prescription of medicines',
   property: 'deed or proof of owning property',
-  purchase: 'shop or restaurant receipt, proof of purchase',
+  purchase:
+    'receipt, bill, invoice, loan or tax payment, expense claim: any document with a total amount to pay',
   reimbursement: 'expense claim to be paid back',
   tax: 'tax return or tax notice',
   travel: 'plane, train or hotel booking or ticket',
@@ -44,11 +45,16 @@ const NEEDS_MONEY: readonly NewTablePreset[] = [
   'tax',
 ];
 
+/** 有合计金额时并进「购物凭证」的类型（D-476）：不给模型选，列表里照旧能选。银行、工资单仍是自己的。 */
+const FOLDED: readonly NewTablePreset[] = ['bill', 'loan', 'reimbursement', 'tax'];
+
 export interface PresetRanking {
   /** 靠前的预设（确定的信号在最前）。 */
   likely: NewTablePreset[];
   /** 排到后面的：规则看到文件里缺它们一定有的东西。 */
   unlikely: NewTablePreset[];
+  /** 有金额时并进购物凭证的（不给模型选）。 */
+  folded: NewTablePreset[];
 }
 
 const textOf = (pages: readonly TextPage[]) =>
@@ -68,7 +74,7 @@ function hasMoney(text: string): boolean {
 /** 规则给预设排序。没读到文字时不排后任何预设。 */
 export function rankPresets(pages: readonly TextPage[]): PresetRanking {
   const text = textOf(pages);
-  if (!text.trim()) return { likely: [...NEW_TABLE_PRESETS], unlikely: [] };
+  if (!text.trim()) return { likely: [...NEW_TABLE_PRESETS], unlikely: [], folded: [] };
   const sure: NewTablePreset[] = [];
   if (/P<[A-Z<]{3}[A-Z<]{5,}/.test(text.replace(/ /g, ''))) sure.push('identity');
   if (/\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9*]{4}){2,}/.test(text)) sure.push('bank');
@@ -80,6 +86,7 @@ export function rankPresets(pages: readonly TextPage[]): PresetRanking {
       ...NEW_TABLE_PRESETS.filter((p) => !sure.includes(p) && !unlikely.includes(p)),
     ],
     unlikely,
+    folded: money ? FOLDED.filter((p) => !sure.includes(p)) : [],
   };
 }
 
@@ -89,6 +96,27 @@ const ruleMoney = (text: string) =>
     .some((row) =>
       ruleCandidates(row, 'en').some((c) => c.kind === 'amount' && /[.,]\d{2}\b/.test(c.raw)),
     );
+
+/** 小票上的「合计」「找零」「付款方式」「税」这几类词（英法西中日）。 */
+const TOTAL_WORDS =
+  /\b(?:sub-?total|total|montant|importe|totale?)\b|amount due|[àa] payer|合计|合計|总计|總計|小計|小计|应付|實付|实付|税込/i;
+const PAY_WORDS =
+  /\b(?:invoice|facture|bill|loan|imp[oô]ts?|taxe|impuestos?|mortgage|expense|due date|cash|change|visa|mastercard|card|debit|credit|tax|vat|tva|iva|carte|esp[eè]ces|monnaie|efectivo|cambio|tarjeta|receipt|ticket|re[cç]u)\b|找零|找钱|现金|現金|微信|支付宝|支付寶|刷卡|税|稅|小票|小票|收据|收據|账单|賬單|发票|發票|贷款|报销|請求書|レシート|領収|お釣り|クレジット/i;
+/** 银行（IBAN）、工资单、保单、合同有自己的模板：看到就不用规则推荐（D-476）。 */
+const NOT_RECEIPT = /\b(?:iban|bic|payslip|salary|policy|agreement|contract)\b|工资|合同/i;
+
+/**
+ * 没有本机模型时，很明显的小票也要推荐「购物凭证」（D-444 的规则部分）：
+ * 要同时有「合计」类的词、金额，和付款方式 / 税 / 小票字样（或至少两行带两位小数的价格）。
+ * 拿不准就给 null，宁可不推荐，不乱推荐。
+ */
+export function rulePreset(pages: readonly TextPage[]): NewTablePreset | null {
+  const text = textOf(pages);
+  if (!text.trim() || NOT_RECEIPT.test(text)) return null;
+  if (!TOTAL_WORDS.test(text) || !(hasMoney(text) || ruleMoney(text))) return null;
+  const prices = text.split('\n').filter((r) => /\d[.,]\d{2}\b/.test(r)).length;
+  return PAY_WORDS.test(text) || prices >= 3 ? 'purchase' : null;
+}
 
 /** 问模型的请求：文件文字 + 目录，只答一个 ID（第三轮冻结的提示词 P3，目录按 ranking 取）。 */
 export function presetMatchRequest(
@@ -133,7 +161,8 @@ export async function recommendPreset(
   pages: readonly TextPage[],
   signal?: AbortSignal,
 ): Promise<NewTablePreset | null> {
-  const { likely } = rankPresets(pages);
+  const ranking = rankPresets(pages);
+  const likely = ranking.likely.filter((p) => !ranking.folded.includes(p));
   if (!textOf(pages).trim() || likely.length === 0 || signal?.aborted) return null;
   const stop = new AbortController();
   const abort = () => stop.abort();

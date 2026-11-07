@@ -3,7 +3,7 @@ import { localize } from '../localization';
 import { t } from '../messages';
 import { renderNameTemplate } from '../naming';
 import type { Locale } from '../schema';
-import type { ActionDefinition, ParamField } from './contract';
+import { paramUnitLabel, type ActionDefinition, type ParamField } from './contract';
 
 // 把参数值写成用户看得懂的话（修改说明、工作流卡片、编辑页共用）。
 
@@ -37,7 +37,7 @@ export function formatParamValue(
         locale === 'fr' && typeof value === 'number'
           ? formatNumber(value, undefined, 'fr')
           : String(value);
-      return field.unit ? `${shown} ${field.unit}` : shown;
+      return field.unit ? `${shown} ${paramUnitLabel(field.unit, locale)}` : shown;
     }
     default:
       return String(value);
@@ -58,6 +58,11 @@ export function describeParams(
     if (!(field.key in params)) continue;
     if (field.showIf && !field.showIf.equals.includes(params[field.showIf.key] as never)) continue;
     const value = field.private ? t(locale, 'format_your_text_6c667') : params[field.key];
+    // 0 有特别意思的（例如「不超过 0 MB」其实是不限大小）：只写那句话。
+    if (field.zeroMeans && value === 0) {
+      parts.push(localize(field.zeroMeans, locale));
+      continue;
+    }
     parts.push(`${localize(field.label, locale)} ${formatParamValue(field, value, locale, now)}`);
   }
   return parts.join(t(locale, 'separatorList'));

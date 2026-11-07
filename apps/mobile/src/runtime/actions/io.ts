@@ -112,12 +112,21 @@ async function importPicked(
     } catch {
       throw new RunError('accessDenied', { name: f.name });
     }
+    // 桌上的 Word 带着中间格式（D-466）：存进这次运行，后面的步骤（文档转 PDF）按它排。
+    const docDoc = f.docDoc
+      ? await services.files.writeRunFile(
+          services.runId,
+          freshName(name, 'json'),
+          new TextEncoder().encode(JSON.stringify(f.docDoc)),
+        )
+      : null;
     items.push({
       uri: stored.uri,
       name,
       ext,
       mimeType,
       size: stored.size || f.size || 0,
+      ...(docDoc ? { docDoc: { uri: docDoc.uri, for: stored.uri } } : {}),
       ...(f.width ? { width: f.width } : {}),
       ...(f.height ? { height: f.height } : {}),
       ...(f.takenAt !== undefined ? { takenAt: f.takenAt } : {}),

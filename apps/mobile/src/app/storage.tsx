@@ -1,7 +1,6 @@
 import {
   RunError,
   allComponents,
-  assetUsage,
   componentLabel,
   formatFileSize,
   isUnused,
@@ -24,10 +23,10 @@ import { Icon } from '@/renderer/Icon';
 import { usePalette } from '@/renderer/theme';
 import { Button, Card, PageTitle } from '@/renderer/ui';
 import { FileViewer, type ViewerItem } from '@/share/FileViewer';
+import { loadAssetUsage } from '@/storage/asset-uses';
 import type { AssetRecord } from '@/storage/types';
 import { deleteUserFiles } from '@/storage/user-files';
 import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
-import { revisionTables } from '@/workspace/revision-tables';
 
 /**
  * 「设置 → 存储空间」（D-264）：Morph 保存的全部用户文件、总大小，每个文件用在哪里（哪张表的哪条记录、
@@ -77,30 +76,11 @@ export default function StorageRoute() {
     let alive = true;
     void (async () => {
       const assets = await repo.listAssets();
-      const revisions = (await repo.listRevisions(1000)).map((r) => r.config);
-      const deleted = await repo.listDeletedRecords();
-      const ids = new Set([
-        ...config.data.tables.map((c) => c.id),
-        ...(await repo.countRecords()).map((r) => r.collectionId),
-        ...deleted.map((r) => r.collectionId),
-      ]);
-      const active = (await Promise.all([...ids].map((id) => repo.listRecords(id)))).flat();
-      // 只在旧版本里的表：从历史版本里找回结构（和「设置 → 数据」一样）。
-      const tables = new Map<string, Collection>();
-      for (const raw of revisions) {
-        for (const table of revisionTables(raw))
-          if (!tables.has(table.id)) tables.set(table.id, table);
-      }
-      for (const c of config.data.tables) tables.set(c.id, c);
-      const records = [...active.map((r) => ({ ...r, deletedAt: null })), ...deleted];
-      const usage = assetUsage({
-        assetIds: assets.map((a) => a.id),
+      const { usage, tables, records } = await loadAssetUsage(
+        repo,
         config,
-        collections: [...tables.values()],
-        records,
-        revisions,
-        now: new Date(),
-      });
+        assets.map((a) => a.id),
+      );
       const sources = new Map<string, number>();
       for (const a of assets) {
         const bytes = await savedSourceBytes(files, a);

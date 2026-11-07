@@ -8,10 +8,12 @@ import {
 } from '@morph/core';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { DocDoc } from '@morph/tool-office';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DeskPreview } from '../desk/DeskPreview';
+import { placeAssetOnDesk, savedWordDoc } from '../desk/saved-source';
 import { loadDesk, placeOnDesk } from '../desk/store';
 import { runErrorText, t, type StringKey } from '../i18n';
 import { useFileBundleOffer } from '../packs/FileBundleOffer';
@@ -112,6 +114,22 @@ export function FilePreviewScreen({ index }: { index?: number }) {
     };
   }, [files, share?.id, member]);
 
+  // 存过的 Word（D-470）：按它的中间格式显示，和编辑页一样。
+  const [wordDoc, setWordDoc] = useState<DocDoc | null>(null);
+  const assetId = file?.assetId;
+  useEffect(() => {
+    if (!assetId) return;
+    let alive = true;
+    void repo
+      .getAsset(assetId)
+      .then((asset) => (asset ? savedWordDoc(files, asset) : null))
+      .then((doc) => alive && setWordDoc(doc))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [repo, files, assetId]);
+
   const info = useMemo(
     () =>
       file
@@ -165,7 +183,16 @@ export function FilePreviewScreen({ index }: { index?: number }) {
     setError(null);
     try {
       const existing = deskId ? await loadDesk(files, deskId) : null;
-      const desk = existing ?? (await placeOnDesk(files, [file!], now()));
+      // 文档库里存过的 xlsx / docx 带着中间格式（D-367）：放上桌还能改（2026-11-06 三星：存了 Word 再从最近文件打开、
+      // 点编辑，只剩「这个文件显示不了」，D-470）。
+      const asset =
+        !existing && file!.assetId && /\.(xlsx|docx)$/i.test(file!.name)
+          ? await repo.getAsset(file!.assetId)
+          : null;
+      const desk =
+        existing ??
+        (asset ? await placeAssetOnDesk(files, asset, now()) : null) ??
+        (await placeOnDesk(files, [file!], now()));
       setDeskId(desk.id);
       router.push({ pathname: '/desk/[deskId]', params: { deskId: desk.id } });
     } catch (e) {
@@ -414,6 +441,7 @@ export function FilePreviewScreen({ index }: { index?: number }) {
           palette={palette}
           locale={locale}
           onSystemPreview={() => void systemPreview()}
+          wordDoc={wordDoc}
         />
       </View>
       {error || record.error ? (
@@ -508,6 +536,7 @@ export function FilePreviewScreen({ index }: { index?: number }) {
                 <Card palette={palette}>
                   <RecordChooser
                     count={share.files.length}
+                    files={share.files}
                     placing={record.placing}
                     palette={palette}
                     locale={locale}

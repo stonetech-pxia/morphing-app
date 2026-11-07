@@ -320,6 +320,26 @@ export async function loadDeskSource(
   return { kind: 'doc', doc };
 }
 
+/**
+ * 交给工具时，桌上的 Word 带着它的中间格式（D-466，图片换成能读的地址）：文档转 PDF 按编辑页的版面排。
+ * 读不出来的照常只交文件。
+ */
+export async function deskPickedWithSources(
+  files: Files,
+  desk: Desk,
+  list: readonly DeskFile[],
+): Promise<PickedFile[]> {
+  const picked = deskPicked(files, desk, list);
+  return Promise.all(
+    picked.map(async (p, i) => {
+      const file = list[i]!;
+      if (file.source?.kind !== 'doc') return p;
+      const source = await loadDeskSource(files, desk, file).catch(() => null);
+      return source?.kind === 'doc' ? { ...p, docDoc: source.doc } : p;
+    }),
+  );
+}
+
 /** 桌上的文件交给运行时的样子（和分享进来的文件一样，D-115）。 */
 export function deskPicked(files: Files, desk: Desk, list: readonly DeskFile[]): PickedFile[] {
   return list.map((f) => ({
@@ -440,12 +460,30 @@ export async function commitEdit(
   fileId: string,
   edited: DeskSourceDoc,
   now: number,
-): Promise<{ desk: Desk; fileId: string }> {
+): Promise<{ desk: Desk; fileId: string; doc?: TableDoc | DocDoc }> {
   const list = currentFiles(desk);
   const file = list.find((f) => f.id === fileId);
   if (!file?.source) return { desk, fileId };
-  const source = relativeSource(files, desk, edited);
   const n = desk.nextN;
+  // 编辑时新剪的图（「用原图」，D-467）还不在桌面里：搬进 assets/，记进这份文件。
+  const known = new Set(file.source.assets.map((a) => a.path));
+  const added: DeskBlob[] = [];
+  const relative = relativeSource(files, desk, edited);
+  const outside = [...sourcePaths(relative)].filter(
+    (p) => !known.has(p) && files.desk.pathOf(p) === null && /^(file:|content:|runs\/)/.test(p),
+  );
+  const moved = new Map<string, string>();
+  for (const [k, uri] of outside.entries()) {
+    const blob = await adopt(
+      files,
+      desk,
+      uri,
+      `assets/e${n}-${k}.${cleanExt(extOf(uri)) || 'jpg'}`,
+    );
+    moved.set(uri, blob.path);
+    added.push(blob);
+  }
+  const source = moved.size ? mapSourcePaths(relative, (p) => moved.get(p) ?? p) : relative;
   const path = `v${n}-0.${file.ext}`;
   const json = `v${n}-0.json`;
   const bytes =
@@ -465,7 +503,7 @@ export async function commitEdit(
       kind: source.kind,
       path: json,
       size: jsonSize,
-      assets: file.source.assets.filter((a) => used.has(a.path)),
+      assets: [...file.source.assets, ...added].filter((a) => used.has(a.path)),
       ...(missing.length ? { pagesWithoutTables: missing } : {}),
     },
   };
@@ -478,7 +516,13 @@ export async function commitEdit(
   const sealed = sealEdit(change.desk);
   await saveDesk(files, sealed);
   await files.desk.remove([...change.drop, DRAFT_NAME].map((p) => inDesk(desk, p)));
-  return { desk: sealed, fileId: next.id };
+  // 新剪的图搬走了（D-467）：编辑页接着用的文档换成桌面里的地址（2026-11-06：「完成」以后刚换的图变成灰块，
+  // 之后再改、再存都指向已经不在的临时文件）。
+  const doc = moved.size
+    ? mapSourcePaths(source, (p) => (/^(file:|content:)/.test(p) ? p : deskFileUri(files, desk, p)))
+        .doc
+    : undefined;
+  return { desk: sealed, fileId: next.id, ...(doc ? { doc } : {}) };
 }
 
 /** 还没合上的编辑写进桌面（防丢）：App 被关掉时，下次打开房间先把它合成一个版本。 */

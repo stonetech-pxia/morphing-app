@@ -6,6 +6,7 @@ import { t } from '@/i18n';
 import { usePalette } from '@/renderer/theme';
 import { Button, Card } from '@/renderer/ui';
 import { workflowEntry } from '@/shell/ai-entry';
+import { openRunAfterClosing } from '@/shell/navigation';
 import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
 /**
@@ -56,9 +57,7 @@ export default function ReminderRoute() {
             palette={palette}
             testID="reminder-run"
             label={t(locale, 'reminderOpenRun')}
-            onPress={() =>
-              router.replace({ pathname: '/run/[workflowId]', params: { workflowId: workflow.id } })
-            }
+            onPress={() => openRunAfterClosing(router, workflow.id)}
           />
         </>
       ) : (

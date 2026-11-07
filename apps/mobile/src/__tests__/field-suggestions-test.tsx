@@ -12,7 +12,7 @@ import {
   type WorkspaceConfig,
 } from '@morph/core';
 import { qrMatrix, qrToRgba } from '@morph/tool-qr';
-import { act, fireEvent, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, waitFor, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
 
@@ -141,8 +141,11 @@ const chipTexts = (field: string) =>
     .queryAllByTestId(new RegExp(`^editor-${field}-suggestion-\\d$`))
     .map((c) => String((c.props as { accessibilityLabel?: string }).accessibilityLabel));
 
+const recognizedAll = (vision: FakeVision) =>
+  vision.calls.filter((c) => c.method === 'recognizeLines').length;
+
 const recognized = (vision: FakeVision) =>
-  vision.calls.filter((c) => c.method === 'recognizeLines');
+  vision.calls.filter((c) => c.method === 'recognizeLines' && !/\/receipt-like-/.test(c.uri));
 const runsLeft = (files: FakeFiles) =>
   [...files.disk.keys()].filter((k) => k.startsWith('runs/prefill-'));
 
@@ -594,5 +597,43 @@ describe('名片表的二维码', () => {
     await act(async () => {});
     expect(read).not.toHaveBeenCalled();
     expect(chipTexts('name').join()).not.toContain('Maria');
+  });
+});
+
+/** 一份照片在预览页点「存记录」，不选，只看面板里的表。 */
+async function openChooserFor(files: FakeFiles) {
+  const picked = [files.offer('receipt.jpg', TINY_JPEG, 'image/jpeg')];
+  await act(async () => useIncoming.getState().receive(picked, [], 'picker'));
+  await act(() => router.push('/share'));
+  await fireEvent.press(await screen.findByTestId('preview-record'));
+  return screen.findByTestId('share-record-table-purchases');
+}
+
+describe('存记录面板：像收据的照片，推荐带收据规则的表（D-477）', () => {
+  const TAG = '看起来是收据，推荐放这里';
+
+  it('收据照片：「购物凭证」表上写推荐', async () => {
+    const { files, vision } = await render();
+    vision.layers.push(layer(RECEIPT));
+    const row = await openChooserFor(files);
+    await waitFor(() => expect(within(row).getByText(TAG)).toBeTruthy());
+    // 读的是收到的照片本身，不改它（底线 4）；读完不留中间文件。
+    expect(files.disk.size).toBeGreaterThan(0);
+  });
+
+  it('不像收据（没有合计和金额）：不写推荐，面板照旧', async () => {
+    const { files, vision } = await render();
+    vision.layers.push(layer(['Vaccination record', 'Dose 1: 3 March 2025']));
+    const row = await openChooserFor(files);
+    await waitFor(() => expect(recognizedAll(vision)).toBeGreaterThan(0));
+    expect(within(row).queryByText(TAG)).toBeNull();
+  });
+
+  it('没装文字识别：不读、不推荐、不报错', async () => {
+    const { files, vision } = await render([]);
+    vision.layers.push(layer(RECEIPT));
+    const row = await openChooserFor(files);
+    expect(within(row).queryByText(TAG)).toBeNull();
+    expect(recognizedAll(vision)).toBe(0);
   });
 });

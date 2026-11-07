@@ -3,13 +3,28 @@ import type { WorkspaceConfig } from '@morph/core';
 // 收件页面「存成记录」（D-392、D-444）：列出有附件字段的表（全部，不推荐）和「新建表单」。
 // 不用 AI、不识别文字、不预填别的值；收到的文件复制成用户文件放进附件字段，用户自己填完保存。
 
-export type RecordChoice = { kind: 'table'; tableId: string; name: string };
+export type RecordChoice = {
+  kind: 'table';
+  tableId: string;
+  name: string;
+  /** 文件像收据，这张表带收据规则（D-421）：排第一并标推荐（D-477）。 */
+  recommended?: true;
+};
 
 /** 已有的、能放文件的表。新建一张表走新建表单页（D-444）。 */
-export function recordChoices(config: WorkspaceConfig): RecordChoice[] {
-  return config.data.tables
-    .filter((c) => c.fields.some((f) => f.type === 'file'))
-    .map((c) => ({ kind: 'table', tableId: c.id, name: c.name }));
+export function recordChoices(config: WorkspaceConfig, receiptLike = false): RecordChoice[] {
+  const tables = config.data.tables.filter((c) => c.fields.some((f) => f.type === 'file'));
+  const choice = (c: (typeof tables)[number]): RecordChoice => ({
+    kind: 'table',
+    tableId: c.id,
+    name: c.name,
+  });
+  if (!receiptLike) return tables.map(choice);
+  const rule = tables.filter((c) => c.prefillRules === 'receipt');
+  return [
+    ...rule.map((c) => ({ ...choice(c), recommended: true as const })),
+    ...tables.filter((c) => c.prefillRules !== 'receipt').map(choice),
+  ];
 }
 
 /**

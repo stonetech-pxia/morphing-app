@@ -4,15 +4,25 @@ import {
   buildDocPage,
   clusterLines,
   foldEmptyColumns,
+  hasUnderline,
+  isRuleGrid,
+  isVertical,
   leafBlocks,
+  looksLikeHeading,
+  mergeColumnRows,
+  mergeTextRegions,
   paragraphsOf,
+  splitLabelColumn,
   strokeRatio,
   textColor,
+  textEm,
   type DocList,
   type DocParagraph,
+  type DocBlock,
   type DocRow,
+  verticalBoxes,
 } from './doc';
-import type { LayoutRegion } from './layout';
+import { isDiagram, type LayoutRegion } from './layout';
 import { fakeLine, glyphs, gridRects, renderPage, type Rect } from './test-helpers';
 import type { OcrBox, RgbaImage, TableBlock } from './types';
 
@@ -81,6 +91,29 @@ describe('paragraphsOf', () => {
   });
 });
 
+describe('paragraphsOf: centered lines (D-463)', () => {
+  it('keeps centered letter-head lines one per paragraph, but still joins wrapped prose', () => {
+    // 处方的页眉：每行居中、宽度差不多，最宽的一行定了右边；以前「CDS 20 PANTIN」和下一行的地址被当成折行接在一起。
+    const head = [
+      line('CENTRE DE SANTE', 473, 124, 304, 31),
+      line('CDS 20 PANTIN', 502, 175, 243, 32),
+      line('20 rue du pré saint Gervais', 478, 229, 292, 30),
+      line('93500 Pantin', 552, 269, 144, 27),
+      line('Tél: 01 48 46 66 66', 519, 309, 211, 27),
+      line('NoFINESS :93 002 730 5', 487, 348, 275, 29),
+    ];
+    expect(paragraphsOf(head).map((p) => p.rows.map((r) => r.text))).toEqual(
+      head.map((l) => [l.text]),
+    );
+    // 左边对齐、写到右边的正文照样接成一段。
+    const prose = [
+      line('A long line of body text that runs to the right', 100, 100, 800),
+      line('edge and wraps here.', 100, 125, 300),
+    ];
+    expect(paragraphsOf(prose)).toHaveLength(1);
+  });
+});
+
 describe('clusterLines', () => {
   it('keeps a letter head’s address (left) and date (right) apart, and splits at big gaps', () => {
     const lines = [
@@ -134,6 +167,21 @@ describe('strokeRatio and textColor', () => {
       if (blue.data[i]! < 128) blue.data.set([23, 32, 148], i);
     }
     expect(textColor(blue, box)).toBe('172094');
+  });
+});
+
+describe('hasUnderline (D-463)', () => {
+  it('sees a line under the text as long as the text, not a longer rule or a strike-through', () => {
+    const box = { x: 100, y: 100, width: 400, height: 20 };
+    const text = glyphs(100, 104, 400, 12);
+    const page = (extra: Rect[]) => renderPage(W, 300, [...text, ...extra]);
+    expect(hasUnderline(page([]), box)).toBe(false);
+    // 下划线：在字的下面，和字一样长。
+    expect(hasUnderline(page([{ x: 100, y: 118, width: 400, height: 2 }]), box)).toBe(true);
+    // 分隔线、表格线：比字长出去很多。
+    expect(hasUnderline(page([{ x: 20, y: 118, width: 900, height: 2 }]), box)).toBe(false);
+    // 删除线：在字的中间。
+    expect(hasUnderline(page([{ x: 100, y: 109, width: 400, height: 2 }]), box)).toBe(false);
   });
 });
 
@@ -341,13 +389,14 @@ describe('buildDocPage', () => {
     ]);
     const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
     const paras = doc.blocks as DocParagraph[];
-    expect(paras.map((p) => [p.text.slice(0, 10), p.indent])).toEqual([
-      ['Indented f', 60],
-      ['A short in', 60],
-      ['Next parag', undefined],
-      ['“A line of', 60],
-      ['A line on ', undefined],
-      ['00', undefined],
+    // 只有一行的段落不写首行缩进（D-463）：docx 按它的左边写左缩进，见 docx.test 的「places each paragraph」。
+    expect(paras.map((p) => [p.text.slice(0, 10), p.indent, Math.round(p.box.x)])).toEqual([
+      ['Indented f', 60, 100],
+      ['A short in', undefined, 160],
+      ['Next parag', undefined, 100],
+      ['“A line of', undefined, 160],
+      ['A line on ', undefined, 100],
+      ['00', undefined, 20],
     ]);
   });
 
@@ -488,6 +537,79 @@ describe('buildDocPage', () => {
     );
   });
 
+  it('sizes lines by the width of their letters when the page is set in one font (D-463)', () => {
+    // 识别框一样高（p、g 往下伸的字母让小字的框也一样高），字宽看得出大小：正文 17 像素，小字 13，大字 22。
+    const px = (text: string, size: number) => Math.round(textEm(text) * size);
+    const body = [
+      'Docteur Martin LEROY',
+      'Ophtalmologiste diplômé',
+      'Ancien Assistant à la fondation',
+      'MALADIES ET CHIRURGIE DES YEUX',
+      'Pantin le 11/05/2026',
+    ];
+    const rows = body.map((text, i) => ({ text, x: 100, y: 100 + i * 60, width: px(text, 17) }));
+    const small = 'Une paire de lunettes avec monture';
+    const big = 'Simple foyer';
+    rows.push(
+      { text: small, x: 300, y: 600, width: px(small, 13) },
+      { text: big, x: 300, y: 660, width: px(big, 22) },
+    );
+    const { image, lines } = textPage(rows);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const paras = doc.blocks as DocParagraph[];
+    const sizeOf = (text: string) => paras.find((p) => p.text === text)!.size ?? doc.bodySize;
+    for (const text of body) expect(sizeOf(text)).toBe(doc.bodySize);
+    expect(sizeOf(small)).toBeCloseTo((doc.bodySize * 13) / 17, 0);
+    expect(sizeOf(big)).toBeCloseTo((doc.bodySize * 22) / 17, 0);
+  });
+
+  it('does not make same-size, regular lines in a title region headings; headings keep their size (D-463)', () => {
+    // 版面模型把整个页眉（机构名 + 地址、电话）框成一个标题区域。
+    const { image, lines } = textPage([
+      { text: 'CENTRE DE SANTE', x: 380, y: 60, width: 240, h: 26, stroke: 5 },
+      { text: '20 rue du pré saint Gervais', x: 400, y: 100, width: 200 },
+      { text: 'Tél: 01 48 46 66 66', x: 420, y: 130, width: 160 },
+      { text: 'Body text of the page that is long enough to count', x: 100, y: 300, width: 800 },
+      { text: 'as prose and sets the size of the body text.', x: 100, y: 325, width: 700 },
+    ]);
+    const doc = buildDocPage({
+      image,
+      lines,
+      source: 's',
+      skew: 0,
+      regions: [
+        {
+          kind: 'title',
+          label: 'doc_title',
+          score: 0.9,
+          box: { x: 370, y: 50, width: 260, height: 110 },
+        },
+      ],
+    });
+    const [title, street, phone] = doc.blocks as DocParagraph[];
+    expect(title).toMatchObject({ text: 'CENTRE DE SANTE', heading: 1, bold: true });
+    // 标题写明自己的字号，不按标题样式放大。
+    expect(title!.size).toBeDefined();
+    expect(street).toMatchObject({ text: '20 rue du pré saint Gervais', align: 'center' });
+    expect(street!.heading).toBeUndefined();
+    expect(phone!.heading).toBeUndefined();
+  });
+
+  it('centres a single line centred on the page although the text around it is lopsided (D-463)', () => {
+    // 左边一大块医生信息、右边的字很短：整页文字的左右边不对称，按它们判断居中会漏掉页眉。
+    const { image, lines } = textPage([
+      { text: 'ORDONNANCE DE LUNETTES', x: 300, y: 100, width: 400 },
+      { text: 'Ancien Assistant à la fondation Ophtalmologique', x: 40, y: 200, width: 500 },
+      { text: 'Docteur Martin LEROY', x: 150, y: 240, width: 250 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const [title, wide, doctor] = doc.blocks as DocParagraph[];
+    expect(title!.align).toBe('center');
+    // 左边那块里居中的行不当整页居中：位置留给 docx 的左缩进。
+    expect(wide!.align).toBeUndefined();
+    expect(doctor!.align).toBeUndefined();
+  });
+
   it('pairs form labels with their values row by row (D-332)', () => {
     const { image, lines } = textPage([
       // 右边一块的上面还有一行（和值连成了一块），不参加配对。
@@ -525,5 +647,233 @@ describe('buildDocPage', () => {
     // 值的位置：相对标签左边的距离（原图像素）。
     expect(form.tab).toBe(270);
     expect(doc.blocks[2]).toMatchObject({ text: 'Date :\t12 mars 2019', tab: 400 });
+  });
+});
+
+describe('ragged-right wrapping (D-473)', () => {
+  it('joins a line that stopped short because the next word would not fit', () => {
+    // 左对齐的正文右边参差不齐：第二行没写到头（离右边 30），因为下一行的第一个词放不下。
+    const lines = [
+      line(
+        'Whereas recognition of the inherent dignity and of the equal rights of all',
+        100,
+        100,
+        800,
+      ),
+      line('the human family is the foundation of freedom, justice', 100, 125, 770),
+      line('and peace in the world,', 100, 150, 280),
+      // 上一行离右边很远、下一个词放得下：段落到这里结束。
+      line('Whereas disregard and contempt', 100, 175, 300),
+    ];
+    const paras = paragraphsOf(lines);
+    expect(paras.map((p) => p.rows.length)).toEqual([3, 1]);
+  });
+
+  it('keeps short label rows of uneven length as separate paragraphs', () => {
+    const lines = [
+      line('START OF PERIOD', 100, 100, 160),
+      line('END OF PERIOD', 100, 125, 140),
+      line('HIRED ON', 100, 150, 100),
+      line('SOCIAL SECURITY NO', 100, 175, 190),
+    ];
+    expect(paragraphsOf(lines)).toHaveLength(4);
+  });
+});
+
+describe('rotated text (D-473)', () => {
+  it('treats tall narrow multi-character boxes as vertical text', () => {
+    expect(isVertical(line('Sprouts', 1163, 1154, 60, 206))).toBe(true);
+    expect(isVertical(line('W-9', 109, 67, 95, 49))).toBe(false);
+    expect(isVertical(line('A', 10, 10, 20, 60))).toBe(false);
+  });
+
+  it('merges nearby vertical lines into one padded box', () => {
+    const boxes = verticalBoxes(
+      [
+        line('Print or type.', 71, 411, 24, 108),
+        line('See Specific Instructions', 92, 322, 23, 288),
+      ],
+      20,
+      page,
+    );
+    expect(boxes).toHaveLength(1);
+    expect(boxes[0]!.x).toBeLessThanOrEqual(71);
+    expect(boxes[0]!.y).toBeLessThanOrEqual(322);
+  });
+
+  it('cuts vertical text out as an image instead of writing it as a huge heading', () => {
+    const { image, lines } = textPage([
+      { text: 'Body text line one of the page', x: 100, y: 100, width: 500 },
+      { text: 'Body text line two of the page', x: 100, y: 130, width: 500 },
+      { text: 'Side logo', x: 900, y: 500, width: 30, h: 180 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const leaves = leafBlocks(doc);
+    expect(leaves.filter((b) => b.kind === 'image')).toHaveLength(1);
+    expect(JSON.stringify(doc)).not.toContain('Side logo');
+  });
+});
+
+describe('mergeTextRegions (D-473)', () => {
+  const r = (kind: string, x: number, y: number, width: number, height: number) => ({
+    kind,
+    box: { x, y, width, height },
+  });
+  it('joins stacked text regions with the same left edge, not columns or titles', () => {
+    const out = mergeTextRegions(
+      [r('text', 100, 100, 800, 50), r('text', 100, 160, 800, 25), r('title', 100, 200, 400, 30)],
+      24,
+    );
+    expect(out.map((x) => x.kind)).toEqual(['text', 'title']);
+    expect(out[0]!.box).toEqual({ x: 100, y: 100, width: 800, height: 85 });
+    const cols = mergeTextRegions(
+      [r('text', 100, 100, 400, 200), r('text', 520, 100, 400, 200)],
+      24,
+    );
+    expect(cols).toHaveLength(2);
+  });
+});
+
+describe('rule grids and diagrams (D-473)', () => {
+  const cell = (i: number, text: string) => ({
+    row: Math.floor(i / 6),
+    col: i % 6,
+    rowSpan: 1,
+    colSpan: 1,
+    text,
+  });
+  const grid = (filled: number, total: number): TableBlock => ({
+    kind: 'table',
+    rows: total / 6,
+    col: 0,
+    cols: 6,
+    cells: Array.from({ length: total }, (_, i) => cell(i, i < filled ? 'x' : '')),
+    box: { x: 0, y: 0, width: 100, height: 100 },
+  });
+
+  it('rejects a big grid that is mostly empty cells (form underlines), keeps real tables', () => {
+    expect(isRuleGrid(grid(10, 60))).toBe(true);
+    expect(isRuleGrid(grid(40, 60))).toBe(false);
+    // 小的稀疏表（签字栏）不判。
+    expect(isRuleGrid(grid(2, 12))).toBe(false);
+  });
+
+  it('rejects a layout grid: many positions but few (heavily merged) cells', () => {
+    // 17 行 × 14 列只有 20 个格子：表单的版面，不是数据表（W-9 的上半页）。
+    const layout = { ...grid(20, 20), rows: 17, cols: 14 };
+    expect(isRuleGrid(layout)).toBe(true);
+    // 8 × 6 每个位置都有格子：数据表。
+    expect(isRuleGrid({ ...grid(48, 48), rows: 8, cols: 6 })).toBe(false);
+  });
+
+  it('keeps a well-structured merged form table (order form) but rejects paragraph-in-cell grids', () => {
+    // 订货单：441 个位置、175 个格子（0.40），每格不到一行字：真表格，保留。
+    const order = { ...grid(175, 175), rows: 21, cols: 21 };
+    expect(isRuleGrid(order, 127)).toBe(false);
+    // W-4：120 个位置、42 个格子（0.35），每格 1.8 行字：格子里是整段话，不当表格。
+    const w4 = { ...grid(42, 42), rows: 15, cols: 8 };
+    expect(isRuleGrid(w4, 74)).toBe(true);
+    expect(isRuleGrid(w4, 30)).toBe(false);
+  });
+
+  it('keeps a labelled diagram as an image but not a block of prose lines', () => {
+    const rects: Rect[] = [
+      // 色块和线：字以外的图形。
+      { x: 110, y: 110, width: 80, height: 80 },
+      { x: 210, y: 110, width: 80, height: 80 },
+      { x: 110, y: 210, width: 180, height: 60 },
+    ];
+    const box = { x: 100, y: 100, width: 200, height: 180 };
+    const image = renderPage(W, H, rects);
+    const labels = [line('Softmax', 120, 130, 60, 14), line('Linear', 220, 130, 60, 14)];
+    expect(isDiagram(image, box, labels)).toBe(true);
+    const prose = [line('This is a long sentence of ordinary prose text here', 100, 130, 190, 14)];
+    expect(isDiagram(image, box, prose)).toBe(false);
+    // 没有图形、只有标签（表单里认错的图片）不当示意图。
+    expect(isDiagram(renderPage(W, H, []), box, labels)).toBe(false);
+  });
+});
+
+describe('label column (D-473)', () => {
+  it('splits a narrow label column from the content column, with full-width lines apart', () => {
+    const labels = [0, 1, 2, 3, 4].map((i) => line(`Step ${i}`, 50, 200 + i * 40, 80));
+    const contents = [0, 1, 2, 3, 4].map((i) =>
+      line(`Content of step ${i}`, 250, 200 + i * 40, 600),
+    );
+    const across = line(
+      'Complete steps 2 to 4 only if they apply to you, otherwise skip',
+      50,
+      100,
+      800,
+    );
+    const split = splitLabelColumn([across, ...labels, ...contents], 20);
+    expect(split).not.toBeNull();
+    expect(split!.labels).toEqual(labels);
+    expect(split!.contents).toEqual(contents);
+    expect(split!.across).toEqual([across]);
+  });
+
+  it('leaves ordinary prose and two-column pages alone', () => {
+    const prose = [0, 1, 2, 3, 4, 5, 6, 7].map((i) =>
+      line(`Prose line ${i}`, 100, 100 + i * 25, 800),
+    );
+    expect(splitLabelColumn(prose, 20)).toBeNull();
+    const columns = [0, 1, 2, 3, 4].flatMap((i) => [
+      line(`left ${i}`, 100, 100 + i * 25, 380),
+      line(`right ${i}`, 520, 100 + i * 25, 380),
+    ]);
+    expect(splitLabelColumn(columns, 20)).toBeNull();
+  });
+});
+
+describe('small layout fixes (D-473)', () => {
+  it('does not pair rows of very different height (logo and big title next to small print)', () => {
+    // W-9 页眉的真实位置（缩到 1000 宽）：左边「Form」「W-9」大标志、小字，右边三行小字。
+    const k = 0.8;
+    const rows = [
+      { text: 'Form', x: 71, y: 94, width: 42, h: 22 },
+      { text: 'W-9', x: 109, y: 67, width: 95, h: 49 },
+      { text: '(Rev. March 2024)', x: 73, y: 117, width: 122, h: 17 },
+      { text: 'Department of the Treasury', x: 73, y: 138, width: 177, h: 18 },
+      { text: 'Give form to the', x: 1039, y: 93, width: 145, h: 17 },
+      { text: 'requester. Do not', x: 1037, y: 117, width: 161, h: 17 },
+      { text: 'send to the IRS.', x: 1037, y: 139, width: 144, h: 17 },
+    ].map((r) => ({ ...r, x: r.x * k, width: r.width * k }));
+    const { image, lines } = textPage(rows);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const texts = leafBlocks(doc).flatMap((b) => (b.kind === 'paragraph' ? [b.text] : []));
+    // 大标志不被配成「标签\t值」按小字的中位行高写。
+    expect(texts.some((t) => t.includes('W-9') && t.includes('\t'))).toBe(false);
+  });
+
+  it('only calls letter-led, mostly-letter text a size-based heading', () => {
+    expect(looksLikeHeading('Request for Taxpayer')).toBe(true);
+    expect(looksLikeHeading('Displays (8) 40 Floor (40)')).toBe(false);
+    expect(looksLikeHeading('# Customers Attended 35')).toBe(false);
+    expect(looksLikeHeading('(if approved)')).toBe(false);
+  });
+
+  it('merges stacked two-column rows with the same columns into one row', () => {
+    const para = (text: string, x: number, y: number): DocBlock => ({
+      kind: 'paragraph',
+      text,
+      box: { x, y, width: 300, height: 20 },
+    });
+    const row = (y: number, a: string, b: string): DocRow => ({
+      kind: 'row',
+      cells: [
+        { width: 400, blocks: [para(a, 100, y) as never] },
+        { width: 400, blocks: [para(b, 520, y) as never] },
+      ],
+      box: { x: 100, y, width: 720, height: 20 },
+    });
+    const out = mergeColumnRows([row(100, 'L1', 'R1'), row(300, 'L2', 'R2')], 20);
+    expect(out).toHaveLength(1);
+    const merged = out[0] as DocRow;
+    expect(merged.cells.map((c) => c.blocks.length)).toEqual([2, 2]);
+    // 列位置不一样的两行不合并。
+    const other = row(300, 'L2', 'R2');
+    other.cells[1]!.blocks = [para('R2', 700, 300) as never];
+    expect(mergeColumnRows([row(100, 'L1', 'R1'), other], 20)).toHaveLength(2);
   });
 });

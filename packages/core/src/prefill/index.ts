@@ -78,5 +78,6 @@ export {
   presetMatchRequest,
   rankPresets,
   recommendPreset,
+  rulePreset,
   type PresetRanking,
 } from './preset-match';

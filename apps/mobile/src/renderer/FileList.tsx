@@ -1,7 +1,7 @@
 import { formatFileSize, readFiles, type BlockOf, type Locale } from '@morph/core';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
@@ -97,13 +97,20 @@ export function openAsset(
   router: ReturnType<typeof useRouter>,
   a: AssetRecord,
 ) {
-  useIncoming
-    .getState()
-    .receive(
-      [{ uri: files.fileUri(a.path), name: a.name, size: a.size, mimeType: a.mimeType }],
-      [],
-      'picker',
-    );
+  useIncoming.getState().receive(
+    // 带着文件 ID（D-455）：预览页「编辑」时把存在旁边的中间格式一起放上桌（D-470）。
+    [
+      {
+        uri: files.fileUri(a.path),
+        name: a.name,
+        size: a.size,
+        mimeType: a.mimeType,
+        assetId: a.id,
+      },
+    ],
+    [],
+    'picker',
+  );
   router.push('/share');
 }
 
@@ -117,6 +124,7 @@ export function FileRow({
   onPress,
   onLongPress,
   snippet,
+  trailing,
 }: {
   asset: AssetRecord;
   first: boolean;
@@ -127,6 +135,8 @@ export function FileRow({
   disabled?: boolean;
   onPress?: (() => void) | undefined;
   onLongPress?: (() => void) | undefined;
+  /** 行右边的东西（全部文件页面的选择框，D-472）。 */
+  trailing?: ReactNode;
 }) {
   const date = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(
     new Date(asset.createdAt),
@@ -158,6 +168,7 @@ export function FileRow({
           </Text>
         ) : null}
       </View>
+      {trailing}
     </Pressable>
   );
 }

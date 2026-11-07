@@ -237,6 +237,8 @@ export interface WorkspaceState {
   planProgress: PlanProgress | null;
   /** 文件列表的刷新信号：工作流保存文件后递增。 */
   assetsVersion: number;
+  /** 显示过的版本渲染出错、不回退时加 1：出错边界按它重新挂载，再试一次。 */
+  renderAttempt: number;
   /** 外壳当前显示的导航项；版本变化时外壳会重新挂载，所以保存在这里。 */
   tab: NavTarget | null;
   /** 记录的刷新信号：增删改记录后递增。 */

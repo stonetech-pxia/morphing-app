@@ -48,6 +48,7 @@ function fakeNative(exportResult: () => Promise<SavedToFolder | null>, remembere
 
 function fallbackDeps(folder: PickedFolder | null) {
   const sheets: string[] = [];
+  const staged: { from: string; name: string }[] = [];
   let picks = 0;
   const deps: ShareDeps = {
     native: null,
@@ -60,8 +61,15 @@ function fallbackDeps(folder: PickedFolder | null) {
     },
     remembered: null,
     rememberedBy: new Map(),
+    // 像 Android：只有缓存里的 runs/ 能直接交出去。
+    shareable: (uri) => uri.startsWith('file:///cache/runs/'),
+    stageCopy: async (uri, name, first) => {
+      if (first) staged.length = 0;
+      staged.push({ from: uri, name });
+      return `file:///cache/share/${name}`;
+    },
   };
-  return { deps, sheets, picks: () => picks };
+  return { deps, sheets, staged, picks: () => picks };
 }
 
 function memoryFolder(name: string, existing: string[], failOn?: string) {
@@ -88,6 +96,34 @@ describe('sharing several files', () => {
         fn: 'shareFiles',
         args: [items.map((i) => i.uri), ['image/jpeg', 'application/pdf']],
       },
+    ]);
+  });
+
+  it('desk and library files are copied under the name the user sees before sharing (2026-11-06 Samsung: ERR_UNEXPECTED, D-466)', async () => {
+    const { native, calls } = fakeNative(async () => null);
+    const { deps, staged } = fallbackDeps(null);
+    await shareAll({ ...deps, native }, [
+      {
+        uri: 'file:///data/desk/d1/v2-0.docx',
+        name: '_-1',
+        ext: 'docx',
+        mimeType: 'application/msword',
+      },
+      { uri: 'file:///data/assets/a1/note.pdf', mimeType: 'application/pdf' },
+      items[0]!,
+      // 两个同名的：第二个加 -2。
+      { uri: 'file:///data/desk/d1/v3-0.docx', name: '_-1', ext: 'docx', mimeType: 'x' },
+    ]);
+    expect(staged).toEqual([
+      { from: 'file:///data/desk/d1/v2-0.docx', name: '_-1.docx' },
+      { from: 'file:///data/assets/a1/note.pdf', name: 'note.pdf' },
+      { from: 'file:///data/desk/d1/v3-0.docx', name: '_-1-2.docx' },
+    ]);
+    expect(calls[0]!.args[0]).toEqual([
+      'file:///cache/share/_-1.docx',
+      'file:///cache/share/note.pdf',
+      items[0]!.uri,
+      'file:///cache/share/_-1-2.docx',
     ]);
   });
 

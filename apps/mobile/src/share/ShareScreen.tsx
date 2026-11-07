@@ -360,6 +360,7 @@ export function ShareScreen() {
             {choosing ? (
               <RecordChooser
                 count={share.files.length}
+                files={share.files}
                 placing={placing}
                 palette={palette}
                 locale={locale}

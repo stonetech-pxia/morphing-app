@@ -106,6 +106,28 @@ export async function readAttachmentPages(
   deps: AttachmentTextDeps,
   signal: AbortSignal,
 ): Promise<TextPage[]> {
+  return readPagesOf(
+    assets.flatMap((asset) => {
+      const kind = readableKind(asset);
+      return kind ? [{ kind, uri: deps.files.fileUri(asset.path) }] : [];
+    }),
+    deps,
+    signal,
+  );
+}
+
+/** 一个要读的文件：已经知道种类和地址（附件或收到还没存的文件都行）。 */
+export interface ReadItem {
+  kind: ReadableKind;
+  uri: string;
+}
+
+/** 读这些文件里的文字（附件和收到的文件共用）：只读不改，中间文件读完删掉。 */
+export async function readPagesOf(
+  items: readonly ReadItem[],
+  deps: AttachmentTextDeps,
+  signal: AbortSignal,
+): Promise<TextPage[]> {
   const { files } = deps;
   const vision = files.vision;
   const check = () => {
@@ -123,11 +145,9 @@ export async function readAttachmentPages(
       pages.push({ width: layer.width, height: layer.height, lines: layer.lines });
     };
     let n = 0;
-    for (const asset of assets) {
-      const kind = readableKind(asset);
-      if (!kind || n >= MAX_READ_FILES) continue;
+    for (const { kind, uri } of items) {
+      if (n >= MAX_READ_FILES) continue;
       n++;
-      const uri = files.fileUri(asset.path);
       try {
         if (kind === 'image') {
           if (!ocr) continue;

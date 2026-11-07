@@ -1,5 +1,5 @@
 import type { GrayImage, Point, Quad } from '@morph/tool-image';
-import type { LayoutRegion } from '@morph/tool-office';
+import type { DocDoc, LayoutRegion } from '@morph/tool-office';
 import type { TextLayer, TextLine } from '@morph/tool-pdf';
 
 import type { DeskFs } from '../desk/fs';
@@ -42,6 +42,11 @@ export interface PickedFile {
   durationMs?: number;
   /** 打开、分享时已经存进文档库的那一份（D-455）：存成记录等直接用它，不再复制。 */
   assetId?: string;
+  /**
+   * 桌上的 Word 的中间格式（D-466，图片已经换成能读的地址）：带进运行（RunItem.docDoc），文档转 PDF 按它的版面排，
+   * 不再交给通用的 Word 排版（Android 上对不齐、字号全丢）。
+   */
+  docDoc?: DocDoc;
 }
 
 export type ImageFormat = 'jpeg' | 'png' | 'webp';
@@ -706,7 +711,10 @@ export interface FilePlatform {
 
   // ---- 工作流执行：输出 ----
   /** 打开一次系统分享面板带上全部文件（MorphShare，D-119）；没有原生模块时（Expo Go）逐个打开。 */
-  shareUris(items: readonly { uri: string; mimeType: string }[]): Promise<void>;
+  /** name、ext 是用户看到的文件名（分享出去用它，D-466）；没有时用文件本身的名字。 */
+  shareUris(
+    items: readonly { uri: string; mimeType: string; name?: string; ext?: string }[],
+  ): Promise<void>;
   /**
    * 把文件复制进「文件」里的一个文件夹（D-120）。每个快捷操作（key 是它的 ID）记住自己的文件夹（D-196）：
    * choose 不为 true 时有记住的就直接存进去，还没有时用最后选过的那个（D-123）并记给它；
@@ -782,6 +790,8 @@ export interface FilePlatform {
     page: { width: number; height: number },
     runId: string,
     relPath: string,
+    /** 页边距（磅）；没有时用默认的（网页自己留边距时传 0）。 */
+    margins?: { left: number; right: number; top: number; bottom: number },
   ): Promise<{ uri: string; size: number; pageCount: number }>;
 
   // ---- 签名 ----

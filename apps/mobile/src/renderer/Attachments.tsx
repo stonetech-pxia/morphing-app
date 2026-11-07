@@ -9,7 +9,7 @@ import {
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { placeAssetOnDesk } from '../desk/saved-source';
 import { placeOnDesk } from '../desk/store';
@@ -122,46 +122,93 @@ export const IMPORT_PROBLEMS: Record<ImportProblem, StringKey> = {
 };
 
 /**
- * 问从哪里选（拍照、相册、「文件」），选好的（最多 max 个，由 pick 限制）复制进 App（和文件入口一样，slot-file.ts）。
+ * 从选好的地方（拍照、相册、「文件」）选，选好的（最多 max 个，由 pick 限制）复制进 App（和文件入口一样，slot-file.ts）。
  * 返回存好的文件 ID；取消时为空。出了问题会提示，已经存好的照样返回。
+ * 问从哪里选的是下面的 SourceChoice：不用系统弹窗，因为安卓的系统弹窗最多三个按钮，「取消」会被丢掉。
  */
-export function chooseAttachments(
+async function importChosen(
   locale: RenderEnv['locale'],
   title: string,
   pick: (source: SlotSource) => Promise<FilesImport>,
+  source: SlotSource,
 ): Promise<string[]> {
-  return new Promise((resolve) => {
-    const run = async (source: SlotSource) => {
-      let result: FilesImport;
-      try {
-        result = await pick(source);
-      } catch (e) {
-        // 没有相机、没给权限。
-        Alert.alert(
-          title,
-          e instanceof RunError
-            ? runErrorText(locale, e.code, e.detail)
-            : t(locale, 'fileSlotCopyFailed'),
-        );
-        return resolve([]);
-      }
-      if (result.kind === 'cancelled') return resolve([]);
-      if (result.problem)
-        Alert.alert(
-          title,
-          t(locale, IMPORT_PROBLEMS[result.problem], {
-            gb: MEDIA_LIMITS.maxFileBytes / 1024 / 1024 / 1024,
-          }),
-        );
-      resolve(result.assetIds);
-    };
-    Alert.alert(title, undefined, [
-      { text: t(locale, 'attachmentTakePhoto'), onPress: () => void run('camera') },
-      { text: t(locale, 'fileSlotFromPhotos'), onPress: () => void run('photos') },
-      { text: t(locale, 'fileSlotFromFiles'), onPress: () => void run('files') },
-      { text: t(locale, 'cancel'), style: 'cancel', onPress: () => resolve([]) },
-    ]);
-  });
+  let result: FilesImport;
+  try {
+    result = await pick(source);
+  } catch (e) {
+    // 没有相机、没给权限。
+    Alert.alert(
+      title,
+      e instanceof RunError
+        ? runErrorText(locale, e.code, e.detail)
+        : t(locale, 'fileSlotCopyFailed'),
+    );
+    return [];
+  }
+  if (result.kind === 'cancelled') return [];
+  if (result.problem)
+    Alert.alert(
+      title,
+      t(locale, IMPORT_PROBLEMS[result.problem], {
+        gb: MEDIA_LIMITS.maxFileBytes / 1024 / 1024 / 1024,
+      }),
+    );
+  return result.assetIds;
+}
+
+/** 问从哪里选：拍照、相册、「文件」和「取消」，点空白处也取消。 */
+function SourceChoice({
+  title,
+  palette,
+  locale,
+  onChoose,
+  onCancel,
+}: {
+  title: string;
+  palette: Palette;
+  locale: RenderEnv['locale'];
+  onChoose: (source: SlotSource) => void;
+  onCancel: () => void;
+}) {
+  const option = (id: string, label: StringKey, source: SlotSource) => (
+    <Pressable
+      key={id}
+      testID={`attachment-source-${id}`}
+      accessibilityRole="button"
+      onPress={() => onChoose(source)}
+      style={styles.option}>
+      <Text style={[palette.font('bodyMedium', 16), { color: palette.text }]}>
+        {t(locale, label)}
+      </Text>
+    </Pressable>
+  );
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
+      <Pressable
+        testID="attachment-source-backdrop"
+        style={styles.backdrop}
+        onPress={onCancel}
+        accessibilityLabel={t(locale, 'cancel')}
+      />
+      <View
+        testID="attachment-source"
+        style={[styles.sheet, { backgroundColor: palette.surface, borderRadius: palette.radius }]}>
+        <Text style={[palette.font('title', 17), { color: palette.text }]}>{title}</Text>
+        {option('camera', 'attachmentTakePhoto', 'camera')}
+        {option('photos', 'fileSlotFromPhotos', 'photos')}
+        {option('files', 'fileSlotFromFiles', 'files')}
+        <Pressable
+          testID="attachment-source-cancel"
+          accessibilityRole="button"
+          onPress={onCancel}
+          style={styles.option}>
+          <Text style={[palette.font('bodyBold', 16), { color: palette.muted }]}>
+            {t(locale, 'cancel')}
+          </Text>
+        </Pressable>
+      </View>
+    </Modal>
+  );
 }
 
 /**
@@ -198,6 +245,7 @@ export function AttachmentsInput({
   const assets = useAssets(ids);
   const room = MAX_ATTACHMENTS - ids.length;
   const [viewing, setViewing] = useState<{ items: ViewerItem[]; start: number } | null>(null);
+  const [choosing, setChoosing] = useState(false);
   const router = useRouter();
   const formFiles = useContext(FormFilesContext);
   // 桌上改完交回来时用最新的值和 onChange（表单在桌面下面，期间可能重新渲染过）。
@@ -310,9 +358,13 @@ export function AttachmentsInput({
     }
   }
 
-  async function add() {
-    const added = await chooseAttachments(locale, field.name, (source) =>
-      importUserFiles(source, room, files, repo),
+  async function add(source: SlotSource) {
+    setChoosing(false);
+    const added = await importChosen(
+      locale,
+      field.name,
+      (src) => importUserFiles(src, room, files, repo),
+      source,
     );
     if (added.length === 0) return;
     bumpAssets();
@@ -403,11 +455,20 @@ export function AttachmentsInput({
           locale={locale}
         />
       ) : null}
+      {choosing ? (
+        <SourceChoice
+          title={field.name}
+          palette={palette}
+          locale={locale}
+          onChoose={(source) => void add(source)}
+          onCancel={() => setChoosing(false)}
+        />
+      ) : null}
       {room > 0 ? (
         <Pressable
           testID={`${testID}-add`}
           disabled={disabled}
-          onPress={() => void add()}
+          onPress={() => setChoosing(true)}
           style={styles.row}>
           <Icon name="plus" size={18} color={palette.primaryText} />
           <Text style={[palette.font('bodyBold', 14), { color: palette.primaryText }]}>
@@ -427,4 +488,7 @@ const styles = StyleSheet.create({
   list: { gap: 10 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   flex: { flex: 1 },
+  backdrop: { flex: 1, backgroundColor: '#2A242080' },
+  sheet: { position: 'absolute', left: 16, right: 16, bottom: 24, padding: 16, gap: 4 },
+  option: { minHeight: 48, justifyContent: 'center' },
 });

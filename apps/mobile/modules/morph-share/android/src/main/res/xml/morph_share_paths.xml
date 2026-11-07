@@ -3,4 +3,6 @@
   <cache-path name="runs" path="runs/" />
   <!-- 收件页面预览时复制的那一份（D-238）。 -->
   <cache-path name="preview" path="preview/" />
+  <!-- 分享前复制的那一份（桌上、文档库里的文件不在 runs/ 里，D-466）。 -->
+  <cache-path name="share" path="share/" />
 </paths>
