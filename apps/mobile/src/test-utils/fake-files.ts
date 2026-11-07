@@ -144,6 +144,12 @@ export class FakeDeskFs implements DeskFs {
     const bytes = this.files.disk.get(this.uri(path));
     return bytes ? new TextDecoder().decode(bytes) : null;
   }
+  async rename(from: string, to: string) {
+    const bytes = this.files.disk.get(this.uri(from));
+    if (!bytes) throw new Error(`missing ${from}`);
+    this.files.disk.set(this.uri(to), bytes);
+    this.files.disk.delete(this.uri(from));
+  }
   async remove(paths: readonly string[]) {
     for (const path of paths) this.files.disk.delete(this.uri(path));
   }

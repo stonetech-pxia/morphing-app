@@ -71,6 +71,14 @@ export const expoDeskFs: DeskFs = {
     }
   },
 
+  async rename(from, to) {
+    const source = fileAt(from);
+    const dest = fileAt(to, true);
+    if (dest.exists) dest.delete();
+    // move 在两个平台都是异步的：等它做完。
+    await source.move(dest);
+  },
+
   async remove(paths) {
     for (const path of paths) {
       try {

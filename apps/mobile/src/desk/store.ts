@@ -60,14 +60,75 @@ export function newDeskId(): string {
 export const deskFileUri = (files: Files, desk: Desk, path: string) =>
   files.desk.uri(inDesk(desk, path));
 
+// 清单（desk.json）和还没合上的编辑（editing.json）不直接覆盖原文件（写到一半被打断，文件就截断了，这个桌面
+// 的版本入口就没了，R08）：先完整写到 <文件>.tmp、读回来核对，再把旧的改名成 <文件>.bak，最后把 .tmp 改名成正式文件。
+// 读的时候正式文件读不出来就退到 .tmp（写好了、还没换上），再退到 .bak（上一份好的）。
+
+const tmpOf = (path: string) => `${path}.tmp`;
+const bakOf = (path: string) => `${path}.bak`;
+
+/** 读一个清单：正式文件、.tmp、.bak 里第一个 valid 的。 */
+async function readManifest(
+  fs: Files['desk'],
+  path: string,
+  valid: (text: string) => boolean,
+): Promise<string | null> {
+  for (const candidate of [path, tmpOf(path), bakOf(path)]) {
+    const text = await fs.readText(candidate);
+    if (text !== null && valid(text)) return text;
+  }
+  return null;
+}
+
+/** 写一个清单：写不全、读回来对不上就抛错，正式文件原样不动。 */
+async function writeManifest(
+  fs: Files['desk'],
+  path: string,
+  text: string,
+  valid: (text: string) => boolean,
+): Promise<void> {
+  const tmp = tmpOf(path);
+  await fs.writeText(tmp, text);
+  if ((await fs.readText(tmp)) !== text) {
+    await fs.remove([tmp]);
+    throw new Error(`desk manifest was not written completely: ${path}`);
+  }
+  // 现在的正式文件是好的才留作 .bak；坏的直接换掉，不能把上一份好的 .bak 盖成坏的。
+  const current = await fs.readText(path);
+  if (current !== null && valid(current)) {
+    await fs.remove([bakOf(path)]);
+    await fs.rename(path, bakOf(path));
+  } else {
+    await fs.remove([path]);
+  }
+  await fs.rename(tmp, path);
+}
+
+const removeManifest = (fs: Files['desk'], path: string) =>
+  fs.remove([path, tmpOf(path), bakOf(path)]);
+
+const deskValid = (deskId: string) => (text: string) => parseDesk(text)?.id === deskId;
+const isJson = (text: string) => {
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 export async function saveDesk(files: Files, desk: Desk): Promise<void> {
-  await files.desk.writeText(inDesk(desk, JSON_NAME), JSON.stringify(desk));
+  await writeManifest(
+    files.desk,
+    inDesk(desk, JSON_NAME),
+    JSON.stringify(desk),
+    deskValid(desk.id),
+  );
 }
 
 export async function loadDesk(files: Files, deskId: string): Promise<Desk | null> {
-  const text = await files.desk.readText(`${deskId}/${JSON_NAME}`);
-  const desk = text === null ? null : parseDesk(text);
-  return desk?.id === deskId ? desk : null;
+  const text = await readManifest(files.desk, `${deskId}/${JSON_NAME}`, deskValid(deskId));
+  return text === null ? null : parseDesk(text);
 }
 
 /** 所有桌面（存储页列出、提示清理）；读不出来的目录不算。 */
@@ -515,7 +576,8 @@ export async function commitEdit(
   );
   const sealed = sealEdit(change.desk);
   await saveDesk(files, sealed);
-  await files.desk.remove([...change.drop, DRAFT_NAME].map((p) => inDesk(desk, p)));
+  await files.desk.remove(change.drop.map((p) => inDesk(desk, p)));
+  await removeManifest(files.desk, inDesk(desk, DRAFT_NAME));
   // 新剪的图搬走了（D-467）：编辑页接着用的文档换成桌面里的地址（2026-11-06：「完成」以后刚换的图变成灰块，
   // 之后再改、再存都指向已经不在的临时文件）。
   const doc = moved.size
@@ -533,15 +595,20 @@ export async function writeEditDraft(
   edited: DeskSourceDoc,
 ): Promise<void> {
   const source = relativeSource(files, desk, edited);
-  await files.desk.writeText(inDesk(desk, DRAFT_NAME), JSON.stringify({ fileId, ...source }));
+  await writeManifest(
+    files.desk,
+    inDesk(desk, DRAFT_NAME),
+    JSON.stringify({ fileId, ...source }),
+    isJson,
+  );
 }
 
 export const dropEditDraft = (files: Files, desk: Desk) =>
-  files.desk.remove([inDesk(desk, DRAFT_NAME)]);
+  removeManifest(files.desk, inDesk(desk, DRAFT_NAME));
 
 /** 打开房间时：上次没合上的编辑合成一个版本（撤销能退回去）。读不出来、文件已经不在桌上时丢掉。 */
 export async function recoverEditDraft(files: Files, desk: Desk, now: number): Promise<Desk> {
-  const text = await files.desk.readText(inDesk(desk, DRAFT_NAME));
+  const text = await readManifest(files.desk, inDesk(desk, DRAFT_NAME), isJson);
   if (text === null) return desk;
   type Draft = { fileId?: string; kind?: string; doc?: unknown } | null;
   let draft: Draft;
