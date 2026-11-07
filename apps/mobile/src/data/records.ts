@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { t } from '../i18n';
 import { newAssetId } from '../runtime/runner';
+import type { StoredRecord } from '../storage/types';
 import { useCalendar, useWorkspace, useWorkspaceContext } from '../workspace/context';
 
 // 用户记录的读写。只由用户在页面上的操作触发，直接写数据库，不经过 AI、不生成版本
@@ -158,8 +159,16 @@ export function useLinkResolver(collection: Collection | undefined): LinkResolve
   return loaded && loaded.targets === targets ? loaded.resolver : undefined;
 }
 
-export type SaveResult =
+/** 新建一条记录的结果。 */
+export type AddResult =
   { ok: true; id: string } | { ok: false; issues: FieldIssue[] } | { ok: false; full: true };
+
+export type SaveResult =
+  | AddResult
+  /** 打开之后这条记录被别处改过（R05）：没有保存；latest 是现在存的那条。 */
+  | { ok: false; conflict: StoredRecord }
+  /** 这条记录已经不在了（删了）：没有保存。 */
+  | { ok: false; gone: true };
 
 export function useRecordActions() {
   const { repo, locale } = useWorkspaceContext();
@@ -167,8 +176,33 @@ export function useRecordActions() {
   const showToast = useWorkspace((s) => s.showToast);
   const cal = useCalendar();
 
+  async function update(
+    collection: Collection,
+    record: DataRecord,
+    input: Record<string, unknown>,
+  ): Promise<SaveResult> {
+    const now = new Date();
+    const prepared = prepareRecordValues(collection, input, record.values, now, cal);
+    if (!prepared.ok) return { ok: false, issues: prepared.issues };
+    // 记录必须还是 record 那份（表单打开时的）才写：别的入口（通知按钮、桌面小组件）这期间改过就不覆盖（R05）。
+    const written = await repo.updateRecordIfUnchanged(
+      record.id,
+      record.values,
+      prepared.values,
+      now.getTime(),
+    );
+    if (written === 'gone') return { ok: false, gone: true };
+    if (written === 'conflict') {
+      const latest = await repo.getRecord(record.id);
+      if (!latest || latest.deletedAt !== null) return { ok: false, gone: true };
+      return { ok: false, conflict: latest };
+    }
+    bump();
+    return { ok: true, id: record.id };
+  }
+
   return {
-    async add(collection: Collection, input: Record<string, unknown>): Promise<SaveResult> {
+    async add(collection: Collection, input: Record<string, unknown>): Promise<AddResult> {
       const counts = await repo.countRecords();
       const count = counts.find((c) => c.collectionId === collection.id)?.count ?? 0;
       if (count >= RECORD_LIMITS.perCollection) return { ok: false, full: true };
@@ -187,17 +221,25 @@ export function useRecordActions() {
       return { ok: true, id };
     },
 
-    async update(
+    update,
+
+    /**
+     * 改一条记录里的几项（列表上勾一下）：按现在存的那条改，只动 input 里的项，别处刚改的项保持最新。
+     * 读到写之间又被改了就再读一次（最多三次）。
+     */
+    async patch(
       collection: Collection,
-      record: DataRecord,
+      id: string,
       input: Record<string, unknown>,
     ): Promise<SaveResult> {
-      const now = new Date();
-      const prepared = prepareRecordValues(collection, input, record.values, now, cal);
-      if (!prepared.ok) return { ok: false, issues: prepared.issues };
-      await repo.updateRecord(record.id, prepared.values, now.getTime());
-      bump();
-      return { ok: true, id: record.id };
+      let result: SaveResult = { ok: false, gone: true };
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const stored = await repo.getRecord(id);
+        if (!stored || stored.deletedAt !== null) return { ok: false, gone: true };
+        result = await update(collection, stored, input);
+        if (!('conflict' in result)) return result;
+      }
+      return result;
     },
 
     /** 软删除，提示条上可以撤销。 */

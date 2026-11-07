@@ -8,9 +8,9 @@ import {
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, ScrollView, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, ScrollView, Text, View } from 'react-native';
 
-import { useComputedRecords, useRecordActions } from '@/data/records';
+import { useComputedRecords, useRecordActions, type SaveResult } from '@/data/records';
 import { useSimilarCheck } from '@/data/similar-records';
 import { t } from '@/i18n';
 import { FormFilesContext } from '@/renderer/Attachments';
@@ -22,6 +22,7 @@ import { Button } from '@/renderer/ui';
 import { takeFormCopies } from '@/share/save-as-record';
 import { tableEntry } from '@/shell/ai-entry';
 import { useConfirmLeave } from '@/shell/useConfirmLeave';
+import type { StoredRecord } from '@/storage/types';
 import { deleteUserFiles } from '@/storage/user-files';
 import { useCalendar, useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
@@ -104,6 +105,12 @@ export default function RecordRoute() {
     const result = record
       ? await actions.update(collection, record, values)
       : await actions.add(collection, values);
+    finish(result);
+  }
+
+  /** 保存的结果：存好了就回去；填得不对标出来；记录在你编辑时被别处改了、删了就问你。 */
+  function finish(result: SaveResult) {
+    if (!collection) return;
     if (result.ok) {
       kept.current = new Set(
         collection.fields.flatMap((f) => (f.type === 'file' ? attachmentIds(values[f.id]) : [])),
@@ -116,6 +123,42 @@ export default function RecordRoute() {
           continueTable: collection.id,
         });
     } else if ('issues' in result) setIssues(result.issues);
+    else if ('conflict' in result) askConflict(result.conflict);
+    else if ('gone' in result)
+      Alert.alert(t(locale, 'recordConflictGoneTitle'), t(locale, 'recordConflictGoneMessage'), [
+        { text: t(locale, 'ok'), onPress: () => leave() },
+      ]);
+  }
+
+  /** 打开之后这条记录被别处改过（通知按钮、桌面小组件……）：不悄悄改回旧值，让用户选（R05）。 */
+  function askConflict(latest: StoredRecord) {
+    Alert.alert(t(locale, 'recordConflictTitle'), t(locale, 'recordConflictMessage'), [
+      { text: t(locale, 'recordConflictKeep'), onPress: () => void keepMine(latest) },
+      { text: t(locale, 'recordConflictLatest'), onPress: () => adoptLatest(latest) },
+      { text: t(locale, 'cancel'), style: 'cancel' },
+    ]);
+  }
+
+  /** 只保存我在这个表单里改过的项，别的项用现在存的（别处刚改的）。 */
+  async function keepMine(latest: StoredRecord) {
+    if (!collection) return;
+    const opened = JSON.parse(initial) as Record<string, unknown>;
+    const mine = Object.fromEntries(
+      Object.entries(values).filter(
+        ([key, v]) => JSON.stringify(v) !== JSON.stringify(opened[key]),
+      ),
+    );
+    finish(await actions.update(collection, latest, mine));
+  }
+
+  /** 放弃我的修改：表单换成现在存的那份，接着看、接着改。 */
+  function adoptLatest(latest: StoredRecord) {
+    if (!collection) return;
+    const loaded = toFormValues(collection, latest);
+    setRecord(latest);
+    setValues(loaded);
+    setInitial(JSON.stringify(loaded));
+    setIssues([]);
   }
 
   async function remove() {

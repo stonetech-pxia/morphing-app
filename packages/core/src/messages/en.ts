@@ -1729,6 +1729,14 @@ export const en = {
   discardTitle: 'Discard changes?',
   deskDiscardMessage: 'Your changes on the desk are not saved yet. They will be lost if you leave.',
   formDiscardMessage: 'What you entered is not saved yet. It will be lost if you leave.',
+  recordConflictTitle: 'This entry was just changed elsewhere',
+  recordConflictMessage:
+    'After you opened it, a notification button, a widget or another page changed it. “Keep my changes” saves only what you edited here and keeps everything else up to date; “Use the latest” drops your edits.',
+  recordConflictKeep: 'Keep my changes',
+  recordConflictLatest: 'Use the latest',
+  recordConflictGoneTitle: 'This entry was deleted while you were editing',
+  recordConflictGoneMessage:
+    'Your changes were not saved. You can bring the entry back from Recently deleted.',
   importSaving: 'Saving to your files {done} / {total}',
   deskClear: 'Clear the desk',
   deskClearTitle: 'Clear the desk?',

@@ -1641,6 +1641,13 @@ export const zh: MessageTable = {
   discardTitle: '放弃修改？',
   deskDiscardMessage: '桌上改过的还没有保存，离开就没有了。',
   formDiscardMessage: '填的内容还没有保存，离开就没有了。',
+  recordConflictTitle: '这条记录刚被别处改过',
+  recordConflictMessage:
+    '你打开它之后，通知按钮、桌面小组件或别的页面又改了它。「保留我的修改」只保存你在这里改过的项目，其他项目保持最新；「用最新的」放弃你在这里的修改。',
+  recordConflictKeep: '保留我的修改',
+  recordConflictLatest: '用最新的',
+  recordConflictGoneTitle: '这条记录在你编辑时被删除了',
+  recordConflictGoneMessage: '你的修改没有保存。要找回这条记录，到「最近删除」里恢复。',
   importSaving: '正在存进文档库 {done} / {total}',
   deskClear: '清空桌面',
   deskClearTitle: '清空桌面？',

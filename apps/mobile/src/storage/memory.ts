@@ -12,6 +12,7 @@ import {
   type WorkspaceRepo,
   type RecordRange,
 } from './types';
+import { sameValues } from './record-values';
 
 // 内存实现：用于测试，语义与 SQLite 实现一致。数据以 JSON 字符串保存，模拟“写入后重新读取”。
 
@@ -270,6 +271,19 @@ export class MemoryWorkspaceRepo implements WorkspaceRepo {
   async updateRecord(id: string, values: Record<string, unknown>, updatedAt: number) {
     const r = this.readRecord(id);
     if (r) this.writeRecord({ ...r, values, updatedAt });
+  }
+
+  async updateRecordIfUnchanged(
+    id: string,
+    expected: Record<string, unknown>,
+    values: Record<string, unknown>,
+    updatedAt: number,
+  ) {
+    const r = this.readRecord(id);
+    if (!r || r.deletedAt !== null) return 'gone' as const;
+    if (!sameValues(r.values, expected)) return 'conflict' as const;
+    this.writeRecord({ ...r, values, updatedAt });
+    return 'updated' as const;
   }
 
   async deleteRecord(id: string, deletedAt: number) {

@@ -13,6 +13,7 @@ import {
   type WorkspaceRepo,
   type RecordRange,
 } from './types';
+import { sameValues } from './record-values';
 
 // SQLite 实现。数据库结构用 PRAGMA user_version 管理，每个元素是一次升级。
 
@@ -526,6 +527,31 @@ export class SQLiteWorkspaceRepo implements WorkspaceRepo {
       updatedAt,
       id,
     );
+  }
+
+  async updateRecordIfUnchanged(
+    id: string,
+    expected: Record<string, unknown>,
+    values: Record<string, unknown>,
+    updatedAt: number,
+  ) {
+    let result: 'updated' | 'conflict' | 'gone' = 'gone';
+    await this.db.withExclusiveTransactionAsync(async (txn) => {
+      const row = await txn.getFirstAsync<RecordRow>('SELECT * FROM records WHERE id = ?', id);
+      if (!row || row.deleted_at !== null) return;
+      if (!sameValues(toStoredRecord(row).values, expected)) {
+        result = 'conflict';
+        return;
+      }
+      await txn.runAsync(
+        'UPDATE records SET values_json = ?, updated_at = ? WHERE id = ?',
+        JSON.stringify(values),
+        updatedAt,
+        id,
+      );
+      result = 'updated';
+    });
+    return result;
   }
 
   async deleteRecord(id: string, deletedAt: number) {

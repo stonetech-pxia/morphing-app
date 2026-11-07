@@ -1807,6 +1807,14 @@ export const fr: MessageTable = {
     'Vos modifications ne sont pas encore enregistrées. Elles seront perdues si vous quittez.',
   formDiscardMessage:
     'Ce que vous avez saisi n’est pas encore enregistré. Ce sera perdu si vous quittez.',
+  recordConflictTitle: 'Cette entrée vient d’être modifiée ailleurs',
+  recordConflictMessage:
+    'Après votre ouverture, un bouton de notification, un widget ou une autre page l’a modifiée. « Garder mes modifications » n’enregistre que ce que vous avez changé ici et garde le reste à jour ; « Utiliser la dernière version » abandonne vos modifications.',
+  recordConflictKeep: 'Garder mes modifications',
+  recordConflictLatest: 'Utiliser la dernière version',
+  recordConflictGoneTitle: 'Cette entrée a été supprimée pendant votre modification',
+  recordConflictGoneMessage:
+    'Vos modifications n’ont pas été enregistrées. Vous pouvez restaurer l’entrée depuis « Supprimés récemment ».',
   importSaving: 'Ajout à vos fichiers {done} / {total}',
   deskClear: 'Vider le bureau',
   deskClearTitle: 'Vider le bureau ?',

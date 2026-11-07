@@ -170,6 +170,16 @@ export interface WorkspaceRepo {
   getRecord(id: string): Promise<StoredRecord | null>;
   insertRecord(record: DataRecord): Promise<void>;
   updateRecord(id: string, values: Record<string, unknown>, updatedAt: number): Promise<void>;
+  /**
+   * 条件写入（R05）：记录现在存的值还是 expected（表单打开时的那份）才写；已经被别处改过返回 'conflict'，
+   * 不写；不存在或在「最近删除」里返回 'gone'。判断和写入在同一个事务里，中间插不进别的写入。
+   */
+  updateRecordIfUnchanged(
+    id: string,
+    expected: Record<string, unknown>,
+    values: Record<string, unknown>,
+    updatedAt: number,
+  ): Promise<'updated' | 'conflict' | 'gone'>;
   /** 软删除：可以撤销，「最近删除」里保留 30 天。 */
   deleteRecord(id: string, deletedAt: number): Promise<void>;
   restoreRecord(id: string): Promise<void>;
