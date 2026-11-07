@@ -31,6 +31,7 @@ export * from './app-file';
 export { hiddenIdsForAI, scopedViewForAI } from './app-scope';
 export * from './html';
 export * from './limits';
+export * from './file-size-check';
 export * from './audio';
 export * from './media';
 export * from './migrate';
