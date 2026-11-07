@@ -219,6 +219,7 @@ export const zh: MessageTable = {
   previewCatConvert: '格式转换',
   previewCatProcess: '智能处理',
   previewCatManage: '管理',
+  previewMoreSign: '电子签名',
   previewNothing: '暂时没有适合这个文件的。',
   runError_tooFew: '请至少选择 {min} 个文件。',
   runError_tooMany: '最多选择 {max} 个文件。',

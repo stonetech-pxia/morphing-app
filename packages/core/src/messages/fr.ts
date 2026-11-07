@@ -241,6 +241,7 @@ export const fr: MessageTable = {
   previewCatConvert: 'Convertir',
   previewCatProcess: 'Outils intelligents',
   previewCatManage: 'Gérer',
+  previewMoreSign: 'Signer',
   previewNothing: 'Rien ne convient encore à ce fichier.',
   runError_tooFew: 'Choisissez au moins {min} fichiers.',
   runError_tooMany: 'Choisissez au maximum {max} fichiers.',
