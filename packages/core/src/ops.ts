@@ -315,8 +315,8 @@ function addApp(config: WorkspaceConfig, op: OpOf<'addContainer'>): void {
     name: spec.name,
     ...(spec.icon !== undefined ? { icon: spec.icon } : {}),
     bar: [...new Set<AppBarTarget>(spec.bar ?? ['ai'])],
-    // 新 app 的风格从主页复制一份，之后各改各的，不继承。
-    theme: clone(config.theme),
+    // 新 app 的风格从主页复制一份（导入的 App 文件自带风格），之后各改各的，不继承。
+    theme: clone(spec.theme ?? config.theme),
   };
   (config.nav.apps ??= []).push(app);
 }
@@ -341,7 +341,7 @@ function removeApp(config: WorkspaceConfig, id: string, notes: ApplyNote[]): voi
   }
   const target = appTarget(id);
   const links = removeEverywhere(config, (c) => componentTarget(c) === target) > 0;
-  for (const tool of config.tools.filter((t) => t.kind === 'quickAction' && t.app === id)) {
+  for (const tool of config.tools.filter((t) => t.app === id)) {
     removeTool(config, { op: 'removeTool', tool: tool.id }, notes);
   }
   const moved = config.data.tables.filter((t) => t.app === id);

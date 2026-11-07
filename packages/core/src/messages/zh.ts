@@ -478,6 +478,10 @@ export const zh: MessageTable = {
   importAppConfigInvalid: '这个文件不是 Tinkrum 的 App 配置，没有导入。',
   importAppConfigName: '导入的文件',
   importAppConfigConfirm: '换成文件里的 App？你的记录都留着，之后可以在改动记录里撤销。',
+  importAppConfirm:
+    '把「{name}」加成一个新的 App？你现有的东西都不会被替换，之后可以在改动记录里撤销。',
+  importAppSummary: '导入 App「{name}」',
+  importAppClash: '这个 App 已经添加过了，或者里面的名字和你现有的重名：{reason}',
   localModelTitle: '本机模型',
   localModelHint:
     '下载以后，新记录带附件时，也会问一个在这台手机上运行的小模型，人名和金额的候选更准一些。不下载也有候选，只用规则。内容不出手机。',
@@ -888,7 +892,6 @@ export const zh: MessageTable = {
   v34descDeskAddBelow: '在桌上的预览下方加上{v0}',
   v34descDeskRemove: '从桌上移除{v0}',
   appDescAdd: '新建 App“{v0}”',
-  appBackToHome: '返回 Tinkrum',
   settingsMyApps: '我的 App',
   settingsMyAppsHint: '长按一个 App，可以放到手机桌面。',
   settingsAppOnHome: '在桌面菜单里',

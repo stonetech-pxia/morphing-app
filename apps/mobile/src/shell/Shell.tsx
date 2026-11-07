@@ -10,7 +10,7 @@ import {
 import { useRouter } from 'expo-router';
 import { BlurTargetView } from 'expo-blur';
 import { useEffect, useRef, type ComponentRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DraftBar } from '../draft/DraftBar';
@@ -82,7 +82,7 @@ export function useShellEnv(): Pick<RenderEnv, 'navigate' | 'locked'> & { inDraf
 
 /** App 外壳：内容区域、按配置渲染的底部导航和浮动按钮。 */
 export function Shell() {
-  const { registry, locale } = useWorkspaceContext();
+  const { registry, locale, store } = useWorkspaceContext();
   // 草稿模式里显示草稿（D-190）。
   const config = useWorkspace(shownConfig)!;
   const headId = useWorkspace((s) => s.head!.id);
@@ -113,6 +113,9 @@ export function Shell() {
     if (missingApp) leaveApp();
   }, [missingApp, leaveApp]);
 
+  // 子 App 里没有「返回 Tinkrum」（D-485）：回主页只能从手机上打开 Tinkrum。离开 App 再回来（点图标、切换器）就是
+  // 回到主页；从桌面菜单、深链接直接打开某个 App 时，进入 App 发生在回来之后，留在那个 App 里。
+
   // 渲染完成（没有被 ErrorBoundary 拦截）才确认这次提交成功（§4）。
   useEffect(() => {
     void markRendered(headId);
@@ -121,6 +124,25 @@ export function Shell() {
   // 第一次打开（或在设置里选了重新看）：先看划屏介绍（D-149）。
   const guideStage = useGuide((s) => s.stage);
   const router = useRouter();
+
+  useEffect(() => {
+    let left: number | null = null;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'background') left = store.getState().appEnters;
+      else if (state === 'active' && left !== null) {
+        const since = left;
+        left = null;
+        // 打开 App 的事件（桌面菜单、深链接）比「回到前台」晚一点到，等它。
+        setTimeout(() => {
+          const s = store.getState();
+          if (s.appId === null || s.appEnters > since) return;
+          if (router.canDismiss()) router.dismissAll();
+          s.leaveApp();
+        }, 700);
+      }
+    });
+    return () => sub.remove();
+  }, [store, router]);
   const blurTarget = useRef<ComponentRef<typeof View>>(null);
   useEffect(() => {
     // 外壳随版本重新挂载（例如收件页面建了一张表）时，介绍可能已经开着，不再推一次。
@@ -286,28 +308,6 @@ export function Shell() {
             },
           ]}>
           <GlassFill palette={palette} radius={0} />
-          {/* 在 app 里，最左边固定一个「返回 Tinkrum」回真正的主页（系统层，D-485）；不占 app 底栏的 5 项。 */}
-          {view.appId !== null ? (
-            <Pressable
-              testID="nav-back-home"
-              accessibilityRole="button"
-              accessibilityLabel={t(locale, 'appBackToHome')}
-              style={styles.tab}
-              onPress={leaveApp}>
-              {navStyle !== 'label' ? (
-                <View style={[styles.tabIcon, { backgroundColor: 'transparent' }]}>
-                  <Icon name="home" size={22} color={palette.caption} />
-                </View>
-              ) : null}
-              {navStyle !== 'icon' ? (
-                <Text
-                  numberOfLines={1}
-                  style={[palette.font('bodyMedium', 12), { color: palette.caption }]}>
-                  Tinkrum
-                </Text>
-              ) : null}
-            </Pressable>
-          ) : null}
           {view.bar.map((target) => {
             const isActive = target === active;
             const color = isActive || target === 'ai' ? palette.primaryText : palette.caption;

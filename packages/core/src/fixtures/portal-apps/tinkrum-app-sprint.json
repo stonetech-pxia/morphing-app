@@ -1,0 +1,662 @@
+{
+  "format": "tinkrum-app",
+  "version": 1,
+  "exportedAt": "2026-11-07T11:00:00.000Z",
+  "schemaVersion": 39,
+  "app": {
+    "id": "sprint",
+    "name": "Sprint",
+    "icon": "board",
+    "bar": [
+      "page:sprint-home",
+      "page:sprint-tasks",
+      "page:sprint-insights",
+      "ai"
+    ],
+    "theme": {
+      "primaryColor": "#FF5C39",
+      "mode": "light",
+      "colors": {
+        "background": "#FFE97A",
+        "surface": "#FFFFFF",
+        "text": "#111111",
+        "secondary": "#2563EB",
+        "tertiary": "#16A34A"
+      },
+      "font": "mono",
+      "fontScale": 1,
+      "radius": 0,
+      "density": "comfortable",
+      "cardStyle": "brutal",
+      "navStyle": "label",
+      "iconStyle": "solid"
+    }
+  },
+  "pages": [
+    {
+      "id": "sprint-home",
+      "title": "Sprint",
+      "icon": "⚡",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "SPRINT 14",
+            "subtitle": "Plan it. Drag it. Ship it."
+          }
+        },
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "open",
+              "style": {
+                "tone": "secondary"
+              },
+              "look": "number",
+              "show": {
+                "label": "OPEN"
+              },
+              "source": {
+                "table": "sprint-tasks",
+                "aggregate": "count",
+                "filter": [
+                  {
+                    "field": "status",
+                    "op": "isNot",
+                    "value": "done"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "pts",
+              "style": {
+                "tone": "tertiary"
+              },
+              "look": "number",
+              "show": {
+                "label": "POINTS DONE"
+              },
+              "source": {
+                "table": "sprint-tasks",
+                "aggregate": "sum",
+                "field": "points",
+                "filter": [
+                  {
+                    "field": "status",
+                    "op": "is",
+                    "value": "done"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "nums2",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "left",
+              "style": {
+                "tone": "muted"
+              },
+              "look": "number",
+              "show": {
+                "label": "POINTS LEFT"
+              },
+              "source": {
+                "table": "sprint-tasks",
+                "aggregate": "sum",
+                "field": "points",
+                "filter": [
+                  {
+                    "field": "status",
+                    "op": "isNot",
+                    "value": "done"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "late",
+              "look": "number",
+              "show": {
+                "label": "OVERDUE"
+              },
+              "source": {
+                "table": "sprint-tasks",
+                "aggregate": "count",
+                "filter": [
+                  {
+                    "field": "togo",
+                    "op": "lt",
+                    "value": 0
+                  },
+                  {
+                    "field": "status",
+                    "op": "isNot",
+                    "value": "done"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "board",
+          "look": "board",
+          "source": {
+            "table": "sprint-tasks",
+            "sort": {
+              "field": "priority",
+              "direction": "asc"
+            },
+            "limit": 10,
+            "group": {
+              "by": "status"
+            }
+          },
+          "show": {
+            "title": "title",
+            "subtitles": [
+              "owner",
+              "points"
+            ]
+          },
+          "tools": [
+            {
+              "as": "drag",
+              "do": "set",
+              "table": "sprint-tasks",
+              "field": "status",
+              "value": "$group"
+            },
+            {
+              "as": "addHere",
+              "do": "create",
+              "table": "sprint-tasks",
+              "values": "$here",
+              "ask": "all"
+            }
+          ]
+        },
+        {
+          "id": "new",
+          "look": "form",
+          "show": {
+            "mode": "sheet"
+          },
+          "tools": [
+            {
+              "as": "submit",
+              "label": "Add task",
+              "do": "create",
+              "table": "sprint-tasks",
+              "ask": [
+                "title",
+                "owner",
+                "area",
+                "points",
+                "priority",
+                "due"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sprint-tasks",
+      "title": "Tasks",
+      "icon": "check",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "BACKLOG"
+          }
+        },
+        {
+          "id": "prio-group",
+          "look": "group",
+          "show": {
+            "title": "By priority · drag to re-rank",
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "prio",
+              "look": "board",
+              "source": {
+                "table": "sprint-tasks",
+                "filter": [
+                  {
+                    "field": "status",
+                    "op": "isNot",
+                    "value": "done"
+                  }
+                ],
+                "sort": {
+                  "field": "due",
+                  "direction": "asc"
+                },
+                "limit": 10,
+                "group": {
+                  "by": "priority"
+                }
+              },
+              "show": {
+                "title": "title",
+                "subtitles": [
+                  "owner",
+                  "points"
+                ]
+              },
+              "tools": [
+                {
+                  "as": "drag",
+                  "do": "set",
+                  "table": "sprint-tasks",
+                  "field": "priority",
+                  "value": "$group"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "list",
+          "look": "list",
+          "source": {
+            "table": "sprint-tasks",
+            "filter": [
+              {
+                "field": "status",
+                "op": "isNot",
+                "value": "done"
+              }
+            ],
+            "sort": {
+              "field": "due",
+              "direction": "asc"
+            },
+            "limit": 8
+          },
+          "show": {
+            "title": "title",
+            "subtitles": [
+              "owner",
+              "area"
+            ],
+            "trailing": "due",
+            "browse": {
+              "search": true,
+              "sort": [
+                "due",
+                "points",
+                "priority"
+              ],
+              "group": [
+                "status",
+                "owner",
+                "area",
+                "priority"
+              ],
+              "filter": [
+                "owner",
+                "priority",
+                "area"
+              ]
+            }
+          },
+          "tools": [
+            {
+              "as": "button",
+              "label": "Start",
+              "when": [
+                {
+                  "field": "status",
+                  "op": "is",
+                  "value": "todo"
+                }
+              ],
+              "do": "set",
+              "table": "sprint-tasks",
+              "field": "status",
+              "value": "doing"
+            },
+            {
+              "as": "button",
+              "label": "Done",
+              "when": [
+                {
+                  "field": "status",
+                  "op": "isNot",
+                  "value": "done"
+                }
+              ],
+              "do": "set",
+              "table": "sprint-tasks",
+              "field": "status",
+              "value": "done"
+            },
+            {
+              "as": "list",
+              "tool": "sprint-export-tasks"
+            }
+          ]
+        },
+        {
+          "id": "add",
+          "look": "button",
+          "show": {
+            "label": "NEW TASK",
+            "variant": "filled",
+            "icon": "plus"
+          },
+          "tools": [
+            {
+              "do": "create",
+              "table": "sprint-tasks",
+              "ask": "all"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sprint-insights",
+      "title": "Insights",
+      "icon": "chart",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "INSIGHTS"
+          }
+        },
+        {
+          "id": "next",
+          "style": {
+            "tone": "secondary"
+          },
+          "look": "number",
+          "show": {
+            "label": "NEXT DUE IN"
+          },
+          "source": {
+            "table": "sprint-tasks",
+            "aggregate": "min",
+            "field": "togo",
+            "filter": [
+              {
+                "field": "togo",
+                "op": "gt",
+                "value": -1
+              },
+              {
+                "field": "status",
+                "op": "isNot",
+                "value": "done"
+              }
+            ]
+          }
+        },
+        {
+          "id": "by-status",
+          "look": "chart",
+          "show": {
+            "kind": "pie",
+            "title": "Points by status"
+          },
+          "source": {
+            "table": "sprint-tasks",
+            "aggregate": "sum",
+            "field": "points",
+            "group": {
+              "by": "status"
+            }
+          }
+        },
+        {
+          "id": "by-owner",
+          "look": "chart",
+          "show": {
+            "kind": "pie",
+            "title": "Open points per person"
+          },
+          "source": {
+            "table": "sprint-tasks",
+            "aggregate": "sum",
+            "field": "points",
+            "filter": [
+              {
+                "field": "status",
+                "op": "isNot",
+                "value": "done"
+              }
+            ],
+            "group": {
+              "by": "owner"
+            }
+          }
+        },
+        {
+          "id": "cal",
+          "look": "calendar",
+          "source": {
+            "table": "sprint-tasks",
+            "limit": 30,
+            "group": {
+              "by": "due",
+              "unit": "day"
+            }
+          },
+          "show": {
+            "title": "title",
+            "subtitles": [
+              "owner"
+            ],
+            "color": "priority"
+          },
+          "tools": [
+            {
+              "as": "addHere",
+              "do": "create",
+              "table": "sprint-tasks",
+              "values": "$here",
+              "ask": "all"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "sprint-tasks",
+      "name": "Tasks",
+      "icon": "⚡",
+      "fields": [
+        {
+          "id": "title",
+          "name": "Task",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "id": "status",
+          "name": "Status",
+          "required": true,
+          "type": "choice",
+          "options": [
+            {
+              "id": "todo",
+              "label": "TO DO"
+            },
+            {
+              "id": "doing",
+              "label": "DOING"
+            },
+            {
+              "id": "review",
+              "label": "REVIEW"
+            },
+            {
+              "id": "done",
+              "label": "DONE"
+            }
+          ],
+          "default": "todo"
+        },
+        {
+          "id": "owner",
+          "name": "Owner",
+          "type": "choice",
+          "options": [
+            {
+              "id": "ar",
+              "label": "AR"
+            },
+            {
+              "id": "mk",
+              "label": "MK"
+            },
+            {
+              "id": "js",
+              "label": "JS"
+            }
+          ]
+        },
+        {
+          "id": "priority",
+          "name": "Priority",
+          "required": true,
+          "type": "choice",
+          "options": [
+            {
+              "id": "p0",
+              "label": "URGENT"
+            },
+            {
+              "id": "p1",
+              "label": "HIGH"
+            },
+            {
+              "id": "p2",
+              "label": "MEDIUM"
+            },
+            {
+              "id": "p3",
+              "label": "LOW"
+            }
+          ],
+          "default": "p2"
+        },
+        {
+          "id": "area",
+          "name": "Area",
+          "type": "choice",
+          "options": [
+            {
+              "id": "app",
+              "label": "APP"
+            },
+            {
+              "id": "design",
+              "label": "DESIGN"
+            },
+            {
+              "id": "infra",
+              "label": "INFRA"
+            },
+            {
+              "id": "growth",
+              "label": "GROWTH"
+            }
+          ]
+        },
+        {
+          "id": "points",
+          "name": "Points",
+          "type": "number",
+          "decimals": 0,
+          "unit": "pts"
+        },
+        {
+          "id": "due",
+          "name": "Due",
+          "type": "date"
+        },
+        {
+          "id": "tags",
+          "name": "Labels",
+          "type": "tags"
+        },
+        {
+          "id": "notes",
+          "name": "Notes",
+          "type": "note"
+        },
+        {
+          "id": "togo",
+          "name": "Days left",
+          "type": "formula",
+          "expression": "days(today, {due})",
+          "decimals": 0,
+          "unit": "d"
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "id": "sprint-export-tasks",
+      "kind": "quickAction",
+      "name": "Export tasks",
+      "icon": "share",
+      "steps": [
+        {
+          "id": "xlsx",
+          "action": "records.toExcel",
+          "params": {}
+        },
+        {
+          "id": "share",
+          "action": "out.share",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "sprint-standup",
+      "kind": "reminder",
+      "title": "Stand-up time",
+      "enabled": true,
+      "when": {
+        "every": "week",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "at": "09:30"
+      },
+      "opens": "page:sprint-home"
+    }
+  ]
+}

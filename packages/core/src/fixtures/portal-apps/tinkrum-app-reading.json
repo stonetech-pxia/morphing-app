@@ -1,0 +1,924 @@
+{
+  "format": "tinkrum-app",
+  "version": 1,
+  "exportedAt": "2026-11-07T11:00:00.000Z",
+  "schemaVersion": 39,
+  "app": {
+    "id": "reading",
+    "name": "The Reading Room",
+    "icon": "book",
+    "bar": [
+      "page:reading-home",
+      "page:reading-shelf",
+      "page:reading-quotes",
+      "ai"
+    ],
+    "theme": {
+      "primaryColor": "#B3261E",
+      "mode": "light",
+      "colors": {
+        "background": "#FAF7F0",
+        "surface": "#FFFDF8",
+        "text": "#1A1A1A",
+        "secondary": "#2F4A3A",
+        "tertiary": "#8A6D3B"
+      },
+      "font": "serif",
+      "fontScale": 1.1,
+      "radius": 2,
+      "density": "spacious",
+      "cardStyle": "outline",
+      "navStyle": "label"
+    }
+  },
+  "pages": [
+    {
+      "id": "reading-home",
+      "title": "Reading",
+      "icon": "home",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "The Reading Room",
+            "subtitle": "Your shelf, at your pace"
+          }
+        },
+        {
+          "id": "goal",
+          "style": {
+            "tone": "tertiary"
+          },
+          "look": "number",
+          "show": {
+            "label": "Books finished this year"
+          },
+          "source": {
+            "table": "reading-books",
+            "aggregate": "count",
+            "filter": [
+              {
+                "field": "finished",
+                "op": "inPeriod",
+                "value": "thisYear"
+              }
+            ],
+            "goal": 20,
+            "compare": "previous"
+          }
+        },
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "streak",
+              "style": {
+                "tone": "secondary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Reading streak"
+              },
+              "source": {
+                "table": "reading-sessions",
+                "aggregate": "streak",
+                "days": {
+                  "date": "date"
+                }
+              }
+            },
+            {
+              "id": "avg",
+              "style": {
+                "tone": "tertiary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Avg. rating"
+              },
+              "source": {
+                "table": "reading-books",
+                "aggregate": "avg",
+                "field": "rating"
+              }
+            }
+          ]
+        },
+        {
+          "id": "now-group",
+          "look": "group",
+          "show": {
+            "title": "Reading now · tap to log progress",
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "now",
+              "look": "tiles",
+              "source": {
+                "table": "reading-books",
+                "filter": [
+                  {
+                    "field": "started",
+                    "op": "isNotEmpty"
+                  },
+                  {
+                    "field": "finished",
+                    "op": "isEmpty"
+                  }
+                ],
+                "sort": {
+                  "field": "started",
+                  "direction": "desc"
+                },
+                "limit": 6
+              },
+              "show": {
+                "title": "title",
+                "trailing": "read",
+                "format": {
+                  "kind": "progress",
+                  "goal": "pages",
+                  "style": "ring"
+                },
+                "emptyText": "Nothing on the nightstand. Start a book from the shelf."
+              },
+              "tools": [
+                {
+                  "as": "tap",
+                  "label": "+25 pages",
+                  "when": [
+                    {
+                      "field": "started",
+                      "op": "isNotEmpty"
+                    },
+                    {
+                      "field": "finished",
+                      "op": "isEmpty"
+                    },
+                    {
+                      "field": "left",
+                      "op": "gt",
+                      "value": 0
+                    }
+                  ],
+                  "do": "increment",
+                  "table": "reading-books",
+                  "field": "read",
+                  "by": 25
+                },
+                {
+                  "as": "tap",
+                  "label": "Finish",
+                  "when": [
+                    {
+                      "field": "started",
+                      "op": "isNotEmpty"
+                    },
+                    {
+                      "field": "finished",
+                      "op": "isEmpty"
+                    }
+                  ],
+                  "do": "set",
+                  "table": "reading-books",
+                  "field": "finished",
+                  "value": "today"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "log",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "log20",
+              "look": "button",
+              "show": {
+                "label": "Log 20 min",
+                "variant": "filled",
+                "icon": "plus"
+              },
+              "tools": [
+                {
+                  "do": "create",
+                  "table": "reading-sessions",
+                  "values": {
+                    "date": "today",
+                    "minutes": 20
+                  }
+                }
+              ]
+            },
+            {
+              "id": "logmore",
+              "look": "button",
+              "show": {
+                "label": "Log a session",
+                "variant": "outline"
+              },
+              "tools": [
+                {
+                  "do": "create",
+                  "table": "reading-sessions",
+                  "ask": "all"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "days",
+          "look": "calendar",
+          "source": {
+            "table": "reading-sessions",
+            "limit": 30,
+            "group": {
+              "by": "date",
+              "unit": "day"
+            }
+          },
+          "show": {
+            "title": "minutes",
+            "subtitles": [
+              "pages"
+            ],
+            "emptyText": "No reading logged this day."
+          }
+        },
+        {
+          "id": "nums2",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "pace",
+              "style": {
+                "tone": "secondary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Pace"
+              },
+              "source": {
+                "table": "reading-books",
+                "aggregate": "avg",
+                "field": "pace",
+                "filter": [
+                  {
+                    "field": "finished",
+                    "op": "inPeriod",
+                    "value": "thisYear"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "pages-year",
+              "style": {
+                "tone": "tertiary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Pages this year"
+              },
+              "source": {
+                "table": "reading-books",
+                "aggregate": "sum",
+                "field": "pages",
+                "filter": [
+                  {
+                    "field": "finished",
+                    "op": "inPeriod",
+                    "value": "thisYear"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "week",
+          "style": {
+            "tone": "primary"
+          },
+          "look": "chart",
+          "show": {
+            "kind": "bar",
+            "title": "Time read per week"
+          },
+          "source": {
+            "table": "reading-sessions",
+            "aggregate": "sum",
+            "field": "minutes",
+            "group": {
+              "by": "date",
+              "unit": "week",
+              "last": 8
+            }
+          }
+        },
+        {
+          "id": "pm",
+          "look": "chart",
+          "show": {
+            "kind": "bar",
+            "title": "Pages finished per month"
+          },
+          "source": {
+            "table": "reading-books",
+            "aggregate": "sum",
+            "field": "pages",
+            "group": {
+              "by": "finished",
+              "unit": "month",
+              "last": 6
+            }
+          }
+        },
+        {
+          "id": "pie",
+          "look": "chart",
+          "show": {
+            "kind": "pie",
+            "title": "By genre"
+          },
+          "source": {
+            "table": "reading-books",
+            "aggregate": "count",
+            "filter": [
+              {
+                "field": "finished",
+                "op": "isNotEmpty"
+              }
+            ],
+            "group": {
+              "by": "genre"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "reading-shelf",
+      "title": "Shelf",
+      "icon": "bookmark",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "Shelf"
+          }
+        },
+        {
+          "id": "add",
+          "look": "button",
+          "show": {
+            "label": "Add a book",
+            "variant": "filled",
+            "icon": "plus"
+          },
+          "tools": [
+            {
+              "do": "create",
+              "table": "reading-books",
+              "ask": "all"
+            }
+          ]
+        },
+        {
+          "id": "reading-group",
+          "look": "group",
+          "show": {
+            "title": "Reading",
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "reading",
+              "look": "cards",
+              "source": {
+                "table": "reading-books",
+                "filter": [
+                  {
+                    "field": "started",
+                    "op": "isNotEmpty"
+                  },
+                  {
+                    "field": "finished",
+                    "op": "isEmpty"
+                  }
+                ],
+                "sort": {
+                  "field": "started",
+                  "direction": "desc"
+                },
+                "limit": 6
+              },
+              "show": {
+                "title": "title",
+                "subtitles": [
+                  "author",
+                  "left"
+                ],
+                "emptyText": "Nothing in progress."
+              },
+              "tools": [
+                {
+                  "as": "button",
+                  "label": "+25 pages",
+                  "when": [
+                    {
+                      "field": "started",
+                      "op": "isNotEmpty"
+                    },
+                    {
+                      "field": "finished",
+                      "op": "isEmpty"
+                    },
+                    {
+                      "field": "left",
+                      "op": "gt",
+                      "value": 0
+                    }
+                  ],
+                  "do": "increment",
+                  "table": "reading-books",
+                  "field": "read",
+                  "by": 25
+                },
+                {
+                  "as": "button",
+                  "label": "Finish",
+                  "when": [
+                    {
+                      "field": "started",
+                      "op": "isNotEmpty"
+                    },
+                    {
+                      "field": "finished",
+                      "op": "isEmpty"
+                    }
+                  ],
+                  "do": "set",
+                  "table": "reading-books",
+                  "field": "finished",
+                  "value": "today"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "next-group",
+          "look": "group",
+          "show": {
+            "title": "Want to read",
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "next",
+              "look": "list",
+              "source": {
+                "table": "reading-books",
+                "filter": [
+                  {
+                    "field": "started",
+                    "op": "isEmpty"
+                  },
+                  {
+                    "field": "finished",
+                    "op": "isEmpty"
+                  }
+                ],
+                "sort": {
+                  "field": "title",
+                  "direction": "asc"
+                },
+                "limit": 6
+              },
+              "show": {
+                "title": "title",
+                "subtitles": [
+                  "author",
+                  "pages"
+                ],
+                "emptyText": "Your wish list is empty."
+              },
+              "tools": [
+                {
+                  "as": "button",
+                  "label": "Start",
+                  "when": [
+                    {
+                      "field": "started",
+                      "op": "isEmpty"
+                    },
+                    {
+                      "field": "finished",
+                      "op": "isEmpty"
+                    }
+                  ],
+                  "do": "set",
+                  "table": "reading-books",
+                  "field": "started",
+                  "value": "today"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "done-group",
+          "look": "group",
+          "show": {
+            "title": "Finished",
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "done",
+              "look": "list",
+              "source": {
+                "table": "reading-books",
+                "filter": [
+                  {
+                    "field": "finished",
+                    "op": "isNotEmpty"
+                  }
+                ],
+                "sort": {
+                  "field": "finished",
+                  "direction": "desc"
+                },
+                "limit": 5
+              },
+              "show": {
+                "title": "title",
+                "subtitles": [
+                  "author",
+                  "genre"
+                ],
+                "trailing": "rating",
+                "browse": {
+                  "search": true,
+                  "sort": [
+                    "finished",
+                    "rating",
+                    "pages",
+                    "title"
+                  ],
+                  "filter": [
+                    "genre",
+                    "format",
+                    "tags"
+                  ],
+                  "period": "finished"
+                }
+              },
+              "tools": [
+                {
+                  "as": "list",
+                  "tool": "reading-export-books"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reading-quotes",
+      "title": "Quotes",
+      "icon": "text",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "Quotes"
+          }
+        },
+        {
+          "id": "capture",
+          "look": "action",
+          "show": {
+            "shape": "row"
+          },
+          "tools": [
+            {
+              "tool": "reading-capture-quote"
+            }
+          ]
+        },
+        {
+          "id": "add",
+          "look": "button",
+          "show": {
+            "label": "Add a quote",
+            "variant": "outline",
+            "icon": "plus"
+          },
+          "tools": [
+            {
+              "do": "create",
+              "table": "reading-quotes",
+              "ask": "all"
+            }
+          ]
+        },
+        {
+          "id": "list",
+          "look": "cards",
+          "source": {
+            "table": "reading-quotes",
+            "sort": {
+              "field": "saved",
+              "direction": "desc"
+            },
+            "limit": 6
+          },
+          "show": {
+            "title": "quote",
+            "subtitles": [
+              "book",
+              "page"
+            ],
+            "emptyText": "No quotes yet. Capture a line you love.",
+            "browse": {
+              "search": true,
+              "sort": [
+                "saved",
+                "page"
+              ],
+              "period": "saved"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "reading-books",
+      "name": "Books",
+      "icon": "📚",
+      "fields": [
+        {
+          "id": "title",
+          "name": "Title",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "id": "author",
+          "name": "Author",
+          "type": "text"
+        },
+        {
+          "id": "genre",
+          "name": "Genre",
+          "type": "choice",
+          "options": [
+            {
+              "id": "fiction",
+              "label": "Fiction"
+            },
+            {
+              "id": "essays",
+              "label": "Essays"
+            },
+            {
+              "id": "history",
+              "label": "History"
+            },
+            {
+              "id": "science",
+              "label": "Science"
+            },
+            {
+              "id": "poetry",
+              "label": "Poetry"
+            }
+          ]
+        },
+        {
+          "id": "format",
+          "name": "Format",
+          "type": "choice",
+          "options": [
+            {
+              "id": "paper",
+              "label": "Paperback"
+            },
+            {
+              "id": "ebook",
+              "label": "E-book"
+            },
+            {
+              "id": "audio",
+              "label": "Audiobook"
+            }
+          ]
+        },
+        {
+          "id": "pages",
+          "name": "Pages",
+          "type": "number",
+          "decimals": 0
+        },
+        {
+          "id": "read",
+          "name": "Pages read",
+          "type": "number",
+          "decimals": 0,
+          "default": 0
+        },
+        {
+          "id": "started",
+          "name": "Started",
+          "type": "date"
+        },
+        {
+          "id": "finished",
+          "name": "Finished",
+          "type": "date"
+        },
+        {
+          "id": "rating",
+          "name": "Rating",
+          "type": "rating"
+        },
+        {
+          "id": "tags",
+          "name": "Tags",
+          "type": "tags"
+        },
+        {
+          "id": "review",
+          "name": "Review",
+          "type": "note"
+        },
+        {
+          "id": "cover",
+          "name": "Cover",
+          "type": "file"
+        },
+        {
+          "id": "left",
+          "name": "Pages left",
+          "type": "formula",
+          "expression": "{pages} - {read}",
+          "decimals": 0,
+          "unit": "left"
+        },
+        {
+          "id": "pace",
+          "name": "Pages per day",
+          "type": "formula",
+          "expression": "round({pages} / max(days({started}, {finished}), 1), 0)",
+          "decimals": 0,
+          "unit": "pp/day"
+        }
+      ],
+      "readAttachments": false
+    },
+    {
+      "id": "reading-sessions",
+      "name": "Reading log",
+      "icon": "⏱️",
+      "fields": [
+        {
+          "id": "date",
+          "name": "Date",
+          "type": "date",
+          "default": "today"
+        },
+        {
+          "id": "minutes",
+          "name": "Time read",
+          "type": "duration"
+        },
+        {
+          "id": "pages",
+          "name": "Pages",
+          "type": "number",
+          "decimals": 0,
+          "unit": "pp"
+        }
+      ]
+    },
+    {
+      "id": "reading-quotes",
+      "name": "Quotes",
+      "icon": "💬",
+      "fields": [
+        {
+          "id": "quote",
+          "name": "Quote",
+          "required": true,
+          "type": "note"
+        },
+        {
+          "id": "book",
+          "name": "Book",
+          "type": "text"
+        },
+        {
+          "id": "page",
+          "name": "Page",
+          "type": "number",
+          "decimals": 0,
+          "unit": "p."
+        },
+        {
+          "id": "saved",
+          "name": "Saved on",
+          "type": "date",
+          "default": "today"
+        },
+        {
+          "id": "tags",
+          "name": "Tags",
+          "type": "tags"
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "id": "reading-capture-quote",
+      "kind": "quickAction",
+      "name": "Capture a quote",
+      "icon": "scan",
+      "steps": [
+        {
+          "id": "shoot",
+          "action": "in.photos",
+          "params": {
+            "source": "camera",
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "id": "read",
+          "action": "ocr.recognize",
+          "params": {
+            "lang": "auto"
+          }
+        },
+        {
+          "id": "save",
+          "action": "out.addRecord",
+          "params": {
+            "collectionId": "reading-quotes"
+          }
+        }
+      ]
+    },
+    {
+      "id": "reading-export-books",
+      "kind": "quickAction",
+      "name": "Export books",
+      "icon": "share",
+      "steps": [
+        {
+          "id": "xlsx",
+          "action": "records.toExcel",
+          "params": {}
+        },
+        {
+          "id": "share",
+          "action": "out.share",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "reading-evening-read",
+      "kind": "reminder",
+      "title": "Time for a few pages",
+      "enabled": true,
+      "when": {
+        "every": "day",
+        "at": "21:00"
+      },
+      "opens": "page:reading-home"
+    }
+  ]
+}

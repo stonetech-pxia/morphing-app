@@ -1,0 +1,646 @@
+{
+  "format": "tinkrum-app",
+  "version": 1,
+  "exportedAt": "2026-11-07T11:00:00.000Z",
+  "schemaVersion": 39,
+  "app": {
+    "id": "crate",
+    "name": "Crate",
+    "icon": "vinyl",
+    "bar": [
+      "page:crate-home",
+      "page:crate-crate",
+      "page:crate-wants",
+      "ai"
+    ],
+    "theme": {
+      "primaryColor": "#FF3EA5",
+      "mode": "light",
+      "colors": {
+        "background": "#EEF2FF",
+        "surface": "#D9DEE5",
+        "text": "#111827",
+        "secondary": "#3B82F6",
+        "tertiary": "#A855F7"
+      },
+      "font": "system",
+      "fontScale": 1,
+      "radius": 14,
+      "density": "comfortable",
+      "cardStyle": "chrome",
+      "backdrop": "gradient",
+      "navStyle": "iconLabel",
+      "iconStyle": "solid"
+    }
+  },
+  "pages": [
+    {
+      "id": "crate-home",
+      "title": "Crate",
+      "icon": "💿",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "Y2K Crate",
+            "subtitle": "Every record, every spin"
+          }
+        },
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "n1",
+              "look": "number",
+              "show": {
+                "label": "Records"
+              },
+              "source": {
+                "table": "crate-crate",
+                "aggregate": "count",
+                "filter": [
+                  {
+                    "field": "status",
+                    "op": "is",
+                    "value": "owned"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "n2",
+              "style": {
+                "tone": "secondary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Crate value"
+              },
+              "source": {
+                "table": "crate-crate",
+                "aggregate": "sum",
+                "field": "value",
+                "filter": [
+                  {
+                    "field": "status",
+                    "op": "is",
+                    "value": "owned"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "nums2",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "n3",
+              "style": {
+                "tone": "tertiary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Spent"
+              },
+              "source": {
+                "table": "crate-crate",
+                "aggregate": "sum",
+                "field": "paid",
+                "filter": [
+                  {
+                    "field": "status",
+                    "op": "is",
+                    "value": "owned"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "n4",
+              "look": "number",
+              "show": {
+                "label": "Gain"
+              },
+              "source": {
+                "table": "crate-crate",
+                "aggregate": "sum",
+                "field": "value",
+                "filter": [
+                  {
+                    "field": "status",
+                    "op": "is",
+                    "value": "owned"
+                  }
+                ],
+                "minus": {
+                  "table": "crate-crate",
+                  "aggregate": "sum",
+                  "field": "paid",
+                  "filter": [
+                    {
+                      "field": "status",
+                      "op": "is",
+                      "value": "owned"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "spin-group",
+          "look": "group",
+          "show": {
+            "title": "Tap a record to log a spin",
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "spin",
+              "look": "tiles",
+              "source": {
+                "table": "crate-crate",
+                "filter": [
+                  {
+                    "field": "status",
+                    "op": "is",
+                    "value": "owned"
+                  }
+                ],
+                "sort": {
+                  "field": "plays",
+                  "direction": "desc"
+                },
+                "limit": 6
+              },
+              "show": {
+                "title": "album",
+                "trailing": "plays"
+              },
+              "tools": [
+                {
+                  "as": "tap",
+                  "label": "Spin",
+                  "do": "increment",
+                  "table": "crate-crate",
+                  "field": "plays",
+                  "by": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "add",
+          "look": "button",
+          "show": {
+            "label": "Add a record",
+            "variant": "filled",
+            "icon": "plus"
+          },
+          "tools": [
+            {
+              "do": "create",
+              "table": "crate-crate",
+              "ask": "all"
+            }
+          ]
+        },
+        {
+          "id": "pie",
+          "look": "chart",
+          "show": {
+            "kind": "pie",
+            "title": "By genre"
+          },
+          "source": {
+            "table": "crate-crate",
+            "aggregate": "count",
+            "filter": [
+              {
+                "field": "status",
+                "op": "is",
+                "value": "owned"
+              }
+            ],
+            "group": {
+              "by": "genre"
+            }
+          }
+        },
+        {
+          "id": "grow",
+          "look": "chart",
+          "show": {
+            "kind": "bar",
+            "title": "Records added per month"
+          },
+          "source": {
+            "table": "crate-crate",
+            "aggregate": "count",
+            "filter": [
+              {
+                "field": "status",
+                "op": "is",
+                "value": "owned"
+              }
+            ],
+            "group": {
+              "by": "added",
+              "unit": "month",
+              "last": 6
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "crate-crate",
+      "title": "Collection",
+      "icon": "star",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "The Crate"
+          }
+        },
+        {
+          "id": "list",
+          "look": "cards",
+          "source": {
+            "table": "crate-crate",
+            "filter": [
+              {
+                "field": "status",
+                "op": "is",
+                "value": "owned"
+              }
+            ],
+            "sort": {
+              "field": "rating",
+              "direction": "desc"
+            },
+            "limit": 6
+          },
+          "show": {
+            "title": "album",
+            "subtitles": [
+              "artist",
+              "year"
+            ],
+            "trailing": "value",
+            "browse": {
+              "search": true,
+              "sort": [
+                "rating",
+                "plays",
+                "value",
+                "added"
+              ],
+              "filter": [
+                "genre",
+                "format",
+                "condition"
+              ]
+            }
+          },
+          "tools": [
+            {
+              "as": "list",
+              "tool": "crate-export-crate"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "crate-wants",
+      "title": "Wantlist",
+      "icon": "heart",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "Wantlist"
+          }
+        },
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "w1",
+              "look": "number",
+              "show": {
+                "label": "On the list"
+              },
+              "source": {
+                "table": "crate-crate",
+                "aggregate": "count",
+                "filter": [
+                  {
+                    "field": "status",
+                    "op": "is",
+                    "value": "wanted"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "w2",
+              "style": {
+                "tone": "secondary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Budget"
+              },
+              "source": {
+                "table": "crate-crate",
+                "aggregate": "sum",
+                "field": "target",
+                "filter": [
+                  {
+                    "field": "status",
+                    "op": "is",
+                    "value": "wanted"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "list",
+          "look": "list",
+          "source": {
+            "table": "crate-crate",
+            "filter": [
+              {
+                "field": "status",
+                "op": "is",
+                "value": "wanted"
+              }
+            ],
+            "sort": {
+              "field": "target",
+              "direction": "asc"
+            },
+            "limit": 10
+          },
+          "show": {
+            "title": "album",
+            "subtitles": [
+              "artist",
+              "year"
+            ],
+            "trailing": "target",
+            "emptyText": "Nothing on the wantlist."
+          },
+          "tools": [
+            {
+              "as": "button",
+              "label": "Got it",
+              "do": "set",
+              "table": "crate-crate",
+              "field": "status",
+              "value": "owned"
+            }
+          ]
+        },
+        {
+          "id": "add",
+          "look": "button",
+          "show": {
+            "label": "Add to wantlist",
+            "variant": "filled",
+            "icon": "plus"
+          },
+          "tools": [
+            {
+              "do": "create",
+              "table": "crate-crate",
+              "values": {
+                "status": "wanted"
+              },
+              "ask": "all"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "crate-crate",
+      "name": "Crate",
+      "icon": "💿",
+      "fields": [
+        {
+          "id": "album",
+          "name": "Album",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "id": "artist",
+          "name": "Artist",
+          "type": "text"
+        },
+        {
+          "id": "year",
+          "name": "Year",
+          "type": "text"
+        },
+        {
+          "id": "status",
+          "name": "Where",
+          "required": true,
+          "type": "choice",
+          "options": [
+            {
+              "id": "owned",
+              "label": "In the crate"
+            },
+            {
+              "id": "wanted",
+              "label": "Wantlist"
+            }
+          ],
+          "default": "owned"
+        },
+        {
+          "id": "genre",
+          "name": "Genre",
+          "type": "choice",
+          "options": [
+            {
+              "id": "house",
+              "label": "House"
+            },
+            {
+              "id": "rnb",
+              "label": "R&B"
+            },
+            {
+              "id": "pop",
+              "label": "Pop"
+            },
+            {
+              "id": "rock",
+              "label": "Rock"
+            },
+            {
+              "id": "hiphop",
+              "label": "Hip-hop"
+            }
+          ]
+        },
+        {
+          "id": "format",
+          "name": "Format",
+          "type": "choice",
+          "options": [
+            {
+              "id": "lp",
+              "label": "LP"
+            },
+            {
+              "id": "single",
+              "label": "7\" single"
+            },
+            {
+              "id": "cd",
+              "label": "CD"
+            },
+            {
+              "id": "tape",
+              "label": "Cassette"
+            }
+          ]
+        },
+        {
+          "id": "condition",
+          "name": "Condition",
+          "type": "choice",
+          "options": [
+            {
+              "id": "mint",
+              "label": "Mint"
+            },
+            {
+              "id": "nm",
+              "label": "Near mint"
+            },
+            {
+              "id": "vgp",
+              "label": "Very good +"
+            },
+            {
+              "id": "vg",
+              "label": "Very good"
+            }
+          ]
+        },
+        {
+          "id": "rating",
+          "name": "Rating",
+          "type": "rating"
+        },
+        {
+          "id": "plays",
+          "name": "Spins",
+          "type": "number",
+          "decimals": 0,
+          "unit": "spins",
+          "default": 0
+        },
+        {
+          "id": "paid",
+          "name": "Paid",
+          "type": "money",
+          "currency": "USD"
+        },
+        {
+          "id": "value",
+          "name": "Worth now",
+          "type": "money",
+          "currency": "USD"
+        },
+        {
+          "id": "target",
+          "name": "Max price",
+          "type": "money",
+          "currency": "USD"
+        },
+        {
+          "id": "added",
+          "name": "Added",
+          "type": "date",
+          "default": "today"
+        },
+        {
+          "id": "tags",
+          "name": "Tags",
+          "type": "tags"
+        },
+        {
+          "id": "notes",
+          "name": "Notes",
+          "type": "note"
+        },
+        {
+          "id": "cover",
+          "name": "Cover",
+          "type": "file"
+        },
+        {
+          "id": "gain",
+          "name": "Gain",
+          "type": "formula",
+          "expression": "{value} - {paid}",
+          "decimals": 2,
+          "currency": "USD"
+        }
+      ],
+      "readAttachments": false
+    }
+  ],
+  "tools": [
+    {
+      "id": "crate-export-crate",
+      "kind": "quickAction",
+      "name": "Export my crate",
+      "icon": "share",
+      "steps": [
+        {
+          "id": "xlsx",
+          "action": "records.toExcel",
+          "params": {}
+        },
+        {
+          "id": "share",
+          "action": "out.share",
+          "params": {}
+        }
+      ]
+    }
+  ]
+}

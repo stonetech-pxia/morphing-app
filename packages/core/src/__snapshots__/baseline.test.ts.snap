@@ -3391,6 +3391,7 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .tools[]<oneOf 1> object
 .tools[]<oneOf 1>.id string /^[a-z][a-z0-9-]{0,47}$/
 .tools[]<oneOf 1>.kind "reminder"
+.tools[]<oneOf 1>.app? string /^[a-z][a-z0-9-]{0,47}$/
 .tools[]<oneOf 1>.package? string /^[a-z][a-z0-9-]{0,47}$/
 .tools[]<oneOf 1>.preset? string /^[a-z][a-z0-9-]{0,47}$/
 .tools[]<oneOf 1>.title string len 1..60

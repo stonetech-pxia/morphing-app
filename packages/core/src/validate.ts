@@ -136,8 +136,8 @@ export function validateWorkspace(
       issue('unknown-app', `table ${table.id}: app ${table.app} does not exist`);
   }
   for (const tool of config.tools) {
-    if (tool.kind === 'quickAction' && tool.app !== undefined && !appIds.has(tool.app))
-      issue('unknown-app', `quick action ${tool.id}: app ${tool.app} does not exist`);
+    if (tool.app !== undefined && !appIds.has(tool.app))
+      issue('unknown-app', `${tool.kind} ${tool.id}: app ${tool.app} does not exist`);
   }
   for (const target of entries) {
     const owner = pages.find((p) => p.id === pageIdOf(target))?.app;

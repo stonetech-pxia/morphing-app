@@ -1,0 +1,1243 @@
+{
+  "format": "tinkrum-app",
+  "version": 1,
+  "exportedAt": "2026-11-07T11:00:00.000Z",
+  "schemaVersion": 39,
+  "app": {
+    "id": "focus",
+    "name": "~/focus",
+    "icon": "timer",
+    "bar": [
+      "page:focus-home",
+      "page:focus-tasks",
+      "page:focus-focus",
+      "ai"
+    ],
+    "theme": {
+      "primaryColor": "#22C55E",
+      "mode": "dark",
+      "colors": {
+        "background": "#0B0F0C",
+        "surface": "#111813",
+        "text": "#D1FAE5",
+        "secondary": "#38BDF8",
+        "tertiary": "#FACC15"
+      },
+      "font": "mono",
+      "fontScale": 0.95,
+      "radius": 4,
+      "density": "compact",
+      "cardStyle": "outline",
+      "navStyle": "label"
+    }
+  },
+  "pages": [
+    {
+      "id": "focus-home",
+      "title": "Focus",
+      "icon": "⌨️",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "~/focus",
+            "subtitle": "$ git log --since=today"
+          }
+        },
+        {
+          "id": "start",
+          "showIf": {
+            "table": "focus-tasks",
+            "has": "none"
+          },
+          "look": "notice",
+          "show": {
+            "title": "# empty",
+            "text": "Tap + to add a task. Give it a day or a repeat rule; tap Done to log it and it moves on. Start focus runs a timer.",
+            "icon": "lightbulb"
+          }
+        },
+        {
+          "id": "n1",
+          "look": "number",
+          "show": {
+            "label": "done today"
+          },
+          "source": {
+            "table": "focus-completions",
+            "aggregate": "count",
+            "filter": [
+              {
+                "field": "date",
+                "op": "inPeriod",
+                "value": "today"
+              }
+            ],
+            "goal": 5
+          }
+        },
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "n2",
+              "style": {
+                "tone": "secondary"
+              },
+              "look": "number",
+              "show": {
+                "label": "focus time"
+              },
+              "source": {
+                "table": "focus-focus",
+                "aggregate": "sum",
+                "field": "hours",
+                "filter": [
+                  {
+                    "field": "started",
+                    "op": "inPeriod",
+                    "value": "today"
+                  }
+                ],
+                "compare": "previous"
+              }
+            },
+            {
+              "id": "n3",
+              "style": {
+                "tone": "tertiary"
+              },
+              "look": "number",
+              "show": {
+                "label": "streak"
+              },
+              "source": {
+                "table": "focus-completions",
+                "aggregate": "streak",
+                "days": {
+                  "date": "date",
+                  "unit": "day"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "runbox",
+          "look": "group",
+          "show": {
+            "title": "running",
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "run",
+              "look": "list",
+              "source": {
+                "table": "focus-focus",
+                "filter": [
+                  {
+                    "field": "ended",
+                    "op": "isEmpty"
+                  }
+                ],
+                "sort": {
+                  "field": "started",
+                  "direction": "desc"
+                },
+                "limit": 3
+              },
+              "show": {
+                "title": "task",
+                "subtitles": [
+                  "started"
+                ],
+                "trailing": "started",
+                "format": {
+                  "kind": "elapsed"
+                },
+                "emptyText": "# no timer running"
+              },
+              "tools": [
+                {
+                  "as": "button",
+                  "label": "Stop",
+                  "when": [
+                    {
+                      "field": "ended",
+                      "op": "isEmpty"
+                    }
+                  ],
+                  "do": "set",
+                  "table": "focus-focus",
+                  "field": "ended",
+                  "value": "now"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "todaybox",
+          "look": "group",
+          "show": {
+            "title": "today",
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "list",
+              "look": "list",
+              "source": {
+                "table": "focus-tasks",
+                "filter": [
+                  {
+                    "field": "plan",
+                    "op": "due",
+                    "value": "today"
+                  }
+                ],
+                "sort": {
+                  "field": "plan",
+                  "direction": "asc"
+                },
+                "limit": 12
+              },
+              "show": {
+                "title": "title",
+                "subtitles": [
+                  "project",
+                  "plan"
+                ],
+                "trailing": "priority",
+                "emptyText": "# inbox zero"
+              },
+              "tools": [
+                {
+                  "as": "button",
+                  "label": "Done",
+                  "do": "create",
+                  "table": "focus-completions",
+                  "values": {
+                    "task": "$row"
+                  }
+                }
+              ],
+              "opens": "focus-task"
+            }
+          ]
+        },
+        {
+          "id": "week",
+          "look": "chart",
+          "show": {
+            "kind": "bar",
+            "title": "done / day"
+          },
+          "source": {
+            "table": "focus-completions",
+            "aggregate": "count",
+            "group": {
+              "by": "date",
+              "unit": "day",
+              "last": 7
+            }
+          }
+        },
+        {
+          "id": "dial",
+          "pin": "bottom",
+          "look": "dial",
+          "tools": [
+            {
+              "label": "Add task",
+              "do": "create",
+              "table": "focus-tasks",
+              "ask": "all"
+            },
+            {
+              "label": "Start focus",
+              "do": "create",
+              "table": "focus-focus",
+              "values": {
+                "started": "now"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "focus-tasks",
+      "title": "Tasks",
+      "icon": "☑️",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "~/tasks",
+            "subtitle": "$ ls --by-day"
+          }
+        },
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "open",
+              "look": "number",
+              "show": {
+                "label": "open"
+              },
+              "source": {
+                "table": "focus-tasks",
+                "aggregate": "count",
+                "filter": [
+                  {
+                    "field": "plan",
+                    "op": "due",
+                    "value": "pending"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "late",
+              "style": {
+                "tone": "tertiary"
+              },
+              "look": "number",
+              "show": {
+                "label": "overdue"
+              },
+              "source": {
+                "table": "focus-tasks",
+                "aggregate": "count",
+                "filter": [
+                  {
+                    "field": "plan",
+                    "op": "due",
+                    "value": "overdue"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "quick",
+          "look": "form",
+          "show": {
+            "mode": "inline"
+          },
+          "tools": [
+            {
+              "as": "submit",
+              "label": "Add task",
+              "do": "create",
+              "table": "focus-tasks",
+              "ask": [
+                "title"
+              ],
+              "smartDate": {
+                "from": "title",
+                "to": "plan"
+              }
+            }
+          ]
+        },
+        {
+          "id": "projbox",
+          "look": "group",
+          "show": {
+            "title": "projects",
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "projects",
+              "look": "list",
+              "source": {
+                "table": "focus-projects",
+                "sort": {
+                  "field": "name",
+                  "direction": "asc"
+                },
+                "limit": 10
+              },
+              "show": {
+                "title": "name",
+                "subtitles": [
+                  "open"
+                ],
+                "trailing": "done",
+                "format": {
+                  "kind": "progress",
+                  "goal": "total",
+                  "style": "bar"
+                },
+                "emptyText": "# no projects yet"
+              },
+              "tools": [
+                {
+                  "as": "addHere",
+                  "do": "create",
+                  "table": "focus-projects",
+                  "values": "$here",
+                  "ask": "all"
+                }
+              ],
+              "opens": "focus-project"
+            }
+          ]
+        },
+        {
+          "id": "all",
+          "look": "list",
+          "source": {
+            "table": "focus-tasks",
+            "filter": [
+              {
+                "field": "plan",
+                "op": "due",
+                "value": "pending"
+              }
+            ],
+            "sort": {
+              "field": "plan",
+              "direction": "asc"
+            },
+            "limit": 6,
+            "group": {
+              "by": "plan",
+              "unit": "day"
+            }
+          },
+          "show": {
+            "title": "title",
+            "subtitles": [
+              "project"
+            ],
+            "trailing": "priority",
+            "emptyText": "# nothing open",
+            "browse": {
+              "search": true,
+              "sort": [
+                "plan",
+                "priority"
+              ],
+              "group": [
+                "project",
+                "priority"
+              ],
+              "filter": [
+                "priority",
+                "labels"
+              ]
+            }
+          },
+          "tools": [
+            {
+              "as": "button",
+              "label": "Done",
+              "do": "create",
+              "table": "focus-completions",
+              "values": {
+                "task": "$row"
+              }
+            },
+            {
+              "as": "addHere",
+              "do": "create",
+              "table": "focus-tasks",
+              "values": "$here",
+              "ask": "all"
+            }
+          ],
+          "opens": "focus-task"
+        },
+        {
+          "id": "calbox",
+          "look": "group",
+          "show": {
+            "title": "calendar",
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "cal",
+              "look": "calendar",
+              "source": {
+                "table": "focus-tasks",
+                "filter": [
+                  {
+                    "field": "plan",
+                    "op": "due",
+                    "value": "pending"
+                  }
+                ],
+                "limit": 30,
+                "group": {
+                  "by": "plan",
+                  "unit": "day"
+                }
+              },
+              "show": {
+                "title": "title",
+                "subtitles": [
+                  "project"
+                ]
+              },
+              "tools": [
+                {
+                  "as": "addHere",
+                  "do": "create",
+                  "table": "focus-tasks",
+                  "values": "$here",
+                  "ask": "all"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "boardbox",
+          "look": "group",
+          "show": {
+            "title": "board · by priority",
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "board",
+              "look": "board",
+              "source": {
+                "table": "focus-tasks",
+                "filter": [
+                  {
+                    "field": "plan",
+                    "op": "due",
+                    "value": "pending"
+                  }
+                ],
+                "sort": {
+                  "field": "plan",
+                  "direction": "asc"
+                },
+                "limit": 8,
+                "group": {
+                  "by": "priority"
+                }
+              },
+              "show": {
+                "title": "title",
+                "subtitles": [
+                  "project"
+                ]
+              },
+              "tools": [
+                {
+                  "as": "drag",
+                  "do": "set",
+                  "table": "focus-tasks",
+                  "field": "priority",
+                  "value": "$group"
+                }
+              ],
+              "opens": "focus-task"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "focus-focus",
+      "title": "Timer",
+      "icon": "⏱",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "~/timer",
+            "subtitle": "$ focus --count-up"
+          }
+        },
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "today",
+              "look": "number",
+              "show": {
+                "label": "today"
+              },
+              "source": {
+                "table": "focus-focus",
+                "aggregate": "sum",
+                "field": "hours",
+                "filter": [
+                  {
+                    "field": "started",
+                    "op": "inPeriod",
+                    "value": "today"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "week",
+              "style": {
+                "tone": "secondary"
+              },
+              "look": "number",
+              "show": {
+                "label": "this week"
+              },
+              "source": {
+                "table": "focus-focus",
+                "aggregate": "sum",
+                "field": "hours",
+                "filter": [
+                  {
+                    "field": "started",
+                    "op": "inPeriod",
+                    "value": "thisWeek"
+                  }
+                ],
+                "compare": "previous"
+              }
+            }
+          ]
+        },
+        {
+          "id": "runbox",
+          "look": "group",
+          "show": {
+            "title": "running",
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "run",
+              "look": "list",
+              "source": {
+                "table": "focus-focus",
+                "filter": [
+                  {
+                    "field": "ended",
+                    "op": "isEmpty"
+                  }
+                ],
+                "sort": {
+                  "field": "started",
+                  "direction": "desc"
+                },
+                "limit": 3
+              },
+              "show": {
+                "title": "task",
+                "subtitles": [
+                  "started"
+                ],
+                "trailing": "started",
+                "format": {
+                  "kind": "elapsed"
+                },
+                "emptyText": "# no timer running"
+              },
+              "tools": [
+                {
+                  "as": "button",
+                  "label": "Stop",
+                  "when": [
+                    {
+                      "field": "ended",
+                      "op": "isEmpty"
+                    }
+                  ],
+                  "do": "set",
+                  "table": "focus-focus",
+                  "field": "ended",
+                  "value": "now"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "chart",
+          "look": "chart",
+          "show": {
+            "kind": "bar",
+            "title": "hours / day"
+          },
+          "source": {
+            "table": "focus-focus",
+            "aggregate": "sum",
+            "field": "hours",
+            "group": {
+              "by": "started",
+              "unit": "day",
+              "last": 7
+            }
+          }
+        },
+        {
+          "id": "sessbox",
+          "look": "group",
+          "show": {
+            "title": "sessions",
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "sessions",
+              "look": "list",
+              "source": {
+                "table": "focus-focus",
+                "filter": [
+                  {
+                    "field": "ended",
+                    "op": "isNotEmpty"
+                  }
+                ],
+                "sort": {
+                  "field": "started",
+                  "direction": "desc"
+                },
+                "limit": 8
+              },
+              "show": {
+                "title": "task",
+                "subtitles": [
+                  "started"
+                ],
+                "trailing": "started",
+                "format": {
+                  "kind": "elapsed",
+                  "until": "ended"
+                },
+                "emptyText": "# no sessions yet"
+              }
+            }
+          ]
+        },
+        {
+          "id": "dial",
+          "pin": "bottom",
+          "look": "dial",
+          "tools": [
+            {
+              "label": "Start focus",
+              "do": "create",
+              "table": "focus-focus",
+              "values": {
+                "started": "now"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "focus-task",
+      "title": "Task",
+      "of": "focus-tasks",
+      "blocks": [
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "times",
+              "look": "number",
+              "show": {
+                "label": "times done"
+              },
+              "source": {
+                "table": "focus-completions",
+                "aggregate": "count",
+                "filter": [
+                  {
+                    "field": "task",
+                    "op": "is",
+                    "value": "$record"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "spent",
+              "style": {
+                "tone": "secondary"
+              },
+              "look": "number",
+              "show": {
+                "label": "focused"
+              },
+              "source": {
+                "table": "focus-focus",
+                "aggregate": "sum",
+                "field": "hours",
+                "filter": [
+                  {
+                    "field": "task",
+                    "op": "is",
+                    "value": "$record"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "buttons",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "done",
+              "look": "button",
+              "show": {
+                "label": "Done",
+                "variant": "filled",
+                "icon": "check"
+              },
+              "tools": [
+                {
+                  "do": "create",
+                  "table": "focus-completions",
+                  "values": {
+                    "task": "$record"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "start",
+              "look": "button",
+              "show": {
+                "label": "Focus",
+                "variant": "outline",
+                "icon": "bolt"
+              },
+              "tools": [
+                {
+                  "do": "create",
+                  "table": "focus-focus",
+                  "values": {
+                    "task": "$record",
+                    "started": "now"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "hist",
+          "look": "list",
+          "source": {
+            "table": "focus-completions",
+            "filter": [
+              {
+                "field": "task",
+                "op": "is",
+                "value": "$record"
+              }
+            ],
+            "sort": {
+              "field": "date",
+              "direction": "desc"
+            },
+            "limit": 8
+          },
+          "show": {
+            "title": "date",
+            "emptyText": "# not done yet"
+          }
+        },
+        {
+          "id": "sess",
+          "look": "list",
+          "source": {
+            "table": "focus-focus",
+            "filter": [
+              {
+                "field": "task",
+                "op": "is",
+                "value": "$record"
+              }
+            ],
+            "sort": {
+              "field": "started",
+              "direction": "desc"
+            },
+            "limit": 5
+          },
+          "show": {
+            "title": "started",
+            "trailing": "started",
+            "format": {
+              "kind": "elapsed",
+              "until": "ended"
+            },
+            "emptyText": "# no focus sessions"
+          },
+          "tools": [
+            {
+              "as": "button",
+              "label": "Stop",
+              "when": [
+                {
+                  "field": "ended",
+                  "op": "isEmpty"
+                }
+              ],
+              "do": "set",
+              "table": "focus-focus",
+              "field": "ended",
+              "value": "now"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "focus-project",
+      "title": "Project",
+      "of": "focus-projects",
+      "blocks": [
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "open",
+              "look": "number",
+              "show": {
+                "label": "open"
+              },
+              "source": {
+                "table": "focus-tasks",
+                "aggregate": "count",
+                "filter": [
+                  {
+                    "field": "project",
+                    "op": "is",
+                    "value": "$record"
+                  },
+                  {
+                    "field": "plan",
+                    "op": "due",
+                    "value": "pending"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "all",
+              "style": {
+                "tone": "secondary"
+              },
+              "look": "number",
+              "show": {
+                "label": "all tasks"
+              },
+              "source": {
+                "table": "focus-tasks",
+                "aggregate": "count",
+                "filter": [
+                  {
+                    "field": "project",
+                    "op": "is",
+                    "value": "$record"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "list",
+          "look": "list",
+          "source": {
+            "table": "focus-tasks",
+            "filter": [
+              {
+                "field": "project",
+                "op": "is",
+                "value": "$record"
+              },
+              {
+                "field": "plan",
+                "op": "due",
+                "value": "pending"
+              }
+            ],
+            "sort": {
+              "field": "plan",
+              "direction": "asc"
+            },
+            "limit": 20
+          },
+          "show": {
+            "title": "title",
+            "subtitles": [
+              "plan"
+            ],
+            "trailing": "priority",
+            "emptyText": "# all clear"
+          },
+          "tools": [
+            {
+              "as": "button",
+              "label": "Done",
+              "do": "create",
+              "table": "focus-completions",
+              "values": {
+                "task": "$row"
+              }
+            },
+            {
+              "as": "addHere",
+              "do": "create",
+              "table": "focus-tasks",
+              "values": "$here",
+              "ask": "all"
+            }
+          ],
+          "opens": "focus-task"
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "focus-projects",
+      "name": "Projects",
+      "icon": "📁",
+      "fields": [
+        {
+          "id": "name",
+          "name": "Project",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "id": "total",
+          "name": "Tasks",
+          "type": "rollup",
+          "table": "focus-tasks",
+          "via": "project",
+          "aggregate": "count"
+        },
+        {
+          "id": "done",
+          "name": "Done",
+          "type": "rollup",
+          "table": "focus-tasks",
+          "via": "project",
+          "aggregate": "count",
+          "filter": [
+            {
+              "field": "last",
+              "op": "isNotEmpty"
+            }
+          ]
+        },
+        {
+          "id": "open",
+          "name": "Open",
+          "type": "formula",
+          "expression": "{total} - {done}",
+          "decimals": 0,
+          "unit": "open"
+        }
+      ]
+    },
+    {
+      "id": "focus-tasks",
+      "name": "Tasks",
+      "icon": "⌨️",
+      "fields": [
+        {
+          "id": "title",
+          "name": "Task",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "id": "project",
+          "name": "Project",
+          "type": "link",
+          "table": "focus-projects"
+        },
+        {
+          "id": "priority",
+          "name": "Priority",
+          "type": "choice",
+          "options": [
+            {
+              "id": "p1",
+              "label": "P1"
+            },
+            {
+              "id": "p2",
+              "label": "P2"
+            },
+            {
+              "id": "p3",
+              "label": "P3"
+            },
+            {
+              "id": "p4",
+              "label": "P4"
+            }
+          ],
+          "default": "p4"
+        },
+        {
+          "id": "labels",
+          "name": "Labels",
+          "type": "tags"
+        },
+        {
+          "id": "plan",
+          "name": "When",
+          "type": "schedule",
+          "default": {
+            "repeat": "once"
+          },
+          "lastDone": "last",
+          "countEarly": true
+        },
+        {
+          "id": "last",
+          "name": "Last done",
+          "type": "rollup",
+          "table": "focus-completions",
+          "via": "task",
+          "aggregate": "latest",
+          "field": "date"
+        }
+      ]
+    },
+    {
+      "id": "focus-completions",
+      "name": "Completed",
+      "icon": "✅",
+      "fields": [
+        {
+          "id": "task",
+          "name": "Task",
+          "required": true,
+          "type": "link",
+          "table": "focus-tasks"
+        },
+        {
+          "id": "date",
+          "name": "Done on",
+          "type": "date",
+          "default": "today"
+        }
+      ]
+    },
+    {
+      "id": "focus-focus",
+      "name": "Focus sessions",
+      "icon": "⏱",
+      "fields": [
+        {
+          "id": "task",
+          "name": "Task",
+          "type": "link",
+          "table": "focus-tasks"
+        },
+        {
+          "id": "started",
+          "name": "Started",
+          "type": "datetime",
+          "default": "now"
+        },
+        {
+          "id": "ended",
+          "name": "Ended",
+          "type": "datetime"
+        },
+        {
+          "id": "hours",
+          "name": "Focused",
+          "type": "formula",
+          "expression": "hours({started}, {ended})",
+          "decimals": 1,
+          "unit": "h"
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "id": "focus-task-due",
+      "kind": "reminder",
+      "title": "Task due",
+      "enabled": true,
+      "when": {
+        "each": {
+          "table": "focus-tasks",
+          "field": "plan"
+        },
+        "at": "09:00"
+      },
+      "opens": "page:focus-home",
+      "done": {
+        "do": "create",
+        "table": "focus-completions",
+        "values": {
+          "task": "$row"
+        }
+      },
+      "snoozeMinutes": 30
+    },
+    {
+      "id": "focus-wrap-up",
+      "kind": "reminder",
+      "title": "Wrap up: what shipped today?",
+      "enabled": true,
+      "when": {
+        "every": "week",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "at": "17:30"
+      },
+      "opens": "page:focus-home"
+    }
+  ]
+}

@@ -1,0 +1,962 @@
+{
+  "format": "tinkrum-app",
+  "version": 1,
+  "exportedAt": "2026-11-07T11:00:00.000Z",
+  "schemaVersion": 39,
+  "app": {
+    "id": "wallet",
+    "name": "Wallet",
+    "icon": "wallet",
+    "bar": [
+      "page:wallet-home",
+      "page:wallet-bills",
+      "page:wallet-accounts",
+      "ai"
+    ],
+    "theme": {
+      "primaryColor": "#22D3EE",
+      "mode": "dark",
+      "colors": {
+        "background": "#05050A",
+        "surface": "#111122",
+        "text": "#EDEBFF",
+        "secondary": "#F472B6",
+        "tertiary": "#8B5CF6"
+      },
+      "font": "mono",
+      "fontScale": 1,
+      "radius": 20,
+      "density": "comfortable",
+      "cardStyle": "glow",
+      "backdrop": "aurora",
+      "navStyle": "iconLabel",
+      "iconStyle": "tint"
+    }
+  },
+  "pages": [
+    {
+      "id": "wallet-home",
+      "title": "Wallet",
+      "icon": "💸",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "Wallet",
+            "subtitle": "Spending, budgets and bills"
+          }
+        },
+        {
+          "id": "range",
+          "pin": "top",
+          "look": "period",
+          "show": {
+            "options": [
+              "thisWeek",
+              "last30days",
+              "thisYear"
+            ],
+            "default": "last30days"
+          }
+        },
+        {
+          "id": "start",
+          "showIf": {
+            "table": "wallet-categories",
+            "has": "none"
+          },
+          "look": "notice",
+          "show": {
+            "title": "Start with a category",
+            "text": "Add a category such as Food or Rent with a monthly budget (the list below). Each spend you add picks a category, and its bar fills up.",
+            "icon": "lightbulb"
+          }
+        },
+        {
+          "id": "spent",
+          "look": "number",
+          "show": {
+            "label": "Spent"
+          },
+          "source": {
+            "table": "wallet-tx",
+            "aggregate": "sum",
+            "field": "amount",
+            "compare": "previous",
+            "period": "page"
+          }
+        },
+        {
+          "id": "trend",
+          "look": "chart",
+          "show": {
+            "kind": "line",
+            "title": "Spending over time"
+          },
+          "source": {
+            "table": "wallet-tx",
+            "aggregate": "sum",
+            "field": "amount",
+            "group": {
+              "by": "date",
+              "unit": "day"
+            },
+            "compare": "previous",
+            "period": "page"
+          }
+        },
+        {
+          "id": "budgets",
+          "look": "group",
+          "show": {
+            "title": "Budgets · this month",
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "left",
+              "style": {
+                "tone": "secondary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Left this month"
+              },
+              "source": {
+                "table": "wallet-categories",
+                "aggregate": "sum",
+                "field": "budget",
+                "minus": {
+                  "table": "wallet-tx",
+                  "aggregate": "sum",
+                  "field": "amount",
+                  "filter": [
+                    {
+                      "field": "date",
+                      "op": "inPeriod",
+                      "value": "thisMonth"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "id": "cats",
+              "look": "list",
+              "source": {
+                "table": "wallet-categories",
+                "sort": {
+                  "field": "spent",
+                  "direction": "desc"
+                },
+                "limit": 12
+              },
+              "show": {
+                "title": "name",
+                "subtitles": [
+                  "left"
+                ],
+                "trailing": "spent",
+                "format": {
+                  "kind": "progress",
+                  "goal": "budget",
+                  "style": "bar"
+                },
+                "emptyText": "Add a category to give it a monthly budget"
+              },
+              "tools": [
+                {
+                  "as": "addHere",
+                  "do": "create",
+                  "table": "wallet-categories",
+                  "values": "$here",
+                  "ask": "all"
+                }
+              ],
+              "opens": "wallet-category"
+            }
+          ]
+        },
+        {
+          "id": "cat",
+          "look": "chart",
+          "show": {
+            "kind": "pie",
+            "title": "Where it goes"
+          },
+          "source": {
+            "table": "wallet-tx",
+            "aggregate": "sum",
+            "field": "amount",
+            "group": {
+              "by": "category"
+            },
+            "period": "page"
+          }
+        },
+        {
+          "id": "flow",
+          "look": "group",
+          "show": {
+            "title": "Cash flow · this month",
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "in",
+              "look": "number",
+              "show": {
+                "label": "Income"
+              },
+              "source": {
+                "table": "wallet-income",
+                "aggregate": "sum",
+                "field": "amount",
+                "filter": [
+                  {
+                    "field": "date",
+                    "op": "inPeriod",
+                    "value": "thisMonth"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "saved",
+              "style": {
+                "tone": "tertiary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Saved"
+              },
+              "source": {
+                "table": "wallet-income",
+                "aggregate": "sum",
+                "field": "amount",
+                "filter": [
+                  {
+                    "field": "date",
+                    "op": "inPeriod",
+                    "value": "thisMonth"
+                  }
+                ],
+                "minus": {
+                  "table": "wallet-tx",
+                  "aggregate": "sum",
+                  "field": "amount",
+                  "filter": [
+                    {
+                      "field": "date",
+                      "op": "inPeriod",
+                      "value": "thisMonth"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "txs",
+          "look": "group",
+          "show": {
+            "title": "Transactions",
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "recent",
+              "look": "list",
+              "source": {
+                "table": "wallet-tx",
+                "sort": {
+                  "field": "date",
+                  "direction": "desc"
+                },
+                "limit": 6
+              },
+              "show": {
+                "title": "merchant",
+                "subtitles": [
+                  "category",
+                  "date"
+                ],
+                "trailing": "amount",
+                "emptyText": "Nothing here yet — tap + to add a spend",
+                "browse": {
+                  "search": true,
+                  "sort": [
+                    "date",
+                    "amount"
+                  ],
+                  "filter": [
+                    "tags"
+                  ],
+                  "period": "date"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "export",
+          "look": "action",
+          "show": {
+            "shape": "row"
+          },
+          "tools": [
+            {
+              "tool": "wallet-export-spending"
+            }
+          ]
+        },
+        {
+          "id": "dial",
+          "pin": "bottom",
+          "look": "dial",
+          "tools": [
+            {
+              "label": "Add spend",
+              "do": "create",
+              "table": "wallet-tx",
+              "ask": "all"
+            },
+            {
+              "label": "Add income",
+              "do": "create",
+              "table": "wallet-income",
+              "ask": "all"
+            },
+            {
+              "label": "Add bill",
+              "do": "create",
+              "table": "wallet-bills",
+              "ask": "all"
+            },
+            {
+              "label": "Add account",
+              "do": "create",
+              "table": "wallet-accounts",
+              "ask": "all"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wallet-bills",
+      "title": "Bills",
+      "icon": "🔁",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "Bills",
+            "subtitle": "Recurring payments and renewals"
+          }
+        },
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "week",
+              "look": "number",
+              "show": {
+                "label": "Due this week"
+              },
+              "source": {
+                "table": "wallet-bills",
+                "aggregate": "sum",
+                "field": "amount",
+                "filter": [
+                  {
+                    "field": "plan",
+                    "op": "due",
+                    "value": "thisWeek"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "count",
+              "style": {
+                "tone": "secondary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Bills tracked"
+              },
+              "source": {
+                "table": "wallet-bills",
+                "aggregate": "count"
+              }
+            }
+          ]
+        },
+        {
+          "id": "cal",
+          "look": "calendar",
+          "source": {
+            "table": "wallet-bills",
+            "limit": 30,
+            "group": {
+              "by": "plan",
+              "unit": "day"
+            }
+          },
+          "show": {
+            "title": "name",
+            "trailing": "amount"
+          }
+        },
+        {
+          "id": "list",
+          "look": "list",
+          "source": {
+            "table": "wallet-bills",
+            "sort": {
+              "field": "plan",
+              "direction": "asc"
+            },
+            "limit": 20
+          },
+          "show": {
+            "title": "name",
+            "subtitles": [
+              "plan"
+            ],
+            "trailing": "amount",
+            "emptyText": "Add a bill to see when it is due"
+          },
+          "tools": [
+            {
+              "as": "addHere",
+              "do": "create",
+              "table": "wallet-bills",
+              "values": "$here",
+              "ask": "all"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wallet-accounts",
+      "title": "Accounts",
+      "icon": "🏦",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "Accounts",
+            "subtitle": "Balances you update yourself"
+          }
+        },
+        {
+          "id": "net",
+          "look": "number",
+          "show": {
+            "label": "Net worth"
+          },
+          "source": {
+            "table": "wallet-accounts",
+            "aggregate": "sum",
+            "field": "balance",
+            "filter": [
+              {
+                "field": "kind",
+                "op": "is",
+                "value": "asset"
+              }
+            ],
+            "minus": {
+              "table": "wallet-accounts",
+              "aggregate": "sum",
+              "field": "balance",
+              "filter": [
+                {
+                  "field": "kind",
+                  "op": "is",
+                  "value": "debt"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "list",
+          "look": "list",
+          "source": {
+            "table": "wallet-accounts",
+            "sort": {
+              "field": "balance",
+              "direction": "desc"
+            },
+            "limit": 12,
+            "group": {
+              "by": "kind",
+              "showEmpty": true
+            }
+          },
+          "show": {
+            "title": "name",
+            "trailing": "balance",
+            "emptyText": "Add an account and its balance"
+          },
+          "tools": [
+            {
+              "as": "addHere",
+              "do": "create",
+              "table": "wallet-accounts",
+              "values": "$here",
+              "ask": "all"
+            }
+          ]
+        },
+        {
+          "id": "goalbox",
+          "look": "group",
+          "show": {
+            "title": "Savings goals",
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "goals",
+              "look": "list",
+              "source": {
+                "table": "wallet-goals",
+                "sort": {
+                  "field": "name",
+                  "direction": "asc"
+                },
+                "limit": 10
+              },
+              "show": {
+                "title": "name",
+                "trailing": "saved",
+                "format": {
+                  "kind": "progress",
+                  "goal": "target",
+                  "style": "bar"
+                },
+                "emptyText": "Add a goal and its target"
+              },
+              "tools": [
+                {
+                  "as": "button",
+                  "label": "+$50",
+                  "do": "increment",
+                  "table": "wallet-goals",
+                  "field": "saved",
+                  "by": 50
+                },
+                {
+                  "as": "addHere",
+                  "do": "create",
+                  "table": "wallet-goals",
+                  "values": "$here",
+                  "ask": "all"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wallet-category",
+      "title": "Category",
+      "of": "wallet-categories",
+      "blocks": [
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "spent",
+              "look": "number",
+              "show": {
+                "label": "Spent this month"
+              },
+              "source": {
+                "table": "wallet-tx",
+                "aggregate": "sum",
+                "field": "amount",
+                "filter": [
+                  {
+                    "field": "category",
+                    "op": "is",
+                    "value": "$record"
+                  },
+                  {
+                    "field": "date",
+                    "op": "inPeriod",
+                    "value": "thisMonth"
+                  }
+                ],
+                "compare": "previous"
+              }
+            },
+            {
+              "id": "avg",
+              "style": {
+                "tone": "secondary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Avg. purchase"
+              },
+              "source": {
+                "table": "wallet-tx",
+                "aggregate": "avg",
+                "field": "amount",
+                "filter": [
+                  {
+                    "field": "category",
+                    "op": "is",
+                    "value": "$record"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "weeks",
+          "look": "chart",
+          "show": {
+            "kind": "bar",
+            "title": "Per week"
+          },
+          "source": {
+            "table": "wallet-tx",
+            "aggregate": "sum",
+            "field": "amount",
+            "filter": [
+              {
+                "field": "category",
+                "op": "is",
+                "value": "$record"
+              }
+            ],
+            "group": {
+              "by": "date",
+              "unit": "week",
+              "last": 8
+            }
+          }
+        },
+        {
+          "id": "txs",
+          "look": "list",
+          "source": {
+            "table": "wallet-tx",
+            "filter": [
+              {
+                "field": "category",
+                "op": "is",
+                "value": "$record"
+              }
+            ],
+            "sort": {
+              "field": "date",
+              "direction": "desc"
+            },
+            "limit": 10
+          },
+          "show": {
+            "title": "merchant",
+            "subtitles": [
+              "date"
+            ],
+            "trailing": "amount",
+            "emptyText": "No spending here yet"
+          }
+        },
+        {
+          "id": "add",
+          "look": "button",
+          "show": {
+            "label": "Add spend here",
+            "variant": "filled",
+            "icon": "plus"
+          },
+          "tools": [
+            {
+              "do": "create",
+              "table": "wallet-tx",
+              "values": {
+                "category": "$record"
+              },
+              "ask": "all"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "wallet-categories",
+      "name": "Budgets",
+      "icon": "🎯",
+      "fields": [
+        {
+          "id": "name",
+          "name": "Category",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "id": "budget",
+          "name": "Monthly budget",
+          "type": "money",
+          "currency": "USD"
+        },
+        {
+          "id": "spent",
+          "name": "Spent this month",
+          "type": "rollup",
+          "table": "wallet-tx",
+          "via": "category",
+          "aggregate": "sum",
+          "field": "amount",
+          "filter": [
+            {
+              "field": "date",
+              "op": "inPeriod",
+              "value": "thisMonth"
+            }
+          ]
+        },
+        {
+          "id": "left",
+          "name": "Left",
+          "type": "formula",
+          "expression": "{budget} - {spent}",
+          "decimals": 0,
+          "unit": "left"
+        }
+      ]
+    },
+    {
+      "id": "wallet-tx",
+      "name": "Transactions",
+      "icon": "💸",
+      "fields": [
+        {
+          "id": "merchant",
+          "name": "Merchant",
+          "type": "text"
+        },
+        {
+          "id": "amount",
+          "name": "Amount",
+          "type": "money",
+          "currency": "USD"
+        },
+        {
+          "id": "date",
+          "name": "Date",
+          "type": "date",
+          "default": "today"
+        },
+        {
+          "id": "category",
+          "name": "Category",
+          "type": "link",
+          "table": "wallet-categories"
+        },
+        {
+          "id": "tags",
+          "name": "Tags",
+          "type": "tags"
+        }
+      ]
+    },
+    {
+      "id": "wallet-income",
+      "name": "Income",
+      "icon": "💰",
+      "fields": [
+        {
+          "id": "source",
+          "name": "Source",
+          "type": "text"
+        },
+        {
+          "id": "amount",
+          "name": "Amount",
+          "type": "money",
+          "currency": "USD"
+        },
+        {
+          "id": "date",
+          "name": "Date",
+          "type": "date",
+          "default": "today"
+        }
+      ]
+    },
+    {
+      "id": "wallet-bills",
+      "name": "Bills",
+      "icon": "🔁",
+      "fields": [
+        {
+          "id": "name",
+          "name": "Bill",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "id": "amount",
+          "name": "Amount",
+          "type": "money",
+          "currency": "USD"
+        },
+        {
+          "id": "plan",
+          "name": "Repeats",
+          "type": "schedule",
+          "default": {
+            "repeat": "monthDays",
+            "days": [
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wallet-goals",
+      "name": "Goals",
+      "icon": "🏁",
+      "fields": [
+        {
+          "id": "name",
+          "name": "Goal",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "id": "target",
+          "name": "Target",
+          "type": "money",
+          "currency": "USD"
+        },
+        {
+          "id": "saved",
+          "name": "Saved",
+          "type": "money",
+          "currency": "USD",
+          "default": 0
+        }
+      ]
+    },
+    {
+      "id": "wallet-accounts",
+      "name": "Accounts",
+      "icon": "🏦",
+      "fields": [
+        {
+          "id": "name",
+          "name": "Account",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "id": "kind",
+          "name": "Type",
+          "type": "choice",
+          "options": [
+            {
+              "id": "asset",
+              "label": "Asset"
+            },
+            {
+              "id": "debt",
+              "label": "Debt"
+            }
+          ],
+          "default": "asset"
+        },
+        {
+          "id": "balance",
+          "name": "Balance",
+          "type": "money",
+          "currency": "USD"
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "id": "wallet-export-spending",
+      "kind": "quickAction",
+      "name": "Export spending to Excel",
+      "icon": "document",
+      "steps": [
+        {
+          "id": "read",
+          "action": "in.records",
+          "params": {
+            "collectionId": "wallet-tx",
+            "period": "all"
+          }
+        },
+        {
+          "id": "excel",
+          "action": "records.toExcel",
+          "params": {}
+        },
+        {
+          "id": "share",
+          "action": "out.share",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "wallet-bill-due",
+      "kind": "reminder",
+      "title": "A bill is due today",
+      "enabled": true,
+      "when": {
+        "each": {
+          "table": "wallet-bills",
+          "field": "plan"
+        },
+        "at": "09:00"
+      },
+      "opens": "page:wallet-bills",
+      "snoozeMinutes": 60
+    },
+    {
+      "id": "wallet-weekly-review",
+      "kind": "reminder",
+      "title": "Review your week",
+      "enabled": true,
+      "when": {
+        "every": "week",
+        "days": [
+          7
+        ],
+        "at": "18:00"
+      },
+      "opens": "page:wallet-home"
+    }
+  ]
+}

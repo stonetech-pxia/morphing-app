@@ -530,6 +530,11 @@ export const fr: MessageTable = {
   importAppConfigName: 'fichier importé',
   importAppConfigConfirm:
     'Passer à l’app de ce fichier ? Vos entrées restent, et vous pouvez annuler dans l’historique des modifications.',
+  importAppConfirm:
+    'Ajouter « {name} » comme nouvelle app ? Rien de ce que vous avez n’est remplacé. Vous pourrez annuler dans l’historique des modifications.',
+  importAppSummary: 'Ajouter l’app « {name} »',
+  importAppClash:
+    'Cette app est déjà ajoutée, ou ses noms entrent en conflit avec ce que vous avez : {reason}',
   localModelTitle: 'Modèle sur l’appareil',
   localModelHint:
     'Une fois téléchargé, les nouvelles entrées avec une pièce jointe reçoivent aussi des valeurs d’un petit modèle qui tourne sur ce téléphone, surtout utile pour les noms et les montants. Sans lui, les suggestions fonctionnent avec les règles seules. Rien ne quitte ce téléphone.',
@@ -1003,7 +1008,6 @@ export const fr: MessageTable = {
   v34descDeskAddBelow: 'Ajouter {v0} sous l’aperçu sur le bureau',
   v34descDeskRemove: 'Retirer {v0} du bureau',
   appDescAdd: 'Ajouter l’app « {v0} »',
-  appBackToHome: 'Retour à Tinkrum',
   settingsMyApps: 'Mes apps',
   settingsMyAppsHint: 'Appuyez longuement sur une app pour la placer sur l’écran d’accueil.',
   settingsAppOnHome: 'Dans le menu de l’écran d’accueil',

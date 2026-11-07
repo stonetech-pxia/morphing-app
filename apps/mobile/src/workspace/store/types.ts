@@ -245,6 +245,8 @@ export interface WorkspaceState {
   tab: NavTarget | null;
   /** 现在在哪个 app 里（D-485）；null = 主页。只放内存，不写配置（底线 15）。 */
   appId: string | null;
+  /** 进入 App 的次数（每次加一）；离开 App 再回来时用它分辨是不是从桌面菜单、深链接直接打开的。 */
+  appEnters: number;
   /** 记录的刷新信号：增删改记录后递增。 */
   recordsVersion: number;
   /** 预设列表的刷新信号（D-410）。 */

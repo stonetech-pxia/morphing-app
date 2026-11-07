@@ -1,0 +1,827 @@
+{
+  "format": "tinkrum-app",
+  "version": 1,
+  "exportedAt": "2026-11-07T11:00:00.000Z",
+  "schemaVersion": 39,
+  "app": {
+    "id": "habits",
+    "name": "Habits",
+    "icon": "rings",
+    "bar": [
+      "page:habits-home",
+      "page:habits-habits",
+      "page:habits-insights",
+      "ai"
+    ],
+    "theme": {
+      "primaryColor": "#8B7CF6",
+      "mode": "light",
+      "colors": {
+        "background": "#F6F2FF",
+        "surface": "#FFFFFF",
+        "text": "#2B2350",
+        "secondary": "#FF8FB1",
+        "tertiary": "#5FD3BC"
+      },
+      "font": "clay",
+      "fontScale": 1,
+      "radius": 28,
+      "density": "spacious",
+      "cardStyle": "puffy",
+      "backdrop": "gradient",
+      "navStyle": "iconLabel",
+      "iconStyle": "tint"
+    }
+  },
+  "pages": [
+    {
+      "id": "habits-home",
+      "title": "Today",
+      "icon": "🌱",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "Habits",
+            "subtitle": "Tap a circle to check in"
+          }
+        },
+        {
+          "id": "start",
+          "showIf": {
+            "table": "habits-habits",
+            "has": "none"
+          },
+          "look": "notice",
+          "show": {
+            "title": "Add your first habit",
+            "text": "Tap + to add one. Set how many times a day it counts; each tap on its circle adds a check-in and the ring fills up.",
+            "icon": "lightbulb"
+          }
+        },
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "streak",
+              "look": "number",
+              "show": {
+                "label": "Day streak"
+              },
+              "source": {
+                "table": "habits-checkins",
+                "aggregate": "streak",
+                "days": {
+                  "date": "date",
+                  "unit": "day",
+                  "skip": {
+                    "field": "status",
+                    "option": "skip"
+                  }
+                }
+              }
+            },
+            {
+              "id": "today",
+              "style": {
+                "tone": "tertiary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Check-ins today"
+              },
+              "source": {
+                "table": "habits-checkins",
+                "aggregate": "count",
+                "filter": [
+                  {
+                    "field": "status",
+                    "op": "is",
+                    "value": "done"
+                  },
+                  {
+                    "field": "date",
+                    "op": "inPeriod",
+                    "value": "today"
+                  }
+                ],
+                "compare": "previous"
+              }
+            }
+          ]
+        },
+        {
+          "id": "orbs",
+          "look": "tiles",
+          "source": {
+            "table": "habits-habits",
+            "sort": {
+              "field": "part",
+              "direction": "asc"
+            },
+            "limit": 12
+          },
+          "show": {
+            "title": "name",
+            "trailing": "today",
+            "format": {
+              "kind": "progress",
+              "goal": "goal",
+              "style": "ring"
+            },
+            "emptyText": "Add your first habit with +"
+          },
+          "tools": [
+            {
+              "as": "tap",
+              "label": "Check in",
+              "do": "create",
+              "table": "habits-checkins",
+              "values": {
+                "habit": "$row"
+              }
+            }
+          ],
+          "opens": "habits-habit"
+        },
+        {
+          "id": "cal",
+          "look": "calendar",
+          "source": {
+            "table": "habits-checkins",
+            "filter": [
+              {
+                "field": "status",
+                "op": "is",
+                "value": "done"
+              }
+            ],
+            "limit": 30,
+            "group": {
+              "by": "date",
+              "unit": "day"
+            }
+          },
+          "show": {
+            "title": "habit"
+          }
+        },
+        {
+          "id": "weekly",
+          "look": "chart",
+          "show": {
+            "kind": "bar",
+            "title": "Check-ins per week"
+          },
+          "source": {
+            "table": "habits-checkins",
+            "aggregate": "count",
+            "filter": [
+              {
+                "field": "status",
+                "op": "is",
+                "value": "done"
+              }
+            ],
+            "group": {
+              "by": "date",
+              "unit": "week",
+              "last": 6
+            }
+          }
+        },
+        {
+          "id": "dial",
+          "pin": "bottom",
+          "look": "dial",
+          "tools": [
+            {
+              "label": "Add habit",
+              "do": "create",
+              "table": "habits-habits",
+              "ask": "all"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "habits-habits",
+      "title": "Habits",
+      "icon": "🌿",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "My habits",
+            "subtitle": "Streaks, days and reminders"
+          }
+        },
+        {
+          "id": "list",
+          "look": "list",
+          "source": {
+            "table": "habits-habits",
+            "sort": {
+              "field": "name",
+              "direction": "asc"
+            },
+            "limit": 30,
+            "group": {
+              "by": "part",
+              "showEmpty": true
+            }
+          },
+          "show": {
+            "title": "name",
+            "subtitles": [
+              "plan"
+            ],
+            "trailing": "streak",
+            "emptyText": "No habits yet — add one below",
+            "browse": {
+              "search": true
+            }
+          },
+          "tools": [
+            {
+              "as": "button",
+              "label": "Check in",
+              "do": "create",
+              "table": "habits-checkins",
+              "values": {
+                "habit": "$row"
+              }
+            },
+            {
+              "as": "addHere",
+              "do": "create",
+              "table": "habits-habits",
+              "values": "$here",
+              "ask": "all"
+            }
+          ],
+          "opens": "habits-habit"
+        }
+      ]
+    },
+    {
+      "id": "habits-insights",
+      "title": "Insights",
+      "icon": "📈",
+      "blocks": [
+        {
+          "id": "range",
+          "pin": "top",
+          "look": "period",
+          "show": {
+            "options": [
+              "last7days",
+              "last30days",
+              "last90days"
+            ],
+            "default": "last7days"
+          }
+        },
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "total",
+              "look": "number",
+              "show": {
+                "label": "Check-ins"
+              },
+              "source": {
+                "table": "habits-checkins",
+                "aggregate": "count",
+                "filter": [
+                  {
+                    "field": "status",
+                    "op": "is",
+                    "value": "done"
+                  }
+                ],
+                "compare": "previous",
+                "period": "page"
+              }
+            },
+            {
+              "id": "active",
+              "style": {
+                "tone": "tertiary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Active days this month"
+              },
+              "source": {
+                "table": "habits-checkins",
+                "aggregate": "distinctDays",
+                "filter": [
+                  {
+                    "field": "status",
+                    "op": "is",
+                    "value": "done"
+                  },
+                  {
+                    "field": "date",
+                    "op": "inPeriod",
+                    "value": "thisMonth"
+                  }
+                ],
+                "compare": "previous"
+              }
+            }
+          ]
+        },
+        {
+          "id": "over",
+          "look": "chart",
+          "show": {
+            "kind": "bar",
+            "title": "Check-ins over time"
+          },
+          "source": {
+            "table": "habits-checkins",
+            "aggregate": "count",
+            "filter": [
+              {
+                "field": "status",
+                "op": "is",
+                "value": "done"
+              }
+            ],
+            "group": {
+              "by": "date",
+              "unit": "day"
+            },
+            "period": "page"
+          }
+        },
+        {
+          "id": "share",
+          "look": "chart",
+          "show": {
+            "kind": "pie",
+            "title": "By habit"
+          },
+          "source": {
+            "table": "habits-checkins",
+            "aggregate": "count",
+            "filter": [
+              {
+                "field": "status",
+                "op": "is",
+                "value": "done"
+              }
+            ],
+            "group": {
+              "by": "habit"
+            },
+            "period": "page"
+          }
+        },
+        {
+          "id": "streaks",
+          "look": "number",
+          "show": {
+            "label": "Streak per habit"
+          },
+          "source": {
+            "table": "habits-checkins",
+            "aggregate": "streak",
+            "days": {
+              "date": "date",
+              "unit": "day",
+              "skip": {
+                "field": "status",
+                "option": "skip"
+              }
+            },
+            "group": {
+              "by": "habit"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "habits-habit",
+      "title": "Habit",
+      "of": "habits-habits",
+      "blocks": [
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "streak",
+              "look": "number",
+              "show": {
+                "label": "Streak"
+              },
+              "source": {
+                "table": "habits-checkins",
+                "aggregate": "streak",
+                "filter": [
+                  {
+                    "field": "habit",
+                    "op": "is",
+                    "value": "$record"
+                  }
+                ],
+                "days": {
+                  "date": "date",
+                  "unit": "day",
+                  "skip": {
+                    "field": "status",
+                    "option": "skip"
+                  }
+                }
+              }
+            },
+            {
+              "id": "since",
+              "style": {
+                "tone": "tertiary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Since last"
+              },
+              "source": {
+                "table": "habits-checkins",
+                "aggregate": "daysSince",
+                "filter": [
+                  {
+                    "field": "habit",
+                    "op": "is",
+                    "value": "$record"
+                  },
+                  {
+                    "field": "status",
+                    "op": "is",
+                    "value": "done"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "cal",
+          "look": "calendar",
+          "source": {
+            "table": "habits-checkins",
+            "filter": [
+              {
+                "field": "habit",
+                "op": "is",
+                "value": "$record"
+              }
+            ],
+            "limit": 30,
+            "group": {
+              "by": "date",
+              "unit": "day"
+            }
+          },
+          "show": {
+            "title": "status",
+            "subtitles": [
+              "note"
+            ],
+            "color": "status"
+          },
+          "tools": [
+            {
+              "as": "addHere",
+              "do": "create",
+              "table": "habits-checkins",
+              "values": "$here",
+              "ask": "all"
+            }
+          ]
+        },
+        {
+          "id": "weeks",
+          "look": "chart",
+          "show": {
+            "kind": "bar",
+            "title": "Per week"
+          },
+          "source": {
+            "table": "habits-checkins",
+            "aggregate": "count",
+            "filter": [
+              {
+                "field": "habit",
+                "op": "is",
+                "value": "$record"
+              },
+              {
+                "field": "status",
+                "op": "is",
+                "value": "done"
+              }
+            ],
+            "group": {
+              "by": "date",
+              "unit": "week",
+              "last": 8
+            }
+          }
+        },
+        {
+          "id": "buttons",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "log",
+              "look": "button",
+              "show": {
+                "label": "Check in",
+                "variant": "filled",
+                "icon": "check"
+              },
+              "tools": [
+                {
+                  "do": "create",
+                  "table": "habits-checkins",
+                  "values": {
+                    "habit": "$record"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "skip",
+              "look": "button",
+              "show": {
+                "label": "Skip today",
+                "variant": "outline"
+              },
+              "tools": [
+                {
+                  "do": "create",
+                  "table": "habits-checkins",
+                  "values": {
+                    "habit": "$record",
+                    "status": "skip"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "note",
+          "look": "button",
+          "show": {
+            "label": "Check in with a note",
+            "variant": "text",
+            "icon": "note"
+          },
+          "tools": [
+            {
+              "do": "create",
+              "table": "habits-checkins",
+              "values": {
+                "habit": "$record"
+              },
+              "ask": "all"
+            }
+          ]
+        },
+        {
+          "id": "recent",
+          "look": "list",
+          "source": {
+            "table": "habits-checkins",
+            "filter": [
+              {
+                "field": "habit",
+                "op": "is",
+                "value": "$record"
+              }
+            ],
+            "sort": {
+              "field": "date",
+              "direction": "desc"
+            },
+            "limit": 8
+          },
+          "show": {
+            "title": "date",
+            "subtitles": [
+              "status",
+              "note"
+            ],
+            "emptyText": "No check-ins yet"
+          }
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "habits-habits",
+      "name": "Habits",
+      "icon": "🌱",
+      "fields": [
+        {
+          "id": "name",
+          "name": "Habit",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "id": "goal",
+          "name": "Times a day",
+          "type": "number",
+          "decimals": 0,
+          "default": 1
+        },
+        {
+          "id": "part",
+          "name": "Part of day",
+          "type": "choice",
+          "options": [
+            {
+              "id": "morning",
+              "label": "Morning"
+            },
+            {
+              "id": "afternoon",
+              "label": "Afternoon"
+            },
+            {
+              "id": "evening",
+              "label": "Evening"
+            },
+            {
+              "id": "anytime",
+              "label": "Anytime"
+            }
+          ],
+          "default": "anytime"
+        },
+        {
+          "id": "plan",
+          "name": "Days",
+          "type": "schedule",
+          "default": {
+            "repeat": "daily"
+          },
+          "lastDone": "last"
+        },
+        {
+          "id": "last",
+          "name": "Last check-in",
+          "type": "rollup",
+          "table": "habits-checkins",
+          "via": "habit",
+          "aggregate": "latest",
+          "field": "date",
+          "filter": [
+            {
+              "field": "status",
+              "op": "is",
+              "value": "done"
+            }
+          ]
+        },
+        {
+          "id": "today",
+          "name": "Today",
+          "type": "rollup",
+          "table": "habits-checkins",
+          "via": "habit",
+          "aggregate": "count",
+          "filter": [
+            {
+              "field": "status",
+              "op": "is",
+              "value": "done"
+            },
+            {
+              "field": "date",
+              "op": "inPeriod",
+              "value": "today"
+            }
+          ]
+        },
+        {
+          "id": "streak",
+          "name": "Streak",
+          "type": "rollup",
+          "table": "habits-checkins",
+          "via": "habit",
+          "aggregate": "streak",
+          "days": {
+            "date": "date",
+            "unit": "day",
+            "skip": {
+              "field": "status",
+              "option": "skip"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "habits-checkins",
+      "name": "Check-ins",
+      "icon": "✅",
+      "fields": [
+        {
+          "id": "habit",
+          "name": "Habit",
+          "required": true,
+          "type": "link",
+          "table": "habits-habits"
+        },
+        {
+          "id": "date",
+          "name": "Date",
+          "type": "date",
+          "default": "today"
+        },
+        {
+          "id": "status",
+          "name": "Status",
+          "type": "choice",
+          "options": [
+            {
+              "id": "done",
+              "label": "Done"
+            },
+            {
+              "id": "skip",
+              "label": "Skipped"
+            }
+          ],
+          "default": "done"
+        },
+        {
+          "id": "note",
+          "name": "Note",
+          "type": "text"
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "id": "habits-habit-reminder",
+      "kind": "reminder",
+      "title": "Time for your habit",
+      "enabled": true,
+      "when": {
+        "each": {
+          "table": "habits-habits",
+          "field": "plan"
+        },
+        "at": "20:00"
+      },
+      "opens": "page:habits-habits",
+      "done": {
+        "do": "create",
+        "table": "habits-checkins",
+        "values": {
+          "habit": "$row"
+        }
+      },
+      "snoozeMinutes": 30,
+      "unless": {
+        "table": "habits-checkins",
+        "within": "day",
+        "filter": [
+          {
+            "field": "status",
+            "op": "is",
+            "value": "done"
+          }
+        ],
+        "link": "habit"
+      }
+    }
+  ]
+}

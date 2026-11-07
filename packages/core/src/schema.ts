@@ -209,6 +209,8 @@ export type ReminderWhen = z.infer<typeof ReminderWhenSchema>;
 export const ReminderSchema = z.strictObject({
   id: IdSchema,
   kind: z.literal('reminder'),
+  /** 属于哪个 app（D-485）；没写属于主页。 */
+  app: IdSchema.optional(),
   package: IdSchema.optional(),
   preset: IdSchema.optional(),
   title: boundedText(1, 60),

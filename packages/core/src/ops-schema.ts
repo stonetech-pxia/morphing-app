@@ -88,6 +88,8 @@ export const NewAppSchema = z.strictObject({
   name: boundedText(1, 40),
   icon: IconValueSchema.optional(),
   bar: z.array(AppBarTargetSchema).min(1).max(5).optional(),
+  /** 不写时从主页风格复制一份；导入 App 文件时带着自己的风格（D-485）。 */
+  theme: ThemeSchema.optional(),
 });
 export const AppChangesSchema = z.strictObject({
   id: IdSchema,

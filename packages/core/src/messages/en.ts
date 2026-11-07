@@ -500,6 +500,10 @@ export const en = {
   importAppConfigName: 'imported file',
   importAppConfigConfirm:
     'Switch to the app in this file? Your entries stay, and you can undo it in the change history.',
+  importAppConfirm:
+    'Add “{name}” as a new app? Nothing you have is replaced. You can undo it in the change log.',
+  importAppSummary: 'Add app “{name}”',
+  importAppClash: 'This app is already added, or its names clash with something you have: {reason}',
   localModelTitle: 'On-device model',
   localModelHint:
     'After you download it, new entries with an attachment also get values from a small model that runs on this phone. It helps most with names and amounts. Without it, suggestions still work with rules only. Nothing leaves this phone.',
@@ -945,7 +949,6 @@ export const en = {
   v34descDeskAddBelow: 'Add {v0} below the preview on the desk',
   v34descDeskRemove: 'Remove {v0} from the desk',
   appDescAdd: 'Add app “{v0}”',
-  appBackToHome: 'Back to Tinkrum',
   settingsMyApps: 'My apps',
   settingsMyAppsHint: 'Long-press an app to put it on the phone home screen.',
   settingsAppOnHome: 'On the home screen menu',

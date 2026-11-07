@@ -46,7 +46,7 @@ function withoutApp(config: WorkspaceConfig, appId: string): unknown {
       pages: config.containers.pages.filter((p) => p.app !== appId),
     },
     data: { ...config.data, tables: config.data.tables.filter((t) => t.app !== appId) },
-    tools: config.tools.filter((t) => !(t.kind === 'quickAction' && t.app === appId)),
+    tools: config.tools.filter((t) => t.app !== appId),
   };
 }
 
@@ -113,7 +113,7 @@ export function scopedViewForAI(config: WorkspaceConfig, appId: string): Workspa
       pages: config.containers.pages.filter((p) => p.app === appId),
     },
     data: { ...config.data, tables: config.data.tables.filter((t) => mineOrHome(t.app)) },
-    tools: config.tools.filter((t) => t.kind === 'quickAction' && t.app === appId),
+    tools: config.tools.filter((t) => t.app === appId),
   };
 }
 
@@ -127,9 +127,7 @@ export function hiddenIdsForAI(
     tables: config.data.tables
       .filter((t) => t.app !== undefined && t.app !== appId)
       .map((t) => t.id),
-    tools: config.tools
-      .filter((t) => !(t.kind === 'quickAction' && t.app === appId))
-      .map((t) => t.id),
+    tools: config.tools.filter((t) => t.app !== appId).map((t) => t.id),
     apps: (config.nav.apps ?? []).filter((a) => a.id !== appId).map((a) => a.id),
   };
 }

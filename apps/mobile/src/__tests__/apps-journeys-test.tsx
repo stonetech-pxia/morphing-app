@@ -1,8 +1,8 @@
 import { applyOps, type AIProvider, type Op } from '@morph/core';
-import { act, fireEvent } from '@testing-library/react-native';
+import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
-import { Alert } from 'react-native';
+import { Alert, AppState } from 'react-native';
 
 import type { HomeScreenEntry, HomeScreenPlatform } from '../home-screen/platform';
 
@@ -47,26 +47,54 @@ describe('apps (UI)', () => {
   const start = () =>
     renderToolsApp(new MemoryWorkspaceRepo(), new FakeFiles(), { seed: withFitness });
 
-  it('opens an app from a home button, swaps the bar, and goes back to Tinkrum', async () => {
+  // 子 App 里没有「返回 Tinkrum」（D-485）：离开 App 再回来就是回到主页。
+  const handlers: ((state: string) => void)[] = [];
+  const toState = (state: string) => handlers.forEach((h) => h(state));
+  const appState = () =>
+    jest.spyOn(AppState, 'addEventListener').mockImplementation(((
+      _type: string,
+      handler: (state: string) => void,
+    ) => {
+      handlers.push(handler);
+      return { remove: () => {} };
+    }) as never);
+  /** 等一会儿（让 700 毫秒的延迟检查跑完）。 */
+  const wait = async (ms: number) => {
+    const t0 = Date.now();
+    await waitFor(
+      () => {
+        if (Date.now() - t0 < ms) throw new Error('waiting');
+      },
+      { timeout: ms + 3000, interval: 50 },
+    );
+  };
+  /** 离开 App 再回来（点手机上的 Tinkrum 图标）。 */
+  const leaveAndReturn = async () => {
+    await act(async () => toState('background'));
+    await act(async () => toState('active'));
+    await wait(900);
+  };
+
+  it('opens an app from a home button, swaps the bar, and has no way back inside', async () => {
+    appState();
     const { store } = await start();
     await screen.findByTestId('nav-settings');
-    expect(screen.queryByTestId('nav-back-home')).toBeNull();
 
     await fireEvent.press((await screen.findAllByText('健身'))[0]!);
-    // app 的底栏：自己的两页和 Tink，加固定的返回；主页的设置不在。
+    // app 的底栏：自己的两页和 Tink；主页的设置不在，也没有返回主页的入口。
     expect(await screen.findByTestId('nav-page:fit-home')).toBeTruthy();
     expect(screen.getByTestId('nav-page:fit-plan')).toBeTruthy();
     expect(screen.getByTestId('nav-ai')).toBeTruthy();
-    expect(screen.getByTestId('nav-back-home')).toBeTruthy();
+    expect(screen.queryByTestId('nav-back-home')).toBeNull();
     expect(screen.queryByTestId('nav-settings')).toBeNull();
     expect(store.getState().appId).toBe('fit');
 
     await fireEvent.press(screen.getByTestId('nav-page:fit-plan'));
     expect(store.getState().tab).toBe('page:fit-plan');
 
-    await fireEvent.press(screen.getByTestId('nav-back-home'));
+    // 离开再回来：回到真正的主页。
+    await leaveAndReturn();
     expect(await screen.findByTestId('nav-settings')).toBeTruthy();
-    expect(screen.queryByTestId('nav-back-home')).toBeNull();
     expect(store.getState().appId).toBeNull();
     // 进出 app 不写任何数据（底线 15）：版本没变。
     expect(store.getState().head!.id).toBe(1);
@@ -80,7 +108,7 @@ describe('apps (UI)', () => {
     await fireEvent.press(screen.getByTestId('nav-settings'));
     expect(await screen.findByText('我的 App'.toUpperCase())).toBeTruthy();
     await fireEvent.press(screen.getByTestId('settings-app-fit'));
-    expect(await screen.findByTestId('nav-back-home')).toBeTruthy();
+    expect(await screen.findByTestId('nav-page:fit-home')).toBeTruthy();
     expect(store.getState().appId).toBe('fit');
   });
 
@@ -98,14 +126,14 @@ describe('apps (UI)', () => {
       store.getState().enterApp('blank');
     });
     expect(await screen.findByText('这个 App 还没有页面，点 Tink 来搭一个。')).toBeTruthy();
-    expect(screen.getByTestId('nav-back-home')).toBeTruthy();
+    expect(screen.queryByTestId('nav-settings')).toBeNull();
   });
 
   it('falls back to the home page when the app the user is in goes away', async () => {
     const { store } = await start();
     await screen.findByTestId('nav-settings');
     await act(async () => store.getState().enterApp('fit'));
-    expect(await screen.findByTestId('nav-back-home')).toBeTruthy();
+    expect(await screen.findByTestId('nav-page:fit-home')).toBeTruthy();
     const result = applyOps(store.getState().config!, [{ op: 'removeContainer', app: 'fit' }], {
       registry: testRegistry,
       locale: 'zh',
@@ -223,14 +251,14 @@ describe('apps (UI)', () => {
     // 点桌面菜单：进那个 App。
     await act(async () => fake.tap('app:fit'));
     expect(store.getState().appId).toBe('fit');
-    expect(await screen.findByTestId('nav-back-home')).toBeTruthy();
+    expect(await screen.findByTestId('nav-page:fit-home')).toBeTruthy();
   });
 
   it('opens the app when the app was started from its home screen item', async () => {
     const fake = new FakeHomeScreen();
     fake.launched = 'app:fit';
     const { store } = await withHomeScreen(fake);
-    await screen.findByTestId('nav-back-home');
+    await screen.findByTestId('nav-page:fit-home');
     expect(store.getState().appId).toBe('fit');
   });
 
@@ -246,11 +274,33 @@ describe('apps (UI)', () => {
     const { store } = await start();
     await screen.findByTestId('nav-settings');
     await act(async () => router.push('/app/fit'));
-    expect(await screen.findByTestId('nav-back-home')).toBeTruthy();
+    expect(await screen.findByTestId('nav-page:fit-home')).toBeTruthy();
     expect(store.getState().appId).toBe('fit');
     await act(async () => store.getState().leaveApp());
     await act(async () => router.push('/app/gone'));
     await screen.findByTestId('nav-settings');
     expect(store.getState().appId).toBeNull();
+  });
+
+  it('stays in the app when the app is opened from the home screen after being away', async () => {
+    appState();
+    const fake = new FakeHomeScreen();
+    const { store } = await withHomeScreen(fake);
+    await screen.findByTestId('nav-settings');
+    await act(async () => toState('background'));
+    await act(async () => toState('active'));
+    // 回到前台以后桌面菜单的点按才到：进入 App 比离开晚，所以留在 App 里。
+    await act(async () => fake.tap('app:fit'));
+    await wait(900);
+    expect(store.getState().appId).toBe('fit');
+  });
+
+  it('being away from the home page changes nothing', async () => {
+    appState();
+    const { store } = await start();
+    await screen.findByTestId('nav-settings');
+    await leaveAndReturn();
+    expect(store.getState().appId).toBeNull();
+    expect(store.getState().head!.id).toBe(1);
   });
 });

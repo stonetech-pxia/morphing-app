@@ -71,6 +71,7 @@ const WRITE_LOOKS = new Set(['form', 'button']);
 const REMINDER_PLAIN_KEYS = new Set([
   'id',
   'kind',
+  'app',
   'package',
   'preset',
   'title',

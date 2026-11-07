@@ -1,0 +1,575 @@
+{
+  "format": "tinkrum-app",
+  "version": 1,
+  "exportedAt": "2026-11-07T11:00:00.000Z",
+  "schemaVersion": 39,
+  "app": {
+    "id": "rest",
+    "name": "Rest",
+    "icon": "moon",
+    "bar": [
+      "page:rest-home",
+      "page:rest-trends",
+      "page:rest-log",
+      "ai"
+    ],
+    "theme": {
+      "primaryColor": "#5B6CFF",
+      "mode": "light",
+      "colors": {
+        "background": "#E4E9F2",
+        "surface": "#E4E9F2",
+        "text": "#2D3748",
+        "secondary": "#2F855A",
+        "tertiary": "#C05621"
+      },
+      "font": "system",
+      "fontScale": 1,
+      "radius": 24,
+      "density": "spacious",
+      "cardStyle": "soft",
+      "navStyle": "iconLabel",
+      "iconStyle": "tint"
+    }
+  },
+  "pages": [
+    {
+      "id": "rest-home",
+      "title": "Rest",
+      "icon": "🌙",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "Rest",
+            "subtitle": "Your sleep log"
+          }
+        },
+        {
+          "id": "range",
+          "pin": "top",
+          "look": "period",
+          "show": {
+            "options": [
+              "last7days",
+              "last30days",
+              "last90days"
+            ],
+            "default": "last7days"
+          }
+        },
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "avg",
+              "look": "number",
+              "show": {
+                "label": "Avg. sleep"
+              },
+              "source": {
+                "table": "rest-sleep",
+                "aggregate": "avg",
+                "field": "hours",
+                "compare": "previous",
+                "period": "page"
+              }
+            },
+            {
+              "id": "bank",
+              "style": {
+                "tone": "secondary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Sleep bank"
+              },
+              "source": {
+                "table": "rest-sleep",
+                "aggregate": "sum",
+                "field": "bank",
+                "period": "page"
+              }
+            }
+          ]
+        },
+        {
+          "id": "lastnight",
+          "look": "group",
+          "show": {
+            "title": "Last night",
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "last",
+              "look": "cards",
+              "source": {
+                "table": "rest-sleep",
+                "sort": {
+                  "field": "night",
+                  "direction": "desc"
+                },
+                "limit": 1
+              },
+              "show": {
+                "title": "night",
+                "subtitles": [
+                  "bed",
+                  "wake"
+                ],
+                "trailing": "hours",
+                "format": {
+                  "kind": "progress",
+                  "goal": 8,
+                  "style": "bar"
+                },
+                "emptyText": "Tap + when you go to bed"
+              },
+              "tools": [
+                {
+                  "as": "button",
+                  "label": "Wake up",
+                  "when": [
+                    {
+                      "field": "wake",
+                      "op": "isEmpty"
+                    }
+                  ],
+                  "do": "set",
+                  "table": "rest-sleep",
+                  "field": "wake",
+                  "value": "now"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "line",
+          "look": "chart",
+          "show": {
+            "kind": "bar",
+            "title": "Hours per night"
+          },
+          "source": {
+            "table": "rest-sleep",
+            "aggregate": "avg",
+            "field": "hours",
+            "group": {
+              "by": "night",
+              "unit": "day"
+            },
+            "compare": "previous",
+            "period": "page"
+          }
+        },
+        {
+          "id": "nums2",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "streak",
+              "style": {
+                "tone": "tertiary"
+              },
+              "look": "number",
+              "show": {
+                "label": "7 h+ in a row"
+              },
+              "source": {
+                "table": "rest-sleep",
+                "aggregate": "streak",
+                "filter": [
+                  {
+                    "field": "hours",
+                    "op": "gt",
+                    "value": 6.99
+                  }
+                ],
+                "days": {
+                  "date": "night",
+                  "unit": "day"
+                }
+              }
+            },
+            {
+              "id": "logged",
+              "look": "number",
+              "show": {
+                "label": "Nights logged"
+              },
+              "source": {
+                "table": "rest-sleep",
+                "aggregate": "count",
+                "period": "page"
+              }
+            }
+          ]
+        },
+        {
+          "id": "dial",
+          "pin": "bottom",
+          "look": "dial",
+          "tools": [
+            {
+              "label": "Going to bed",
+              "do": "create",
+              "table": "rest-sleep",
+              "values": {
+                "bed": "now"
+              }
+            },
+            {
+              "label": "Add a night",
+              "do": "create",
+              "table": "rest-sleep",
+              "ask": "all"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rest-trends",
+      "title": "Trends",
+      "icon": "📈",
+      "blocks": [
+        {
+          "id": "range",
+          "pin": "top",
+          "look": "period",
+          "show": {
+            "options": [
+              "last7days",
+              "last30days",
+              "last90days"
+            ],
+            "default": "last30days"
+          }
+        },
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "quality",
+              "look": "number",
+              "show": {
+                "label": "Avg. quality"
+              },
+              "source": {
+                "table": "rest-sleep",
+                "aggregate": "avg",
+                "field": "quality",
+                "compare": "previous",
+                "period": "page"
+              }
+            },
+            {
+              "id": "best",
+              "style": {
+                "tone": "secondary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Best night"
+              },
+              "source": {
+                "table": "rest-sleep",
+                "aggregate": "max",
+                "field": "hours",
+                "period": "page"
+              }
+            }
+          ]
+        },
+        {
+          "id": "weeks",
+          "look": "chart",
+          "show": {
+            "kind": "bar",
+            "title": "Weekly average (hours)"
+          },
+          "source": {
+            "table": "rest-sleep",
+            "aggregate": "avg",
+            "field": "hours",
+            "group": {
+              "by": "night",
+              "unit": "week",
+              "last": 8
+            }
+          }
+        },
+        {
+          "id": "qline",
+          "look": "chart",
+          "show": {
+            "kind": "bar",
+            "title": "Quality by night"
+          },
+          "source": {
+            "table": "rest-sleep",
+            "aggregate": "avg",
+            "field": "quality",
+            "group": {
+              "by": "night",
+              "unit": "day"
+            },
+            "period": "page"
+          }
+        },
+        {
+          "id": "moods",
+          "look": "chart",
+          "show": {
+            "kind": "pie",
+            "title": "How mornings felt"
+          },
+          "source": {
+            "table": "rest-sleep",
+            "aggregate": "count",
+            "group": {
+              "by": "mood"
+            },
+            "period": "page"
+          }
+        },
+        {
+          "id": "cal",
+          "look": "calendar",
+          "source": {
+            "table": "rest-sleep",
+            "limit": 30,
+            "group": {
+              "by": "night",
+              "unit": "day"
+            }
+          },
+          "show": {
+            "title": "night",
+            "subtitles": [
+              "mood"
+            ],
+            "trailing": "hours",
+            "color": "mood"
+          }
+        }
+      ]
+    },
+    {
+      "id": "rest-log",
+      "title": "Log",
+      "icon": "📖",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "Sleep log",
+            "subtitle": "Search, filter and fix any night"
+          }
+        },
+        {
+          "id": "all",
+          "look": "list",
+          "source": {
+            "table": "rest-sleep",
+            "sort": {
+              "field": "night",
+              "direction": "desc"
+            },
+            "limit": 14
+          },
+          "show": {
+            "title": "night",
+            "subtitles": [
+              "bed",
+              "wake"
+            ],
+            "trailing": "hours",
+            "format": {
+              "kind": "progress",
+              "goal": 8,
+              "style": "bar"
+            },
+            "emptyText": "No nights yet",
+            "browse": {
+              "search": true,
+              "sort": [
+                "night",
+                "hours",
+                "quality"
+              ],
+              "filter": [
+                "mood",
+                "tags"
+              ],
+              "period": "night"
+            }
+          },
+          "tools": [
+            {
+              "as": "button",
+              "label": "Wake up",
+              "when": [
+                {
+                  "field": "wake",
+                  "op": "isEmpty"
+                }
+              ],
+              "do": "set",
+              "table": "rest-sleep",
+              "field": "wake",
+              "value": "now"
+            }
+          ]
+        },
+        {
+          "id": "export",
+          "look": "action",
+          "show": {
+            "shape": "row"
+          },
+          "tools": [
+            {
+              "tool": "rest-export-sleep"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "rest-sleep",
+      "name": "Sleep",
+      "icon": "🌙",
+      "fields": [
+        {
+          "id": "night",
+          "name": "Night of",
+          "type": "date",
+          "default": "today"
+        },
+        {
+          "id": "bed",
+          "name": "Bedtime",
+          "type": "time"
+        },
+        {
+          "id": "wake",
+          "name": "Wake-up",
+          "type": "time"
+        },
+        {
+          "id": "hours",
+          "name": "Slept",
+          "type": "formula",
+          "expression": "hours({bed}, {wake})",
+          "decimals": 1,
+          "unit": "h"
+        },
+        {
+          "id": "bank",
+          "name": "vs 8 h",
+          "type": "formula",
+          "expression": "{hours} - 8",
+          "decimals": 1,
+          "unit": "h"
+        },
+        {
+          "id": "quality",
+          "name": "Quality",
+          "type": "rating"
+        },
+        {
+          "id": "mood",
+          "name": "Morning",
+          "type": "choice",
+          "options": [
+            {
+              "id": "energized",
+              "label": "Energized"
+            },
+            {
+              "id": "okay",
+              "label": "Okay"
+            },
+            {
+              "id": "groggy",
+              "label": "Groggy"
+            }
+          ]
+        },
+        {
+          "id": "tags",
+          "name": "Notes",
+          "type": "tags"
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "id": "rest-export-sleep",
+      "kind": "quickAction",
+      "name": "Export sleep log to Excel",
+      "icon": "document",
+      "steps": [
+        {
+          "id": "read",
+          "action": "in.records",
+          "params": {
+            "collectionId": "rest-sleep",
+            "period": "all"
+          }
+        },
+        {
+          "id": "excel",
+          "action": "records.toExcel",
+          "params": {}
+        },
+        {
+          "id": "share",
+          "action": "out.share",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "rest-wind-down",
+      "kind": "reminder",
+      "title": "Time to wind down",
+      "enabled": true,
+      "when": {
+        "every": "day",
+        "at": "22:30"
+      },
+      "opens": "page:rest-home"
+    },
+    {
+      "id": "rest-morning-log",
+      "kind": "reminder",
+      "title": "How did you sleep?",
+      "enabled": true,
+      "when": {
+        "every": "day",
+        "at": "08:00"
+      },
+      "opens": "page:rest-home"
+    }
+  ]
+}

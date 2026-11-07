@@ -1,0 +1,665 @@
+{
+  "format": "tinkrum-app",
+  "version": 1,
+  "exportedAt": "2026-11-07T11:00:00.000Z",
+  "schemaVersion": 39,
+  "app": {
+    "id": "trip",
+    "name": "Trip",
+    "icon": "suitcase",
+    "bar": [
+      "page:trip-home",
+      "page:trip-bookings",
+      "page:trip-packing",
+      "ai"
+    ],
+    "theme": {
+      "primaryColor": "#7C83FF",
+      "mode": "dark",
+      "colors": {
+        "background": "#0B0B1A",
+        "surface": "#1E1B3A",
+        "text": "#EEF2FF",
+        "secondary": "#F472B6",
+        "tertiary": "#22D3EE"
+      },
+      "darkColors": {
+        "background": "#0B0B1A",
+        "surface": "#1E1B3A",
+        "text": "#EEF2FF",
+        "secondary": "#F472B6",
+        "tertiary": "#22D3EE"
+      },
+      "font": "system",
+      "fontScale": 1,
+      "radius": 28,
+      "density": "comfortable",
+      "cardStyle": "glass",
+      "backdrop": "aurora",
+      "navStyle": "icon",
+      "iconStyle": "tint"
+    }
+  },
+  "pages": [
+    {
+      "id": "trip-home",
+      "title": "Trip",
+      "icon": "✈️",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "Lisbon",
+            "subtitle": "Plans, bookings and packing in one place"
+          }
+        },
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "soon",
+              "look": "number",
+              "show": {
+                "label": "Next booking in"
+              },
+              "source": {
+                "table": "trip-bookings",
+                "aggregate": "min",
+                "field": "togo",
+                "filter": [
+                  {
+                    "field": "togo",
+                    "op": "gt",
+                    "value": -1
+                  }
+                ]
+              }
+            },
+            {
+              "id": "topay",
+              "style": {
+                "tone": "secondary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Left to pay"
+              },
+              "source": {
+                "table": "trip-bookings",
+                "aggregate": "sum",
+                "field": "cost",
+                "minus": {
+                  "table": "trip-bookings",
+                  "aggregate": "sum",
+                  "field": "cost",
+                  "filter": [
+                    {
+                      "field": "paid",
+                      "op": "is",
+                      "value": true
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "line",
+          "look": "list",
+          "source": {
+            "table": "trip-plan",
+            "sort": {
+              "field": "when",
+              "direction": "asc"
+            },
+            "limit": 4,
+            "group": {
+              "by": "when",
+              "unit": "day"
+            }
+          },
+          "show": {
+            "title": "what",
+            "subtitles": [
+              "when",
+              "where"
+            ],
+            "trailing": "cost",
+            "emptyText": "Nothing planned yet."
+          },
+          "tools": [
+            {
+              "as": "addHere",
+              "do": "create",
+              "table": "trip-plan",
+              "values": "$here",
+              "ask": "all"
+            },
+            {
+              "as": "list",
+              "tool": "trip-share-itinerary"
+            }
+          ]
+        },
+        {
+          "id": "cal",
+          "look": "calendar",
+          "source": {
+            "table": "trip-plan",
+            "limit": 30,
+            "group": {
+              "by": "when",
+              "unit": "day"
+            }
+          },
+          "show": {
+            "title": "what",
+            "subtitles": [
+              "where"
+            ],
+            "color": "kind",
+            "emptyText": "Nothing planned this day."
+          }
+        },
+        {
+          "id": "pie",
+          "look": "chart",
+          "show": {
+            "kind": "pie",
+            "title": "Planned spend by type"
+          },
+          "source": {
+            "table": "trip-plan",
+            "aggregate": "sum",
+            "field": "cost",
+            "group": {
+              "by": "kind"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "trip-bookings",
+      "title": "Bookings",
+      "icon": "bookmark",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "Bookings"
+          }
+        },
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "booked",
+              "look": "number",
+              "show": {
+                "label": "Booked"
+              },
+              "source": {
+                "table": "trip-bookings",
+                "aggregate": "sum",
+                "field": "cost"
+              }
+            },
+            {
+              "id": "paid",
+              "style": {
+                "tone": "tertiary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Paid"
+              },
+              "source": {
+                "table": "trip-bookings",
+                "aggregate": "sum",
+                "field": "cost",
+                "filter": [
+                  {
+                    "field": "paid",
+                    "op": "is",
+                    "value": true
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "list",
+          "look": "list",
+          "source": {
+            "table": "trip-bookings",
+            "sort": {
+              "field": "day",
+              "direction": "asc"
+            },
+            "limit": 10
+          },
+          "show": {
+            "title": "what",
+            "subtitles": [
+              "day",
+              "time"
+            ],
+            "trailing": "cost",
+            "browse": {
+              "search": true,
+              "filter": [
+                "kind"
+              ]
+            }
+          },
+          "tools": [
+            {
+              "as": "button",
+              "label": "Mark paid",
+              "when": [
+                {
+                  "field": "paid",
+                  "op": "is",
+                  "value": false
+                }
+              ],
+              "do": "set",
+              "table": "trip-bookings",
+              "field": "paid",
+              "value": true
+            }
+          ]
+        },
+        {
+          "id": "add",
+          "look": "button",
+          "show": {
+            "label": "Add a booking",
+            "variant": "filled",
+            "icon": "plus"
+          },
+          "tools": [
+            {
+              "do": "create",
+              "table": "trip-bookings",
+              "ask": "all"
+            }
+          ]
+        },
+        {
+          "id": "scan",
+          "look": "action",
+          "show": {
+            "shape": "row"
+          },
+          "tools": [
+            {
+              "tool": "scan-document"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "trip-packing",
+      "title": "Packing",
+      "icon": "check",
+      "blocks": [
+        {
+          "id": "h",
+          "look": "header",
+          "show": {
+            "title": "Packing"
+          }
+        },
+        {
+          "id": "nums",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "in",
+              "style": {
+                "tone": "tertiary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Packed"
+              },
+              "source": {
+                "table": "trip-packing",
+                "aggregate": "count",
+                "filter": [
+                  {
+                    "field": "packed",
+                    "op": "is",
+                    "value": true
+                  }
+                ]
+              }
+            },
+            {
+              "id": "out",
+              "style": {
+                "tone": "secondary"
+              },
+              "look": "number",
+              "show": {
+                "label": "Still to pack"
+              },
+              "source": {
+                "table": "trip-packing",
+                "aggregate": "count",
+                "filter": [
+                  {
+                    "field": "packed",
+                    "op": "is",
+                    "value": false
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "list",
+          "look": "checklist",
+          "source": {
+            "table": "trip-packing",
+            "sort": {
+              "field": "group",
+              "direction": "asc"
+            },
+            "limit": 12,
+            "group": {
+              "by": "group"
+            }
+          },
+          "show": {
+            "title": "item"
+          },
+          "tools": [
+            {
+              "as": "check",
+              "do": "toggle",
+              "table": "trip-packing",
+              "field": "packed"
+            },
+            {
+              "as": "addHere",
+              "do": "create",
+              "table": "trip-packing",
+              "values": "$here",
+              "ask": "all"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "trip-plan",
+      "name": "Itinerary",
+      "icon": "🗓️",
+      "fields": [
+        {
+          "id": "what",
+          "name": "Plan",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "id": "when",
+          "name": "When",
+          "type": "datetime"
+        },
+        {
+          "id": "where",
+          "name": "Place",
+          "type": "text"
+        },
+        {
+          "id": "kind",
+          "name": "Type",
+          "type": "choice",
+          "options": [
+            {
+              "id": "sight",
+              "label": "Sights"
+            },
+            {
+              "id": "food",
+              "label": "Food & drink"
+            },
+            {
+              "id": "move",
+              "label": "Getting around"
+            },
+            {
+              "id": "free",
+              "label": "Free time"
+            }
+          ]
+        },
+        {
+          "id": "cost",
+          "name": "Est. cost",
+          "type": "money",
+          "currency": "EUR"
+        },
+        {
+          "id": "notes",
+          "name": "Notes",
+          "type": "note"
+        },
+        {
+          "id": "togo",
+          "name": "Days to go",
+          "type": "formula",
+          "expression": "days(today, {when})",
+          "decimals": 0,
+          "unit": "d"
+        }
+      ]
+    },
+    {
+      "id": "trip-bookings",
+      "name": "Bookings",
+      "icon": "🎫",
+      "fields": [
+        {
+          "id": "what",
+          "name": "Booking",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "id": "kind",
+          "name": "Type",
+          "type": "choice",
+          "options": [
+            {
+              "id": "flight",
+              "label": "Flights"
+            },
+            {
+              "id": "stay",
+              "label": "Stays"
+            },
+            {
+              "id": "rail",
+              "label": "Trains"
+            },
+            {
+              "id": "tour",
+              "label": "Tours"
+            }
+          ]
+        },
+        {
+          "id": "day",
+          "name": "Date",
+          "type": "date"
+        },
+        {
+          "id": "time",
+          "name": "Time",
+          "type": "time"
+        },
+        {
+          "id": "ref",
+          "name": "Confirmation #",
+          "type": "text"
+        },
+        {
+          "id": "cost",
+          "name": "Cost",
+          "type": "money",
+          "currency": "EUR"
+        },
+        {
+          "id": "paid",
+          "name": "Paid",
+          "type": "checkbox"
+        },
+        {
+          "id": "phone",
+          "name": "Phone",
+          "type": "text",
+          "format": "phone"
+        },
+        {
+          "id": "link",
+          "name": "Website",
+          "type": "text",
+          "format": "url"
+        },
+        {
+          "id": "docs",
+          "name": "Tickets & documents",
+          "type": "file"
+        },
+        {
+          "id": "togo",
+          "name": "Days to go",
+          "type": "formula",
+          "expression": "days(today, {day})",
+          "decimals": 0,
+          "unit": "d"
+        }
+      ],
+      "readAttachments": false,
+      "recordRow": [
+        {
+          "tool": "record-call",
+          "field": "phone"
+        },
+        {
+          "tool": "record-website",
+          "field": "link"
+        },
+        {
+          "tool": "record-copy",
+          "field": "ref"
+        }
+      ]
+    },
+    {
+      "id": "trip-packing",
+      "name": "Packing",
+      "icon": "🧳",
+      "fields": [
+        {
+          "id": "item",
+          "name": "Item",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "id": "group",
+          "name": "Group",
+          "type": "choice",
+          "options": [
+            {
+              "id": "docs",
+              "label": "Documents"
+            },
+            {
+              "id": "clothes",
+              "label": "Clothes"
+            },
+            {
+              "id": "tech",
+              "label": "Tech"
+            },
+            {
+              "id": "care",
+              "label": "Toiletries"
+            }
+          ]
+        },
+        {
+          "id": "packed",
+          "name": "Packed",
+          "type": "checkbox"
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "id": "trip-share-itinerary",
+      "kind": "quickAction",
+      "name": "Itinerary as PDF",
+      "icon": "printer",
+      "steps": [
+        {
+          "id": "pdf",
+          "action": "print.records",
+          "params": {
+            "template": "table",
+            "title": "Itinerary",
+            "fields": [],
+            "pageSize": "a4"
+          }
+        },
+        {
+          "id": "share",
+          "action": "out.share",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "trip-booking-soon",
+      "kind": "reminder",
+      "title": "A booking is coming up",
+      "enabled": true,
+      "when": {
+        "before": {
+          "table": "trip-bookings",
+          "field": "day"
+        },
+        "days": 1,
+        "at": "19:00"
+      },
+      "opens": "page:trip-bookings"
+    }
+  ]
+}

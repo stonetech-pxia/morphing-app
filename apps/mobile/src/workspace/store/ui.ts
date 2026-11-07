@@ -32,7 +32,7 @@ export function createUI({
       if (!config) return;
       const view = appViewOf(config, appId);
       if (view.appId === null) return;
-      set({ appId, tab: firstTarget(view), editing: null });
+      set({ appId, tab: firstTarget(view), editing: null, appEnters: get().appEnters + 1 });
     },
 
     showInShell(config, target) {
@@ -40,7 +40,12 @@ export function createUI({
       if (owner === undefined) return false;
       const view = appViewOf(config, owner);
       if (!view.bar.includes(target)) return false;
-      set({ appId: view.appId, tab: target, editing: null });
+      set({
+        appId: view.appId,
+        tab: target,
+        editing: null,
+        ...(view.appId !== null ? { appEnters: get().appEnters + 1 } : {}),
+      });
       return true;
     },
 

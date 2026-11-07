@@ -8,7 +8,9 @@ import {
   parsePickStore,
   PICK_STORE_KEY,
   pickCount,
+  appFileOps,
   readAppConfigFile,
+  readAppFile,
   readLayoutStoreFile,
   readPickStoreFile,
   RECORD_LIMITS,
@@ -23,6 +25,7 @@ import {
   loadComputedRecords,
   loadLinkResolver,
   recordsToCsv,
+  type AppFile,
   type Collection,
 } from '@morph/core';
 import { useRouter } from 'expo-router';
@@ -61,6 +64,7 @@ export default function DataRoute() {
   const actions = useRecordActions();
   const change = useWorkflowChange();
   const proposeImport = useWorkspace((s) => s.proposeImport);
+  const proposeOps = useWorkspace((s) => s.proposeOps);
   const confirm = useWorkspace((s) => s.confirm);
   const cancel = useWorkspace((s) => s.cancel);
   const clearNext = useWorkspace((s) => s.clearNext);
@@ -158,12 +162,19 @@ export default function DataRoute() {
     const picked = await files.pickDocuments(['application/json', 'text/plain'], false);
     const file = picked?.[0];
     if (!file) return;
-    let raw: unknown = null;
+    let text = '';
     try {
-      raw = readAppConfigFile(await files.readPickedText(file.uri));
+      text = await files.readPickedText(file.uri);
     } catch {
-      raw = null;
+      text = '';
     }
+    // App 文件（一个 App，D-485）：加到现有的工作区里，不替换任何东西。
+    const appFile = readAppFile(text);
+    if (appFile) {
+      await importApp(appFile);
+      return;
+    }
+    const raw: unknown = readAppConfigFile(text);
     if (!raw) {
       Alert.alert(t(locale, 'importAppConfig'), t(locale, 'importAppConfigInvalid'));
       return;
@@ -189,6 +200,44 @@ export default function DataRoute() {
               // 换了一个 App，上一次修改剩下的那句和下一步的建议也就接不上了。
               await clearNext();
               await clearSuggest();
+              leaveApp();
+              selectTab(pageTarget(HOME_PAGE_ID));
+              router.back();
+            })(),
+        },
+      ],
+    );
+  }
+
+  /** 导入一个 App 文件：先预览，确认后加成一个新 App，能在改动记录里撤销；原来的一个都不动（底线 5、7）。 */
+  async function importApp(appFile: AppFile) {
+    const plan = appFileOps(appFile, config);
+    if (!plan.ok) {
+      Alert.alert(
+        t(locale, 'importAppConfig'),
+        t(locale, 'importAppClash', { reason: plan.error }),
+      );
+      return;
+    }
+    const result = await proposeOps(plan.ops, t(locale, 'importAppSummary', { name: plan.name }));
+    if (result.kind !== 'preview') {
+      Alert.alert(
+        t(locale, 'invalidPlan'),
+        result.kind === 'invalid' ? result.issues.join('\n') : result.message,
+      );
+      return;
+    }
+    Alert.alert(
+      t(locale, 'importAppConfig'),
+      [t(locale, 'importAppConfirm', { name: plan.name }), ...result.proposal.lines].join('\n'),
+      [
+        { text: t(locale, 'cancel'), style: 'cancel', onPress: () => void cancel() },
+        {
+          text: t(locale, 'presetApply'),
+          onPress: () =>
+            void (async () => {
+              if (!(await confirm())) return;
+              // 回到主页，新 App 的入口就在那里。
               leaveApp();
               selectTab(pageTarget(HOME_PAGE_ID));
               router.back();
