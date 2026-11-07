@@ -640,6 +640,12 @@ export interface FilePlatform {
    */
   removeAssetFile(path: string): Promise<void>;
   readBytes(path: string): Promise<Uint8Array>;
+  /**
+   * 文件内容的 SHA-256（小写十六进制）：原生边读边算，大文件也不进 JS 内存。uri 可以是选出来的文件
+   * （file://、content://）或用户文件的地址（fileUri）。只在本机用来分辨两个文件是不是同一份，摘要不存、不发（底线 1、2）。
+   * 读不到时抛错。
+   */
+  contentDigest(uri: string): Promise<string>;
   writeBytes(
     assetId: string,
     name: string,

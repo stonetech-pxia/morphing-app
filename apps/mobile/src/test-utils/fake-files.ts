@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { RunError } from '@morph/core';
 import { zlibSync } from 'fflate';
 import { PDFDocument } from 'pdf-lib';
@@ -359,6 +361,11 @@ export class FakeFiles implements FilePlatform {
   }
   async removeRunFile(uri: string) {
     if (uri.startsWith('runs/')) this.disk.delete(uri);
+  }
+  async contentDigest(uri: string) {
+    return createHash('sha256')
+      .update(await this.readUri(uri))
+      .digest('hex');
   }
   async readUri(uri: string) {
     // 用户文件的地址（fileUri）对应磁盘上的相对路径。
