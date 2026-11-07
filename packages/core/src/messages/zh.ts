@@ -474,6 +474,10 @@ export const zh: MessageTable = {
   appConfigTitle: 'App 配置',
   appConfigHint: '页面、数据表的结构、快捷操作和提醒，存成一个文件。不含你的记录和文件。',
   exportAppConfig: '导出 App 配置',
+  importAppConfig: '导入 App 配置',
+  importAppConfigInvalid: '这个文件不是 Tinkrum 的 App 配置，没有导入。',
+  importAppConfigName: '导入的文件',
+  importAppConfigConfirm: '换成文件里的 App？你的记录都留着，之后可以在改动记录里撤销。',
   localModelTitle: '本机模型',
   localModelHint:
     '下载以后，新记录带附件时，也会问一个在这台手机上运行的小模型，人名和金额的候选更准一些。不下载也有候选，只用规则。内容不出手机。',

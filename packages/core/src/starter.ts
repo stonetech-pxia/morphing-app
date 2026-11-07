@@ -86,7 +86,7 @@ export function homeFileEntryOps(config: WorkspaceConfig, locale: Locale): Op[] 
               look: 'button' as const,
               show: {
                 label: t(locale, 'starter_Toolbox_802f3'),
-                variant: 'outline' as const,
+                variant: 'row' as const,
                 icon: 'apps' as const,
               },
               opens: pageTarget(TOOLBOX_PAGE_ID),

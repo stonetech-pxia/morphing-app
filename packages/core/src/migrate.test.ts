@@ -467,4 +467,48 @@ describe('migrateWorkspace', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.stage).toBe('validate');
   });
+
+  // v37 → v38（D-483）：旧首页的「工具箱」入口（描边按钮）升成 row；别的按钮、别的数据不动。
+  it('v37 → v38 turns the home toolbox entry into a row and leaves other buttons alone', () => {
+    const current = workspace('zh');
+    const entry = (id: string, opens: string, variant: string) => ({
+      id,
+      look: 'button',
+      show: { label: '工具箱', variant, icon: 'apps' },
+      opens,
+    });
+    const old = {
+      ...current,
+      schemaVersion: 37,
+      containers: {
+        ...current.containers,
+        pages: current.containers.pages.map((p) =>
+          p.id === 'home'
+            ? {
+                ...p,
+                blocks: [
+                  entry('toolbox-entry', 'page:toolbox', 'outline'),
+                  entry('other', 'settings', 'outline'),
+                  entry('filled-toolbox', 'page:toolbox', 'filled'),
+                ],
+              }
+            : p,
+        ),
+      },
+    };
+    const result = migrateWorkspace(old);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const migrated = result.config as typeof current;
+    const home = migrated.containers.pages.find((p) => p.id === 'home')!;
+    const variants = Object.fromEntries(
+      home.blocks.map((b) => [b.id, (b as { show: { variant: string } }).show.variant]),
+    );
+    expect(variants).toEqual({
+      'toolbox-entry': 'row',
+      other: 'outline',
+      'filled-toolbox': 'filled',
+    });
+    expect(migrated.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+  });
 });

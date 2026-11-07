@@ -495,6 +495,11 @@ export const en = {
   appConfigHint:
     'Pages, table structures, quick actions and reminders, saved as one file. Your entries and files are not included.',
   exportAppConfig: 'Export app design',
+  importAppConfig: 'Import app configuration',
+  importAppConfigInvalid: 'This file isn’t a Tinkrum app configuration, so nothing was imported.',
+  importAppConfigName: 'imported file',
+  importAppConfigConfirm:
+    'Switch to the app in this file? Your entries stay, and you can undo it in the change history.',
   localModelTitle: 'On-device model',
   localModelHint:
     'After you download it, new entries with an attachment also get values from a small model that runs on this phone. It helps most with names and amounts. Without it, suggestions still work with rules only. Nothing leaves this phone.',

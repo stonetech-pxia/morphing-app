@@ -2625,7 +2625,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 6>.look "button"
 <oneOf 6>.show object
 <oneOf 6>.show.label string len 1..40
-<oneOf 6>.show.variant "filled"|"outline"|"text"|"icon"
+<oneOf 6>.show.variant "filled"|"outline"|"text"|"icon"|"row"
 <oneOf 6>.show.icon? = <oneOf 2>.show.icon
 <oneOf 6>.tools? array items 1..1
 <oneOf 6>.tools[]
@@ -3086,7 +3086,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 exports[`baseline > workspace config JSON Schema 2`] = `
 "
 . object
-.schemaVersion 37
+.schemaVersion 38
 .theme object
 .theme.primaryColor string /^#[0-9A-Fa-f]{6}$/
 .theme.mode "light"|"dark"|"system"

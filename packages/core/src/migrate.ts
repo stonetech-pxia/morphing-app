@@ -303,6 +303,40 @@ export const migrateV35toV36: Migration = (config) => ({ ...config, schemaVersio
 /** v36 → v37：金额字段多了可选的 currencyField（D-429），表上多了可选的 prefillRules（D-421），文字字段多了可选的 format（D-422），块多了可选的 showIf，记录块的 show 多了可选的 browse（D-424），print.records 多了可选的 attachments（D-425），表上多了可选的 recordRow，块的 tools 多了 as: "list"，single 多了可选的 tools，第一步可以收容器交的值（D-428），块多了可选的 pin（页面固定区，D-430），browse 多了可选的 pin（D-431）、filter（D-433），多了字段类型 tags（D-432）和外观 dial（D-434），browse 多了可选的 period（D-437），图表的 source 多了可选的 compare（D-439）和 period、数字块的 source 多了可选的 period、多了外观 period（D-440）。是新的可选值，只提升版本号。 */
 export const migrateV36toV37: Migration = (config) => ({ ...config, schemaVersion: 37 });
 
+/**
+ * v37 → v38：按钮的 variant 多了 "row"（一整行：图标、名字、箭头，和设置页的按钮一样，D-483）。
+ * 首页的「工具箱」入口（打开工具箱页、描边的按钮）原来画成描边按钮，改成 "row"。
+ * 只认这一种：打开工具箱页、没有工具、variant 是 outline 的按钮；别的按钮不动。
+ */
+export const migrateV37toV38: Migration = (config) => {
+  const rowIfToolbox = (block: unknown): unknown => {
+    if (typeof block !== 'object' || block === null) return block;
+    const b = block as Record<string, unknown>;
+    const show = b.show as Record<string, unknown> | undefined;
+    if (
+      b.look === 'button' &&
+      b.opens === 'page:toolbox' &&
+      b.tools === undefined &&
+      show?.variant === 'outline'
+    )
+      return { ...b, show: { ...show, variant: 'row' } };
+    if (Array.isArray(b.children)) return { ...b, children: b.children.map(rowIfToolbox) };
+    return block;
+  };
+  const containers = config.containers as { pages?: Record<string, unknown>[] } | undefined;
+  if (!containers?.pages) return { ...config, schemaVersion: 38 };
+  return {
+    ...config,
+    schemaVersion: 38,
+    containers: {
+      ...containers,
+      pages: containers.pages.map((p) =>
+        Array.isArray(p.blocks) ? { ...p, blocks: p.blocks.map(rowIfToolbox) } : p,
+      ),
+    },
+  };
+};
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -341,6 +375,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   34: migrateV34toV35,
   35: migrateV35toV36,
   36: migrateV36toV37,
+  37: migrateV37toV38,
 };
 
 export type MigrateResult =

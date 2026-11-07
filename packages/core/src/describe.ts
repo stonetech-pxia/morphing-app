@@ -1231,6 +1231,11 @@ const PROP_VALUES: Record<string, Record<string, Localized>> = {
     outline: { zh: '描边', en: 'outlined', fr: 'contour' },
     text: { zh: '只有文字', en: 'text only', fr: 'texte seul' },
     icon: { zh: '只显示图标', en: 'icon only', fr: 'icône seule' },
+    row: {
+      zh: '一整行（像设置页的按钮）',
+      en: 'a full row (like the Settings buttons)',
+      fr: 'une ligne entière (comme les boutons des réglages)',
+    },
   },
   kind: Object.fromEntries(Object.entries(QUICK_ACTION_CATEGORIES).map(([k, v]) => [k, v.name])),
   layout: {

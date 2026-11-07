@@ -270,6 +270,8 @@ export interface WorkspaceState {
   proposeRestore(revisionId: number): Promise<ProposeResult>;
   /** 换成一个保存的预设（D-410）：和恢复历史版本一样先预览，确认才生效，能撤销。 */
   proposePreset(presetId: string): Promise<ProposeResult>;
+  /** 导入一份导出的 App 配置：先预览，确认后换成它，能撤销；记录都留着。 */
+  proposeImport(raw: unknown, name: string): Promise<ProposeResult>;
   /** 把当前的 App 存成预设（D-410）：不带记录和文件引用，不产生新版本。 */
   savePreset(name: string): Promise<SavePresetResult>;
   /** 名字是空的时不改，返回 false。 */

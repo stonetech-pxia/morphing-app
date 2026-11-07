@@ -143,17 +143,32 @@ export function createRevisions(
 
   /** 换成一个保存的预设（D-410）：和恢复历史版本同一个流程，先预览，确认后生成新版本，能撤销。 */
   async function presetProposal(presetId: string): Promise<ProposeResult> {
-    const { config, head } = get();
-    if (!config || !head) throw new Error('workspace not loaded');
     const preset = await repo.getPreset(presetId);
     if (!preset) return { kind: 'invalid', issues: [msg('presetGone')] };
-    const needsTool = missingTools(preset.config);
+    return configProposal(preset.config, preset.name, `preset ${presetId}`, {
+      kind: 'preset',
+      presetId,
+    });
+  }
+
+  /** 换成从文件导入的一份 App 配置（导出的文件）：和应用预设同一个流程，先预览，确认后生成新版本，能撤销。 */
+  const importProposal = (raw: unknown, name: string): Promise<ProposeResult> =>
+    configProposal(raw, name, `import ${name}`, { kind: 'import' });
+
+  async function configProposal(
+    raw: unknown,
+    name: string,
+    input: string,
+    plan: Record<string, unknown>,
+  ): Promise<ProposeResult> {
+    const { config, head } = get();
+    if (!config || !head) throw new Error('workspace not loaded');
+    const needsTool = missingTools(raw);
     if (needsTool) return { kind: 'invalid', issues: [needsTool] };
-    const plan = { kind: 'preset', presetId };
-    const prepared = preparePreset(preset.config, registry);
+    const prepared = preparePreset(raw, registry);
     if (!prepared.ok) {
       await repo.createChangeRequest({
-        input: `preset ${presetId}`,
+        input,
         plan,
         status: 'failed',
         baseRevisionId: head.id,
@@ -161,13 +176,13 @@ export function createRevisions(
       });
       return { kind: 'invalid', issues: prepared.issues };
     }
-    return recordPreview(`preset ${presetId}`, plan, head, {
+    return recordPreview(input, plan, head, {
       kind: 'restore',
       before: config,
       after: prepared.after,
-      lines: describePresetApply(config, prepared.after, preset.name, { registry, locale }),
+      lines: describePresetApply(config, prepared.after, name, { registry, locale }),
       source: 'restore',
-      summary: msg('presetApplySummary', { name: preset.name }),
+      summary: msg('presetApplySummary', { name }),
       focusPageId: 'home',
     });
   }
@@ -251,6 +266,7 @@ export function createRevisions(
     | 'propose'
     | 'proposeRestore'
     | 'proposePreset'
+    | 'proposeImport'
     | 'proposeOps'
     | 'setHomeEntry'
     | 'confirm'
@@ -321,6 +337,7 @@ export function createRevisions(
     proposeRestore: (revisionId) => restoreProposal(revisionId, `restore #${revisionId}`),
 
     proposePreset: presetProposal,
+    proposeImport: importProposal,
 
     proposeOps: (ops, summary) => opsProposal(summary, ops, 'user', summary),
 

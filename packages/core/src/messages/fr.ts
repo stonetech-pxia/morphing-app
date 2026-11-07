@@ -524,6 +524,12 @@ export const fr: MessageTable = {
   appConfigHint:
     'Pages, structure des tableaux, actions rapides et rappels, dans un seul fichier. Vos entrées et vos fichiers n’y sont pas.',
   exportAppConfig: 'Exporter la configuration de l’app',
+  importAppConfig: 'Importer la configuration de l’app',
+  importAppConfigInvalid:
+    'Ce fichier n’est pas une configuration d’app Tinkrum, rien n’a été importé.',
+  importAppConfigName: 'fichier importé',
+  importAppConfigConfirm:
+    'Passer à l’app de ce fichier ? Vos entrées restent, et vous pouvez annuler dans l’historique des modifications.',
   localModelTitle: 'Modèle sur l’appareil',
   localModelHint:
     'Une fois téléchargé, les nouvelles entrées avec une pièce jointe reçoivent aussi des valeurs d’un petit modèle qui tourne sur ce téléphone, surtout utile pour les noms et les montants. Sans lui, les suggestions fonctionnent avec les règles seules. Rien ne quitte ce téléphone.',

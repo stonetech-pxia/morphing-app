@@ -277,6 +277,7 @@ export function ListRow({
   label,
   value,
   onPress,
+  onLongPress,
   testID,
 }: {
   palette: Palette;
@@ -284,11 +285,12 @@ export function ListRow({
   label: string;
   value?: string;
   onPress?: () => void;
+  onLongPress?: () => void;
   testID?: string;
 }) {
   const palette = onSurface(pagePalette);
   return (
-    <Card palette={palette} onPress={onPress} testID={testID}>
+    <Card palette={palette} onPress={onPress} onLongPress={onLongPress} testID={testID}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         {icon ? (
           <IconTile palette={palette} icon={icon} size={40} {...iconColors(palette, 'tint')} />

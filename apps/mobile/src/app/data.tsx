@@ -8,12 +8,15 @@ import {
   parsePickStore,
   PICK_STORE_KEY,
   pickCount,
+  readAppConfigFile,
   readLayoutStoreFile,
   readPickStoreFile,
   RECORD_LIMITS,
   serializeLayoutStore,
   serializePickStore,
   formatRef,
+  HOME_PAGE_ID,
+  pageTarget,
   formatTimestamp,
   calendarOf,
   linkedCollectionIds,
@@ -22,6 +25,7 @@ import {
   recordsToCsv,
   type Collection,
 } from '@morph/core';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 
@@ -56,6 +60,13 @@ export default function DataRoute() {
   const palette = usePalette(config.theme);
   const actions = useRecordActions();
   const change = useWorkflowChange();
+  const proposeImport = useWorkspace((s) => s.proposeImport);
+  const confirm = useWorkspace((s) => s.confirm);
+  const cancel = useWorkspace((s) => s.cancel);
+  const clearNext = useWorkspace((s) => s.clearNext);
+  const clearSuggest = useWorkspace((s) => s.clearSuggest);
+  const selectTab = useWorkspace((s) => s.selectTab);
+  const router = useRouter();
   const [counts, setCounts] = useState<Map<string, number>>(new Map());
   const [orphans, setOrphans] = useState<
     { collection: Collection | null; id: string; count: number }[]
@@ -139,6 +150,50 @@ export default function DataRoute() {
   async function exportConfig() {
     const now = new Date();
     await files.shareText(appConfigFileName(now), appConfigFile(config, now), 'application/json');
+  }
+
+  /** 导入一份 App 配置（导出的文件）：先预览，确认后换成它，能在改动记录里撤销；记录都留着（底线 5、7）。 */
+  async function importConfig() {
+    const picked = await files.pickDocuments(['application/json', 'text/plain'], false);
+    const file = picked?.[0];
+    if (!file) return;
+    let raw: unknown = null;
+    try {
+      raw = readAppConfigFile(await files.readPickedText(file.uri));
+    } catch {
+      raw = null;
+    }
+    if (!raw) {
+      Alert.alert(t(locale, 'importAppConfig'), t(locale, 'importAppConfigInvalid'));
+      return;
+    }
+    const result = await proposeImport(raw, t(locale, 'importAppConfigName'));
+    if (result.kind !== 'preview') {
+      Alert.alert(
+        t(locale, 'invalidPlan'),
+        result.kind === 'invalid' ? result.issues.join('\n') : result.message,
+      );
+      return;
+    }
+    Alert.alert(
+      t(locale, 'importAppConfig'),
+      [t(locale, 'importAppConfigConfirm'), ...result.proposal.lines].join('\n'),
+      [
+        { text: t(locale, 'cancel'), style: 'cancel', onPress: () => void cancel() },
+        {
+          text: t(locale, 'presetApply'),
+          onPress: () =>
+            void (async () => {
+              if (!(await confirm())) return;
+              // 换了一个 App，上一次修改剩下的那句和下一步的建议也就接不上了。
+              await clearNext();
+              await clearSuggest();
+              selectTab(pageTarget(HOME_PAGE_ID));
+              router.back();
+            })(),
+        },
+      ],
+    );
   }
 
   async function exportMemory() {
@@ -333,6 +388,12 @@ export default function DataRoute() {
             testID="export-app-config"
             label={t(locale, 'exportAppConfig')}
             onPress={() => void exportConfig()}
+          />
+          <Pill
+            palette={palette}
+            testID="import-app-config"
+            label={t(locale, 'importAppConfig')}
+            onPress={() => void importConfig()}
           />
         </View>
       </Card>

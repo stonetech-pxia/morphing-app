@@ -53,6 +53,15 @@ describe('starter home and toolbox (UI)', () => {
 describe('home file pickers', () => {
   const start = () =>
     renderToolsApp(new MemoryWorkspaceRepo(), new FakeFiles(), { seed: starterAfterGuide });
+  it('the toolbox entry looks like a settings row (icon, name, arrow) and opens the toolbox', async () => {
+    await start();
+    const entry = await screen.findByText('工具箱');
+    // 设置页的按钮是带箭头的一行，不是描边按钮。
+    expect(screen.getAllByText('›').length).toBeGreaterThan(0);
+    await fireEvent.press(entry);
+    expect(await screen.findByText('照片、视频和声音'.toUpperCase())).toBeTruthy();
+  });
+
   it('cancelling leaves the home and incoming batch unchanged', async () => {
     const { files } = await start();
     const pick = jest.spyOn(files, 'pickMedia');

@@ -213,6 +213,6 @@ describe('card text color (D-409)', () => {
     const palette = makePalette(createDefaultWorkspace('zh').theme, false);
     expect(palette.surfacePalette).toBeUndefined();
     expect(palette.pagePalette).toBeUndefined();
-    expect(CURRENT_SCHEMA_VERSION).toBe(37);
+    expect(CURRENT_SCHEMA_VERSION).toBe(38);
   });
 });

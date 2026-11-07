@@ -55,7 +55,7 @@ import { SIZES, textColor } from './style';
 import { cardColors, iconColors, onSurface } from './theme';
 import { Tile, ToolCard } from './Tile';
 import { ToolGrid } from './ToolGrid';
-import { Button, Card, IconTile } from './ui';
+import { Button, Card, IconTile, ListRow } from './ui';
 import { WorkflowRunner } from './WorkflowRunner';
 
 // 白名单渲染器（§5.2、§7A）：配置中的每种组件类型对应这里的一个真实组件。
@@ -158,10 +158,19 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
       <ActionButton
         action={use}
         label={c.show.label}
-        variant={c.show.variant}
+        variant={c.show.variant === 'row' ? 'filled' : c.show.variant}
         icon={c.show.icon}
         env={env}
         style={c.style?.align === 'center' ? styles.centerSelf : undefined}
+      />
+    ) : c.show.variant === 'row' ? (
+      // 一整行（D-483）：和设置页的按钮一样，图标块、名字、右边箭头。
+      <ListRow
+        palette={env.palette}
+        icon={c.show.icon}
+        label={c.show.label}
+        onPress={env.interactive && c.opens ? () => open(env, c.opens!) : undefined}
+        onLongPress={env.onLongPress}
       />
     ) : (
       <Button
