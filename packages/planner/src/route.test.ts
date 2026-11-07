@@ -1,10 +1,5 @@
-import {
-  BUILTIN_TOOLS,
-  EVAL_CASES,
-  buildSetup,
-  createDefaultWorkspace,
-  createRegistry,
-} from '@morph/core';
+import { BUILTIN_TOOLS, createDefaultWorkspace, createRegistry } from '@morph/core';
+import { EVAL_CASES, buildSetup } from '@morph/core/src/eval';
 import { describe, expect, it, vi } from 'vitest';
 
 import evalTurns from './__fixtures__/eval-turns.json';

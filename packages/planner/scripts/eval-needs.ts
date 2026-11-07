@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 
-import { BUILTIN_TOOLS, EVAL_CASES, buildSetup, createRegistry } from '@morph/core';
+import { BUILTIN_TOOLS, createRegistry } from '@morph/core';
+import { EVAL_CASES, buildSetup } from '@morph/core/src/eval';
 
 // 从评测的 --dump 文件（apps/api/scripts/eval.ts）取出每个通过的用例每一轮说的话和计划里的操作，
 // 只留路由测试要看的（操作名、块的外观、工具的种类），写成 src/__fixtures__/eval-turns.json。

@@ -1,7 +1,8 @@
 import { writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
-import { BUILTIN_TOOLS, EVAL_CASES, createRegistry, runEvalCase } from '@morph/core';
+import { BUILTIN_TOOLS, createRegistry } from '@morph/core';
+import { EVAL_CASES, runEvalCase } from '@morph/core/src/eval';
 
 import {
   MODELS,
