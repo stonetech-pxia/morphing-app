@@ -11,7 +11,7 @@ import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles } from '../test-utils/fake-files';
 import { renderToolsApp, starterAfterGuide } from '../test-utils/render-app';
 
-// 门户网站的展示预设（App 文件，D-485）：每一份从「设置 → 数据 → 导入」选进来，加成一个新 App，原来的不动；
+// 门户网站的展示预设（App 文件，D-485）：每一份从「设置 → 我的预设 → 从文件导入」选进来，加成一个新 App，原来的不动；
 // 进到这个 App 里，导航栏每一项、每个页面、每张表的新记录页和记录页都要能渲染，不能出错、不能被回退。
 
 const DIR = join(__dirname, '../../../../packages/core/src/fixtures/portal-apps');
@@ -64,7 +64,7 @@ describe.each(manifest.apps.map((a) => [a.name, a] as const))('app file %s', (_n
   });
   afterEach(() => jest.restoreAllMocks());
 
-  /** 从「设置 → 数据」的导入选进来（和用户做的一样），点「应用」。 */
+  /** 从「设置 → 我的预设」的「从文件导入」选进来（和用户做的一样），点「应用」。 */
   async function importThroughUi(withData: boolean) {
     const repo = new MemoryWorkspaceRepo();
     const files = new FakeFiles();
@@ -79,8 +79,8 @@ describe.each(manifest.apps.map((a) => [a.name, a] as const))('app file %s', (_n
     jest
       .spyOn(Alert, 'alert')
       .mockImplementationOnce((_title, _message, buttons) => void buttons?.[1]?.onPress?.());
-    await act(() => router.push('/data'));
-    await fireEvent.press(await screen.findByTestId('import-app-config'));
+    await act(() => router.push('/presets'));
+    await fireEvent.press(await screen.findByTestId('preset-import'));
     await waitFor(() => expect(store.getState().config!.nav.apps?.[0]?.id).toBe(entry.id));
     const config = store.getState().config!;
     const filled = withData ? await fillTables(repo, config, entry.id) : null;
