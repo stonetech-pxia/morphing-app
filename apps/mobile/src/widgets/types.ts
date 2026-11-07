@@ -87,9 +87,18 @@ export interface PlacedWidget {
   placedAt: number;
 }
 
+/** 队列里的一次点按：id 是它在队列里的文件名（确认删除用），text 是写进去的 JSON。 */
+export interface QueueEntry {
+  id: string;
+  text: string;
+}
+
 export interface WidgetPlatform {
   setSnapshot(json: string): Promise<void>;
-  takeQueue(): Promise<string[]>;
+  /** 读出点了还没处理的操作，不删（R07）。 */
+  readQueue(): Promise<QueueEntry[]>;
+  /** 确认这些点按已经处理好了，把它们删掉。没有的 id 不算错。 */
+  removeQueue(ids: string[]): Promise<void>;
   canPin(): boolean;
   pin(itemId: string, label: string): Promise<boolean>;
   /** Android：App 开着时小组件上点了操作。返回取消订阅。 */
