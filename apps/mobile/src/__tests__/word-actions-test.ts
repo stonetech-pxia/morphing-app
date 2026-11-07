@@ -117,10 +117,21 @@ describe('ocr.toWord (D-328)', () => {
     expect(xml.match(/<w:tr>/g)).toHaveLength(2);
     expect(xml).toContain('午餐');
     expect(names).toContain('word/media/image1.jpg');
-    expect(files.encodes.at(-1)).toMatchObject({
-      ops: { crop: { x: 600, y: 800, width: 800, height: 600 } },
-      format: 'jpeg',
-    });
+    // 图片区域在原图上的位置是 (600,800,800×600)；剪的时候四周多留一点边（D-473，不切到图边的字），
+    // 所以框要把区域整个包住，又不能大出一行字的高度。
+    const encoded = files.encodes.at(-1)!;
+    expect(encoded.format).toBe('jpeg');
+    const crop = (encoded.ops as { crop: { x: number; y: number; width: number; height: number } })
+      .crop;
+    const slack = 2 * 24; // 原图是 2 倍，一行字高 24
+    expect(crop.x).toBeLessThanOrEqual(600);
+    expect(crop.y).toBeLessThanOrEqual(800);
+    expect(crop.x + crop.width).toBeGreaterThanOrEqual(1400);
+    expect(crop.y + crop.height).toBeGreaterThanOrEqual(1400);
+    expect(600 - crop.x).toBeLessThanOrEqual(slack);
+    expect(800 - crop.y).toBeLessThanOrEqual(slack);
+    expect(crop.x + crop.width - 1400).toBeLessThanOrEqual(slack);
+    expect(crop.y + crop.height - 1400).toBeLessThanOrEqual(slack);
     // DocDoc 存在运行目录里，只对这个 docx 有效；图片块记着剪好的文件。
     expect(item.docDoc?.for).toBe(item.uri);
     const doc = parseDocDoc(decodeUtf8(await files.readUri(item.docDoc!.uri)))!;

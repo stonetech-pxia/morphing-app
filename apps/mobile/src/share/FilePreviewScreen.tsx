@@ -17,7 +17,7 @@ import { placeAssetOnDesk, savedWordDoc } from '../desk/saved-source';
 import { loadDesk, placeOnDesk } from '../desk/store';
 import { runErrorText, t, type StringKey } from '../i18n';
 import { useFileBundleOffer } from '../packs/FileBundleOffer';
-import { Icon } from '../renderer/Icon';
+import { Icon, UiIcon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
 import { Card, SectionLabel } from '../renderer/ui';
 import { baseName, extOf, mimeOf } from '../runtime/actions/helpers';
@@ -305,6 +305,73 @@ export function FilePreviewScreen({ index }: { index?: number }) {
   );
 
   /** 「更多」里的快捷操作和工具，按做的事分成几类，一行四个（和别的文档 App 的「更多」一样）。 */
+  /** 「更多」顶上一排最常用的：签名、打印、存到文件夹、分享（参考 CamScanner）。点了才做。 */
+  const moreTop = () => {
+    const items: {
+      id: string;
+      icon: IconName;
+      label: string;
+      color: string;
+      onPress: () => void;
+    }[] = [];
+    if (kind === 'pdf' || kind === 'image') {
+      items.push({
+        id: 'preview-more-sign',
+        icon: 'signature',
+        label: t(locale, 'previewMoreSign'),
+        color: '#12A383',
+        onPress: () => {
+          setPanel(null);
+          void edit();
+        },
+      });
+      items.push({
+        id: 'preview-more-print',
+        icon: 'printer',
+        label: t(locale, 'resultPrint'),
+        color: '#2F6FED',
+        onPress: () => void act(() => files.print(out)),
+      });
+    }
+    items.push({
+      id: 'preview-more-folder',
+      icon: 'folder',
+      label: t(locale, 'resultFolder'),
+      color: '#F29D38',
+      onPress: () => void act(() => files.saveToFolder([out], 'preview', true)),
+    });
+    items.push({
+      id: 'preview-more-send',
+      icon: 'share',
+      label: t(locale, 'previewShare'),
+      color: '#7A5AF8',
+      onPress: () => void act(() => files.shareUris([out])),
+    });
+    return (
+      <View style={[styles.grid, styles.section]} testID="preview-more-top">
+        {items.map((it) => (
+          <View key={it.id} style={styles.cell}>
+            <Pressable
+              testID={it.id}
+              accessibilityRole="button"
+              accessibilityLabel={it.label}
+              onPress={it.onPress}
+              style={({ pressed }) => [styles.cellPress, pressed && { opacity: 0.6 }]}>
+              <View style={[styles.cellIcon, { backgroundColor: it.color }]}>
+                <Icon name={it.icon} size={24} color="#FFFFFF" />
+              </View>
+              <Text
+                numberOfLines={2}
+                style={[palette.font('body', 12), styles.toolLabel, { color: palette.text }]}>
+                {it.label}
+              </Text>
+            </Pressable>
+          </View>
+        ))}
+      </View>
+    );
+  };
+
   const moreSections = () => {
     const sections: { id: string; title: StringKey; list: Workflow[] }[] = [
       { id: 'convert', title: 'previewCatConvert', list: [] },
@@ -322,7 +389,7 @@ export function FilePreviewScreen({ index }: { index?: number }) {
       );
     }
     return shown.map((x) => (
-      <View key={x.id} testID={`preview-more-${x.id}`}>
+      <View key={x.id} testID={`preview-more-${x.id}`} style={styles.section}>
         <SectionLabel palette={palette}>{t(locale, x.title)}</SectionLabel>
         <View style={styles.grid}>
           {x.list.map((wf) => (
@@ -432,16 +499,38 @@ export function FilePreviewScreen({ index }: { index?: number }) {
               styles.panel,
               { backgroundColor: palette.surface, paddingBottom: insets.bottom + 12 },
             ]}>
-            <Text style={[palette.font('title', 17), { color: palette.text }]}>
-              {t(
-                locale,
-                panel === 'record'
-                  ? 'previewRecord'
-                  : panel === 'share'
-                    ? 'previewShare'
-                    : 'previewMore',
-              )}
-            </Text>
+            <View style={styles.panelHeader}>
+              <Text style={[palette.font('title', 20), { color: palette.text }]}>
+                {t(
+                  locale,
+                  panel === 'record'
+                    ? 'previewRecord'
+                    : panel === 'share'
+                      ? 'previewShare'
+                      : 'previewMore',
+                )}
+              </Text>
+              <Pressable
+                testID="preview-panel-close"
+                accessibilityRole="button"
+                accessibilityLabel={t(locale, 'close')}
+                onPress={() => setPanel(null)}
+                style={[styles.closeButton, { backgroundColor: palette.primaryTint }]}>
+                <UiIcon name="close" size={18} color={palette.text} />
+              </Pressable>
+            </View>
+            {panel === 'more' ? (
+              <View style={styles.fileHeader} testID="preview-more-file">
+                <View style={[styles.fileIcon, { backgroundColor: palette.primaryTint }]}>
+                  <Icon name="document" size={22} color={palette.primaryText} />
+                </View>
+                <Text
+                  numberOfLines={2}
+                  style={[palette.font('bodyMedium', 16), styles.flex, { color: palette.text }]}>
+                  {shown.name}
+                </Text>
+              </View>
+            ) : null}
             <ScrollView style={styles.panelBody}>
               {panel === 'record' ? (
                 <Card palette={palette}>
@@ -457,7 +546,10 @@ export function FilePreviewScreen({ index }: { index?: number }) {
               ) : panel === 'share' ? (
                 shareRows()
               ) : (
-                moreSections()
+                <>
+                  {moreTop()}
+                  {moreSections()}
+                </>
               )}
             </ScrollView>
           </View>
@@ -482,13 +574,30 @@ const styles = StyleSheet.create({
   toolLabel: { textAlign: 'center' },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
   panel: {
-    maxHeight: '70%',
+    maxHeight: '90%',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 16,
     gap: 8,
   },
   panelBody: { flexGrow: 0 },
+  panelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  closeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fileHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  fileIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  section: { paddingBottom: 8 },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { width: '25%', paddingVertical: 6 },
   cellPress: { alignItems: 'center', gap: 6, paddingHorizontal: 2 },

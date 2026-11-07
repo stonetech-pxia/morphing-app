@@ -239,6 +239,7 @@ export const en = {
   previewCatConvert: 'Convert',
   previewCatProcess: 'Smart tools',
   previewCatManage: 'Manage',
+  previewMoreSign: 'Sign',
   previewNothing: 'Nothing here fits this file yet.',
   runError_tooFew: 'Choose at least {min} files.',
   runError_tooMany: 'Choose at most {max} files.',
