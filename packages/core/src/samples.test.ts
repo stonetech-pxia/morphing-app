@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { prepareOps } from './change';
 import { createStarterWorkspace } from './starter';
 import type { Op } from './ops-schema';
-import { SAMPLE_APPS, sampleInfo, sampleOps, type SampleApp } from './samples';
+import { draftTable } from './templates';
+import { draftReceiptSample, SAMPLE_APPS, sampleInfo, sampleOps, type SampleApp } from './samples';
 import {
   HOME_PAGE_ID,
   allComponents,
@@ -495,5 +496,57 @@ describe('the business card sample (D-423)', () => {
       ['by-hand', 'none'],
       ['scan', 'none'],
     ]);
+  });
+});
+
+describe('draftReceiptSample（新建表单页选了购物凭证，D-479）', () => {
+  it.each(LOCALES)(
+    '没改字段和表名：整套「收据」样板，建出来的表就是记录要放的表（%s）',
+    (locale) => {
+      const config = workspace(locale);
+      const table = draftTable('purchase', config, locale);
+      const got = draftReceiptSample(table, 'purchase', config, locale);
+      expect(got).not.toBeNull();
+      const added = apply(config, got!.ops, locale);
+      expect(added.data.tables.map((c) => c.id)).toEqual([got!.table.id]);
+      expect(got!.table.id).toBe('receipts');
+      expect(got!.table.name).toBe(sampleInfo('receipts', locale).name);
+      expect(added.data.tables[0]!.prefillRules).toBe('receipt');
+      // 整套：列表页、开销页、扫描和导出两个快捷操作。
+      expect(added.containers.pages.map((p) => p.id)).toEqual(
+        expect.arrayContaining(['receipts', 'spending']),
+      );
+      expect(quickActionsOf(added).length).toBe(2);
+    },
+  );
+
+  it('已经有一张叫 receipts 的表：新表 ID 换掉，返回的表和建出来的一致', () => {
+    const config = workspace('zh');
+    const first = draftReceiptSample(
+      draftTable('purchase', config, 'zh'),
+      'purchase',
+      config,
+      'zh',
+    )!;
+    const next = apply(config, first.ops, 'zh');
+    const second = draftReceiptSample(draftTable('purchase', next, 'zh'), 'purchase', next, 'zh')!;
+    const both = apply(next, second.ops, 'zh');
+    expect(both.data.tables.map((c) => c.id)).toEqual(['receipts', second.table.id]);
+    expect(second.table.id).not.toBe('receipts');
+  });
+
+  it('用户改过字段或表名、选的不是购物凭证、样板放不下：不用样板', () => {
+    const config = workspace('zh');
+    const table = draftTable('purchase', config, 'zh');
+    expect(draftReceiptSample({ ...table, name: '我的小票' }, 'purchase', config, 'zh')).toBeNull();
+    expect(
+      draftReceiptSample(
+        { ...table, fields: table.fields.filter((f) => f.id !== 'note') },
+        'purchase',
+        config,
+        'zh',
+      ),
+    ).toBeNull();
+    expect(draftReceiptSample(draftTable('bill', config, 'zh'), 'bill', config, 'zh')).toBeNull();
   });
 });

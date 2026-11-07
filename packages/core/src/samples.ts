@@ -11,13 +11,14 @@ import {
   quickActionsOf,
   remindersOf,
   type IconValue,
+  type Collection,
   type Locale,
   type Localized,
   type QuickAction,
   type Reminder,
   type WorkspaceConfig,
 } from './schema';
-import { entryOps } from './templates';
+import { draftTable, entryOps, templateTableName, type NewPreset } from './templates';
 import { newWorkflowId, presetById, presetWorkflow } from './workflows/presets';
 import babyGrowth from './samples/baby-growth.json';
 import businessCards from './samples/business-cards.json';
@@ -263,6 +264,31 @@ export function sampleOps(
       ops.push({ op: 'addTool', tool: fill(tool, locale, ids) as Reminder });
 
   return { ok: true, ops, mainPageId };
+}
+
+/**
+ * 新建表单页选了「购物凭证」、字段和表名都没改时，建整套样板「收据」（D-479）：同一张表，页面带搜索、
+ * 时间、排序、分类筛选、开销图表、扫描和导出。返回修改和建出来的那张表（ID 已按当前配置换过，记录放这张）。
+ * 改过字段或表名、选的是别的预设、样板放不下（表、页面、快捷操作超限）：null，照预设自己的页面建。
+ */
+export function draftReceiptSample(
+  table: Collection,
+  preset: NewPreset,
+  config: WorkspaceConfig,
+  locale: Locale,
+): { ops: Op[]; table: Collection } | null {
+  if (preset !== 'purchase') return null;
+  const base = draftTable('purchase', config, locale);
+  const same =
+    table.fields.length === base.fields.length &&
+    base.fields.every((f, i) => table.fields[i]?.id === f.id && table.fields[i]?.name === f.name);
+  const names = [templateTableName('purchase', locale), sampleInfo('receipts', locale).name];
+  if (!same || !names.includes(table.name)) return null;
+  const result = sampleOps('receipts', config, locale);
+  if (!result.ok) return null;
+  const added = result.ops.find((op): op is OpOf<'addData'> => op.op === 'addData');
+  if (!added || !('table' in added)) return null;
+  return { ops: result.ops, table: added.table as unknown as Collection };
 }
 
 type AddPage = OpOf<'addContainer'> & {

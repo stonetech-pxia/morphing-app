@@ -2,6 +2,7 @@ import {
   addDraftField,
   attachmentIds,
   draftEngine,
+  draftReceiptSample,
   draftHasField,
   draftTable,
   draftTableOps,
@@ -15,6 +16,7 @@ import {
   rulePreset,
   removeDraftField,
   renameDraftField,
+  sampleInfo,
   templateTableName,
   templateTableOf,
   type Collection,
@@ -180,7 +182,12 @@ export function NewTableScreen() {
   ];
 
   function choose(next: NewPreset) {
-    const table = keepFor(draftTable(next, config, locale), draft);
+    const made = keepFor(draftTable(next, config, locale), draft);
+    // 购物凭证建的是整套「收据」（D-479）：表名先写成「收据」，建出来的就是这个名字。
+    const table =
+      next === 'purchase' && made.name === templateTableName('purchase', locale)
+        ? { ...made, name: sampleInfo('receipts', locale).name }
+        : made;
     // 同样的字段留着已经填的值；文件搬到新表的附件字段。
     const kept = Object.fromEntries(
       table.fields.flatMap((f) =>
@@ -217,9 +224,12 @@ export function NewTableScreen() {
       preset === 'blank'
         ? draftTable('blank', config, locale).name
         : templateTableName(preset, locale);
-    const table = { ...draft, name: draft.name.trim() || fallback };
+    const typed = { ...draft, name: draft.name.trim() || fallback };
+    // 选了购物凭证又没改字段和表名：建整套「收据」（D-479），记录放进它建出来的那张表。
+    const sample = draftReceiptSample(typed, preset, config, locale);
+    const table = sample ? sample.table : typed;
     const proposed = await proposeOps(
-      draftTableOps(table, preset, config, locale),
+      sample ? sample.ops : draftTableOps(table, preset, config, locale),
       t(locale, 'shareRecordNewTable', { name: table.name }),
     );
     if (proposed.kind !== 'preview') {

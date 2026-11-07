@@ -170,20 +170,39 @@ describe('预览页和收件页面 → 存成记录', () => {
     await fireEvent.changeText(screen.getByTestId('draft-merchant'), '超市');
     await saveNew();
     const config = store.getState().config!;
-    expect(config.data.tables.map((c) => c.id)).toEqual(['purchases']);
-    expect(config.containers.pages.some((p) => p.id === 'purchases')).toBe(true);
+    expect(config.data.tables.map((c) => c.id)).toEqual(['receipts']);
+    // 选购物凭证、没改字段：建整套「收据」样板（D-479），列表页、开销页和两个快捷操作都在。
+    expect(config.containers.pages.map((p) => p.id)).toEqual(
+      expect.arrayContaining(['receipts', 'spending']),
+    );
+    expect(config.data.tables[0]!.name).toBe('收据');
     expect(store.getState().head!.source).toBe('user');
     const [asset] = await repo.listAssets();
     expect(files.disk.get(asset!.path)).toEqual(TINY_JPEG);
-    const [record] = await repo.listRecords('purchases');
+    const [record] = await repo.listRecords('receipts');
     expect(record!.values.merchant).toBe('超市');
     expect(attachmentIds(record!.values.attachments)).toEqual([asset!.id]);
     expect(files.disk.has(photo!.uri)).toBe(true);
     expect(recordChoices(store.getState().config!)[0]).toEqual({
       kind: 'table',
-      tableId: 'purchases',
-      name: '购物凭证',
+      tableId: 'receipts',
+      name: '收据',
     });
+  });
+
+  it('选了购物凭证又改了表名：不用整套收据，照预设自己的页面建（D-479）', async () => {
+    const { files, store } = await render();
+    await openShare(files, ['IMG_1.jpg']);
+    await choose('new');
+    expect(await screen.findByTestId('draft-attachments-file-0')).toBeTruthy();
+    await pickType('purchase');
+    expect(screen.getByTestId('new-table-name').props.value).toBe('收据');
+    await fireEvent.changeText(screen.getByTestId('new-table-name'), '我的小票');
+    await fireEvent.changeText(screen.getByTestId('draft-merchant'), '超市');
+    await saveNew();
+    const config = store.getState().config!;
+    expect(config.data.tables.map((c) => c.id)).toEqual(['purchases']);
+    expect(config.containers.pages.some((p) => p.id === 'spending')).toBe(false);
   });
 
   it('不选预设也能建：加字段、改名、去掉字段，表名自己写', async () => {
@@ -289,7 +308,7 @@ describe('预览页和收件页面 → 存成记录', () => {
     await pickType('purchase');
     await saveNew();
     expect(screen.queryByTestId('welcome')).toBeNull();
-    const [record] = await repo.listRecords('purchases');
+    const [record] = await repo.listRecords('receipts');
     expect(attachmentIds(record!.values.attachments)).toHaveLength(1);
     expect(await repo.listAssets()).toHaveLength(1);
     await act(() => router.back());
