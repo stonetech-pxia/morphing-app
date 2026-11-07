@@ -215,6 +215,8 @@ function reachablePages(config: WorkspaceConfig): Set<string> {
     queue.push(id);
   };
   for (const target of [...config.nav.bar, ...config.nav.floating]) visit(pageIdOf(target));
+  // 每个 app 的底栏也是根（D-485）；app 本身从主页的入口和设置里的「我的 App」进。
+  for (const app of config.nav.apps ?? []) for (const target of app.bar) visit(pageIdOf(target));
   for (const r of remindersOf(config)) visit(pageIdOf(r.opens));
   // 工具包的页面在「设置 → 工具」里；工具箱是内核的系统入口（和 page-entries.ts 一样不算孤立页面）。
   for (const p of pages) if (p.package || p.id === TOOLBOX_PAGE_ID) visit(p.id);

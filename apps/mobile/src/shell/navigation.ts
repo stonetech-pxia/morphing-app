@@ -1,5 +1,8 @@
 import {
   SYSTEM_TARGET_ICONS,
+  appOfTarget,
+  appTargetId,
+  appViewOf,
   builtinText,
   navTargetLabel,
   pageIdOf,
@@ -20,13 +23,25 @@ import { useWorkspace } from '../workspace/context';
  * - AI 修改是单独的页面；
  * - 导航栏里的页面和系统入口（工具、历史、设置）在外壳里切换显示；
  * - 不在导航栏里的页面、工具和改动记录推入一个带返回按钮的新页面；
- * - 快捷操作 tool:<id> 只打开摆出来（D-256）。
+ * - 快捷操作 tool:<id> 只打开摆出来（D-256）；
+ * - app:<id> 进入那个 app；别的 app 的页面先切到它的 app（提醒、小组件、入口都从这里走，D-485）；
+ *   在 app 里打开设置回到主页（系统页用主页的样子）。
  */
 export function useNavigate(): (target: OpenTarget) => void {
   const router = useRouter();
-  const nav = useWorkspace((s) => s.config!.nav.bar);
+  const config = useWorkspace((s) => s.config!);
+  const appId = useWorkspace((s) => s.appId);
+  const nav = appViewOf(config, appId).bar;
   const selectTab = useWorkspace((s) => s.selectTab);
+  const enterApp = useWorkspace((s) => s.enterApp);
+  const leaveApp = useWorkspace((s) => s.leaveApp);
   return (target) => {
+    const toApp = appTargetId(target);
+    if (toApp !== null) {
+      enterApp(toApp);
+      if (router.canDismiss()) router.dismissAll();
+      return;
+    }
     // 按钮、快捷入口打开的快捷操作（D-256）：只摆出来，用户点「开始」才运行（和提醒一样，P-043）。
     const workflowId = toolTargetId(target);
     if (workflowId !== null) {
@@ -47,10 +62,23 @@ export function useNavigate(): (target: OpenTarget) => void {
       return;
     }
     const pageId = pageIdOf(navTarget);
+    // 另一个 app（或主页）的页面：先切过去；在它的底栏里就显示，不在就推入。
+    const owner = appOfTarget(config, navTarget);
+    if (pageId !== null && owner !== undefined && owner !== appId) {
+      if (appViewOf(config, owner).bar.includes(navTarget)) {
+        if (owner === null) leaveApp();
+        else enterApp(owner);
+        selectTab(navTarget);
+        if (router.canDismiss()) router.dismissAll();
+      } else router.push({ pathname: '/page/[pageId]', params: { pageId } });
+      return;
+    }
     if (pageId !== null && !nav.includes(navTarget)) {
       router.push({ pathname: '/page/[pageId]', params: { pageId } });
       return;
     }
+    // 设置在 app 的底栏里没有：回主页再显示（设置是系统页，用主页的样子）。
+    if (appId !== null && navTarget === 'settings') leaveApp();
     selectTab(navTarget);
     // 从推入的页面打开外壳里的入口时，先回到外壳。
     if (router.canDismiss()) router.dismissAll();

@@ -1,4 +1,4 @@
-import { CURRENT_SCHEMA_VERSION, remindersOf } from '@morph/core';
+import { CURRENT_SCHEMA_VERSION, appTarget, remindersOf } from '@morph/core';
 import { MODELS } from '@morph/planner';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -38,6 +38,22 @@ export function SettingsView({ env }: { env: RenderEnv }) {
     <ScrollView
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap - 4, paddingBottom: 160 }}>
       <PageTitle palette={palette}>{t(locale, 'settingsTitle')}</PageTitle>
+      {/* 我的 App（D-485）：入口可以没有，这里一定进得去。系统层，AI 改不了。 */}
+      {(env.config.nav.apps ?? []).length > 0 ? (
+        <>
+          <SectionLabel palette={palette}>{t(locale, 'settingsMyApps')}</SectionLabel>
+          {(env.config.nav.apps ?? []).map((app) => (
+            <ListRow
+              key={app.id}
+              palette={palette}
+              testID={`settings-app-${app.id}`}
+              icon={app.icon ?? 'apps'}
+              label={app.name}
+              onPress={env.locked ?? (() => env.navigate(appTarget(app.id)))}
+            />
+          ))}
+        </>
+      ) : null}
       <SectionLabel palette={palette}>{t(locale, 'thisApp')}</SectionLabel>
       <ListRow
         palette={palette}

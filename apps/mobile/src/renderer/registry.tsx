@@ -5,6 +5,7 @@ import {
   isKnownComponent,
   isRecordToolUse,
   isToolRefUse,
+  appTargetId,
   packageTargetId,
   toolTargetId,
   type Collection,
@@ -122,13 +123,20 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
     const packageId = packageTargetId(c.opens);
     if (packageId !== null)
       return <ToolCard toolId={packageId} look={c.show?.shape} style={c.style} env={env} />;
-    const show = c.show ?? {};
+    // 打开 app 的入口（D-485）：名字、图标没写就按 app 现取。
+    const appId = appTargetId(c.opens);
+    const app = appId !== null ? env.config.nav.apps?.find((a) => a.id === appId) : undefined;
+    const show = {
+      ...c.show,
+      title: c.show?.title ?? app?.name ?? '',
+      icon: c.show?.icon ?? app?.icon ?? 'apps',
+    };
     if (env.inBottomZone)
       return (
         <BottomPill
           env={env}
-          icon={show.icon ?? 'apps'}
-          title={show.title ?? ''}
+          icon={show.icon}
+          title={show.title}
           onPress={() => open(env, c.opens)}
         />
       );
@@ -136,8 +144,8 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
       <Tile
         env={env}
         style={c.style}
-        icon={show.icon ?? 'apps'}
-        title={show.title ?? ''}
+        icon={show.icon}
+        title={show.title}
         subtitle={show.subtitle}
         titleColor={show.accent ? env.palette.primaryText : undefined}
         onPress={() => open(env, c.opens)}

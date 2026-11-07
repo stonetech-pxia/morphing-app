@@ -279,14 +279,15 @@ const GENERAL_RULES = `1. Change only what was asked, and do every part of it: a
 50. A time on a schedule ("每天晚上8点吃药", "the dentist on Friday at 3pm", "chaque lundi à 9h") is the user's own: rules take time? "HH:mm" (any rule), entries show "Tomorrow at 15:00" and sort by it within a day, and per-entry reminders (rule 35) fire at the entry's own time, falling back to the reminder's time. You never set an entry's time; smartDate (rule 49) fills it from what the user types. A calendar (rule 45) can group by a schedule field: each entry shows on its coming days (overdue ones on today, finished once entries not at all).
 51. suggest (optional, at most 2, each under 40 characters): with an ops plan that leaves nothing in next (when next is set, the plan for next gives them), one or two short requests in the interface language for what this kind of app usually gets next and does not have yet, shown to the user as tappable ideas (after building a to-do app: "加子任务", "做一个看板"; after a habit tracker: "到点提醒我"; after a budget: "Show spending by category"). Each must work on its own as a change to the app (function or look) — never something done for the user (writing text, reading or summing up their entries, D-113) — and must not repeat next or anything the app already has, this plan's ops included. Word it as a change, never as a question about entries ("首页显示今天完成了几项", not "今天完成了几项"). Give it after every change that adds something (a table, field, page, list, board, chart or reminder), so the user always has a next idea; leave it out only for pure style tweaks (colors, fonts, a rename, moving or removing something) or when nothing obvious is missing.
 52. The file desk (where the user edits one file at a time) has a layout of its own, in containers.desk: updateContainer {desk: {toolbar: "top" | "bottom", preview: "fill" | "large" | "medium", strip: true | false, tools: {pdf: [{title?, items: [{action: "pdf.rotate"}, "quick-action-id"]}]}}} (null puts one back to its default). tools is per kind of file (image, pdf, sheet, doc, video, audio, other) and each kind given is its complete new toolbar: to add, remove or reorder buttons, start from the toolbar in the <context> block and keep what the user didn't mention. Items are catalog actions that take that kind of file, or quick action ids. A note, button or entry above or below the preview: addContainer {desk: "above" | "below", block} (at most 2 each; header, text, notice, divider, spacer, button or entry) and removeContainer {desk, block}. Share, save and preview buttons are always there and the preview can't be removed: say so instead of trying.
-53. Big jobs start with a plan the user reads first. When one request involves 2 or more tools (a quick action is one tool; a reminder is one; a table with its form, list and buttons is one), or asks to build an app from scratch or turn the whole app into a different one, or would take more than 30 ops: write no ops and reply {"kind": "build", "summary", "steps": [{"id", "kind", "title", "request"}]} with 2 to 8 steps. summary: one short sentence in the interface language saying what gets built. kind: "file" (a quick action), "record" (a table, reminder or the like), "fileToRecord" (a quick action that ends in a new entry) or "look" (theme, pages' appearance). title: a few words in the interface language; the user sees it and can remove the step. request: one sentence in the interface language that works on its own as a request to you, keeping the user's own numbers, names and words ("建一张书单表，字段有书名、作者、读完日期"). Order: data, then tools (quick actions, reminders), then pages and buttons, then look; a tool's table, way in and page sit in adjacent steps. With only one tool, or when only changing the style or one setting ("主题换成蓝色", "把压缩大小改成 2MB", "add a mood field"), reply with ops as usual, never a plan. A <session> block gives the goal and what is still open, only so you understand the request: do only what the request asks. When it says "Step n of m", the user already started the plan: do that one step and reply with ops or reject, never another build plan; later steps do what you leave out.`;
+53. Big jobs start with a plan the user reads first. When one request involves 2 or more tools (a quick action is one tool; a reminder is one; a table with its form, list and buttons is one), or asks to build an app from scratch or turn the whole app into a different one, or would take more than 30 ops: write no ops and reply {"kind": "build", "summary", "steps": [{"id", "kind", "title", "request"}]} with 2 to 8 steps. summary: one short sentence in the interface language saying what gets built. kind: "file" (a quick action), "record" (a table, reminder or the like), "fileToRecord" (a quick action that ends in a new entry) or "look" (theme, pages' appearance). title: a few words in the interface language; the user sees it and can remove the step. request: one sentence in the interface language that works on its own as a request to you, keeping the user's own numbers, names and words ("建一张书单表，字段有书名、作者、读完日期"). Order: data, then tools (quick actions, reminders), then pages and buttons, then look; a tool's table, way in and page sit in adjacent steps. With only one tool, or when only changing the style or one setting ("主题换成蓝色", "把压缩大小改成 2MB", "add a mood field"), reply with ops as usual, never a plan. A <session> block gives the goal and what is still open, only so you understand the request: do only what the request asks. When it says "Step n of m", the user already started the plan: do that one step and reply with ops or reject, never another build plan; later steps do what you leave out.
+57. Apps. The user can have several apps besides the home: nav.apps lists them (id, name, icon, a bar of its own pages and "ai", its own theme); pages, tables and quick actions say which app they belong to with "app" (none = the home). Building an app takes a function turn and a look turn (rule 26): first addContainer {app: {id, name, icon?}} plus its tables (addData with "app") and quick actions (addTool with "app"); then its pages (addContainer {page: {…, app}}; a new page is put in the app's bar by itself), its bar (updateContainer {app: {id, bar}}, at most 5, only its own pages and "ai"), its style (setTheme with "app"; a new app starts with a copy of the home style) and, unless the user says no, an entry on the home page that opens it (an entry block with opens "app:<id>"; title and icon come from the app). Renaming or removing an app is updateContainer / removeContainer with "app"; removing it keeps its tables and entries (they move to the home). A <context> that says "inside app" means the user is inside that app: you see only its pages, tables and quick actions, plus the home's tables you may point at (never change). Change only what belongs to the app; do not write "app" on new things (they become the app's by themselves) and never reuse an id listed as already used. Anything else — the home page, the home bar and style, other apps, tools, reminders, the file room, making or removing apps — is not yours inside an app: reject with "unknown" and say in the message to tap the Tinkrum button in the bar to go to the home and ask there. Nothing inside an app may open or point at another app's things.`;
 
 /**
  * 规则按用途分组，给按需加载（PromptRoute）用：core 每次都发（含办事拒绝 24、记录内容 17、
  * 功能 / 外观分两轮 26 等底线相关的规则），其余按路由挑。新规则要在这里登记，测试会查。
  */
 export const RULE_GROUPS = {
-  core: [1, 2, 3, 4, 5, 6, 16, 17, 23, 24, 25, 26, 27, 51, 53],
+  core: [1, 2, 3, 4, 5, 6, 16, 17, 23, 24, 25, 26, 27, 51, 53, 57],
   style: [9, 10, 11],
   look: [7, 8, 12, 13, 37, 52],
   records: [18, 19, 32, 33, 34, 35, 38, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 54, 55, 56],
@@ -638,6 +639,18 @@ function describeSession(session: PlanSession | undefined): string {
   return body ? `\n\n<session>\n${body}\n</session>` : '';
 }
 
+/** 在一个 app 里打开的 Tink（rule 57）：看不到的东西占着的 ID（只有 ID）。 */
+export interface AppScope {
+  appId: string;
+  hidden: { pages: string[]; tables: string[]; tools: string[]; apps: string[] };
+}
+
+function describeScope(config: WorkspaceConfig, scope: AppScope | undefined): string {
+  if (!scope) return '';
+  const app = config.nav.apps?.find((a) => a.id === scope.appId);
+  return `\n\n<context>inside app "${scope.appId}" (“${app?.name ?? scope.appId}”): you can change only this app. Ids already used outside it (do not reuse): ${JSON.stringify(scope.hidden)}</context>`;
+}
+
 /** 用户从哪里打开 AI（rule 25）：只有配置里的 id 和名字，或文件的种类和个数；没有记录和文件名。 */
 function describeAbout(
   config: WorkspaceConfig,
@@ -696,12 +709,13 @@ export function buildUserMessage(
   earlier?: readonly PlanEarlier[],
   registry?: Registry,
   session?: PlanSession,
+  scope?: AppScope,
 ): string {
   return `Interface language: ${t(locale, 'prompt_English_fafbe')}
 
 <workspace_config>
 ${JSON.stringify(config)}
-</workspace_config>${describeAbout(config, about, locale, registry)}${describeEarlier(earlier)}${describeSession(session)}
+</workspace_config>${describeScope(config, scope)}${describeAbout(config, about, locale, registry)}${describeEarlier(earlier)}${describeSession(session)}
 
 <user_request>
 ${input}

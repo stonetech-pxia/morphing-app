@@ -232,6 +232,11 @@ export interface PlanContext {
   /** 界面语言：拒绝说明和示例用这种语言。 */
   locale: Locale;
   about?: PlanAbout;
+  /**
+   * 在某个 app 里打开的 Tink（D-485）：只能改这个 app。和 about 并存（about 说从哪个页面打开，scope 说在哪个 app）。
+   * 发给模型的配置只有这个 app 的部分，改动由代码检查范围（change.ts 的 scope）。从主页打开不带这一项。
+   */
+  scope?: { appId: string };
   /** 只有评测和旧调用方还用；App 发 session（D-414）。 */
   earlier?: PlanEarlier[];
   session?: PlanSession;

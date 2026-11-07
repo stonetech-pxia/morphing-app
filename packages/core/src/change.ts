@@ -1,3 +1,4 @@
+import { scopeProblems, tagNewForApp } from './app-scope';
 import { describeChange } from './describe';
 import { newFileRefs, restoreFileRefs } from './file-refs';
 import { migrateWorkspace } from './migrate';
@@ -21,6 +22,11 @@ export interface ChangeContext {
    * 用户在界面上的修改不带这一项。
    */
   fromAI?: boolean;
+  /**
+   * 在某个 app 里改（D-485）：只能改这个 app 自己的页面、表、快捷操作、底栏和风格，超出的整个拒绝。
+   * 从主页改不带这一项（整个工作区）。
+   */
+  scope?: { appId: string };
 }
 
 export type PreparedChange =
@@ -41,6 +47,8 @@ export function prepareOps(
   if (!applied.ok) return { ok: false, stage: 'apply', issues: [applied.error] };
   // AI 看到的文件 ID 是占位符；原样写回来的换回原来的文件。
   const config = restoreFileRefs(before, applied.config);
+  // 在 app 里新加的页面、表、快捷操作没写 app 的，归到这个 app（模型常忘了写）。
+  if (ctx.scope) tagNewForApp(before, config, ctx.scope.appId);
   // 修改里新加的页面没有任何地方能打开时，在首页补一个入口（AI 常忘了加）。
   const notes = [
     ...applied.notes,
@@ -65,6 +73,10 @@ export function prepareOps(
   const valid = validateWorkspace(config, ctx.registry, { unknownComponents: before });
   if (!valid.ok)
     return { ok: false, stage: 'validate', issues: valid.issues.map((i) => i.message) };
+  if (ctx.scope) {
+    const out = scopeProblems(before, valid.config, ctx.scope.appId, ctx.registry);
+    if (out.length > 0) return { ok: false, stage: 'validate', issues: out };
+  }
   // 校验器不查的引用（底线 18）：修改不能多出新的；修改前就有的不拦（底线 12，旧配置照常能改）。
   const old = new Set(referenceProblems(before, ctx.registry));
   const added = referenceProblems(valid.config, ctx.registry).filter((p) => !old.has(p));

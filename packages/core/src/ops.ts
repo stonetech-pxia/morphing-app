@@ -18,6 +18,7 @@ import {
   MAX_REMINDERS,
   PROTECTED_TARGETS,
   allComponents,
+  appTarget,
   childrenOf,
   componentCollection,
   componentTarget,
@@ -30,6 +31,8 @@ import {
   quickActionsOf,
   toolGridToolIds,
   toolTarget,
+  type App,
+  type AppBarTarget,
   type BackdropPatch,
   type Collection,
   type Component,
@@ -39,6 +42,7 @@ import {
   type Page,
   type QuickAction,
   type Reminder,
+  type Theme,
   type ThemeColors,
   type Tool,
   type WorkflowStep,
@@ -87,6 +91,8 @@ export type ApplyNote =
   /** 新加的记录块所属的表没有添加的地方，在它上方补了一个「添加」按钮（D-310）。 */
   | { kind: 'addedEntryForm'; table: string }
   | { kind: 'addedPageEntry'; page: string }
+  /** 移除 app（D-485）：它的表归到主页（记录保留）；打开它的按钮、入口跟着移除。 */
+  | { kind: 'removedApp'; tables: string[]; links: boolean }
   /** 工具包升级到当前版本，新增了这些快捷操作。 */
   | { kind: 'updatedTool'; package: string; tools: string[] };
 
@@ -282,6 +288,68 @@ function removeFromNav(config: WorkspaceConfig, target: NavTarget): void {
   config.nav.bar = config.nav.bar.filter((t) => t !== target);
   config.nav.floating = config.nav.floating.filter((t) => t !== target);
   if (config.nav.bar.length === 0) config.nav.bar = [pageTarget(HOME_PAGE_ID)];
+}
+
+/** 每个 app 的底栏里去掉这个页面；底栏空了就只剩 Tink（D-485）。 */
+function removeFromAppBars(config: WorkspaceConfig, target: NavTarget): void {
+  for (const app of config.nav.apps ?? []) {
+    app.bar = app.bar.filter((t) => t !== target);
+    if (app.bar.length === 0) app.bar = ['ai'];
+  }
+}
+
+// ---- app（D-485）----
+
+function getApp(config: WorkspaceConfig, id: string): App {
+  const app = config.nav.apps?.find((a) => a.id === id);
+  if (!app) throw new OpError(`app ${id} not found`);
+  return app;
+}
+
+function addApp(config: WorkspaceConfig, op: OpOf<'addContainer'>): void {
+  const spec = op.app!;
+  if ((config.nav.apps ?? []).some((a) => a.id === spec.id))
+    throw new OpError(`app ${spec.id} already exists`);
+  const app: App = {
+    id: spec.id,
+    name: spec.name,
+    ...(spec.icon !== undefined ? { icon: spec.icon } : {}),
+    bar: [...new Set<AppBarTarget>(spec.bar ?? ['ai'])],
+    // 新 app 的风格从主页复制一份，之后各改各的，不继承。
+    theme: clone(config.theme),
+  };
+  (config.nav.apps ??= []).push(app);
+}
+
+function updateApp(config: WorkspaceConfig, op: OpOf<'updateContainer'>): void {
+  const { id, name, icon, bar } = op.app!;
+  const app = getApp(config, id);
+  if (name !== undefined) app.name = name;
+  if (icon === null) delete app.icon;
+  else if (icon !== undefined) app.icon = icon;
+  if (bar !== undefined) app.bar = [...new Set(bar)];
+}
+
+/**
+ * 移除一个 app：它的页面、快捷操作一起移除（复用移除页面、移除快捷操作的清理），打开它的入口跟着移除；
+ * 它的表和记录一条不动，只是归到主页（底线 5）。
+ */
+function removeApp(config: WorkspaceConfig, id: string, notes: ApplyNote[]): void {
+  const app = getApp(config, id);
+  for (const page of config.containers.pages.filter((p) => p.app === id)) {
+    removePage(config, page.id, notes);
+  }
+  const target = appTarget(id);
+  const links = removeEverywhere(config, (c) => componentTarget(c) === target) > 0;
+  for (const tool of config.tools.filter((t) => t.kind === 'quickAction' && t.app === id)) {
+    removeTool(config, { op: 'removeTool', tool: tool.id }, notes);
+  }
+  const moved = config.data.tables.filter((t) => t.app === id);
+  for (const table of moved) delete table.app;
+  config.nav.apps = config.nav.apps!.filter((a) => a.id !== app.id);
+  if (config.nav.apps.length === 0) delete config.nav.apps;
+  if (moved.length > 0 || links)
+    notes.push({ kind: 'removedApp', tables: moved.map((t) => t.name), links });
 }
 
 // ---- 工具 ----
@@ -814,6 +882,7 @@ function moveData(config: WorkspaceConfig, op: OpOf<'moveData'>): void {
 }
 
 function addContainer(config: WorkspaceConfig, op: OpOf<'addContainer'>): void {
+  if (op.app !== undefined) return addApp(config, op);
   if (op.desk !== undefined) {
     const block = clone(op.block!) as Component;
     const desk = (config.containers.desk ??= {});
@@ -893,6 +962,7 @@ function updateContainer(
   op: OpOf<'updateContainer'>,
   notes: ApplyNote[],
 ): void {
+  if (op.app !== undefined) return updateApp(config, op);
   if (op.nav !== undefined) {
     const { bar, floating, phoneHomeScreen } = op.nav;
     if (bar !== undefined) {
@@ -955,6 +1025,7 @@ function removePage(config: WorkspaceConfig, pageId: string, notes: ApplyNote[])
   config.containers.pages = config.containers.pages.filter((p) => p.id !== pageId);
   const target = pageTarget(pageId);
   removeFromNav(config, target);
+  removeFromAppBars(config, target);
   const count = removeEverywhere(config, (c) => componentTarget(c) === target);
   if (count > 0) notes.push({ kind: 'removedLinks', pageId, count });
   // D-342：点一条打开这一页的记录块、行上打开这一页的按钮改回打开编辑页。
@@ -975,6 +1046,7 @@ function removeContainer(
   op: OpOf<'removeContainer'>,
   notes: ApplyNote[],
 ): void {
+  if (op.app !== undefined) return removeApp(config, op.app, notes);
   if (op.desk !== undefined) {
     const desk = config.containers.desk;
     const list = desk?.[op.desk] as Component[] | undefined;
@@ -1121,17 +1193,19 @@ function moveTool(config: WorkspaceConfig, op: OpOf<'moveTool'>): void {
 }
 
 function setTheme(config: WorkspaceConfig, op: OpOf<'setTheme'>): void {
+  // 不写 app 改主页的风格；写了改这个 app 自己的风格（D-485）。
+  const holder: { theme: Theme } = op.app === undefined ? config : getApp(config, op.app);
   if (op.reset) {
-    config.theme = clone(DEFAULT_THEME);
+    holder.theme = clone(DEFAULT_THEME);
     return;
   }
   if (op.preset !== undefined) {
-    config.theme = clone(THEME_PRESETS[op.preset].theme);
+    holder.theme = clone(THEME_PRESETS[op.preset].theme);
     return;
   }
-  const { op: _, preset: _p, reset: _r, colors, darkColors, ...tokens } = op;
+  const { op: _, app: _a, preset: _p, reset: _r, colors, darkColors, ...tokens } = op;
   for (const [key, value] of Object.entries(tokens)) {
-    if (value !== undefined) (config.theme as Record<string, unknown>)[key] = value;
+    if (value !== undefined) (holder.theme as Record<string, unknown>)[key] = value;
   }
   const setColors = (target: ThemeColors, changes: typeof colors) => {
     for (const [key, value] of Object.entries(changes ?? {})) {
@@ -1140,11 +1214,11 @@ function setTheme(config: WorkspaceConfig, op: OpOf<'setTheme'>): void {
       else if (value !== undefined) target[k] = value;
     }
   };
-  setColors(config.theme.colors, colors);
+  setColors(holder.theme.colors, colors);
   if (darkColors) {
-    const dark = (config.theme.darkColors ??= {});
+    const dark = (holder.theme.darkColors ??= {});
     setColors(dark, darkColors);
-    if (Object.keys(dark).length === 0) delete config.theme.darkColors;
+    if (Object.keys(dark).length === 0) delete holder.theme.darkColors;
   }
 }
 

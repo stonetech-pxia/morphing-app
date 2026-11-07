@@ -100,6 +100,8 @@ export interface DraftStep {
 /** 草稿从哪里开始的：应用后据此带用户回去（从快捷操作或收件页面打开）。 */
 export interface DraftOrigin {
   about?: PlanAbout;
+  /** 在哪个 app 里改的（D-485）：只能改这个 app；草稿跟着它，换到别处接着说也一样。没写是主页（整个工作区）。 */
+  appId?: string;
   /** 新手引导第 3 步套用的样板（D-260）：应用后回到它的主页面，提示可以用 AI 接着改。 */
   sample?: { id: SampleApp; pageId: string };
 }
@@ -241,6 +243,8 @@ export interface WorkspaceState {
   renderAttempt: number;
   /** 外壳当前显示的导航项；版本变化时外壳会重新挂载，所以保存在这里。 */
   tab: NavTarget | null;
+  /** 现在在哪个 app 里（D-485）；null = 主页。只放内存，不写配置（底线 15）。 */
+  appId: string | null;
   /** 记录的刷新信号：增删改记录后递增。 */
   recordsVersion: number;
   /** 预设列表的刷新信号（D-410）。 */
@@ -292,6 +296,11 @@ export interface WorkspaceState {
   reportRenderError(error: unknown): Promise<void>;
   dismissBanner(): void;
   selectTab(target: NavTarget): void;
+  /** 进入一个 app，先显示它底栏里的第一页；回到主页用 leaveApp。 */
+  enterApp(appId: string): void;
+  /** 在外壳里显示一个页面：它在所属 app（或主页）的底栏里就切过去并返回 true；不在底栏里返回 false，什么都不改。 */
+  showInShell(config: WorkspaceConfig, target: NavTarget): boolean;
+  leaveApp(): void;
   startEditing(pageId: string, mode?: EditDraft['mode']): void;
   /** 把操作加入草稿：先校验，不通过时草稿不变。 */
   editOps(ops: Op[]): EditResult;

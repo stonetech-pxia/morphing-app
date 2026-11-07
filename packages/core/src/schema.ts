@@ -30,7 +30,7 @@ import { ConditionSchema, FieldRefSchema } from './schema-primitives';
 // 修改已有结构（包括给已有外观加键）时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移；
 // 只新增一种外观不提升（D-254：老配置照样能读，旧 App 读到新外观时原样保留）。
 
-export const CURRENT_SCHEMA_VERSION = 38;
+export const CURRENT_SCHEMA_VERSION = 39;
 
 export * from './schema-base';
 export {
@@ -78,10 +78,15 @@ export type QuickActionListComponent = ComponentOf<'library'>;
 
 /** 页面最多几个顶层块。 */
 export const MAX_PAGE_BLOCKS = 30;
+/** 页面、表的总数（所有 app 共用，D-485，原来各 20）。 */
+export const MAX_PAGES = 60;
+export const MAX_TABLES = 40;
 
 export const PageSchema = z.strictObject({
   id: IdSchema,
   title: boundedText(1, 40),
+  /** 属于哪个 app（D-485）；没写属于主页。 */
+  app: IdSchema.optional(),
   /** 导航栏里显示的图标。 */
   icon: IconValueSchema.optional(),
   /** 由某个工具包创建的页面（原 toolId）；移除工具包时一并移除。 */
@@ -99,7 +104,7 @@ export const PageSchema = z.strictObject({
 export type Page = Omit<z.infer<typeof PageSchema>, 'blocks'> & { blocks: Component[] };
 
 export const ContainersSchema = z.strictObject({
-  pages: z.array(PageSchema).min(1).max(20),
+  pages: z.array(PageSchema).min(1).max(MAX_PAGES),
   /** 文件房间的布局（D-358）；没有时是默认布局（预览居中、工具栏在底部）。AI 修改等 R3（Q7）。 */
   desk: DeskLayoutSchema.optional(),
 });
@@ -147,6 +152,8 @@ export const QuickActionSchema = z.strictObject({
   id: IdSchema,
   kind: z.literal('quickAction'),
   name: boundedText(1, 40),
+  /** 属于哪个 app（D-485）；没写属于主页。 */
+  app: IdSchema.optional(),
   icon: IconValueSchema.optional(),
   package: IdSchema.optional(),
   preset: IdSchema.optional(),
@@ -270,7 +277,7 @@ export const ToolsSchema = z
 
 export const DataSchema = z.strictObject({
   /** 数据表结构（原 collections）。记录内容不在配置里，也从不发给 AI。 */
-  tables: z.array(CollectionSchema).max(20),
+  tables: z.array(CollectionSchema).max(MAX_TABLES),
   /** 一天、一周从什么时候开始（D-286）；没有时是 0 点、周一。 */
   calendar: CalendarSchema.optional(),
 });

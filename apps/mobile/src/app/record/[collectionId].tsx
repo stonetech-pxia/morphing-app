@@ -1,4 +1,10 @@
-import { attachmentIds, tableIsShown, type DataRecord, type FieldIssue } from '@morph/core';
+import {
+  appViewOf,
+  attachmentIds,
+  tableIsShown,
+  type DataRecord,
+  type FieldIssue,
+} from '@morph/core';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -33,7 +39,10 @@ export default function RecordRoute() {
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
   const showToast = useWorkspace((s) => s.showToast);
   const config = useWorkspace((s) => s.config)!;
-  const palette = usePalette(config.theme);
+  // 记录页用这张表所属 app 的风格（D-485）；主页的表用主页的。
+  const palette = usePalette(
+    appViewOf(config, config.data.tables.find((c) => c.id === collectionId)?.app ?? null).theme,
+  );
   const actions = useRecordActions();
   const mayProceed = useSimilarCheck();
   const headerHeight = useHeaderHeight();

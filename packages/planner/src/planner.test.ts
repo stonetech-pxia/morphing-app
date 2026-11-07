@@ -943,3 +943,61 @@ describe('plan progress', () => {
     expect(steps).toEqual(['full', 'checking', 'fixing', 'checking']);
   });
 });
+
+describe('在 app 里的 Tink（D-485）', () => {
+  const built = applyOps(
+    createDefaultWorkspace('en'),
+    [
+      { op: 'addContainer', app: { id: 'fit', name: 'Fitness' } },
+      { op: 'addContainer', app: { id: 'cook', name: 'Cooking' } },
+      { op: 'addContainer', page: { id: 'fit-home', title: 'Today', app: 'fit', blocks: [] } },
+      { op: 'addContainer', page: { id: 'cook-home', title: 'Menu', app: 'cook', blocks: [] } },
+    ],
+    { registry, locale: 'en' },
+  );
+  if (!built.ok) throw new Error(built.error);
+  const scoped = { config: built.config, registry, locale: 'en' as const, scope: { appId: 'fit' } };
+
+  it('shows the model only this app, and lists the ids used elsewhere', async () => {
+    const complete = vi
+      .fn<Complete>()
+      .mockResolvedValue(
+        json({ kind: 'ops', ops: [{ op: 'setTheme', app: 'fit', primaryColor: '#2F9E44' }] }),
+      );
+    await createClaudePlanner({ complete, registry, now }).plan('make it green', scoped);
+    const message = String(complete.mock.calls[0]![0]![0]!.content);
+    expect(message).toContain('inside app "fit"');
+    expect(message).toContain('fit-home');
+    // 别的 app 和主页的页面看不到，只剩占着的 ID。
+    expect(message).not.toContain('Menu');
+    expect(message).not.toContain('"title":"Home"');
+    expect(message).toContain('cook-home');
+    expect(message).toContain('"apps":["cook"]');
+  });
+
+  it('sends an out-of-scope plan back with the reason, and accepts the corrected one', async () => {
+    const complete = vi
+      .fn<Complete>()
+      .mockResolvedValueOnce(
+        json({ kind: 'ops', ops: [{ op: 'setTheme', primaryColor: '#2F9E44' }] }),
+      )
+      .mockResolvedValueOnce(
+        json({ kind: 'ops', ops: [{ op: 'setTheme', app: 'fit', primaryColor: '#2F9E44' }] }),
+      );
+    const result = await createClaudePlanner({ complete, registry, now }).plan('green', scoped);
+    expect(String(complete.mock.calls[1]![0]![2]!.content)).toContain('out of scope');
+    expect(result).toMatchObject({ kind: 'ops', ops: [{ op: 'setTheme', app: 'fit' }] });
+  });
+
+  it('without a scope the model sees everything', async () => {
+    const complete = vi.fn<Complete>().mockResolvedValue(json(green));
+    await createClaudePlanner({ complete, registry, now }).plan('green', {
+      config: built.config,
+      registry,
+      locale: 'en',
+    });
+    const message = String(complete.mock.calls[0]![0]![0]!.content);
+    expect(message).toContain('Menu');
+    expect(message).not.toContain('inside app');
+  });
+});

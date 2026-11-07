@@ -1,3 +1,5 @@
+import { appOfTarget, appViewOf, firstTarget } from '@morph/core';
+
 import type { Kernel } from './kernel';
 import type { WorkspaceState } from './types';
 
@@ -10,6 +12,9 @@ export function createUI({
   WorkspaceState,
   | 'dismissBanner'
   | 'selectTab'
+  | 'enterApp'
+  | 'showInShell'
+  | 'leaveApp'
   | 'bumpRecords'
   | 'showToast'
   | 'dismissToast'
@@ -21,6 +26,32 @@ export function createUI({
     dismissBanner: () => set({ banner: null }),
 
     selectTab: (target) => set({ tab: target, editing: null }),
+
+    enterApp(appId) {
+      const config = get().config;
+      if (!config) return;
+      const view = appViewOf(config, appId);
+      if (view.appId === null) return;
+      set({ appId, tab: firstTarget(view), editing: null });
+    },
+
+    showInShell(config, target) {
+      const owner = appOfTarget(config, target);
+      if (owner === undefined) return false;
+      const view = appViewOf(config, owner);
+      if (!view.bar.includes(target)) return false;
+      set({ appId: view.appId, tab: target, editing: null });
+      return true;
+    },
+
+    leaveApp() {
+      const config = get().config;
+      set({
+        appId: null,
+        tab: config ? firstTarget(appViewOf(config, null)) : null,
+        editing: null,
+      });
+    },
 
     bumpRecords: () => set((s) => ({ recordsVersion: s.recordsVersion + 1 })),
 

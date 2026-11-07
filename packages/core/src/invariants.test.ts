@@ -989,7 +989,7 @@ describe('底线 12：旧的永远能打开', () => {
       const r = migrateWorkspace(structuredClone(config));
       expect(r.ok && r.config).toEqual(config);
     }
-    expect(CURRENT_SCHEMA_VERSION).toBe(38);
+    expect(CURRENT_SCHEMA_VERSION).toBe(39);
   });
 
   // D-424：showIf、browse、single 都是新的可选值，没有它们的旧配置一个字不变；schemaVersion 不变。
@@ -1742,7 +1742,7 @@ describe('底线 9：容器上的工具也是直链，不能触发别的工具�
 
 describe('底线 12：旧配置不变（D-428）', () => {
   it('stays on the same version: every addition is optional', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(38);
+    expect(CURRENT_SCHEMA_VERSION).toBe(39);
   });
 
   it.each(CONFIGS)('%s loads with no row and no list tool made up', (_name, config) => {
@@ -2293,8 +2293,8 @@ describe('底线 2 / 14：标签只在记录里，配置和发给 AI 的都没�
 });
 
 describe('底线 12：旧的配置不用固定区、标签和浮动按钮照样打开（创始人 2026-11-04 定）', () => {
-  it('schemaVersion stays 38 and a config without the new keys is valid and unchanged', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(38);
+  it('schemaVersion stays 39 and a config without the new keys is valid and unchanged', () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(39);
     const old = fromV33(v33Fixture('sample-expense-helper-zh') as never);
     const text = JSON.stringify(old);
     for (const key of ['"pin"', '"dial"', '"tags"']) expect(text).not.toContain(key);

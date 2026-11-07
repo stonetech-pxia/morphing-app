@@ -39,6 +39,7 @@ export default function PresetsRoute() {
   const clearNext = useWorkspace((s) => s.clearNext);
   const clearSuggest = useWorkspace((s) => s.clearSuggest);
   const selectTab = useWorkspace((s) => s.selectTab);
+  const leaveApp = useWorkspace((s) => s.leaveApp);
   const hasSession = useWorkspace((s) => !sessionIsEmpty(s.session));
   const clearSession = useWorkspace((s) => s.clearSession);
   const router = useRouter();
@@ -94,6 +95,7 @@ export default function PresetsRoute() {
               await clearNext();
               await clearSuggest();
               // 回到首页看结果，顶部的提示条能撤销。
+              leaveApp();
               selectTab(pageTarget(HOME_PAGE_ID));
               router.back();
             })(),

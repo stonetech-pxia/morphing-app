@@ -3086,7 +3086,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 exports[`baseline > workspace config JSON Schema 2`] = `
 "
 . object
-.schemaVersion 38
+.schemaVersion 39
 .theme object
 .theme.primaryColor string /^#[0-9A-Fa-f]{6}$/
 .theme.mode "light"|"dark"|"system"
@@ -3111,16 +3111,25 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .nav.bar[]
 .nav.floating array items ..3
 .nav.floating[]
+.nav.apps? array items ..12
+.nav.apps[] object
+.nav.apps[].id string /^[a-z][a-z0-9-]{0,47}$/
+.nav.apps[].name string len 1..40
+.nav.apps[].icon?
+.nav.apps[].icon<anyOf 0> "home"|"apps"|"sparkles"|"history"|"settings"|"document"|"folder"|"star"|"heart"|"bolt"|"calendar"|"bookmark"|"inbox"|"chart"|"check"|"info"|"lightbulb"|"merge"|"link"|"person"|"plus"|"search"|"photo"|"scan"|"text"|"qrcode"|"archive"|"printer"|"signature"|"workflow"|"video"|"audio"|"translate"|"note"|"phone"|"message"|"mail"|"globe"|"share"
+.nav.apps[].icon<anyOf 1> string
+.nav.apps[].bar array items 1..5
+.nav.apps[].bar[]
+.nav.apps[].theme = .theme
 .nav.phoneHomeScreen? array items ..100
 .nav.phoneHomeScreen[] string /^[a-z][a-z0-9-]{0,47}$/
 .data object
-.data.tables array items ..20
+.data.tables array items ..40
 .data.tables[] object
 .data.tables[].id string /^[a-z][a-z0-9-]{0,47}$/
 .data.tables[].name string len 1..40
-.data.tables[].icon?
-.data.tables[].icon<anyOf 0> "home"|"apps"|"sparkles"|"history"|"settings"|"document"|"folder"|"star"|"heart"|"bolt"|"calendar"|"bookmark"|"inbox"|"chart"|"check"|"info"|"lightbulb"|"merge"|"link"|"person"|"plus"|"search"|"photo"|"scan"|"text"|"qrcode"|"archive"|"printer"|"signature"|"workflow"|"video"|"audio"|"translate"|"note"|"phone"|"message"|"mail"|"globe"|"share"
-.data.tables[].icon<anyOf 1> string
+.data.tables[].app? string /^[a-z][a-z0-9-]{0,47}$/
+.data.tables[].icon? = .nav.apps[].icon
 .data.tables[].fields array items 1..30
 .data.tables[].fields[]
 .data.tables[].fields[]<oneOf text> object
@@ -3316,11 +3325,12 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .data.calendar.weekStart? "monday"|"sunday"
 .data.calendar.twoWeekStart? string
 .containers object
-.containers.pages array items 1..20
+.containers.pages array items 1..60
 .containers.pages[] object
 .containers.pages[].id string /^[a-z][a-z0-9-]{0,47}$/
 .containers.pages[].title string len 1..40
-.containers.pages[].icon? = .data.tables[].icon
+.containers.pages[].app? string /^[a-z][a-z0-9-]{0,47}$/
+.containers.pages[].icon? = .nav.apps[].icon
 .containers.pages[].package? string /^[a-z][a-z0-9-]{0,47}$/
 .containers.pages[].backdrop? object
 .containers.pages[].backdrop.overlay "light"|"medium"|"strong"
@@ -3364,7 +3374,8 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .tools[]<oneOf 0>.id string /^[a-z][a-z0-9-]{0,47}$/
 .tools[]<oneOf 0>.kind "quickAction"
 .tools[]<oneOf 0>.name string len 1..40
-.tools[]<oneOf 0>.icon? = .data.tables[].icon
+.tools[]<oneOf 0>.app? string /^[a-z][a-z0-9-]{0,47}$/
+.tools[]<oneOf 0>.icon? = .nav.apps[].icon
 .tools[]<oneOf 0>.package? string /^[a-z][a-z0-9-]{0,47}$/
 .tools[]<oneOf 0>.preset? string /^[a-z][a-z0-9-]{0,47}$/
 .tools[]<oneOf 0>.steps array items 1..12

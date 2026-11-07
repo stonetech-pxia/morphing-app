@@ -17,7 +17,7 @@ import type { Applied } from '../workspace/store';
 export function useAfterApply(): (applied: Applied) => void {
   const router = useRouter();
   const { store } = useWorkspaceContext();
-  const selectTab = useWorkspace((s) => s.selectTab);
+  const showInShell = useWorkspace((s) => s.showInShell);
   return ({ origin, addedWorkflowIds, addedCollectionIds, homeScreenWorkflowIds, notes }) => {
     // 样板一次加了好几个快捷操作和表，不去「做好了」页面。退一步退掉了样板时页面不在，留在原处。
     if (origin.sample) {
@@ -28,8 +28,8 @@ export function useAfterApply(): (applied: Applied) => void {
       const target = pageTarget(pageId);
       // 先回到外壳（草稿可能是在推入的页面上应用的），再打开主页面，不会叠两层同一页。
       if (router.canDismiss()) router.dismissAll();
-      if (config.nav.bar.includes(target)) selectTab(target);
-      else router.push({ pathname: '/page/[pageId]', params: { pageId } });
+      if (!showInShell(config, target))
+        router.push({ pathname: '/page/[pageId]', params: { pageId } });
       return;
     }
     // AI 的说明（D-110）：草稿里显示在回复里，直接应用的功能显示在「做好了」页面上。

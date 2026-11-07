@@ -1,4 +1,4 @@
-import { builtinText, linkTitle, type DataRecord } from '@morph/core';
+import { appViewOf, builtinText, linkTitle, type DataRecord } from '@morph/core';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -39,9 +39,10 @@ export default function PageRoute() {
   const editing = useWorkspace((s) => s.editing?.pageId === pageId);
   const cancelEditing = useWorkspace((s) => s.cancelEditing);
   const startEditing = useWorkspace((s) => s.startEditing);
-  const palette = usePalette(config.theme);
-  const { navigate, locked, inDraft } = useShellEnv();
   const page = config.containers.pages.find((p) => p.id === pageId);
+  // 推入的页面用它所属 app 的风格（D-485）；主页的页面用主页的。
+  const palette = usePalette(appViewOf(config, page?.app ?? null).theme);
+  const { navigate, locked, inDraft } = useShellEnv();
   const recordOf = page?.of;
   const collection = recordOf ? config.data.tables.find((c) => c.id === recordOf) : undefined;
   // 这条记录：标题写在页面顶部；改了、删了以后重新读（undefined = 还在读）。

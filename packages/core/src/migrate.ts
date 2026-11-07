@@ -337,6 +337,9 @@ export const migrateV37toV38: Migration = (config) => {
   };
 };
 
+/** v38 → v39：nav 多了可选的 apps，页面、表、快捷操作多了可选的 app（D-485）。是新的可选值，只提升版本号。 */
+export const migrateV38toV39: Migration = (config) => ({ ...config, schemaVersion: 39 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -376,6 +379,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   35: migrateV35toV36,
   36: migrateV36toV37,
   37: migrateV37toV38,
+  38: migrateV38toV39,
 };
 
 export type MigrateResult =

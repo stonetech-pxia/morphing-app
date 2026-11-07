@@ -190,6 +190,7 @@ export function describeChange(
   };
   const page = (id: string) => known.containers.pages.find((p) => p.id === id);
   const pageName = (id: string) => page(id)?.title ?? id;
+  const appName = (id: string) => before.nav.apps?.find((a) => a.id === id)?.name ?? id;
   // 同一次修改里新加的块（例如先加分组再把卡片移进去）也要能用名字称呼。
   const added = ops.flatMap((op) =>
     op.op === 'addContainer' && op.block ? [op.block as Component] : [],
@@ -691,7 +692,8 @@ export function describeChange(
 
       // ---- 容器 ----
       case 'addContainer':
-        if (op.desk !== undefined && op.block)
+        if (op.app !== undefined) lines.push(t(ctx.locale, 'appDescAdd', { v0: op.app.name }));
+        else if (op.desk !== undefined && op.block)
           lines.push(
             t(ctx.locale, op.desk === 'above' ? 'v34descDeskAddAbove' : 'v34descDeskAddBelow', {
               v0: componentLabel(op.block as Component, known, ctx),
@@ -713,6 +715,10 @@ export function describeChange(
           );
         break;
       case 'updateContainer': {
+        if (op.app) {
+          lines.push(t(ctx.locale, 'appDescUpdate', { v0: op.app.name ?? appName(op.app.id) }));
+          break;
+        }
         if (op.nav) {
           const nav = op.nav;
           if (nav.bar)
@@ -831,7 +837,9 @@ export function describeChange(
         break;
       }
       case 'removeContainer':
-        if (op.desk !== undefined)
+        if (op.app !== undefined)
+          lines.push(t(ctx.locale, 'appDescRemove', { v0: appName(op.app) }));
+        else if (op.desk !== undefined)
           lines.push(t(ctx.locale, 'v34descDeskRemove', { v0: deskBlock(op.block!) }));
         else if (op.block === undefined)
           lines.push(
@@ -957,6 +965,10 @@ export function describeChange(
 
       // ---- 主题 ----
       case 'setTheme': {
+        if (op.app !== undefined) {
+          lines.push(t(ctx.locale, 'appDescTheme', { v0: appName(op.app) }));
+          break;
+        }
         if (op.preset) {
           const name = localize(THEME_PRESETS[op.preset].name, ctx.locale);
           lines.push(
@@ -1104,6 +1116,14 @@ export function describeChange(
           v1: wf(note.tool)?.name ?? note.tool,
         }),
       );
+    } else if (note.kind === 'removedApp') {
+      if (note.tables.length > 0)
+        lines.push(
+          t(ctx.locale, 'describeAppTablesMoved', {
+            names: note.tables.join(t(ctx.locale, 'separatorList')),
+          }),
+        );
+      if (note.links) lines.push(t(ctx.locale, 'describeAppLinksRemoved'));
     } else {
       lines.push(
         t(ctx.locale, 'describe_Also_removes_button_s_or_shortcut_s_th_d4dc1', {

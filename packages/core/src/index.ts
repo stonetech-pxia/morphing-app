@@ -26,6 +26,8 @@ export * from './desk';
 export * from './habits';
 export * from './home-entry';
 export * from './home-screen';
+export * from './app-view';
+export { hiddenIdsForAI, scopedViewForAI } from './app-scope';
 export * from './html';
 export * from './limits';
 export * from './audio';

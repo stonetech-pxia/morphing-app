@@ -186,6 +186,8 @@ export const MAX_RECORD_ROW = 10;
 export const CollectionSchema = z.strictObject({
   id: IdSchema,
   name: boundedText(1, 40),
+  /** 属于哪个 app（D-485）；没写属于主页。 */
+  app: IdSchema.optional(),
   icon: IconValueSchema.optional(),
   fields: z.array(FieldSchema).min(1).max(30),
   /** 新记录表单自动读附件、给候选（D-394、D-397）。不写就是打开；只读不写，不是工作流。 */
@@ -254,7 +256,9 @@ export const pageTarget = (pageId: string): PageTarget => `page:${pageId}`;
 export type ToolTarget = `tool:${string}`;
 export type PackageTarget = `package:${string}`;
 export type FileTarget = { file: string | null };
-export type OpenTarget = NavTarget | ToolTarget | PackageTarget | FileTarget;
+export type AppTarget = `app:${string}`;
+export type OpenTarget = NavTarget | ToolTarget | PackageTarget | AppTarget | FileTarget;
+const APP_TARGET = /^app:[a-z][a-z0-9-]{0,47}$/;
 const TOOL_TARGET = /^tool:[a-z][a-z0-9-]{0,47}$/;
 const PACKAGE_TARGET = /^package:[a-z][a-z0-9-]{0,47}$/;
 export const FileTargetSchema = z.strictObject({ file: AssetIdSchema.nullable() });
@@ -262,17 +266,22 @@ export const FileTargetSchema = z.strictObject({ file: AssetIdSchema.nullable() 
 /** 打开的目标；kinds 限定能写哪几种（提醒不能打开工具包、文件）。 */
 export const openTargetSchema = (
   message: string,
-  kinds: readonly ('tool' | 'package' | 'file')[] = ['tool', 'package', 'file'],
+  kinds: readonly ('tool' | 'package' | 'app' | 'file')[] = ['tool', 'package', 'app', 'file'],
 ) =>
   z.custom<OpenTarget>(
     (v) =>
       NavTargetSchema.safeParse(v).success ||
       (kinds.includes('tool') && typeof v === 'string' && TOOL_TARGET.test(v)) ||
       (kinds.includes('package') && typeof v === 'string' && PACKAGE_TARGET.test(v)) ||
+      (kinds.includes('app') && typeof v === 'string' && APP_TARGET.test(v)) ||
       (kinds.includes('file') && FileTargetSchema.safeParse(v).success),
     { message },
   );
 
+/** app:<id> → id；不是 app 入口时为 null。 */
+export const appTargetId = (target: OpenTarget): string | null =>
+  typeof target === 'string' && target.startsWith('app:') ? target.slice('app:'.length) : null;
+export const appTarget = (appId: string): AppTarget => `app:${appId}`;
 /** tool:<id> → id；不是快捷操作时为 null。 */
 export const toolTargetId = (target: OpenTarget): string | null =>
   typeof target === 'string' && target.startsWith('tool:') ? target.slice('tool:'.length) : null;
@@ -288,6 +297,30 @@ export const packageTarget = (id: string): PackageTarget => `package:${id}`;
 export const isFileTarget = (target: OpenTarget): target is FileTarget =>
   typeof target === 'object' && target !== null;
 
+// ---- app（D-485）----
+
+export const MAX_APPS = 12;
+
+/** app 底栏里能放的：这个 app 的页面，或 Tink（ai）。设置、改动记录等系统页不放，回主页去（D-485）。 */
+export type AppBarTarget = 'ai' | PageTarget;
+export const AppBarTargetSchema = z.custom<AppBarTarget>(
+  (v) => typeof v === 'string' && (v === 'ai' || PAGE_TARGET_PATTERN.test(v)),
+  { message: 'app bar target must be ai or page:<id>' },
+);
+
+/**
+ * 一个 app：自己的名字、图标、底栏和主题（新建时从主页主题复制一份，之后各改各的，不继承）。
+ * 页面、表、快捷操作用自己的 `app` 字段说属于哪个 app，没写属于主页。
+ */
+export const AppSchema = z.strictObject({
+  id: IdSchema,
+  name: boundedText(1, 40),
+  icon: IconValueSchema.optional(),
+  bar: z.array(AppBarTargetSchema).min(1).max(5),
+  theme: ThemeSchema,
+});
+export type App = z.infer<typeof AppSchema>;
+
 /**
  * 导航（v34 也是容器，NEW_FORMAT §3.6）：bar 导航栏（1–5，原 shell.nav）、floating 浮动入口（≤3）、
  * phoneHomeScreen 长按 Morph 图标的菜单里的快捷操作（≤4，D-271，原 workflow.homeScreen）。
@@ -295,6 +328,8 @@ export const isFileTarget = (target: OpenTarget): target is FileTarget =>
 export const NavSchema = z.strictObject({
   bar: z.array(NavTargetSchema).min(1).max(5),
   floating: z.array(NavTargetSchema).max(3),
+  /** 主页之外的 app（D-485）。主页就是顶层的 bar + theme；没有时只有主页。 */
+  apps: z.array(AppSchema).max(MAX_APPS).optional(),
   /** 上限 MAX_HOME_SCREEN 在 validate.ts 里查（给 AI 一句能照着改的话）。 */
   phoneHomeScreen: z.array(IdSchema).max(100).optional(),
 });

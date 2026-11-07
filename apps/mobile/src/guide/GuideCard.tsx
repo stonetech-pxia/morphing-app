@@ -19,7 +19,7 @@ export function GuideCard({ palette }: { palette: Palette }) {
   const stage = useGuide((s) => s.stage);
   const setStage = useGuide((s) => s.setStage);
   const draftSample = useWorkspace((s) => s.draftSample);
-  const selectTab = useWorkspace((s) => s.selectTab);
+  const showInShell = useWorkspace((s) => s.showInShell);
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const body = [palette.font('body', 14), { color: palette.muted }];
@@ -38,8 +38,8 @@ export function GuideCard({ palette }: { palette: Palette }) {
         }
         await setStage('done');
         const target = pageTarget(result.focusPageId);
-        if (result.step.config.nav.bar.includes(target)) selectTab(target);
-        else router.push({ pathname: '/page/[pageId]', params: { pageId: result.focusPageId } });
+        if (!showInShell(result.step.config, target))
+          router.push({ pathname: '/page/[pageId]', params: { pageId: result.focusPageId } });
       } finally {
         setBusy(false);
       }

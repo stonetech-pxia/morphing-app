@@ -1002,6 +1002,17 @@ export const fr: MessageTable = {
   v34descDeskAddAbove: 'Ajouter {v0} au-dessus de l’aperçu sur le bureau',
   v34descDeskAddBelow: 'Ajouter {v0} sous l’aperçu sur le bureau',
   v34descDeskRemove: 'Retirer {v0} du bureau',
+  appDescAdd: 'Ajouter l’app « {v0} »',
+  appBackToHome: 'Retour à Tinkrum',
+  settingsMyApps: 'Mes apps',
+  appEmpty: 'Cette app n’a pas encore de page. Touchez Tink pour en créer une.',
+  appDescUpdate: 'Modifier l’app « {v0} »',
+  appDescRemove:
+    'Retirer l’app « {v0} » avec ses pages et actions rapides (ses tableaux et entrées sont conservés)',
+  appDescTheme: 'Modifier le style de l’app « {v0} »',
+  describeAppTablesMoved:
+    'Les tableaux de l’app passent à la page d’accueil ; leurs entrées sont conservées : {names}',
+  describeAppLinksRemoved: 'Les boutons et accès qui ouvraient l’app sont retirés',
   v34descDeskLayout: 'Modifier la disposition du bureau',
   v34descQuickActionIcon: 'Changer l’icône de l’action rapide « {name} »',
   unknownComponent:

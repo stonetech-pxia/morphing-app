@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { THEME_PRESET_IDS } from './presets';
 import {
+  AppBarTargetSchema,
   BackdropPatchSchema,
   CollectionSchema,
   ComponentSchema,
@@ -19,6 +20,7 @@ import {
   ReminderSchema,
   ThemeSchema,
   WorkflowStepSchema,
+  boundedText,
 } from './schema';
 
 // 语义化修改操作（§7D），v34 一共 14 个（NEW_FORMAT_DRAFT §7）：数据 4 个、容器 4 个、工具 4 个、主题、工具包。
@@ -80,6 +82,19 @@ export const NavChangesSchema = z.strictObject({
   phoneHomeScreen: z.array(IdSchema).optional(),
 });
 
+export const NewAppSchema = z.strictObject({
+  id: IdSchema,
+  name: boundedText(1, 40),
+  icon: IconValueSchema.optional(),
+  bar: z.array(AppBarTargetSchema).min(1).max(5).optional(),
+});
+export const AppChangesSchema = z.strictObject({
+  id: IdSchema,
+  name: boundedText(1, 40).optional(),
+  icon: IconValueSchema.nullable().optional(),
+  bar: z.array(AppBarTargetSchema).min(1).max(5).optional(),
+});
+
 const deskSlot = z.enum(['above', 'below']);
 
 export const OpSchema = z.discriminatedUnion('op', [
@@ -132,6 +147,8 @@ export const OpSchema = z.discriminatedUnion('op', [
       op: z.literal('addContainer'),
       page: z.union([IdSchema, PageSchema.omit({ package: true })]).optional(),
       desk: deskSlot.optional(),
+      /** 新 app（D-485）：主题从当前主页主题复制；bar 不写是只有 Tink。页面、表要自己用 app 字段放进去。 */
+      app: NewAppSchema.optional(),
       block: ComponentSchema.optional(),
       /** 加入某个分组；省略时加在页面顶层。 */
       parent: IdSchema.optional(),
@@ -139,17 +156,23 @@ export const OpSchema = z.discriminatedUnion('op', [
     })
     .refine(
       (o) =>
-        o.desk !== undefined
-          ? o.page === undefined && o.block !== undefined && o.parent === undefined
-          : typeof o.page === 'string'
-            ? o.block !== undefined
-            : o.page !== undefined &&
-              o.block === undefined &&
-              o.parent === undefined &&
-              o.index === undefined,
+        o.app !== undefined
+          ? o.page === undefined &&
+            o.desk === undefined &&
+            o.block === undefined &&
+            o.parent === undefined &&
+            o.index === undefined
+          : o.desk !== undefined
+            ? o.page === undefined && o.block !== undefined && o.parent === undefined
+            : typeof o.page === 'string'
+              ? o.block !== undefined
+              : o.page !== undefined &&
+                o.block === undefined &&
+                o.parent === undefined &&
+                o.index === undefined,
       {
         message:
-          'addContainer takes {page: {id, title, blocks}} for a new page, {page: "<page id>", block, parent?, index?} or {desk: "above"|"below", block}',
+          'addContainer takes {app: {id, name, icon?, bar?}} for a new app, {page: {id, title, blocks}} for a new page, {page: "<page id>", block, parent?, index?} or {desk: "above"|"below", block}',
       },
     ),
   /**
@@ -163,18 +186,26 @@ export const OpSchema = z.discriminatedUnion('op', [
       block: IdSchema.optional(),
       changes: z.union([BlockChangesSchema, PageChangesSchema]).optional(),
       nav: NavChangesSchema.optional(),
+      /** 改一个 app 的名字、图标、底栏（D-485）；风格用 setTheme {app}。 */
+      app: AppChangesSchema.optional(),
       desk: patch.optional(),
     })
     .refine(
       (o) =>
-        o.nav !== undefined
-          ? o.page === undefined && o.desk === undefined && o.changes === undefined
-          : o.desk !== undefined
-            ? o.page === undefined && o.changes === undefined
-            : o.page !== undefined && o.changes !== undefined,
+        o.app !== undefined
+          ? o.page === undefined &&
+            o.block === undefined &&
+            o.changes === undefined &&
+            o.nav === undefined &&
+            o.desk === undefined
+          : o.nav !== undefined
+            ? o.page === undefined && o.desk === undefined && o.changes === undefined
+            : o.desk !== undefined
+              ? o.page === undefined && o.changes === undefined
+              : o.page !== undefined && o.changes !== undefined,
       {
         message:
-          'updateContainer takes {page, block?, changes}, {nav: {bar?, floating?, phoneHomeScreen?}} or {desk: {…}}',
+          'updateContainer takes {page, block?, changes}, {app: {id, name?, icon?, bar?}}, {nav: {bar?, floating?, phoneHomeScreen?}} or {desk: {…}}',
       },
     ),
   z
@@ -182,11 +213,21 @@ export const OpSchema = z.discriminatedUnion('op', [
       op: z.literal('removeContainer'),
       page: IdSchema.optional(),
       desk: deskSlot.optional(),
+      /** 移除一个 app（D-485）：它的页面和快捷操作一起移除，表和记录归到主页。 */
+      app: IdSchema.optional(),
       block: IdSchema.optional(),
     })
-    .refine((o) => (o.desk !== undefined ? o.page === undefined && !!o.block : !!o.page), {
-      message: 'removeContainer takes {page, block?} or {desk: "above"|"below", block}',
-    }),
+    .refine(
+      (o) =>
+        o.app !== undefined
+          ? o.page === undefined && o.desk === undefined && o.block === undefined
+          : o.desk !== undefined
+            ? o.page === undefined && !!o.block
+            : !!o.page,
+      {
+        message: 'removeContainer takes {app}, {page, block?} or {desk: "above"|"below", block}',
+      },
+    ),
   z.strictObject({
     op: z.literal('moveContainer'),
     page: IdSchema,
@@ -235,6 +276,8 @@ export const OpSchema = z.discriminatedUnion('op', [
   z
     .strictObject({
       op: z.literal('setTheme'),
+      /** 改这个 app 的风格；不写是主页（D-485）。 */
+      app: IdSchema.optional(),
       preset: z.enum(THEME_PRESET_IDS).optional(),
       reset: z.literal(true).optional(),
       primaryColor: HexColorSchema.optional(),
@@ -252,7 +295,7 @@ export const OpSchema = z.discriminatedUnion('op', [
     })
     .refine(
       (o) => {
-        const keys = Object.keys(o).filter((k) => k !== 'op');
+        const keys = Object.keys(o).filter((k) => k !== 'op' && k !== 'app');
         return o.preset !== undefined || o.reset ? keys.length === 1 : keys.length > 0;
       },
       { message: 'setTheme takes {preset}, {reset: true} or the theme keys to change' },
@@ -285,7 +328,12 @@ export function isFunctionOp(op: Op): boolean {
     case 'moveTool':
     case 'setPackage':
       return true;
+    case 'addContainer':
+    case 'removeContainer':
+      // 新建、移除一个 app 是功能（表和快捷操作要指向它）；它的页面、底栏、风格是外观。
+      return op.app !== undefined;
     case 'updateContainer':
+      if (op.app !== undefined) return op.app.bar === undefined;
       return op.nav?.phoneHomeScreen !== undefined;
     default:
       return false;

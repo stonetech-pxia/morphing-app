@@ -26,6 +26,7 @@ import {
   HOME_PAGE_ID,
   MAX_HOME_SCREEN,
   PROTECTED_TARGETS,
+  appTargetId,
   WorkspaceConfigSchema,
   BACKDROP_TYPES,
   allComponents,
@@ -120,12 +121,56 @@ export function validateWorkspace(
     if (tool !== null && handedBy(config, tool, registry))
       issue('needs-container', needsContainer(tool, `nav entry ${target}`));
   }
+  // ---- app（D-485）：结构自洽。引用归属（谁能指向谁）只在修改时查，不在这里，旧快照要能打开（底线 12）----
+  const apps = config.nav.apps ?? [];
+  const appIds = new Set(apps.map((a) => a.id));
+  for (const id of duplicates(apps.map((a) => a.id))) issue('duplicate', `app ${id}`);
+  for (const page of pages) {
+    if (page.app === undefined) continue;
+    if (!appIds.has(page.app))
+      issue('unknown-app', `page ${page.id}: app ${page.app} does not exist`);
+    if (page.id === HOME_PAGE_ID) issue('app-home', 'the home page cannot belong to an app');
+  }
+  for (const table of tables) {
+    if (table.app !== undefined && !appIds.has(table.app))
+      issue('unknown-app', `table ${table.id}: app ${table.app} does not exist`);
+  }
+  for (const tool of config.tools) {
+    if (tool.kind === 'quickAction' && tool.app !== undefined && !appIds.has(tool.app))
+      issue('unknown-app', `quick action ${tool.id}: app ${tool.app} does not exist`);
+  }
+  for (const target of entries) {
+    const owner = pages.find((p) => p.id === pageIdOf(target))?.app;
+    if (owner !== undefined)
+      issue(
+        'app-nav',
+        `nav entry ${target} belongs to app ${owner}; the home bar only lists home pages`,
+      );
+  }
+  for (const app of apps) {
+    for (const target of duplicates(app.bar))
+      issue('duplicate', `app ${app.id} bar entry ${target}`);
+    for (const target of app.bar) {
+      const pageId = pageIdOf(target);
+      if (pageId === null) continue;
+      const page = pages.find((p) => p.id === pageId);
+      if (!page) issue('unknown-page', `app ${app.id} bar entry ${target}`);
+      else if (page.app !== app.id)
+        issue('app-nav', `app ${app.id} bar entry ${target} does not belong to this app`);
+      const problem = recordPageTargetProblem(config, target);
+      if (problem) issue('record-page', `app ${app.id} bar entry ${problem}`);
+    }
+    for (const problem of contrastProblems(app.theme))
+      issue('contrast', `app ${app.id} theme: ${problem}`);
+  }
   // ---- 给一条记录用的页面（D-342，page.of）----
   for (const page of pages) {
     if (page.of === undefined) continue;
     if (page.id === HOME_PAGE_ID) issue('record-page', 'the home page cannot have of');
-    if (!tables.some((c) => c.id === page.of))
-      issue('record-page', `page ${page.id}: of ${page.of} is not a data table`);
+    const table = tables.find((c) => c.id === page.of);
+    if (!table) issue('record-page', `page ${page.id}: of ${page.of} is not a data table`);
+    else if (table.app !== page.app)
+      issue('app-ref', `page ${page.id} and its table ${table.id} must belong to the same app`);
   }
   for (const target of PROTECTED_TARGETS) {
     if (!entries.includes(target)) {
@@ -408,6 +453,10 @@ function targetProblems(
     if (problem) problems.push({ code: 'unknown-workflow', message: `${where} opens ${problem}` });
     else if (handedBy(config, tool, registry))
       problems.push({ code: 'needs-container', message: needsContainer(tool, where) });
+  }
+  const app = appTargetId(target);
+  if (app !== null && !(config.nav.apps ?? []).some((a) => a.id === app)) {
+    problems.push({ code: 'unknown-app', message: `${where} opens missing ${String(target)}` });
   }
   const pkg = packageTargetId(target);
   if (pkg !== null && !config.packages.some((p) => p.id === pkg)) {

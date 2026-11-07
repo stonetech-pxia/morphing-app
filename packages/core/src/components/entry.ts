@@ -7,6 +7,7 @@ import {
   IconValueSchema,
   isFileTarget,
   openTargetSchema,
+  appTargetId,
   packageTargetId,
 } from '../schema-base';
 import { ALL_STYLES, EntryLookSchema, type LookDefinitionOf, defineLook } from './define';
@@ -27,11 +28,11 @@ const shape = {
     })
     .optional(),
   opens: openTargetSchema(
-    'opens must be a page, a system entry, tool:<id>, package:<id> or {file}',
+    'opens must be a page, a system entry, tool:<id>, package:<id>, app:<id> or {file}',
   ),
 };
 
-type EntryKind = 'shortcut' | 'link' | 'package' | 'file';
+type EntryKind = 'shortcut' | 'link' | 'package' | 'app' | 'file';
 
 /** 入口是哪一种（说明文字、编辑项按它分）：文件位、工具包的入口、「添加工具」那种主色入口、普通快捷入口。 */
 export function entryKind(c: {
@@ -41,6 +42,7 @@ export function entryKind(c: {
   const opens = c.opens as Parameters<typeof isFileTarget>[0];
   if (isFileTarget(opens)) return 'file';
   if (packageTargetId(opens) !== null) return 'package';
+  if (appTargetId(opens) !== null) return 'app';
   return c.show?.accent ? 'link' : 'shortcut';
 }
 
@@ -61,15 +63,20 @@ export const entryComponent: LookDefinitionOf<'entry', typeof shape> = defineLoo
     const problems: string[] = [];
     if (kind === 'package' && (c.show?.title || c.show?.icon || c.show?.subtitle))
       problems.push('an entry that opens package:<id> takes its title and icon from the tool');
-    if (kind !== 'package' && !c.show?.title) problems.push('an entry needs show.title');
+    if (kind !== 'package' && kind !== 'app' && !c.show?.title)
+      problems.push('an entry needs show.title');
     if (kind === 'shortcut' && !c.show?.icon) problems.push('an entry needs show.icon');
     if (kind !== 'file' && c.show?.hint) problems.push('show.hint only applies to a file slot');
     if (kind !== 'link' && (c.show?.title?.length ?? 0) > 40)
       problems.push('show.title can be at most 40 characters');
     return problems;
   },
-  describe: (c, _config, ctx) => {
-    const title = c.show?.title ?? '';
+  describe: (c, config, ctx) => {
+    // 打开 app 的入口：名字、图标不写时按 app 现取。
+    const appId = appTargetId(c.opens as Parameters<typeof appTargetId>[0]);
+    const title =
+      c.show?.title ??
+      (appId !== null ? (config.nav.apps?.find((a) => a.id === appId)?.name ?? appId) : '');
     switch (entryKind(c)) {
       case 'file':
         return t(ctx.locale, 'describeFileSlot', { v0: title });
@@ -95,7 +102,7 @@ export const entryComponent: LookDefinitionOf<'entry', typeof shape> = defineLoo
     backdrop: true,
   },
   ai: {
-    doc: 'show? {title, subtitle?, icon, shape?: "row"|"tile", hint?}, opens: a card with an icon that opens a page, a system entry, "tool:<id>" (like button) or "package:<id>" (an added tool\'s page; then leave show.title and icon out, they come from the tool). row (default) = a settings-style row with a light icon background and an arrow on the right; tile = a big card with a solid icon block, no arrow. In a grid or row group, or centered, it is always stacked. A slot for one file the user wants at hand (a contract, a ticket, a manual, a scan) is an entry with opens {file: null}: you set only the title, hint and shape; never choose a file — the user taps the empty slot to pick a photo or a file, Tinkrum keeps a copy, and later a tap opens it in the system viewer. You never see which file it is.',
+    doc: 'show? {title, subtitle?, icon, shape?: "row"|"tile", hint?}, opens: a card with an icon that opens a page, a system entry, "tool:<id>" (like button) or "package:<id>" (an added tool\'s page; then leave show.title and icon out, they come from the tool) or "app:<id>" (opens one of the user\'s apps; show.title and icon may be left out, they come from the app). row (default) = a settings-style row with a light icon background and an arrow on the right; tile = a big card with a solid icon block, no arrow. In a grid or row group, or centered, it is always stacked. A slot for one file the user wants at hand (a contract, a ticket, a manual, a scan) is an entry with opens {file: null}: you set only the title, hint and shape; never choose a file — the user taps the empty slot to pick a photo or a file, Tinkrum keeps a copy, and later a tap opens it in the system viewer. You never see which file it is.',
   },
   example: { show: { title: 'Tools', icon: 'apps' }, opens: 'tools' },
 });
@@ -112,7 +119,7 @@ export function entryEditableText(c: {
     { prop: 'title', max },
     ...(kind === 'file'
       ? [{ prop: 'hint', max: 80, optional: true }]
-      : kind === 'shortcut'
+      : kind === 'shortcut' || kind === 'app'
         ? [{ prop: 'subtitle', max: 80, optional: true }]
         : []),
   ];

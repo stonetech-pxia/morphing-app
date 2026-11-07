@@ -7,7 +7,9 @@ import {
   expandPresetWorkflows,
   issueLines,
   prepareOps,
+  hiddenIdsForAI,
   redactForAI,
+  scopedViewForAI,
   type AIProvider,
   type Locale,
   type Plan,
@@ -188,13 +190,19 @@ export function createClaudePlanner(options: PlannerOptions): AIProvider {
       const first: PlannerMessage = {
         role: 'user',
         content: buildUserMessage(
-          redactForAI(ctx.config, ctx.registry),
+          // 在 app 里：模型只看到这个 app 的部分（D-485），改动在完整配置上执行并检查范围。
+          ctx.scope
+            ? scopedViewForAI(redactForAI(ctx.config, ctx.registry), ctx.scope.appId)
+            : redactForAI(ctx.config, ctx.registry),
           input,
           ctx.locale,
           ctx.about,
           ctx.earlier,
           ctx.registry,
           ctx.session,
+          ctx.scope
+            ? { appId: ctx.scope.appId, hidden: hiddenIdsForAI(ctx.config, ctx.scope.appId) }
+            : undefined,
         ),
       };
       // 永远是 1 条或 3 条（用户、最新回复、最新修正）：服务器 /v1/complete 只收这两种。
@@ -279,6 +287,7 @@ export function createClaudePlanner(options: PlannerOptions): AIProvider {
             locale: ctx.locale,
             now: options.now(),
             fromAI: true,
+            ...(ctx.scope ? { scope: ctx.scope } : {}),
           });
           if (prepared.ok) {
             const found = newToolIssues(

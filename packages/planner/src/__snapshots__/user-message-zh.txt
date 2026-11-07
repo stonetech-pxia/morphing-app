@@ -1,7 +1,7 @@
 Interface language: Simplified Chinese
 
 <workspace_config>
-{"schemaVersion":37,"theme":{"primaryColor":"#C8623A","mode":"light","colors":{},"font":"clay","fontScale":1,"radius":22,"density":"comfortable","cardStyle":"shadow","navStyle":"iconLabel"},"nav":{"bar":["page:home","tools","ai","history","settings"],"floating":[]},"data":{"tables":[]},"containers":{"pages":[{"id":"home","title":"首页","icon":"home","blocks":[{"id":"welcome","look":"header","show":{"title":"我的工作台","subtitle":"点「Tink」，用一句话改造这个 App"}},{"id":"catalog","look":"entry","show":{"title":"添加工具","icon":"plus","shape":"tile","accent":true},"opens":"tools"},{"id":"recent-files","look":"files","show":{"title":"最近文件"},"source":{"table":"$files","filter":[{"field":"kind","op":"isNot","value":"image"}],"limit":5}}]}]},"tools":[],"packages":[]}
+{"schemaVersion":39,"theme":{"primaryColor":"#C8623A","mode":"light","colors":{},"font":"clay","fontScale":1,"radius":22,"density":"comfortable","cardStyle":"shadow","navStyle":"iconLabel"},"nav":{"bar":["page:home","tools","ai","history","settings"],"floating":[]},"data":{"tables":[]},"containers":{"pages":[{"id":"home","title":"首页","icon":"home","blocks":[{"id":"welcome","look":"header","show":{"title":"我的工作台","subtitle":"点「Tink」，用一句话改造这个 App"}},{"id":"catalog","look":"entry","show":{"title":"添加工具","icon":"plus","shape":"tile","accent":true},"opens":"tools"},{"id":"recent-files","look":"files","show":{"title":"最近文件"},"source":{"table":"$files","filter":[{"field":"kind","op":"isNot","value":"image"}],"limit":5}}]}]},"tools":[],"packages":[]}
 </workspace_config>
 
 <user_request>

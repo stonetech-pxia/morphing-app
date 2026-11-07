@@ -1,4 +1,12 @@
-import { HOME_PAGE_ID, pageIdOf, type NavTarget, type WorkspaceConfig } from '@morph/core';
+import {
+  HOME_PAGE_ID,
+  appViewOf,
+  firstTarget,
+  pageIdOf,
+  type NavTarget,
+  type ShellView,
+  type WorkspaceConfig,
+} from '@morph/core';
 import { useRouter } from 'expo-router';
 import { BlurTargetView } from 'expo-blur';
 import { useEffect, useRef, type ComponentRef } from 'react';
@@ -35,19 +43,20 @@ export { APPLIED_BANNER_MS, Banner, DraftNotice } from './Banner';
 
 const BAR_HEIGHT = { iconLabel: 64, label: 52, icon: 56 } as const;
 
-export function firstTab(config: WorkspaceConfig): NavTarget {
-  return (
-    config.nav.bar.find((n) => n !== 'ai') ??
-    config.nav.floating.find((n) => n !== 'ai') ??
-    'settings'
-  );
-}
-
-/** 外壳可以显示的目标：系统入口（AI 修改除外，它是单独的页面）和导航栏里的页面。 */
-function canShow(target: NavTarget | null, config: WorkspaceConfig): target is NavTarget {
+/**
+ * 外壳可以显示的目标：当前 app（或主页）的页面，和主页里的系统入口（AI 修改除外，它是单独的页面）。
+ * app 里只显示它自己的页面；别的 app、主页的页面不会混进来（D-485）。
+ */
+function canShow(
+  target: NavTarget | null,
+  config: WorkspaceConfig,
+  view: ShellView,
+): target is NavTarget {
   if (target === null || target === 'ai') return false;
   const pageId = pageIdOf(target);
-  return pageId === null || config.containers.pages.some((p) => p.id === pageId);
+  if (pageId === null) return view.appId === null;
+  const page = config.containers.pages.find((p) => p.id === pageId);
+  return page !== undefined && (page.app ?? null) === view.appId;
 }
 
 /** 外壳给页面的环境（D-190）：在草稿模式里打开页面照常，「AI 修改」打开聊天框，真的做事的操作只提示。 */
@@ -78,6 +87,9 @@ export function Shell() {
   const config = useWorkspace(shownConfig)!;
   const headId = useWorkspace((s) => s.head!.id);
   const tab = useWorkspace((s) => s.tab);
+  const appId = useWorkspace((s) => s.appId);
+  const leaveApp = useWorkspace((s) => s.leaveApp);
+  const view = appViewOf(config, appId);
   const markRendered = useWorkspace((s) => s.markRendered);
   // 点了「后台下载」的下载结束时提示一次（用户已经去做别的事了）。
   const packs = usePacks();
@@ -91,9 +103,15 @@ export function Shell() {
   );
   const editing = useWorkspace((s) => s.editing !== null);
   const startEditing = useWorkspace((s) => s.startEditing);
-  const palette = usePalette(config.theme);
+  const palette = usePalette(view.theme);
   const { navigate, locked, inDraft } = useShellEnv();
   const insets = useSafeAreaInsets();
+
+  // 在的那个 app 没有了（例如恢复到旧版本、删了 app）：回主页。
+  const missingApp = appId !== null && view.appId === null;
+  useEffect(() => {
+    if (missingApp) leaveApp();
+  }, [missingApp, leaveApp]);
 
   // 渲染完成（没有被 ErrorBoundary 拦截）才确认这次提交成功（§4）。
   useEffect(() => {
@@ -111,7 +129,7 @@ export function Shell() {
     router.push('/welcome');
   }, [guideStage, router]);
 
-  const active = canShow(tab, config) ? tab : firstTab(config);
+  const active = canShow(tab, config, view) ? tab : firstTarget(view);
   const env: RenderEnv = {
     config,
     palette,
@@ -121,7 +139,7 @@ export function Shell() {
     navigate,
     ...(locked ? { locked } : {}),
   };
-  const navStyle = config.theme.navStyle;
+  const navStyle = view.theme.navStyle;
   // 编辑模式下隐藏导航栏和浮动按钮：先「完成」或「取消」，草稿不会在切换页面时丢失（D-054）。
   const barSpace = editing ? insets.bottom : BAR_HEIGHT[navStyle] + insets.bottom;
 
@@ -139,7 +157,7 @@ export function Shell() {
     const page = config.containers.pages.find((p) => p.id === pageId)!;
     // 导航栏在页面下面（不是盖在页面上），页面不用再给它留一份高度；编辑模式没有导航栏，才要让开系统的
     // 底部区域。有浮动按钮时让开浮动按钮（bottomInset 里那 64 是给滚动内容留的）。
-    const floatingShown = config.nav.floating.length > 0 && !editing && !inDraft;
+    const floatingShown = view.floating.length > 0 && !editing && !inDraft;
     const below = editing ? insets.bottom : 0;
     content = (
       <EditablePage
@@ -148,6 +166,15 @@ export function Shell() {
         bottomInset={below + (editing ? 0 : 64)}
         zoneInset={below + (floatingShown ? 64 : 0)}
       />
+    );
+  } else if (active === 'ai') {
+    // 新 app 还没有页面，底栏里只有 Tink（D-485）。
+    content = (
+      <View style={styles.empty}>
+        <Text style={[palette.font('body', 15), { color: palette.caption, textAlign: 'center' }]}>
+          {t(locale, 'appEmpty')}
+        </Text>
+      </View>
     );
   } else if (active === 'tools') {
     content = <ToolsView env={env} />;
@@ -217,9 +244,9 @@ export function Shell() {
           </Pressable>
         ) : null}
 
-        {config.nav.floating.length > 0 && !editing && !inDraft ? (
+        {view.floating.length > 0 && !editing && !inDraft ? (
           <View style={[styles.floating, { right: palette.pad, bottom: barSpace + 16 }]}>
-            {config.nav.floating.map((target) => {
+            {view.floating.map((target) => {
               const accent = target === 'ai';
               const fg = accent ? palette.onPrimary : palette.text;
               return (
@@ -259,7 +286,29 @@ export function Shell() {
             },
           ]}>
           <GlassFill palette={palette} radius={0} />
-          {config.nav.bar.map((target) => {
+          {/* 在 app 里，最左边固定一个「返回 Tinkrum」回真正的主页（系统层，D-485）；不占 app 底栏的 5 项。 */}
+          {view.appId !== null ? (
+            <Pressable
+              testID="nav-back-home"
+              accessibilityRole="button"
+              accessibilityLabel={t(locale, 'appBackToHome')}
+              style={styles.tab}
+              onPress={leaveApp}>
+              {navStyle !== 'label' ? (
+                <View style={[styles.tabIcon, { backgroundColor: 'transparent' }]}>
+                  <Icon name="home" size={22} color={palette.caption} />
+                </View>
+              ) : null}
+              {navStyle !== 'icon' ? (
+                <Text
+                  numberOfLines={1}
+                  style={[palette.font('bodyMedium', 12), { color: palette.caption }]}>
+                  Tinkrum
+                </Text>
+              ) : null}
+            </Pressable>
+          ) : null}
+          {view.bar.map((target) => {
             const isActive = target === active;
             const color = isActive || target === 'ai' ? palette.primaryText : palette.caption;
             const label = targetLabel(target, config, locale, registry);
@@ -313,6 +362,7 @@ const styles = StyleSheet.create({
   },
   root: { flex: 1 },
   content: { flex: 1 },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   // 浮在页面上的东西（右上角 Tink、编辑、浮动按钮）左右贴着页面边距 palette.pad（D-454），在用的地方写。
   floating: { position: 'absolute', gap: 10, alignItems: 'flex-end' },
   fab: {

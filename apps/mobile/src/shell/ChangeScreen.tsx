@@ -98,7 +98,7 @@ export function ChangeScreen() {
   const afterApply = useAfterApply();
   const openDraft = useWorkspace((s) => s.openDraft);
   const deleteDraft = useWorkspace((s) => s.deleteDraft);
-  const selectTab = useWorkspace((s) => s.selectTab);
+  const showInShell = useWorkspace((s) => s.showInShell);
   const palette = usePalette(config.theme);
   const aiMode = useAISettings((s) => s.mode);
   // 从一个快捷操作（「让 AI 改这个」）或收件页面打开时带上的上下文（D-124）。
@@ -261,7 +261,7 @@ export function ChangeScreen() {
     if (result.kind === 'drafted' || (result.kind === 'applied' && !place)) {
       const target = pageTarget(result.focusPageId);
       const shown = result.kind === 'drafted' ? result.step.config : store.getState().config!;
-      if (shown.nav.bar.includes(target)) selectTab(target);
+      showInShell(shown, target);
     }
     leave(result.kind === 'drafted');
     // 功能类直接应用了（D-191）：去「做好了」页面（或回到收件页面）试用。

@@ -81,12 +81,17 @@ export function createAIChange(
   const { deps, repo, registry, locale, set, get, msg, reload, failedPlan, addedBy } = k;
 
   /** 新建的快捷操作默认在首页放入口；用户说了不要放、或者是给分享进来的文件做的（D-124），就不放。 */
+  /** 在 app 里改（D-485）：检查范围。草稿里重放已检查过的操作不再查。 */
+  const scopeOf = (origin: { appId?: string }) =>
+    origin.appId ? { scope: { appId: origin.appId } } : {};
+
   function withHomeEntries(
     before: WorkspaceConfig,
     ops: Op[],
     prepared: Extract<PreparedChange, { ok: true }>,
     plan: { homeEntry?: boolean },
     about: PlanAbout | undefined,
+    scope: { appId?: string } = {},
   ): { ops: Op[]; prepared: Extract<PreparedChange, { ok: true }> } {
     const wantHome =
       (about?.kind === 'shared' || about?.kind === 'chain'
@@ -95,7 +100,13 @@ export function createAIChange(
     const homeless = wantHome ? workflowsWithoutEntry(ops, prepared.after, registry) : [];
     if (homeless.length === 0) return { ops, prepared };
     const withEntry = [...ops, ...homeEntryOps(prepared.after, homeless)];
-    const full = prepareOps(before, withEntry, { registry, locale, now: deps.now(), fromAI: true });
+    const full = prepareOps(before, withEntry, {
+      registry,
+      locale,
+      now: deps.now(),
+      fromAI: true,
+      ...scopeOf(scope),
+    });
     return full.ok ? { ops: withEntry, prepared: full } : { ops, prepared };
   }
 
@@ -150,7 +161,7 @@ export function createAIChange(
   async function aiChange(
     input: string,
     planner: AIProvider,
-    origin: DraftOrigin,
+    originIn: DraftOrigin,
     inChat: boolean,
     stepTurn?: StepTurn,
     /** 发给模型的句子和记下来的不一样时（「把这些补上」，D-418）。 */
@@ -163,6 +174,9 @@ export function createAIChange(
       let current = get().draft;
       if (current && !current.open) current = rebaseDraft(current);
       const base = current?.steps.at(-1)?.config ?? config;
+      // 在哪个 app 里改（D-485）：草稿已经有的沿用草稿的；新开始的看现在在哪个 app 里。
+      const appId = current ? current.origin.appId : (originIn.appId ?? get().appId ?? undefined);
+      const origin: DraftOrigin = { ...originIn, ...(appId ? { appId } : {}) };
       // 草稿里接着说的话沿用开始时的上下文：「这个」还是那个快捷操作（D-124）。
       const about = origin.about ?? current?.origin.about;
       await session.markStart(base);
@@ -177,6 +191,7 @@ export function createAIChange(
         locale,
         onProgress: (step) => set({ planProgress: step }),
         ...(about ? { about } : {}),
+        ...(appId ? { scope: { appId } } : {}),
         ...(planned ? { session: planned } : {}),
       });
       if (stepTurn && !stepTurn.stillWanted()) throw new StepStopped();
@@ -248,7 +263,7 @@ export function createAIChange(
         await get().confirm();
         return { kind: 'restored' };
       }
-      const ctx = { registry, locale, now: deps.now(), fromAI: true };
+      const ctx = { registry, locale, now: deps.now(), fromAI: true, ...scopeOf(origin) };
       const prepared = prepareOps(base, plan.ops, ctx);
       if (!prepared.ok) {
         await failedPlan(input, plan.ops, `${prepared.stage}: ${prepared.issues.join('; ')}`);
@@ -271,7 +286,14 @@ export function createAIChange(
         );
       }
       // 外观：新建或接着改草稿（D-190）。
-      const { ops, prepared: after } = withHomeEntries(base, plan.ops, prepared, plan, about);
+      const { ops, prepared: after } = withHomeEntries(
+        base,
+        plan.ops,
+        prepared,
+        plan,
+        about,
+        origin,
+      );
       const changeRequestId = await repo.createChangeRequest({
         input,
         plan: ops,
@@ -365,7 +387,7 @@ export function createAIChange(
   ): Promise<DraftStep | null> {
     const { draft, head, config } = get();
     const current = draft && rebaseDraft(draft, cleanup);
-    const ctx = { registry, locale, now: deps.now(), fromAI: true };
+    const ctx = { registry, locale, now: deps.now(), fromAI: true, ...scopeOf(origin) };
     const prepared = prepareOps(current?.steps.at(-1)?.config ?? config!, deferred, ctx);
     if (!prepared.ok) {
       await failedPlan(input, deferred, `${prepared.stage}: ${prepared.issues.join('; ')}`);
@@ -414,7 +436,7 @@ export function createAIChange(
     stepTurn?: StepTurn,
   ): Promise<ChangeResult> {
     const { config, head, draft } = get();
-    const ctx = { registry, locale, now: deps.now(), fromAI: true };
+    const ctx = { registry, locale, now: deps.now(), fromAI: true, ...scopeOf(origin) };
     const before = draft?.steps.at(-1)?.config ?? config!;
     let wanted = first.ops;
     let cleanup: Op[] = [];
@@ -450,7 +472,14 @@ export function createAIChange(
       );
       return { kind: 'invalid', issues: prepared.issues };
     }
-    const { ops, prepared: after } = withHomeEntries(config!, wanted, prepared, plan, origin.about);
+    const { ops, prepared: after } = withHomeEntries(
+      config!,
+      wanted,
+      prepared,
+      plan,
+      origin.about,
+      origin,
+    );
     const hasDeferred = first.deferred.length > 0;
     const changeRequestId = await repo.createChangeRequest({
       input,
@@ -601,7 +630,7 @@ export function createAIChange(
         const applied = await get().applyDraft();
         const { config } = get();
         if (!applied || !config) return { kind: 'invalid', issues: [msg('invalidPlan')] };
-        const ctx = { registry, locale, now: deps.now(), fromAI: true };
+        const ctx = { registry, locale, now: deps.now(), fromAI: true, ...scopeOf(origin) };
         const first = functionFirst(config, plan.ops, ctx);
         if (first.kind !== 'function') return { kind: 'invalid', issues: [msg('invalidPlan')] };
         return await applyFunction(input, plan, first, origin, false);

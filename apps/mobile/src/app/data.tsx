@@ -66,6 +66,7 @@ export default function DataRoute() {
   const clearNext = useWorkspace((s) => s.clearNext);
   const clearSuggest = useWorkspace((s) => s.clearSuggest);
   const selectTab = useWorkspace((s) => s.selectTab);
+  const leaveApp = useWorkspace((s) => s.leaveApp);
   const router = useRouter();
   const [counts, setCounts] = useState<Map<string, number>>(new Map());
   const [orphans, setOrphans] = useState<
@@ -188,6 +189,7 @@ export default function DataRoute() {
               // 换了一个 App，上一次修改剩下的那句和下一步的建议也就接不上了。
               await clearNext();
               await clearSuggest();
+              leaveApp();
               selectTab(pageTarget(HOME_PAGE_ID));
               router.back();
             })(),
