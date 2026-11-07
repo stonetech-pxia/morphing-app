@@ -286,6 +286,125 @@ describe('model relay (D-193)', () => {
     expect((await refusals.post(first, a)).status).toBe(200);
   });
 
+  // R03：限额要在并发请求下也成立——准入检查和登记之间不能有 await，在途的请求要先预留费用。
+  describe('limits hold for concurrent requests', () => {
+    /** 模型调用停住，直到 open()；这样请求都「在途」。 */
+    const held = () => {
+      let open!: () => void;
+      const gate = new Promise<void>((resolve) => (open = resolve));
+      return { gate, open };
+    };
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
+
+    it('lets only one of ten simultaneous requests from a device through when the limit is one a minute', async () => {
+      const { gate, open } = held();
+      let calls = 0;
+      const { post } = make(
+        async () => {
+          calls++;
+          await gate;
+          return reply(PLAN);
+        },
+        { perMinuteLimit: 1 },
+      );
+      const all = Array.from({ length: 10 }, () => post(first, a));
+      await settle();
+      expect(calls).toBe(1);
+      open();
+      const statuses = (await Promise.all(all)).map((r) => r.status).sort();
+      expect(statuses).toEqual([200, 429, 429, 429, 429, 429, 429, 429, 429, 429]);
+    });
+
+    it('counts what is still in flight against the daily limits, so a burst cannot overshoot by much', async () => {
+      const { gate, open } = held();
+      let calls = 0;
+      // 每个请求最多花 $0.01（输出 10000 token）；设备一天 $0.025：在途的三个就用完了额度。
+      const { post } = make(
+        async () => {
+          calls++;
+          await gate;
+          return reply(PLAN);
+        },
+        { deviceDailyUsd: 0.025, globalDailyUsd: 10, perMinuteLimit: 100, maxOutputTokens: 10_000 },
+      );
+      const all = Array.from({ length: 10 }, () => post(first, a));
+      await settle();
+      expect(calls).toBe(3);
+      open();
+      const rejected = (await Promise.all(all)).filter((r) => r.status === 429);
+      expect(rejected).toHaveLength(7);
+      // 都做完了、花了 $0.03：今天这台设备用完了。
+      expect(await (await post(first, a)).json()).toEqual({ error: 'daily_limit' });
+    });
+
+    it('counts in-flight requests of all devices against the global daily limit', async () => {
+      const { gate, open } = held();
+      let calls = 0;
+      const { post } = make(
+        async () => {
+          calls++;
+          await gate;
+          return reply(PLAN);
+        },
+        { globalDailyUsd: 0.025, perMinuteLimit: 100, maxOutputTokens: 10_000 },
+      );
+      const all = Array.from({ length: 8 }, (_, i) =>
+        post(first, { 'x-morph-device': `device-${i}xxxx` }),
+      );
+      await settle();
+      expect(calls).toBe(3);
+      open();
+      await Promise.all(all);
+    });
+
+    it('gives the reservation back when the model call fails', async () => {
+      let calls = 0;
+      const { post } = make(
+        async () => {
+          if (calls++ === 0) throw new Error('boom');
+          return reply(PLAN, {
+            usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+          });
+        },
+        { globalDailyUsd: 0.011, maxOutputTokens: 10_000 },
+      );
+      expect((await post(first, a)).status).toBe(502);
+      expect((await post(first, a)).status).toBe(200);
+    });
+
+    it('settles a request that was started yesterday on yesterday, not on today', async () => {
+      const first1 = held();
+      const second = held();
+      const relays = [first1, second];
+      let n = 0;
+      const { post, tick } = make(
+        async () => {
+          const mine = n++;
+          await relays[mine]?.gate;
+          // 昨天的花了 $0.01；今天的没花钱。
+          return mine === 0
+            ? reply(PLAN)
+            : reply(PLAN, {
+                usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+              });
+        },
+        { deviceDailyUsd: 0.005, globalDailyUsd: 10, maxOutputTokens: 10_000 },
+      );
+      const yesterday = post(first, a);
+      await settle();
+      tick(24 * 3600_000);
+      const today = post(first, a);
+      await settle();
+      expect(n).toBe(2);
+      second.open();
+      await today;
+      first1.open();
+      await yesterday;
+      // 昨天那笔费用记在昨天：今天这台设备还没花钱，照常转发。
+      expect((await post(first, a)).status).toBe(200);
+    });
+  });
+
   it('answers 502 when the model call fails', async () => {
     const res = await make(async () => Promise.reject(new Error('boom'))).post(first);
     expect(res.status).toBe(502);

@@ -40,6 +40,8 @@ export interface ServerOptions {
   offPlanLimit: number;
   /** 设置后，请求必须带 x-morph-client 头。登录鉴权上线前的临时防护（D-132）。 */
   clientToken?: string;
+  /** 一次转发模型最多输出多少 token（和 relay 的 max_tokens 一致）；在途请求按它预留费用，默认 16000。 */
+  maxOutputTokens?: number;
   now?: () => number;
   log?: (entry: Record<string, unknown>) => void;
   /** 需求回收（D-189）：保存用户主动发来的需求；不给时 /v1/needs 返回 503。 */
@@ -163,14 +165,71 @@ const APP_VERSION = /^[0-9A-Za-z.+-]{1,32}$/;
 
 const digest = (value: string) => createHash('sha256').update(value).digest();
 
+interface DeviceUsage {
+  recent: number[];
+  /** 当天已经花的（模型返回后按实际用量结算）。 */
+  usd: number;
+  /** 在途请求预留的、还没结算的。 */
+  reserved: number;
+  offPlan: number;
+}
+interface Day {
+  name: string;
+  usd: number;
+  reserved: number;
+  devices: Map<string, DeviceUsage>;
+}
+const newDay = (name: string): Day => ({ name, usd: 0, reserved: 0, devices: new Map() });
+
 export function createApp(options: ServerOptions) {
   const now = options.now ?? Date.now;
   const log = options.log ?? ((entry) => console.log(JSON.stringify(entry)));
   const tokenDigest = options.clientToken ? digest(options.clientToken) : null;
-  // 每台设备最近一分钟的请求时间、当天花的钱和不像计划的回复数；只记录转发过的请求，所以大小有上限。
-  let devices = new Map<string, { recent: number[]; usd: number; offPlan: number }>();
-  let day = new Date(now()).toDateString();
-  let dayUsd = 0;
+  // 每台设备最近一分钟的请求时间、当天花的钱（含在途请求预留的）和不像计划的回复数；只记录转发过的请求，所以大小有上限。
+  // 一天一份：跨天时换新的，前一天还在途的请求按它开始时的那天结算，不记到新的一天。
+  let today = newDay(new Date(now()).toDateString());
+  /** 过了零点就换新的一天。 */
+  const dayNow = (t: number) => {
+    const name = new Date(t).toDateString();
+    if (name !== today.name) today = newDay(name);
+    return today;
+  };
+  const maxOutputTokens = options.maxOutputTokens ?? 16_000;
+  /**
+   * 准入：检查限额，通过就登记（分钟计数、预留费用）。检查和登记之间不能有 await——
+   * 并发的请求才不会都在「还没花钱」时通过（R03）。reserve 为 null 时只检查、不登记。
+   * 费用上限按「已花 + 在途预留」判断：在途的请求最多花多少先预留，做完按实际结算；
+   * 只要还没到上限就放行，所以最多超出一次请求的费用。
+   */
+  function admit(
+    key: string,
+    t: number,
+    reserve: number | null,
+  ):
+    | { ok: false; status: 429 | 403; error: string }
+    | { ok: true; day: Day; device: DeviceUsage; reserved: number } {
+    const day = dayNow(t);
+    if (day.usd >= options.globalDailyUsd) return { ok: false, status: 429, error: 'daily_limit' };
+    if (day.usd + day.reserved >= options.globalDailyUsd)
+      return { ok: false, status: 429, error: 'rate_limited' };
+    const device = day.devices.get(key) ?? { recent: [], usd: 0, reserved: 0, offPlan: 0 };
+    if (device.offPlan >= options.offPlanLimit) return { ok: false, status: 403, error: 'blocked' };
+    while (device.recent.length > 0 && t - device.recent[0]! > 60_000) device.recent.shift();
+    if (device.recent.length >= options.perMinuteLimit)
+      return { ok: false, status: 429, error: 'rate_limited' };
+    if (device.usd >= options.deviceDailyUsd)
+      return { ok: false, status: 429, error: 'daily_limit' };
+    if (device.usd + device.reserved >= options.deviceDailyUsd)
+      return { ok: false, status: 429, error: 'rate_limited' };
+    const reserved = reserve ?? 0;
+    if (reserve !== null) {
+      device.recent.push(t);
+      device.reserved += reserved;
+      day.reserved += reserved;
+      day.devices.set(key, device);
+    }
+    return { ok: true, day, device, reserved };
+  }
 
   const app = new Hono();
 
@@ -240,31 +299,45 @@ export function createApp(options: ServerOptions) {
       if (deviceHeader !== undefined && !DEVICE_ID.test(deviceHeader))
         return c.json({ error: 'bad_request' }, 400);
       const t = now();
-      const today = new Date(t).toDateString();
-      if (today !== day) {
-        day = today;
-        dayUsd = 0;
-        devices = new Map();
-      }
-      if (dayUsd >= options.globalDailyUsd) return c.json({ error: 'daily_limit' }, 429);
       const key = deviceHeader ?? 'unknown';
-      const device = devices.get(key) ?? { recent: [], usd: 0, offPlan: 0 };
-      if (device.offPlan >= options.offPlanLimit) return c.json({ error: 'blocked' }, 403);
-      while (device.recent.length > 0 && t - device.recent[0]! > 60_000) device.recent.shift();
-      if (device.recent.length >= options.perMinuteLimit)
-        return c.json({ error: 'rate_limited' }, 429);
-      if (device.usd >= options.deviceDailyUsd) return c.json({ error: 'daily_limit' }, 429);
+      // 先便宜地查一遍（被拒绝的请求不用再解析请求体），解析之后再准入一次：
+      // 解析要 await，这期间别的请求可能已经把额度用完了。
+      const early = admit(key, t, null);
+      if (!early.ok) return c.json({ error: early.error }, early.status);
 
       const body = CompleteRequestSchema.safeParse(await c.req.json().catch(() => null));
       if (!body.success) return c.json({ error: 'bad_request' }, 400);
 
-      device.recent.push(t);
-      devices.set(key, device);
+      // 预留：输入按 UTF-8 字节数的一半估 token（偏多），输出按上限；缓存写入贵 25%，也算进去。
+      const inputBytes =
+        Buffer.byteLength(body.data.system) +
+        body.data.messages.reduce((n, m) => n + Buffer.byteLength(JSON.stringify(m.content)), 0);
+      const reserve = costOf(
+        {
+          inputTokens: 0,
+          cacheWriteTokens: Math.ceil(inputBytes / 2),
+          cacheReadTokens: 0,
+          outputTokens: maxOutputTokens,
+        },
+        options.price,
+      );
+      const admitted = admit(key, now(), reserve);
+      if (!admitted.ok) return c.json({ error: admitted.error }, admitted.status);
+      const { day, device } = admitted;
+      // 结算：预留的还回去，实际花的记上。记在准入时那一天（跨天了也不记到新的一天）；只结算一次。
+      let open = true;
+      const close = (usd: number) => {
+        if (!open) return;
+        open = false;
+        device.reserved -= reserve;
+        day.reserved -= reserve;
+        device.usd += usd;
+        day.usd += usd;
+      };
       try {
         const completion = await options.relay(body.data);
         const usd = costOf(completion.usage, options.price);
-        device.usd += usd;
-        dayUsd += usd;
+        close(usd);
         const offPlan = completion.stopReason !== 'refusal' && !looksLikePlan(completion.text);
         if (offPlan) device.offPlan++;
         const deviceHash = digest(key).toString('hex').slice(0, 8);
@@ -303,6 +376,7 @@ export function createApp(options: ServerOptions) {
         });
         return c.json(completion);
       } catch (e) {
+        close(0);
         log({ event: 'complete_error', error: String(e), ms: now() - t });
         return c.json({ error: 'ai_unavailable' }, 502);
       }

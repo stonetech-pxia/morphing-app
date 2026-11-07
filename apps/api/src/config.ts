@@ -23,6 +23,8 @@ export interface RelayRuntime {
   relay: Relay | null;
   model: string;
   price: Price;
+  /** 一次转发模型最多输出的 token；服务器按它给在途请求预留费用（R03）。 */
+  maxOutputTokens: number;
 }
 
 /** batch 只给评测用：请求走批处理 API（见 createBatchRelay）。 */
@@ -35,13 +37,14 @@ export function createRelayRuntime(
   const price = MODELS.find((m) => m.id === model)?.price;
   if (!price) throw new Error(`不知道 ${model} 的价格，请在 packages/planner/src/models.ts 里加上`);
   const apiKey = env.ANTHROPIC_API_KEY?.trim();
-  if (!apiKey) return { relay: null, model, price };
+  const maxOutputTokens = Number(env.MORPH_MAX_OUTPUT_TOKENS ?? 16_000);
+  if (!apiKey) return { relay: null, model, price, maxOutputTokens };
   const effortEnv = env.MORPH_AI_EFFORT?.trim();
   const effort = EFFORTS.includes(effortEnv as Effort) ? (effortEnv as Effort) : undefined;
   const client = new Anthropic({ apiKey, timeout: 60_000, maxRetries: 1 });
-  const options = { model, maxTokens: Number(env.MORPH_MAX_OUTPUT_TOKENS ?? 16_000), effort };
+  const options = { model, maxTokens: maxOutputTokens, effort };
   const relay = batch
     ? createBatchRelay(client, options, { log: console.log })
     : createSdkRelay(client, options);
-  return { relay, model, price };
+  return { relay, model, price, maxOutputTokens };
 }
