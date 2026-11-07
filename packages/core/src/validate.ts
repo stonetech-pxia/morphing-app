@@ -247,19 +247,25 @@ export function validateWorkspace(
   if (onHomeScreen.length > MAX_HOME_SCREEN) {
     issue(
       'homeScreen',
-      `at most ${MAX_HOME_SCREEN} quick actions can be on the phone home screen (now ${onHomeScreen.join(', ')}); take one off first`,
+      `at most ${MAX_HOME_SCREEN} quick actions and apps can be on the phone home screen (now ${onHomeScreen.join(', ')}); take one off first`,
     );
   }
   for (const id of duplicates(onHomeScreen))
     issue('duplicate', `nav.phoneHomeScreen lists ${id} twice`);
-  for (const id of onHomeScreen)
-    if (!quickActionIds.has(id))
+  for (const id of onHomeScreen) {
+    const appId = id.startsWith('app:') ? id.slice('app:'.length) : null;
+    if (appId !== null) {
+      // 放在桌面菜单里的 App（D-485）：必须存在。
+      if (!(config.nav.apps ?? []).some((a) => a.id === appId))
+        issue('unknown-app', `nav.phoneHomeScreen: ${id} is not an app`);
+    } else if (!quickActionIds.has(id))
       issue(
         'homeScreen',
-        `nav.phoneHomeScreen: ${id} is not a quick action in tools (only quick actions can be on the phone home screen)`,
+        `nav.phoneHomeScreen: ${id} is not a quick action in tools or an app:<id> (only quick actions and apps can be on the phone home screen)`,
       );
     else if (handedBy(config, id, registry))
       issue('needs-container', needsContainer(id, 'nav.phoneHomeScreen'));
+  }
 
   // ---- 提醒（D-251）----
   for (const r of remindersOf(config)) {

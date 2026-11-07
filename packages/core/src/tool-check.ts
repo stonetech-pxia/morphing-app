@@ -295,7 +295,8 @@ class Analysis {
   private readNav() {
     const { nav, containers } = this.config;
     if ([...nav.bar, ...nav.floating].includes('quickActions')) this.libraries.push(null);
-    for (const id of nav.phoneHomeScreen ?? []) this.place(id, 'phone home screen');
+    for (const id of nav.phoneHomeScreen ?? [])
+      if (!id.startsWith('app:')) this.place(id, 'phone home screen');
     // 记录页顶部的按钮（D-428）。
     for (const table of this.config.data.tables)
       for (const item of table.recordRow ?? []) this.place(item.tool, `entry page of ${table.id}`);

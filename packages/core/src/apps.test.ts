@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { entryKind } from './components';
+import { homeScreenFull, homeScreenItems, homeScreenOp } from './home-screen';
 import { appOfPage, appViewOf, firstTarget } from './app-view';
+import { prepareOps } from './change';
 import { migrateWorkspace } from './migrate';
 import { applyOps, isFunctionOp, type Op } from './ops';
 import { CURRENT_SCHEMA_VERSION, type WorkspaceConfig } from './schema';
@@ -258,5 +260,55 @@ describe('打开 app 的入口卡片（D-485）', () => {
       .blocks.push({ id: 'fit-card', look: 'entry', opens: 'app:fit' } as never);
     expect(codes(config)).toEqual([]);
     expect(entryKind({ opens: 'app:fit' })).toBe('app');
+  });
+});
+
+describe('桌面菜单里的 App（D-485）', () => {
+  it('puts an app on the phone home screen menu next to quick actions', () => {
+    const config = buildFitness();
+    const next = run(config, [homeScreenOp(config, 'app:fit', true)]).config;
+    expect(next.nav.phoneHomeScreen).toEqual(['app:fit']);
+    expect(homeScreenItems(next)).toEqual([
+      { id: 'app:fit', kind: 'app', title: 'Fitness', icon: 'apps' },
+    ]);
+    expect(codes(next)).toEqual([]);
+  });
+
+  it('counts apps in the four places, and rejects a missing app', () => {
+    let config = buildFitness();
+    for (const id of ['a', 'b', 'c', 'd'])
+      config = run(config, [
+        { op: 'addContainer', app: { id: `x-${id}`, name: id } },
+        homeScreenOp(config, `app:x-${id}`, true),
+      ]).config;
+    expect(homeScreenFull(config)).toBe(true);
+    expect(
+      applyOps(config, [homeScreenOp(config, 'app:nope', true)], { registry, locale: 'en' }).ok,
+    ).toBe(false);
+    const five = {
+      ...config,
+      nav: { ...config.nav, phoneHomeScreen: [...(config.nav.phoneHomeScreen ?? []), 'app:fit'] },
+    };
+    expect(codes(five)).toContain('homeScreen');
+  });
+
+  it('removing the app takes it off the menu (底线 18)', () => {
+    const config = buildFitness();
+    const on = run(config, [homeScreenOp(config, 'app:fit', true)]).config;
+    const gone = run(on, [{ op: 'removeContainer', app: 'fit' }]).config;
+    expect(gone.nav.phoneHomeScreen).toBeUndefined();
+    expect(codes(gone)).toEqual([]);
+  });
+
+  it("is the home page's to change: Tink inside an app cannot", () => {
+    const config = buildFitness();
+    const result = prepareOps(config, [homeScreenOp(config, 'app:fit', true)], {
+      registry,
+      locale: 'en',
+      now: new Date(2026, 10, 7),
+      fromAI: true,
+      scope: { appId: 'fit' },
+    });
+    expect(result.ok).toBe(false);
   });
 });

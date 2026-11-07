@@ -283,7 +283,7 @@ describe('validateWorkspace', () => {
     const ids = ['pdf-merge', 'pdf-combine', 'pdf-images', 'pdf-document'];
     expect(issuesOf(mutate((c) => (c.nav.phoneHomeScreen = ids)))).toEqual([]);
     const five = messagesOf(mutate((c) => (c.nav.phoneHomeScreen = [...ids, 'pdf-compress'])));
-    expect(five).toMatch(/at most 4 quick actions can be on the phone home screen/);
+    expect(five).toMatch(/at most 4 quick actions and apps can be on the phone home screen/);
     expect(five).toMatch(/take one off first/);
     expect(messagesOf(mutate((c) => (c.nav.phoneHomeScreen = ['nope'])))).toMatch(
       /nope is not a quick action in tools/,

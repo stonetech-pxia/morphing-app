@@ -52,7 +52,8 @@ describe('home screen mark (D-271)', () => {
     expect(after.nav.phoneHomeScreen).toEqual(['visa']);
     expect(homeScreenItems(after)).toEqual([
       {
-        workflowId: 'visa',
+        id: 'visa',
+        kind: 'quickAction',
         title: quickActionsOf(after).find((w) => w.id === 'visa')!.name,
         icon: presetById('visa-photo')!.icon,
       },
@@ -67,7 +68,7 @@ describe('home screen mark (D-271)', () => {
   it('works for a quick action that comes with a tool; without its own icon it uses its kind', () => {
     const after = prepared(setup(), [on('pdf-merge')]);
     expect(homeScreenItems(after)).toEqual([
-      { workflowId: 'pdf-merge', title: '合并 PDF', icon: 'document' },
+      { id: 'pdf-merge', kind: 'quickAction', title: '合并 PDF', icon: 'document' },
     ]);
   });
 
@@ -132,13 +133,13 @@ describe('home screen mark (D-271)', () => {
     const after = prepared(setup(), [on('visa'), on('scan')]);
     const deleted = prepared(after, [{ op: 'removeTool', tool: 'visa' }]);
     expect(deleted.nav.phoneHomeScreen).toEqual(['scan']);
-    expect(homeScreenItems(deleted).map((i) => i.workflowId)).toEqual(['scan']);
+    expect(homeScreenItems(deleted).map((i) => i.id)).toEqual(['scan']);
   });
 
   it('removing the tool takes its quick actions off the home screen menu', () => {
     const after = prepared(setup(), [on('pdf-merge'), on('visa')]);
     const removed = prepared(after, [{ op: 'setPackage', package: 'pdf', do: 'remove' }]);
-    expect(homeScreenItems(removed).map((i) => i.workflowId)).toEqual(['visa']);
+    expect(homeScreenItems(removed).map((i) => i.id)).toEqual(['visa']);
   });
 
   it('renaming a quick action renames its home screen item', () => {
@@ -147,7 +148,7 @@ describe('home screen mark (D-271)', () => {
       { op: 'updateTool', tool: 'visa', changes: { name: '美签照片', icon: 'star' } },
     ]);
     expect(homeScreenItems(renamed)).toEqual([
-      { workflowId: 'visa', title: '美签照片', icon: 'star' },
+      { id: 'visa', kind: 'quickAction', title: '美签照片', icon: 'star' },
     ]);
     // 编辑页保存（整体替换步骤）不会把它从桌面拿掉。
     const saved = prepared(renamed, [
@@ -165,7 +166,7 @@ describe('home screen mark (D-271)', () => {
 
   it('the menu follows the order of nav.phoneHomeScreen; addedToHomeScreen lists only new ones', () => {
     const after = prepared(setup(), [on('scan'), on('visa')]);
-    expect(homeScreenItems(after).map((i) => i.workflowId)).toEqual(['scan', 'visa']);
+    expect(homeScreenItems(after).map((i) => i.id)).toEqual(['scan', 'visa']);
     const more = prepared(after, [on('pdf-merge')]);
     expect(addedToHomeScreen(after, more)).toEqual(['pdf-merge']);
   });

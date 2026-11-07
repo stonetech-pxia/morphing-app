@@ -890,6 +890,8 @@ export const zh: MessageTable = {
   appDescAdd: '新建 App“{v0}”',
   appBackToHome: '返回 Tinkrum',
   settingsMyApps: '我的 App',
+  settingsMyAppsHint: '长按一个 App，可以放到手机桌面。',
+  settingsAppOnHome: '在桌面菜单里',
   appEmpty: '这个 App 还没有页面，点 Tink 来搭一个。',
   appDescUpdate: '修改 App“{v0}”',
   appDescRemove: '移除 App“{v0}”和它的页面、快捷操作（它的表和记录保留）',

@@ -207,6 +207,7 @@ function ThemedStack() {
           name="widget/[componentId]"
           options={{ headerShown: false, animation: 'none' }}
         />
+        <Stack.Screen name="app/[appId]" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen
           name="welcome"
           options={{ presentation: 'transparentModal', headerShown: false, gestureEnabled: false }}

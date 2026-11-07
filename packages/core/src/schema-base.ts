@@ -55,7 +55,29 @@ export const ICON_NAMES = [
   'mail',
   'globe',
   'share',
+  // 自带的图形图标（D-485，按预设画的）：渲染时用图片，不是系统图标。
+  'wallet',
+  'rings',
+  'moon',
+  'timer',
+  'book',
+  'board',
+  'suitcase',
+  'vinyl',
 ] as const;
+/** 自带图形的图标（ICON_NAMES 里排在最后的）：没有对应的系统图标。 */
+export const CUSTOM_ICON_NAMES = [
+  'wallet',
+  'rings',
+  'moon',
+  'timer',
+  'book',
+  'board',
+  'suitcase',
+  'vinyl',
+] as const satisfies readonly (typeof ICON_NAMES)[number][];
+export type CustomIconName = (typeof CUSTOM_ICON_NAMES)[number];
+
 export const IconSchema = z.enum(ICON_NAMES);
 export type IconName = z.infer<typeof IconSchema>;
 
@@ -321,6 +343,12 @@ export const AppSchema = z.strictObject({
 });
 export type App = z.infer<typeof AppSchema>;
 
+/** 手机桌面菜单里的一项（D-485）：快捷操作的 ID，或 app:<id>（点了进那个 App）。 */
+export const HomeScreenEntrySchema = z.union([
+  IdSchema,
+  z.string().regex(/^app:[a-z][a-z0-9-]{0,47}$/),
+]);
+
 /**
  * 导航（v34 也是容器，NEW_FORMAT §3.6）：bar 导航栏（1–5，原 shell.nav）、floating 浮动入口（≤3）、
  * phoneHomeScreen 长按 Morph 图标的菜单里的快捷操作（≤4，D-271，原 workflow.homeScreen）。
@@ -331,6 +359,6 @@ export const NavSchema = z.strictObject({
   /** 主页之外的 app（D-485）。主页就是顶层的 bar + theme；没有时只有主页。 */
   apps: z.array(AppSchema).max(MAX_APPS).optional(),
   /** 上限 MAX_HOME_SCREEN 在 validate.ts 里查（给 AI 一句能照着改的话）。 */
-  phoneHomeScreen: z.array(IdSchema).max(100).optional(),
+  phoneHomeScreen: z.array(HomeScreenEntrySchema).max(100).optional(),
 });
 export type Nav = z.infer<typeof NavSchema>;

@@ -1005,6 +1005,8 @@ export const fr: MessageTable = {
   appDescAdd: 'Ajouter l’app « {v0} »',
   appBackToHome: 'Retour à Tinkrum',
   settingsMyApps: 'Mes apps',
+  settingsMyAppsHint: 'Appuyez longuement sur une app pour la placer sur l’écran d’accueil.',
+  settingsAppOnHome: 'Dans le menu de l’écran d’accueil',
   appEmpty: 'Cette app n’a pas encore de page. Touchez Tink pour en créer une.',
   appDescUpdate: 'Modifier l’app « {v0} »',
   appDescRemove:

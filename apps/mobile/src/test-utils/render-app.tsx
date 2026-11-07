@@ -36,6 +36,7 @@ import RunRoute from '../app/run/[workflowId]';
 import ShareRoute from '../app/share';
 import FilesRoute from '../app/files';
 import StorageRoute from '../app/storage';
+import OpenAppRoute from '../app/app/[appId]';
 import WelcomeRoute from '../app/welcome';
 import WorkflowRoute from '../app/workflow/[id]';
 import WorkflowsRoute from '../app/workflows';
@@ -174,6 +175,7 @@ export async function renderToolsApp(
     data: DataRoute,
     'record/[collectionId]': RecordRoute,
     'new-table': NewTableRoute,
+    'app/[appId]': OpenAppRoute,
     welcome: WelcomeRoute,
   });
   return { repo, store, files, router };

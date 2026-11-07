@@ -1,4 +1,4 @@
-import type { IconName, IconValue, ToolIconName } from '@morph/core';
+import type { CustomIconName, IconName, IconValue, ToolIconName } from '@morph/core';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { Image, Text } from 'react-native';
 
@@ -6,7 +6,7 @@ import { Image, Text } from 'react-native';
 
 type SymbolName = Extract<SymbolViewProps['name'], { ios?: unknown }>;
 
-const SYMBOLS: Record<IconName, SymbolName> = {
+const SYMBOLS: Record<Exclude<IconName, CustomIconName>, SymbolName> = {
   home: { ios: 'house.fill', android: 'home' },
   apps: { ios: 'square.grid.2x2.fill', android: 'apps' },
   sparkles: { ios: 'sparkles', android: 'auto_awesome' },
@@ -46,6 +46,21 @@ const SYMBOLS: Record<IconName, SymbolName> = {
   mail: { ios: 'envelope.fill', android: 'mail' },
   globe: { ios: 'globe', android: 'language' },
   share: { ios: 'square.and.arrow.up', android: 'share' },
+};
+
+/**
+ * 自带图形的图标（D-485，按预设画的，源文件在 assets/preset-icons/*.svg）：单色 PNG 按主题染色，和 Tink 的小锤子一样。
+ * 系统图标库里没有对应的，所以长按菜单里没有图标（iosSymbolName 返回 undefined）。
+ */
+const CUSTOM_IMAGES: Record<CustomIconName, number> = {
+  wallet: require('../../assets/images/preset-icons/wallet.png'),
+  rings: require('../../assets/images/preset-icons/rings.png'),
+  moon: require('../../assets/images/preset-icons/moon.png'),
+  timer: require('../../assets/images/preset-icons/timer.png'),
+  book: require('../../assets/images/preset-icons/book.png'),
+  board: require('../../assets/images/preset-icons/board.png'),
+  suitcase: require('../../assets/images/preset-icons/suitcase.png'),
+  vinyl: require('../../assets/images/preset-icons/vinyl.png'),
 };
 
 /** 房间工具栏的动作图标（core 的 TOOL_ICON_NAMES，D-364）：不在白名单里，配置和 AI 用不到。 */
@@ -97,7 +112,7 @@ const TOOL_SYMBOLS: Record<ToolIconName, SymbolName> = {
 
 /** 系统菜单里用的 SF Symbol 名字（长按 Morph 图标的菜单，D-271）；emoji 没有。 */
 export function iosSymbolName(name: IconValue): string | undefined {
-  return name in SYMBOLS ? SYMBOLS[name as IconName].ios : undefined;
+  return name in SYMBOLS ? SYMBOLS[name as keyof typeof SYMBOLS].ios : undefined;
 }
 
 export function Icon({
@@ -119,9 +134,18 @@ export function Icon({
       />
     );
   }
+  if (name in CUSTOM_IMAGES) {
+    return (
+      <Image
+        testID={`icon-${name}`}
+        source={CUSTOM_IMAGES[name as CustomIconName]}
+        style={{ width: size, height: size, tintColor: color }}
+      />
+    );
+  }
   const symbol =
     name in SYMBOLS
-      ? SYMBOLS[name as IconName]
+      ? SYMBOLS[name as keyof typeof SYMBOLS]
       : name in TOOL_SYMBOLS
         ? TOOL_SYMBOLS[name as ToolIconName]
         : null;

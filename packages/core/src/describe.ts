@@ -737,12 +737,14 @@ export function describeChange(
           if (nav.phoneHomeScreen) {
             // 整个列表：多出来的放上手机桌面，少了的拿掉（D-271）。
             const was = before.nav.phoneHomeScreen ?? [];
+            const nameOf = (id: string) =>
+              id.startsWith('app:') ? appName(id.slice('app:'.length)) : (wf(id)?.name ?? id);
             for (const id of nav.phoneHomeScreen)
               if (!was.includes(id))
-                lines.push(t(ctx.locale, 'describeHomeScreenOn', { name: wf(id)?.name ?? id }));
+                lines.push(t(ctx.locale, 'describeHomeScreenOn', { name: nameOf(id) }));
             for (const id of was)
               if (!nav.phoneHomeScreen.includes(id))
-                lines.push(t(ctx.locale, 'describeHomeScreenOff', { name: wf(id)?.name ?? id }));
+                lines.push(t(ctx.locale, 'describeHomeScreenOff', { name: nameOf(id) }));
           }
           break;
         }

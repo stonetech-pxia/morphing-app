@@ -1,6 +1,10 @@
 import { applyOps, type AIProvider, type Op } from '@morph/core';
 import { act, fireEvent } from '@testing-library/react-native';
+import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
+import { Alert } from 'react-native';
+
+import type { HomeScreenEntry, HomeScreenPlatform } from '../home-screen/platform';
 
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles } from '../test-utils/fake-files';
@@ -12,7 +16,7 @@ import { renderToolsApp, starterAfterGuide, testRegistry } from '../test-utils/r
 function withFitness(locale: 'zh' | 'en' | 'fr', registry: typeof testRegistry) {
   const base = starterAfterGuide(locale, registry);
   const ops: Op[] = [
-    { op: 'addContainer', app: { id: 'fit', name: '健身' } },
+    { op: 'addContainer', app: { id: 'fit', name: '健身', icon: 'heart' } },
     { op: 'addContainer', page: { id: 'fit-home', title: '今天', app: 'fit', blocks: [] } },
     { op: 'addContainer', page: { id: 'fit-plan', title: '计划', app: 'fit', blocks: [] } },
     { op: 'updateContainer', app: { id: 'fit', bar: ['page:fit-home', 'page:fit-plan', 'ai'] } },
@@ -165,5 +169,88 @@ describe('apps (UI)', () => {
     });
     expect(result).not.toMatchObject({ kind: 'invalid' });
     expect(store.getState().config!.data.tables.some((t) => t.id === 'logs')).toBe(true);
+  });
+
+  // 桌面菜单里的 App 和深链接（D-485）。
+  class FakeHomeScreen implements HomeScreenPlatform {
+    menus: HomeScreenEntry[][] = [];
+    pinned: HomeScreenEntry[] = [];
+    launched: string | null = null;
+    private listener: ((id: string) => void) | null = null;
+    async setItems(items: readonly HomeScreenEntry[]) {
+      this.menus.push([...items]);
+    }
+    canPin() {
+      return true;
+    }
+    async pin(item: HomeScreenEntry) {
+      this.pinned.push(item);
+      return true;
+    }
+    takeLaunched() {
+      const id = this.launched;
+      this.launched = null;
+      return id;
+    }
+    onOpen(listener: (id: string) => void) {
+      this.listener = listener;
+      return () => {
+        this.listener = null;
+      };
+    }
+    tap(id: string) {
+      this.listener?.(id);
+    }
+  }
+  const withHomeScreen = (fake: HomeScreenPlatform) =>
+    renderToolsApp(new MemoryWorkspaceRepo(), new FakeFiles(), {
+      seed: withFitness,
+      homeScreen: fake,
+    });
+
+  it('long-press an app in Settings puts it on the phone home screen menu, and tapping it opens the app', async () => {
+    const fake = new FakeHomeScreen();
+    const { store } = await withHomeScreen(fake);
+    await fireEvent.press(await screen.findByTestId('nav-settings'));
+    // 长按弹出菜单，点第一项「放到桌面」。
+    jest
+      .spyOn(Alert, 'alert')
+      .mockImplementationOnce((_title, _message, buttons) => void buttons?.[0]?.onPress?.());
+    await fireEvent(await screen.findByTestId('settings-app-fit'), 'longPress');
+    await screen.findByText('在桌面菜单里');
+    expect(store.getState().config!.nav.phoneHomeScreen).toEqual(['app:fit']);
+    expect(fake.menus.at(-1)).toEqual([{ id: 'app:fit', title: '健身', symbol: 'heart.fill' }]);
+    // 点桌面菜单：进那个 App。
+    await act(async () => fake.tap('app:fit'));
+    expect(store.getState().appId).toBe('fit');
+    expect(await screen.findByTestId('nav-back-home')).toBeTruthy();
+  });
+
+  it('opens the app when the app was started from its home screen item', async () => {
+    const fake = new FakeHomeScreen();
+    fake.launched = 'app:fit';
+    const { store } = await withHomeScreen(fake);
+    await screen.findByTestId('nav-back-home');
+    expect(store.getState().appId).toBe('fit');
+  });
+
+  it('stays on the home page when the menu item is for an app that is gone', async () => {
+    const fake = new FakeHomeScreen();
+    const { store } = await withHomeScreen(fake);
+    await screen.findByTestId('nav-settings');
+    await act(async () => fake.tap('app:gone'));
+    expect(store.getState().appId).toBeNull();
+  });
+
+  it('morph://app/<id> opens the app, and an unknown id stays on the home page', async () => {
+    const { store } = await start();
+    await screen.findByTestId('nav-settings');
+    await act(async () => router.push('/app/fit'));
+    expect(await screen.findByTestId('nav-back-home')).toBeTruthy();
+    expect(store.getState().appId).toBe('fit');
+    await act(async () => store.getState().leaveApp());
+    await act(async () => router.push('/app/gone'));
+    await screen.findByTestId('nav-settings');
+    expect(store.getState().appId).toBeNull();
   });
 });

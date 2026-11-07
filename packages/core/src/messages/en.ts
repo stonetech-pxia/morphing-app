@@ -947,6 +947,8 @@ export const en = {
   appDescAdd: 'Add app “{v0}”',
   appBackToHome: 'Back to Tinkrum',
   settingsMyApps: 'My apps',
+  settingsMyAppsHint: 'Long-press an app to put it on the phone home screen.',
+  settingsAppOnHome: 'On the home screen menu',
   appEmpty: 'This app has no pages yet. Tap Tink to build one.',
   appDescUpdate: 'Change app “{v0}”',
   appDescRemove: 'Remove app “{v0}” with its pages and quick actions (its tables and entries stay)',

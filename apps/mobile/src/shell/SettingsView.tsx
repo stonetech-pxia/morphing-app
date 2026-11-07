@@ -1,10 +1,19 @@
-import { CURRENT_SCHEMA_VERSION, appTarget, remindersOf } from '@morph/core';
+import {
+  CURRENT_SCHEMA_VERSION,
+  appTarget,
+  homeScreenFull,
+  homeScreenOp,
+  remindersOf,
+} from '@morph/core';
 import { MODELS } from '@morph/planner';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, Text } from 'react-native';
+import { Alert, ScrollView, Text } from 'react-native';
 
 import { useAISettings } from '../ai/context';
+import { useHomeScreenPlatform } from '../home-screen/context';
+import { iosSymbolName } from '../renderer/Icon';
+import { useWorkflowChange } from '../run/workflow-change';
 import { useLanguage } from '../language';
 import { t, type StringKey } from '../i18n';
 import type { RenderEnv } from '../renderer/components';
@@ -34,6 +43,40 @@ export function SettingsView({ env }: { env: RenderEnv }) {
               : (MODELS.find((m) => m.id === aiModel)?.name ?? aiModel),
         })
       : t(locale, aiMode === 'server' ? 'aiEngineRemote' : 'aiEngineMock');
+  // 长按一个 App：放到手机桌面的菜单里，或拿掉；Android 上放进去以后还能单独放一个图标（D-271、D-485）。
+  const change = useWorkflowChange();
+  const homeScreen = useHomeScreenPlatform();
+  function homeScreenMenu(appId: string, name: string, icon: string | undefined, onHome: boolean) {
+    const id = appTarget(appId);
+    const toggle = () => {
+      if (!onHome && homeScreenFull(env.config)) {
+        Alert.alert(t(locale, 'homeScreenFull'));
+        return;
+      }
+      void change(
+        [homeScreenOp(env.config, id, !onHome)],
+        t(locale, onHome ? 'homeScreenRemoved' : 'homeScreenAdded', { name }),
+      );
+    };
+    const symbol = icon ? iosSymbolName(icon) : undefined;
+    Alert.alert(name, undefined, [
+      { text: t(locale, onHome ? 'homeScreenRemove' : 'homeScreenAdd'), onPress: toggle },
+      ...(onHome && homeScreen?.canPin()
+        ? [
+            {
+              text: t(locale, 'homeScreenPin'),
+              onPress: () =>
+                void homeScreen
+                  .pin({ id, title: name, ...(symbol ? { symbol } : {}) })
+                  .then((sent) => {
+                    if (!sent) Alert.alert(t(locale, 'homeScreenPinFailed'));
+                  }),
+            },
+          ]
+        : []),
+      { text: t(locale, 'cancel'), style: 'cancel' as const },
+    ]);
+  }
   return (
     <ScrollView
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap - 4, paddingBottom: 160 }}>
@@ -42,16 +85,26 @@ export function SettingsView({ env }: { env: RenderEnv }) {
       {(env.config.nav.apps ?? []).length > 0 ? (
         <>
           <SectionLabel palette={palette}>{t(locale, 'settingsMyApps')}</SectionLabel>
-          {(env.config.nav.apps ?? []).map((app) => (
-            <ListRow
-              key={app.id}
-              palette={palette}
-              testID={`settings-app-${app.id}`}
-              icon={app.icon ?? 'apps'}
-              label={app.name}
-              onPress={env.locked ?? (() => env.navigate(appTarget(app.id)))}
-            />
-          ))}
+          {(env.config.nav.apps ?? []).map((app) => {
+            const onHome = (env.config.nav.phoneHomeScreen ?? []).includes(appTarget(app.id));
+            return (
+              <ListRow
+                key={app.id}
+                palette={palette}
+                testID={`settings-app-${app.id}`}
+                icon={app.icon ?? 'apps'}
+                label={app.name}
+                {...(onHome ? { value: t(locale, 'settingsAppOnHome') } : {})}
+                onPress={env.locked ?? (() => env.navigate(appTarget(app.id)))}
+                onLongPress={
+                  env.locked ?? (() => homeScreenMenu(app.id, app.name, app.icon, onHome))
+                }
+              />
+            );
+          })}
+          <Text style={[palette.font('body', 13), { color: palette.muted }]}>
+            {t(locale, 'settingsMyAppsHint')}
+          </Text>
         </>
       ) : null}
       <SectionLabel palette={palette}>{t(locale, 'thisApp')}</SectionLabel>

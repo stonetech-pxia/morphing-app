@@ -9,13 +9,13 @@ import type { HomeScreenEntry, HomeScreenPlatform } from './platform';
 
 // 手机桌面（D-271）：长按 Morph 图标的菜单完全由正式版本的配置算出来（草稿不算）。AI 修改、撤销、恢复、
 // 删除和改名快捷操作之后整份换掉；Android 上不在菜单里的已固定图标停用。
-// 点了菜单项或桌面图标：打开那个快捷操作的运行页面，和点运行卡片一样直接开始（D-108）。
+// 点了菜单项或桌面图标：打开那个快捷操作的运行页面，和点运行卡片一样直接开始（D-108）；App 项（app:<id>）进那个 App（D-485）。
 
 /** 菜单里的项：快捷操作的 ID、名字和 iOS 的系统图标。 */
 export function homeScreenEntries(config: WorkspaceConfig): HomeScreenEntry[] {
   return homeScreenItems(config).map((item) => {
     const symbol = iosSymbolName(item.icon);
-    return { id: item.workflowId, title: item.title, ...(symbol ? { symbol } : {}) };
+    return { id: item.id, title: item.title, ...(symbol ? { symbol } : {}) };
   });
 }
 
@@ -40,9 +40,15 @@ export function useHomeScreenOpen(platform: HomeScreenPlatform | null) {
   const { store } = useWorkspaceContext();
   useEffect(() => {
     if (!platform) return;
-    const open = (workflowId: string) => {
+    const open = (id: string) => {
       if (store.getState().draft?.open) store.getState().closeDraft();
-      router.push({ pathname: '/run/[workflowId]', params: { workflowId } });
+      // 菜单里的 App（D-485）：点了进那个 App；已经不在了就留在主页。
+      if (id.startsWith('app:')) {
+        if (router.canDismiss()) router.dismissAll();
+        store.getState().enterApp(id.slice('app:'.length));
+        return;
+      }
+      router.push({ pathname: '/run/[workflowId]', params: { workflowId: id } });
     };
     // 冷启动：导航器和首页刚挂上，下一轮再打开，运行页面叠在首页上（关掉回到首页）。
     const launched = platform.takeLaunched();

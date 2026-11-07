@@ -1,0 +1,238 @@
+{
+  "format": "tinkrum-preset-index",
+  "version": 1,
+  "presets": [
+    {
+      "id": "neon",
+      "name": "Wallet",
+      "tagline": "Budgets, bills and net worth you control",
+      "style": "Neon",
+      "file": "tinkrum-preset-wallet.json",
+      "schemaVersion": 37,
+      "pages": [
+        "Wallet",
+        "Bills",
+        "Accounts",
+        "Category"
+      ],
+      "tables": [
+        "Budgets",
+        "Transactions",
+        "Income",
+        "Bills",
+        "Goals",
+        "Accounts"
+      ],
+      "reminders": 2,
+      "quickActions": 1,
+      "features": [
+        "Monthly budget per category, with progress and what is left",
+        "Spending chart against the previous period",
+        "Bills calendar with due-date reminders",
+        "Accounts and net worth that you update yourself",
+        "Savings goals with a one-tap +$50",
+        "Excel export of your spending"
+      ],
+      "includesRecords": false
+    },
+    {
+      "id": "orbs",
+      "name": "Habits",
+      "tagline": "Tap a ring, build the streak",
+      "style": "Pastel",
+      "file": "tinkrum-preset-habits.json",
+      "schemaVersion": 37,
+      "pages": [
+        "Today",
+        "Habits",
+        "Insights",
+        "Habit"
+      ],
+      "tables": [
+        "Habits",
+        "Check-ins"
+      ],
+      "reminders": 1,
+      "quickActions": 0,
+      "features": [
+        "One-tap check-ins on progress rings, several per day",
+        "Current and best streak per habit, with skip days",
+        "History calendar and insights against the previous week",
+        "Time-of-day groups and a page for each habit",
+        "Per-habit reminders with Done and Snooze"
+      ],
+      "includesRecords": false
+    },
+    {
+      "id": "soft",
+      "name": "Rest",
+      "tagline": "Log your nights, watch your sleep bank",
+      "style": "Soft",
+      "file": "tinkrum-preset-rest.json",
+      "schemaVersion": 37,
+      "pages": [
+        "Rest",
+        "Trends",
+        "Log"
+      ],
+      "tables": [
+        "Sleep"
+      ],
+      "reminders": 2,
+      "quickActions": 1,
+      "features": [
+        "Going to bed and Wake up in one tap, hours computed",
+        "Sleep bank against an 8 h goal",
+        "Streak of nights with 7 h or more",
+        "Quality stars and a morning-mood calendar",
+        "Wind-down and morning reminders",
+        "Excel export"
+      ],
+      "includesRecords": false
+    },
+    {
+      "id": "terminal",
+      "name": "~/focus",
+      "tagline": "Tasks, repeats and a focus timer",
+      "style": "Terminal",
+      "file": "tinkrum-preset-focus.json",
+      "schemaVersion": 37,
+      "pages": [
+        "Focus",
+        "Tasks",
+        "Timer",
+        "Task",
+        "Project"
+      ],
+      "tables": [
+        "Projects",
+        "Tasks",
+        "Completed",
+        "Focus sessions"
+      ],
+      "reminders": 2,
+      "quickActions": 0,
+      "features": [
+        "Today, overdue and upcoming with one-tap Done",
+        "Repeating tasks",
+        "Quick add that reads a date and time from the title",
+        "Projects with progress, a board and a calendar",
+        "Count-up focus timer with session stats",
+        "Daily goal and streak"
+      ],
+      "includesRecords": false
+    },
+    {
+      "id": "editorial",
+      "name": "The Reading Room",
+      "tagline": "Every book, page and streak, tracked",
+      "style": "Editorial",
+      "file": "tinkrum-preset-reading-room.json",
+      "schemaVersion": 37,
+      "pages": [
+        "Reading",
+        "Shelf",
+        "Quotes"
+      ],
+      "tables": [
+        "Books",
+        "Reading log",
+        "Quotes"
+      ],
+      "reminders": 1,
+      "quickActions": 2,
+      "features": [
+        "Shelves: want to read, reading, read",
+        "Yearly goal with a same-date-last-year comparison",
+        "Page progress rings and a +25 pages button",
+        "Reading streak, calendar and pace",
+        "Capture a quote from a photo with on-device text recognition",
+        "Daily reminder"
+      ],
+      "includesRecords": false
+    },
+    {
+      "id": "brutal",
+      "name": "Sprint",
+      "tagline": "Your sprint board. Drag, ship, repeat",
+      "style": "Neo-brutalist",
+      "file": "tinkrum-preset-sprint.json",
+      "schemaVersion": 37,
+      "pages": [
+        "Sprint",
+        "Tasks",
+        "Insights"
+      ],
+      "tables": [
+        "Tasks"
+      ],
+      "reminders": 1,
+      "quickActions": 1,
+      "features": [
+        "Drag-and-drop status board",
+        "Priority board",
+        "Points done and left, overdue and next due",
+        "Due-date calendar",
+        "Backlog with search, filters and grouping",
+        "Weekday stand-up reminder"
+      ],
+      "includesRecords": false
+    },
+    {
+      "id": "glass",
+      "name": "Trip",
+      "tagline": "Day-by-day plans, bookings and packing lists",
+      "style": "Glass",
+      "file": "tinkrum-preset-trip.json",
+      "schemaVersion": 37,
+      "pages": [
+        "Trip",
+        "Bookings",
+        "Packing"
+      ],
+      "tables": [
+        "Itinerary",
+        "Bookings",
+        "Packing"
+      ],
+      "reminders": 1,
+      "quickActions": 1,
+      "features": [
+        "Itinerary grouped by day",
+        "Bookings with Mark paid and what is left to pay",
+        "Countdown to the next booking",
+        "Packing checklist",
+        "Itinerary as PDF",
+        "Reminder the day before a booking"
+      ],
+      "includesRecords": false
+    },
+    {
+      "id": "y2k",
+      "name": "Crate",
+      "tagline": "Your vinyl crate: value, spins, wantlist",
+      "style": "Y2K chrome",
+      "file": "tinkrum-preset-crate.json",
+      "schemaVersion": 37,
+      "pages": [
+        "Crate",
+        "Collection",
+        "Wantlist"
+      ],
+      "tables": [
+        "Crate"
+      ],
+      "reminders": 0,
+      "quickActions": 1,
+      "features": [
+        "Collection with condition, rating and price paid",
+        "Wantlist with a Got it button",
+        "Crate value, amount spent and gain",
+        "Tap a record to log a spin",
+        "Genre split and growth charts",
+        "Excel export"
+      ],
+      "includesRecords": false
+    }
+  ]
+}

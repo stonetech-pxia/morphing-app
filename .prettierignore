@@ -12,3 +12,4 @@ apps/mobile/modules/morph-media/dsp/rnnoise
 
 # v33 的配置和派生数据（v34 迁移的等价测试用，生成的，不手改）。
 packages/core/src/fixtures/v33
+packages/core/src/fixtures/portal-presets/

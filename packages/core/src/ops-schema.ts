@@ -9,6 +9,7 @@ import {
   ComponentStyleSchema,
   FieldSchema,
   FONT_CHOICES,
+  HomeScreenEntrySchema,
   HexColorSchema,
   IconValueSchema,
   ShowIfSchema,
@@ -79,7 +80,7 @@ export const NavChangesSchema = z.strictObject({
   bar: z.array(NavTargetSchema).min(1).max(5).optional(),
   floating: z.array(NavTargetSchema).max(3).optional(),
   /** 整个列表（≤4，D-271）；[] 是一个都不放。 */
-  phoneHomeScreen: z.array(IdSchema).optional(),
+  phoneHomeScreen: z.array(HomeScreenEntrySchema).optional(),
 });
 
 export const NewAppSchema = z.strictObject({

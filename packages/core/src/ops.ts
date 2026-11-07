@@ -348,6 +348,10 @@ function removeApp(config: WorkspaceConfig, id: string, notes: ApplyNote[]): voi
   for (const table of moved) delete table.app;
   config.nav.apps = config.nav.apps!.filter((a) => a.id !== app.id);
   if (config.nav.apps.length === 0) delete config.nav.apps;
+  // 桌面菜单里的这个 App 一起拿掉（底线 18）。
+  const homeScreen = config.nav.phoneHomeScreen?.filter((x) => x !== target);
+  if (homeScreen && homeScreen.length > 0) config.nav.phoneHomeScreen = homeScreen;
+  else delete config.nav.phoneHomeScreen;
   if (moved.length > 0 || links)
     notes.push({ kind: 'removedApp', tables: moved.map((t) => t.name), links });
 }
@@ -979,7 +983,11 @@ function updateContainer(
     if (phoneHomeScreen !== undefined) {
       // 放到手机桌面（长按 Morph 图标的菜单，D-271）：工具包自带的快捷操作也可以。
       const ids = [...new Set(phoneHomeScreen)];
-      for (const id of ids) getQuickAction(config, id);
+      for (const id of ids) {
+        // app:<id>（D-485）：点了进那个 App。
+        if (id.startsWith('app:')) getApp(config, id.slice('app:'.length));
+        else getQuickAction(config, id);
+      }
       if (ids.length > 0) config.nav.phoneHomeScreen = ids;
       else delete config.nav.phoneHomeScreen;
     }
