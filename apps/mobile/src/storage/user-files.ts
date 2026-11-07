@@ -75,7 +75,13 @@ export async function mergeUserPdfs(
       source: 'generated',
       createdAt: ctx.now().getTime(),
     };
-    await repo.addAsset(asset);
+    try {
+      await repo.addAsset(asset);
+    } catch (e) {
+      // 合成的文件已经存进文档库目录、数据库里登记不上：删掉它，别留下看不见的副本（R10）；原来的文件不动。
+      await files.removeAssetFile(stored.path).catch(() => undefined);
+      throw e;
+    }
     void indexAssetText(files, asset);
     return asset;
   } finally {

@@ -12,6 +12,7 @@ import {
   type ToolRunRecord,
   type WorkspaceRepo,
   type RecordRange,
+  type RecordWrite,
 } from './types';
 import { sameValues } from './record-values';
 
@@ -92,6 +93,9 @@ const DB_MIGRATIONS: string[] = [
      created_at INTEGER NOT NULL
    );`,
 ];
+
+/** applyRecordWrites 里某条要求「现在还是这份」的不是了：让事务回滚。 */
+class BatchConflict extends Error {}
 
 interface RecordRow {
   id: string;
@@ -527,6 +531,57 @@ export class SQLiteWorkspaceRepo implements WorkspaceRepo {
       updatedAt,
       id,
     );
+  }
+
+  async applyRecordWrites(
+    writes: readonly RecordWrite[],
+    meta?: { key: string; value: string },
+  ): Promise<'applied' | 'conflict'> {
+    try {
+      await this.db.withExclusiveTransactionAsync(async (txn) => {
+        for (const w of writes) {
+          if (w.kind === 'insert') {
+            await txn.runAsync(
+              'INSERT INTO records (id, collection_id, values_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+              w.record.id,
+              w.record.collectionId,
+              JSON.stringify(w.record.values),
+              w.record.createdAt,
+              w.record.updatedAt,
+            );
+            continue;
+          }
+          if (w.expected) {
+            const row = await txn.getFirstAsync<RecordRow>(
+              'SELECT * FROM records WHERE id = ?',
+              w.id,
+            );
+            if (
+              !row ||
+              row.deleted_at !== null ||
+              !sameValues(toStoredRecord(row).values, w.expected)
+            )
+              throw new BatchConflict();
+          }
+          await txn.runAsync(
+            'UPDATE records SET values_json = ?, updated_at = ? WHERE id = ?',
+            JSON.stringify(w.values),
+            w.updatedAt,
+            w.id,
+          );
+        }
+        if (meta)
+          await txn.runAsync(
+            'INSERT INTO app_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+            meta.key,
+            meta.value,
+          );
+      });
+      return 'applied';
+    } catch (e) {
+      if (e instanceof BatchConflict) return 'conflict';
+      throw e;
+    }
   }
 
   async updateRecordIfUnchanged(

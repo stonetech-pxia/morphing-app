@@ -24,14 +24,20 @@ export async function pickPicture(
   const existing = (await repo.listAssets()).map((a) => a.name);
   const name = uniqueFileName(clean.replace(/\.[^.]+$/, ''), ext, existing);
   const stored = await files.importFile(picked, id, name);
-  await repo.addAsset({
-    id,
-    name,
-    mimeType: picked.mimeType ?? 'image/jpeg',
-    size: stored.size,
-    path: stored.path,
-    source: 'picked',
-    createdAt: Date.now(),
-  });
+  try {
+    await repo.addAsset({
+      id,
+      name,
+      mimeType: picked.mimeType ?? 'image/jpeg',
+      size: stored.size,
+      path: stored.path,
+      source: 'picked',
+      createdAt: Date.now(),
+    });
+  } catch (e) {
+    // 副本复制进来了、登记不上：删掉这个新副本，别留下看不见的文件（R10）。
+    await files.removeAssetFile(stored.path).catch(() => undefined);
+    throw e;
+  }
   return { kind: 'saved', assetId: id };
 }

@@ -97,15 +97,22 @@ export async function copyUserFiles(
     } catch {
       return done('copyFailed');
     }
-    await repo.addAsset({
-      id,
-      name,
-      mimeType: mimeOf(name, file.mimeType),
-      size: stored.size,
-      path: stored.path,
-      source: 'picked',
-      createdAt: Date.now(),
-    });
+    try {
+      await repo.addAsset({
+        id,
+        name,
+        mimeType: mimeOf(name, file.mimeType),
+        size: stored.size,
+        path: stored.path,
+        source: 'picked',
+        createdAt: Date.now(),
+      });
+    } catch {
+      // 副本已经复制进来、数据库里登记不上：这一个副本删掉（不然存储空间页看不到、也删不掉）；
+      // 前面登记好的照旧，原件不动（R10）。
+      await files.removeAssetFile(stored.path).catch(() => undefined);
+      return done('copyFailed');
+    }
     assetIds.push(id);
     created.push(id);
     toIndex.push({ path: stored.path, mimeType: mimeOf(name, file.mimeType) });

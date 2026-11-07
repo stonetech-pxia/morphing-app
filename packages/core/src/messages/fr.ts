@@ -1729,6 +1729,10 @@ export const fr: MessageTable = {
   recordActionConfirm: 'Cela modifie {n} entrées.',
   recordActionConfirmButton: 'Modifier',
   recordActionNothing: 'Aucune entrée à modifier',
+  recordActionFailed:
+    'Rien n’a été modifié : un problème est survenu, aucune entrée n’a été changée.',
+  recordActionChangedMeanwhile:
+    'Des entrées ont changé avant votre confirmation : rien n’a été modifié. Appuyez de nouveau pour utiliser les dernières données.',
   recordActionTooMany: 'Au plus {max} entrées peuvent changer à la fois ; cela en modifierait {n}.',
   recordActionGone: 'Cette entrée a été supprimée.',
   // 月历、显示格式、统计的目标和比较（D-305–D-308）

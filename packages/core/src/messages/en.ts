@@ -1656,6 +1656,10 @@ export const en = {
   recordActionConfirm: 'This changes {n} entries.',
   recordActionConfirmButton: 'Change',
   recordActionNothing: 'Nothing to change',
+  recordActionFailed:
+    'Nothing was changed: something went wrong, so not a single entry was edited.',
+  recordActionChangedMeanwhile:
+    'Some entries changed before you confirmed, so nothing was changed. Tap again to use the latest.',
   recordActionTooMany: 'At most {max} entries can change at once; this would change {n}.',
   recordActionGone: 'This entry was deleted.',
   // 月历、显示格式、统计的目标和比较（D-305–D-308）

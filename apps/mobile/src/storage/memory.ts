@@ -11,6 +11,7 @@ import {
   type ToolRunRecord,
   type WorkspaceRepo,
   type RecordRange,
+  type RecordWrite,
 } from './types';
 import { sameValues } from './record-values';
 
@@ -271,6 +272,44 @@ export class MemoryWorkspaceRepo implements WorkspaceRepo {
   async updateRecord(id: string, values: Record<string, unknown>, updatedAt: number) {
     const r = this.readRecord(id);
     if (r) this.writeRecord({ ...r, values, updatedAt });
+  }
+
+  async applyRecordWrites(
+    writes: readonly RecordWrite[],
+    meta?: { key: string; value: string },
+  ): Promise<'applied' | 'conflict'> {
+    // 做在副本上，全部成功才换过来：和数据库的事务一样，中途失败什么都不留下。
+    const records = new Map(this.records);
+    const metaCopy = new Map(this.meta);
+    const take = this.records;
+    const takeMeta = this.meta;
+    this.records = records;
+    this.meta = metaCopy;
+    let result: 'applied' | 'conflict' = 'applied';
+    try {
+      for (const w of writes) {
+        if (w.kind === 'insert') {
+          await this.insertRecord(w.record);
+        } else {
+          const r = this.readRecord(w.id);
+          if (w.expected && (!r || r.deletedAt !== null || !sameValues(r.values, w.expected))) {
+            result = 'conflict';
+            break;
+          }
+          await this.updateRecord(w.id, w.values, w.updatedAt);
+        }
+      }
+      if (result === 'applied' && meta) metaCopy.set(meta.key, meta.value);
+    } catch (e) {
+      this.records = take;
+      this.meta = takeMeta;
+      throw e;
+    }
+    if (result === 'conflict') {
+      this.records = take;
+      this.meta = takeMeta;
+    }
+    return result;
   }
 
   async updateRecordIfUnchanged(
