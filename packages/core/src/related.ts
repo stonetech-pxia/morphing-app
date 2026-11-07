@@ -113,6 +113,12 @@ function depsOf(
         hop: true,
       };
     }
+    case 'schedule': {
+      // 日程的「做过的日子」来自 lastDone，它可能是同一张表的汇总（D-293）：筛选、公式或别的汇总读这个
+      // 日程之前，要先把那个汇总算出来、把它的来源表读进来。日程自己不算一层。
+      const lastDone = field.lastDone;
+      return { refs: lastDone && !isSystemField(lastDone) ? [here(lastDone)] : [], hop: false };
+    }
     default:
       return { refs: [], hop: false };
   }

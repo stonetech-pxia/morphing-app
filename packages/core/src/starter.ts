@@ -14,6 +14,7 @@ import {
   type Locale,
   type WorkspaceConfig,
 } from './schema';
+import { STARTER_THEME } from './theme';
 import { validateWorkspace } from './validate';
 
 /**
@@ -36,9 +37,10 @@ const TOOLBOX_GROUPS: { id: string; title: [string, string]; toolIds?: string[] 
 ];
 
 /**
- * 「打开相册」「打开文件」两个入口并排放在首页（新手引导第 1 步和「跳过引导」用，D-231）；
- * 首页已经有文件入口时不再加。两个按钮下面再放一个「工具」按钮，点进工具箱页面（图标 + 分类的工具，D-181）；
- * 配置里没有工具箱页面时不放。
+ * 首页的入口（新手引导第 1 步和「跳过引导」用，D-231；D-487 重做）：标题和一句话；
+ * 产品的卖点放在最前面——扫成 PDF、Word、Excel，合并文件（四个宫格，都是内设的快捷操作，点了直接运行，不用添加）；
+ * 下面一个主色的「打开文件」（先问相册还是文件）；再下面是工具箱入口、最近操作、最近文件。
+ * 首页已经有文件入口时不再加；某个快捷操作要的工具没装就不放那一块。
  */
 export function homeFileEntryOps(config: WorkspaceConfig, locale: Locale): Op[] {
   const home = config.containers.pages.find((p) => p.id === HOME_PAGE_ID);
@@ -46,34 +48,50 @@ export function homeFileEntryOps(config: WorkspaceConfig, locale: Locale): Op[] 
     return [];
   const ids = new Set(allComponents(home).map((c) => c.id));
   const free = (id: string) => (ids.has(id) ? `${id}-2` : id);
+  const installed = (id: string) => config.packages.some((p) => p.id === id);
+  // 宫格里的快捷操作（内设的预设 ID）和它要的工具。
+  const tiles = [
+    { id: 'scan', tool: 'scan-camera', needs: 'scan' },
+    { id: 'scan-word', tool: 'scan-doc-word', needs: 'scan' },
+    { id: 'scan-excel', tool: 'scan-table-excel', needs: 'scan' },
+    { id: 'combine', tool: 'combine-documents', needs: 'pdf' },
+  ].filter((x) => installed(x.needs));
   return [
     {
       op: 'addContainer',
       page: HOME_PAGE_ID,
       block: {
-        id: free('file-entries'),
-        look: 'group',
-        show: { layout: 'grid', columns: 2 },
-        // D-449：只有图标的白底按钮。扫描直接运行内设的「扫描成 PDF」（没装扫描工具时不放）；
-        // 打开文件先问相册还是文件。
-        children: [
-          ...(config.packages.some((p) => p.id === 'scan')
-            ? [
-                {
-                  id: free('scan'),
-                  look: 'action' as const,
-                  show: { shape: 'icon' as const },
-                  tools: [{ tool: 'scan-camera' }],
-                },
-              ]
-            : []),
+        id: free('hello'),
+        look: 'header',
+        show: { title: 'Tinkrum', subtitle: t(locale, 'homeTagline') },
+      },
+    },
+    ...(tiles.length > 0
+      ? [
           {
-            id: free('open-files'),
-            look: 'picker',
-            show: { shape: 'icon' },
-            tools: [{ tool: '$pick.open' }],
+            op: 'addContainer' as const,
+            page: HOME_PAGE_ID,
+            block: {
+              id: free('file-entries'),
+              look: 'group' as const,
+              show: { layout: 'grid' as const, columns: 2 as const },
+              children: tiles.map((x) => ({
+                id: free(x.id),
+                look: 'action' as const,
+                show: { shape: 'tile' as const },
+                tools: [{ tool: x.tool }],
+              })),
+            },
           },
-        ],
+        ]
+      : []),
+    {
+      op: 'addContainer',
+      page: HOME_PAGE_ID,
+      block: {
+        id: free('open-files'),
+        look: 'picker',
+        tools: [{ tool: '$pick.open' }],
       },
     },
     ...(config.containers.pages.some((p) => p.id === TOOLBOX_PAGE_ID)
@@ -125,7 +143,8 @@ export function homeFileEntryOps(config: WorkspaceConfig, locale: Locale): Op[] 
  */
 export function createStarterWorkspace(locale: Locale, registry: Registry): WorkspaceConfig {
   const pick = (pair: [string, string]) => pairText(locale, pair);
-  const base = createDefaultWorkspace(locale);
+  // D-487：新用户的第一个版本用精修过的 Clay（STARTER_THEME）；createDefaultWorkspace 仍是基准。
+  const base = { ...createDefaultWorkspace(locale), theme: structuredClone(STARTER_THEME) };
   const toolIds = STARTER_TOOL_IDS.filter((id) => registry.tools.has(id));
 
   const grids: ComponentOf<'packages'>[] = TOOLBOX_GROUPS.flatMap((g) => {

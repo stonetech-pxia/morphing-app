@@ -169,20 +169,17 @@ export function DeskToolbar({
                 setActive(gi);
                 scroll.current?.scrollTo({ x: 0, animated: false });
               }}
-              style={styles.tab}>
+              style={[
+                styles.tab,
+                { backgroundColor: gi === at ? palette.primaryTint : 'transparent' },
+              ]}>
               <Text
                 style={[
-                  palette.font(gi === at ? 'bodyBold' : 'body', 14),
+                  palette.font(gi === at ? 'bodyBold' : 'bodyMedium', 14),
                   { color: gi === at ? palette.primaryText : palette.caption },
                 ]}>
                 {g.title}
               </Text>
-              <View
-                style={[
-                  styles.tabBar,
-                  { backgroundColor: gi === at ? palette.primaryText : 'transparent' },
-                ]}
-              />
             </Pressable>
           ))}
         </ScrollView>
@@ -221,10 +218,16 @@ export function DeskToolbar({
                       styles.item,
                       { opacity: off ? 0.35 : pressed ? 0.6 : 1 },
                     ]}>
-                    <Icon name={entry.icon} size={22} color={palette.primaryText} />
+                    <View style={[styles.itemIcon, { backgroundColor: palette.primaryTint }]}>
+                      <Icon name={entry.icon} size={21} color={palette.primaryText} />
+                    </View>
                     <Text
                       numberOfLines={2}
-                      style={[palette.font('body', 11), styles.label, { color: palette.text }]}>
+                      style={[
+                        palette.font('bodyMedium', 11),
+                        styles.label,
+                        { color: palette.text },
+                      ]}>
                       {entry.label}
                     </Text>
                   </Pressable>
@@ -246,13 +249,20 @@ const toolTestId = (entry: ToolEntry) =>
       : (entry.item ?? entry.key);
 
 const styles = StyleSheet.create({
-  row: { paddingHorizontal: 8, paddingVertical: 6, alignItems: 'flex-start' },
+  row: { paddingHorizontal: 8, paddingTop: 4, paddingBottom: 8, alignItems: 'flex-start' },
   group: { paddingHorizontal: 6, gap: 2 },
-  tabs: { paddingHorizontal: 12, gap: 20 },
-  tab: { paddingTop: 8, gap: 4 },
-  tabBar: { height: 3, borderRadius: 2 },
+  // D-488：页签是浅色药丸（选中的底色是主题的浅主色），图标放在圆底里。
+  tabs: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 2, gap: 6 },
+  tab: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999 },
   title: { paddingHorizontal: 4, letterSpacing: 0.4 },
   items: { flexDirection: 'row' },
   item: { width: 68, alignItems: 'center', gap: 4, paddingVertical: 6 },
+  itemIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   label: { textAlign: 'center' },
 });

@@ -61,6 +61,7 @@ const CUSTOM_IMAGES: Record<CustomIconName, number> = {
   board: require('../../assets/images/preset-icons/board.png'),
   suitcase: require('../../assets/images/preset-icons/suitcase.png'),
   vinyl: require('../../assets/images/preset-icons/vinyl.png'),
+  paper: require('../../assets/images/preset-icons/paper.png'),
 };
 
 /** 房间工具栏的动作图标（core 的 TOOL_ICON_NAMES，D-364）：不在白名单里，配置和 AI 用不到。 */

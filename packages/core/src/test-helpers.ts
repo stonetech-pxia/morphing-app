@@ -6,6 +6,7 @@ import { migrateWorkspace } from './migrate';
 import { applyOps, type Op } from './ops';
 import { createRegistry } from './registry';
 import { createDefaultWorkspace } from './defaults';
+import { STARTER_THEME } from './theme';
 import type { Locale, WorkspaceConfig } from './schema';
 import { BUILTIN_TOOLS } from './tools';
 
@@ -51,6 +52,14 @@ export function withScanKeep(config: WorkspaceConfig): WorkspaceConfig {
     if (pdf) pdf.params = { ...pdf.params, textLayer: true };
   }
   return next;
+}
+
+/**
+ * D-487：新用户的起始配置用精修的 Clay（STARTER_THEME）。v33 存下来的起始配置和样板是旧风格；
+ * 和现在的新配置比时换成新风格，其余照旧逐字比。
+ */
+export function withStarterTheme(config: WorkspaceConfig): WorkspaceConfig {
+  return { ...structuredClone(config), theme: structuredClone(STARTER_THEME) };
 }
 
 /** fixtures/v33/<name>.json：v34 迁移前用 v33 代码存下来的配置（默认、新用户、模版、样板、评测 setup）。 */

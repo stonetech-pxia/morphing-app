@@ -21,7 +21,7 @@ import { registry } from './test-helpers';
 import { checkTools } from './tool-check';
 
 // 门户网站的展示预设（App 文件，tinkrum-app，D-485）：每个预设是一个 App，导入时加到现有的工作区里。
-// 每一份都要能读、能导入、不撞 ID、不带用户文件，导入后配置自洽；八个可以一起装。
+// 每一份都要能读、能导入、不撞 ID、不带用户文件，导入后配置自洽；九个可以一起装（D-487 加了 Clay）。
 
 const DIR = join(__dirname, 'fixtures', 'portal-apps');
 interface Entry {
@@ -49,9 +49,9 @@ function importApp(config: WorkspaceConfig, file: AppFile): WorkspaceConfig {
 }
 
 describe('展示预设（App 文件）', () => {
-  it('lists eight apps, each with its own drawn icon, and every file exists', () => {
-    expect(manifest.apps).toHaveLength(8);
-    expect(new Set(manifest.apps.map((a) => a.id)).size).toBe(8);
+  it('lists nine apps, each with its own drawn icon, and every file exists', () => {
+    expect(manifest.apps).toHaveLength(9);
+    expect(new Set(manifest.apps.map((a) => a.id)).size).toBe(9);
     expect(manifest.apps.map((a) => a.icon).sort()).toEqual([...CUSTOM_ICON_NAMES].sort());
     for (const a of manifest.apps) expect(() => text(a.file)).not.toThrow();
   });
@@ -123,10 +123,10 @@ describe('展示预设（App 文件）', () => {
     });
   });
 
-  it('all eight can live in one workspace', () => {
+  it('all nine can live in one workspace', () => {
     let config = starter();
     for (const a of manifest.apps) config = importApp(config, readAppFile(text(a.file))!);
-    expect(config.nav.apps).toHaveLength(8);
+    expect(config.nav.apps).toHaveLength(9);
     expect(referenceProblems(config, registry)).toEqual([]);
   });
 

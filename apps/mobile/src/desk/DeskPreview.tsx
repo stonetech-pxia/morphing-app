@@ -285,10 +285,10 @@ function PdfPages({
         }}
       />
       {count !== null ? (
-        <View style={[styles.counter, { backgroundColor: palette.surface }]}>
+        <View style={styles.counter}>
           <Text
             testID="desk-pdf-counter"
-            style={[palette.font('bodyBold', 13), { color: palette.text }]}>
+            style={[palette.font('bodyBold', 13), styles.counterText]}>
             {`${index + 1} / ${count}`}
           </Text>
         </View>
@@ -301,13 +301,15 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
   note: { textAlign: 'center' },
+  // D-488：深色半透明的小药丸，压在页面上也看得清（不跟着主题变，纸是白的）。
   counter: {
     position: 'absolute',
-    bottom: 10,
+    bottom: 12,
     alignSelf: 'center',
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    opacity: 0.9,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(32,26,22,0.78)',
   },
+  counterText: { color: '#FFFFFF' },
 });

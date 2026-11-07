@@ -17,6 +17,7 @@ import { placeAssetOnDesk, savedWordDoc } from '../desk/saved-source';
 import { loadDesk, placeOnDesk } from '../desk/store';
 import { runErrorText, t, type StringKey } from '../i18n';
 import { useFileBundleOffer } from '../packs/FileBundleOffer';
+import { formatSize } from '../renderer/FileList';
 import { Icon, UiIcon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
 import { Card, SectionLabel } from '../renderer/ui';
@@ -224,12 +225,14 @@ export function FilePreviewScreen({ index }: { index?: number }) {
   const { all } = shareRecommendations(quickActionsOf(config), [info], usage ?? new Map(), locale);
   const fitting = usage === null ? [] : all.filter(({ fit }) => fit.ok);
 
+  // D-488：底栏是浮在页面上的一条圆角面板；每个按钮的图标放在浅色圆底里，第一个（编辑）是主色实心圆。
   const button = (
     id: string,
     icon: IconName,
     label: string,
     onPress: () => void,
     disabled?: boolean,
+    primary?: boolean,
   ) => (
     <Pressable
       key={id}
@@ -237,11 +240,20 @@ export function FilePreviewScreen({ index }: { index?: number }) {
       accessibilityRole="button"
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.tool, { opacity: disabled ? 0.4 : pressed ? 0.6 : 1 }]}>
-      <Icon name={icon} size={22} color={palette.primaryText} />
+      style={({ pressed }) => [
+        styles.tool,
+        { opacity: disabled ? 0.4 : 1, transform: [{ scale: pressed ? 0.94 : 1 }] },
+      ]}>
+      <View
+        style={[
+          styles.toolIcon,
+          { backgroundColor: primary ? palette.primary : palette.primaryTint },
+        ]}>
+        <Icon name={icon} size={20} color={primary ? palette.onPrimary : palette.primaryText} />
+      </View>
       <Text
         numberOfLines={2}
-        style={[palette.font('body', 11), styles.toolLabel, { color: palette.text }]}>
+        style={[palette.font('bodyMedium', 11), styles.toolLabel, { color: palette.text }]}>
         {label}
       </Text>
     </Pressable>
@@ -424,6 +436,20 @@ export function FilePreviewScreen({ index }: { index?: number }) {
       <Stack.Screen
         options={{
           title: file.name,
+          headerTitle: () => (
+            <View style={styles.titleBox} testID="preview-title">
+              <Text numberOfLines={1} style={[palette.font('title', 17), { color: palette.text }]}>
+                {file.name}
+              </Text>
+              <Text
+                numberOfLines={1}
+                style={[palette.font('bodyMedium', 12), { color: palette.caption }]}>
+                {[shown.ext.toUpperCase(), shown.size > 0 ? formatSize(shown.size, locale) : '']
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+            </View>
+          ),
           ...(member
             ? {}
             : {
@@ -434,15 +460,24 @@ export function FilePreviewScreen({ index }: { index?: number }) {
         }}
       />
       <View style={styles.flex} testID="file-preview">
-        <DeskPreview
-          uri={file.uri}
-          file={shown}
-          files={files}
-          palette={palette}
-          locale={locale}
-          onSystemPreview={() => void systemPreview()}
-          wordDoc={wordDoc}
-        />
+        <View
+          style={[
+            styles.sheet,
+            palette.cardStyle(palette.surface),
+            { borderRadius: palette.radius, margin: 0, padding: 0, marginHorizontal: 12 },
+          ]}>
+          <View style={[styles.sheetClip, { borderRadius: Math.max(0, palette.radius - 2) }]}>
+            <DeskPreview
+              uri={file.uri}
+              file={shown}
+              files={files}
+              palette={palette}
+              locale={locale}
+              onSystemPreview={() => void systemPreview()}
+              wordDoc={wordDoc}
+            />
+          </View>
+        </View>
       </View>
       {error || record.error ? (
         <Text
@@ -466,9 +501,10 @@ export function FilePreviewScreen({ index }: { index?: number }) {
           testID="preview-bar"
           style={[
             styles.bar,
+            palette.cardStyle(palette.surface),
             {
-              borderColor: palette.border,
-              paddingBottom: insets.bottom + 6,
+              borderRadius: Math.min(palette.radius + 6, 32),
+              marginBottom: Math.max(insets.bottom, 12),
             },
           ]}>
           {button(
@@ -477,6 +513,7 @@ export function FilePreviewScreen({ index }: { index?: number }) {
             t(locale, kind === 'pdf' ? 'previewEditPdf' : 'previewEdit'),
             () => void edit(),
             busy,
+            true,
           )}
           {wordId
             ? button('preview-word', 'text', t(locale, 'previewToWord'), () => run(wordId, 'desk'))
@@ -499,6 +536,7 @@ export function FilePreviewScreen({ index }: { index?: number }) {
               styles.panel,
               { backgroundColor: palette.surface, paddingBottom: insets.bottom + 12 },
             ]}>
+            <View style={[styles.handle, { backgroundColor: palette.border }]} />
             <View style={styles.panelHeader}>
               <Text style={[palette.font('title', 20), { color: palette.text }]}>
                 {t(
@@ -564,19 +602,33 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   empty: { flex: 1, gap: 16, justifyContent: 'center' },
   error: { paddingHorizontal: 16, paddingVertical: 6 },
+  // 浮在页面底部的一条圆角面板（D-488）：左右各留 12，圆角、阴影跟着主题的卡片。
   bar: {
     flexDirection: 'row',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: 8,
+    marginHorizontal: 12,
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    padding: 0,
   },
-  // 和桌面的工具栏一样（DeskToolbar）：22 的图标用主色，11 的文字。
-  tool: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 2 },
+  tool: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 2 },
+  toolIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  titleBox: { alignItems: 'center', maxWidth: 220 },
+  sheet: { flex: 1, marginTop: 4 },
+  sheetClip: { flex: 1, overflow: 'hidden' },
+  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, marginBottom: 4 },
   toolLabel: { textAlign: 'center' },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
   panel: {
     maxHeight: '90%',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     padding: 16,
     gap: 8,
   },
