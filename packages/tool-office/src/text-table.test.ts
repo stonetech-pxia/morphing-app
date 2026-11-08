@@ -227,6 +227,71 @@ describe('rows kept together when no table lines are found (D-502)', () => {
     expect(rowsOf(table!)).toEqual(pairs);
   });
 
+  it('a two-column list does not take rows from a three-column table below it', () => {
+    // 小票（SROIE S_094 的位置，行高 20）：合计两列、金额隔得远；下面隔一行发票号，是三列的 GST 汇总，
+    // 表头「Amount  Tax」不是数，Tax 一列也隔得远。合计不能把汇总吞进一张两列的表、压成两列。
+    const totals = [
+      ['Sub-total', '5.90', 140],
+      ['Total Sales Incl GST', '5.90', 285],
+      ['Total After Adj Incl GST', '5.90', 343],
+      ['CASH', '10.00', 66],
+      ['Item Count 1', '4.10', 174],
+    ] as const;
+    const gst = [
+      ['GST Summary', 'Amount', 'Tax'],
+      ['SR @ 6%', '5.57', '0.33'],
+      ['Total', '5.57', '0.33'],
+    ];
+    const lines = [
+      ...totals.flatMap(([label, amount, w], r) => [
+        box(label, 76, 100 + r * 20, w / 2),
+        box(amount, 583 / 2, 100 + r * 20, 32),
+      ]),
+      box('Invoice No: 2018020951320023885', 67, 200, 221),
+      ...gst.flatMap((row, r) =>
+        row.map((t, c) => box(t, [38, 180, 292][c]!, 220 + r * 20, [80, 45, 32][c]!)),
+      ),
+    ].map((l) => ({ ...l, height: 18 }));
+    const rows = tablesIn(lines).flatMap(rowsOf);
+    for (const row of gst) expect(rows).toContainEqual(row);
+  });
+
+  it('a short summary right under a table joins it with the table’s columns', () => {
+    // 小票（SROIE S_454 的位置）：商品和合计排成三列的表，下面紧挨着 GST 汇总（表头一排、数一排），
+    // 汇总的表头横在两列之间；再下面是一行字。汇总两排接在表下面，每排三格，不散成六段。
+    const t = (text: string, x: number, y: number, w: number): OcrBox => ({
+      text,
+      x,
+      y,
+      width: w,
+      height: 30,
+    });
+    const lines = [
+      t('001697', 82, 100, 85),
+      t('5.00 1.00', 330, 100, 124),
+      t('5.00 SR', 560, 100, 100),
+      t('766271', 82, 136, 85),
+      t('1.00 22.00', 320, 136, 134),
+      t('22.00 SR', 560, 136, 106),
+      t('Total Amt Incl. GST', 194, 172, 250),
+      t('27.00', 560, 172, 71),
+      t('Rounding Adjusment:', 231, 208, 210),
+      t('0.00', 600, 208, 40),
+      t('Total Amt Payable :', 194, 244, 249),
+      t('27.00', 560, 244, 71),
+      t('GST Summary', 82, 280, 182),
+      t('Amount(RM)', 293, 280, 162),
+      t('GST (RM)', 498, 280, 130),
+      t('SR = 6 %', 83, 316, 124),
+      t('25.47', 382, 316, 72),
+      t('1.53', 571, 316, 57),
+      t('POINT. 0.00', 232, 352, 162),
+    ];
+    const rows = tablesIn(lines).flatMap(rowsOf);
+    expect(rows).toContainEqual(['GST Summary', 'Amount(RM)', 'GST (RM)']);
+    expect(rows).toContainEqual(['SR = 6 %', '25.47', '1.53']);
+  });
+
   it('two blocks side by side (an address next to an address) are not a table', () => {
     const left = ['ASAKI SUSHI', '48 RUE DE CHARTRES', '91410 DOURDAN', 'Siret 81265228'];
     const right = ['Monsieur XIA', '52T RUE VICTOR HUGO', 'PORTE 185', '93500 PANTIN'];
