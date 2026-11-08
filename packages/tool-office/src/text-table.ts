@@ -266,6 +266,12 @@ const LOCKED_SHARE = 0.7;
 const LOCKED_SKEW = 0.25;
 const MAX_UNIT_LETTERS = 3;
 
+/** 这一排能按这张表的列排：至少两段，每段从不同的列开始（没有两段挤在同一列，跨到下一列的截到那一列为止）。 */
+function fitsBands(row: TextRow, bands: readonly Band[]): boolean {
+  const starts = row.segments.map((seg) => spanOf(seg, bands)[0]);
+  return starts.length >= 2 && new Set(starts).size === starts.length;
+}
+
 /**
  * 找没有线的表：连续几排（中间可以夹着只有一段的排，空隙不大），按列对齐，至少三列、三排用到三列以上。
  * lines 是拉平以后的行；original 把拉平的行换回原来的（格子在原图里的位置，截图核对、原图小窗用）。
@@ -276,7 +282,45 @@ export function findTextTables(
   original: (l: OcrBox) => OcrBox = (l) => l,
 ): TextTable[] {
   const rows = textRows(lines, lineHeight);
-  const out: TextTable[] = [];
+  // 先找三列以上的表，再在剩下的排里找两列的清单（D-503）：两列的「项目 → 金额」不能抢三列的表的排
+  // （小票的合计把下面的 GST 汇总吞进一张两列的表、压成两列，或者先拿走汇总上面的几排、汇总凑不成表）。
+  const wide = runTables(rows, lineHeight, original, false);
+  const used = new Set(wide.flatMap(({ from, to }) => rows.slice(from, to + 1)));
+  // 三列以上的表下面紧挨着的一两排、自己凑不成表（小票的 GST 汇总：表头一排、数一排）：
+  // 能按这张表的列排（每段从不同的列开始），就接到这张表下面，列不重算（D-503）。
+  // 加进来一起算列的话，汇总的表头横在两列之间，会把三列并成两列。
+  for (const w of wide) {
+    const tail: TextRow[] = [];
+    for (let k = w.to + 1; k < rows.length && !used.has(rows[k]!); k++) {
+      if (rows[k]!.top - rows[k - 1]!.bottom > 1.8 * lineHeight) break;
+      if (!fitsBands(rows[k]!, w.bands)) break;
+      tail.push(rows[k]!);
+    }
+    if (!tail.length || tail.length >= MIN_ROWS) continue;
+    w.table = buildTable(rows.slice(w.from, w.to + 1 + tail.length), w.bands, original);
+    for (const row of tail) used.add(row);
+  }
+  const out = wide.map(({ table }) => table);
+  let group: TextRow[] = [];
+  for (const row of [...rows, null]) {
+    if (row && !used.has(row)) {
+      group.push(row);
+      continue;
+    }
+    if (group.length) out.push(...runTables(group, lineHeight, original, true).map((t) => t.table));
+    group = [];
+  }
+  return out.sort((x, y) => x.box.y - y.box.y);
+}
+
+/** 一串连着的排里找表：从上往下，每处取最长的、还能成表的一段。twoColumns 时也收两列的清单。 */
+function runTables(
+  rows: readonly TextRow[],
+  lineHeight: number,
+  original: (l: OcrBox) => OcrBox,
+  twoColumns: boolean,
+): { table: TextTable; bands: Band[]; from: number; to: number }[] {
+  const out: { table: TextTable; bands: Band[]; from: number; to: number }[] = [];
   let i = 0;
   while (i < rows.length) {
     if (rows[i]!.segments.length < 2) {
@@ -294,7 +338,7 @@ export function findTextTables(
       else if (j - lastMulti > 2) break;
     }
     // 上下两部分的列不一样时（小票的商品和下面的合计）整段凑不成一张表：取从这里开始最长的、还能成表的一段。
-    let found: { table: TextTable; end: number } | null = null;
+    let found: { table: TextTable; bands: Band[]; end: number } | null = null;
     for (let end = lastMulti; end >= i + MIN_ROWS - 1 && !found; end--) {
       if (rows[end]!.segments.length < 2) continue;
       // 表上下紧挨着的两排（隔着不到 1.8 个行高）：看隔得远的数列有没有错位（D-502）。
@@ -307,11 +351,11 @@ export function findTextTables(
         if (rows[k]!.top - rows[k - 1]!.bottom > 1.8 * lineHeight) break;
         near.push(rows[k]!);
       }
-      const table = tableOf(rows.slice(i, end + 1), lineHeight, original, near);
-      if (table) found = { table, end };
+      const hit = tableOf(rows.slice(i, end + 1), lineHeight, original, near, twoColumns);
+      if (hit) found = { ...hit, end };
     }
     if (found) {
-      out.push(found.table);
+      out.push({ table: found.table, bands: found.bands, from: i, to: found.end });
       i = found.end + 1;
     } else i++;
   }
@@ -323,7 +367,8 @@ function tableOf(
   lineHeight: number,
   original: (l: OcrBox) => OcrBox,
   near: readonly TextRow[] = [],
-): TextTable | null {
+  twoColumns = false,
+): { table: TextTable; bands: Band[] } | null {
   const bands = columnBands(run);
   if (bands.length < 2) return null;
   const spans = run.map((row) => row.segments.map((s) => ({ s, span: spanOf(s, bands) })));
@@ -342,7 +387,7 @@ function tableOf(
   if (far.some((k) => near.some((row) => stray(row, k)))) return null;
   // 两列的也算（D-502）：左边项目、隔得很远的右边一列数（小票的合计、账单的费用清单），一排一排对着；
   // 隔得近的两列「标签：值」照旧（D-332）。
-  const minCols = bands.length === 2 && far.length === 1 ? 2 : MIN_COLS;
+  const minCols = twoColumns && bands.length === 2 && far.length === 1 ? 2 : MIN_COLS;
   if (bands.length < minCols) return null;
   const wide = spans.filter((r) => new Set(r.map((x) => x.span[0])).size >= minCols).length;
   if (wide < MIN_WIDE_ROWS) return null;
@@ -351,6 +396,18 @@ function tableOf(
     r.segments.map((seg) => seg.lines.reduce((n, l) => n + l.text.trim().length, 0)),
   );
   if (median(lengths) > MAX_CELL_CHARS) return null;
+  return { table: buildTable(run, bands, original), bands };
+}
+
+type Band = { x: number; right: number };
+
+/** 按给定的列把几排排成一张表。 */
+function buildTable(
+  run: readonly TextRow[],
+  bands: readonly Band[],
+  original: (l: OcrBox) => OcrBox,
+): TextTable {
+  const spans = run.map((row) => row.segments.map((s) => ({ s, span: spanOf(s, bands) })));
   const cells: TableCell[] = [];
   for (const [r, row] of spans.entries()) {
     // 同一列里的几段接起来；跨列的段占几列。
