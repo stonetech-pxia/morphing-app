@@ -9,7 +9,6 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "app.morph.mobile",
-      "icon": "./assets/expo.icon",
       "infoPlist": {
         "NSSpeechRecognitionUsageDescription": "Tinkrum transcribes recordings on this device when you run speech to text. Recordings stay on this device.",
         "BGTaskSchedulerPermittedIdentifiers": ["app.morph.mobile.work.*"],
@@ -22,7 +21,7 @@
     "android": {
       "package": "app.morph.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#D92D20",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
