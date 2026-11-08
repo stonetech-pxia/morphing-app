@@ -24,8 +24,11 @@ import type {
 export interface BuildOptions {
   /** 同一格（或同一段）里的几行接成文字；App 里用 D-268 的 layoutOcrLines 加上按语言整理。 */
   joinLines?: (lines: readonly OcrBox[]) => string;
-  /** 每张表放进格子的识别行（传进来的对象）：转 Word 时没放进表的行照样排成正文（D-501）。 */
-  onTable?: (table: TableBlock, lines: readonly OcrBox[]) => void;
+  /**
+   * 每张表放进格子的识别行（传进来的对象）：转 Word 时没放进表的行照样排成正文（D-501）。
+   * chopped 是被列线从一个词中间切开的行数（D-502）：真的表里字不跨列线，跨了多半是网格认错了。
+   */
+  onTable?: (table: TableBlock, lines: readonly OcrBox[], check: { chopped: number }) => void;
 }
 
 export interface PageInput {
@@ -82,6 +85,8 @@ const STROKE_SHARE = 0.7;
 const STROKE_TOUCH_SHARE = 0.005;
 const STROKE_MIN_JOINED = 3;
 const STROKE_RULE_SHARE = 0.3;
+/** 切口两边的字距比平常大这么多倍就是两段字之间的空隙，不是一个词的中间。 */
+const CHOP_GAP = 1.8;
 
 const median = (values: readonly number[]) => {
   const sorted = [...values].sort((a, b) => a - b);
@@ -351,6 +356,34 @@ function buildGrid(
 }
 
 /**
+ * 这一行被有线的列线从一个词中间切开（D-502）：列线两边不是同一格，而且切口两边的字挨着
+ * （不是空格、字距也不比平常大）。PP-OCR 把相邻两格认成一行时，列线落在两段字之间的空隙里，不算。
+ * 没有每个字的位置时看不出来，不算。
+ */
+function chopsWord(line: OcrBox, grid: Grid): boolean {
+  const chars = line.chars;
+  if (!chars || chars.length < 2) return false;
+  const cols = grid.xs.length - 1;
+  const row = indexOf(grid.ys, centerY(line));
+  const margin = line.height * 0.5;
+  const at = chars.map((ch) => line.x + ch.at * line.width);
+  const steps = at.slice(1).map((x, i) => x - at[i]!);
+  const typical = [...steps].sort((a, b) => a - b)[steps.length >> 1]!;
+  for (let c = 1; c < cols; c++) {
+    if (!grid.xs[c]!.lined) continue;
+    const x = grid.xs[c]!.pos;
+    if (x <= line.x + margin || x >= line.x + line.width - margin) continue;
+    if (grid.owner[row * cols + c - 1] === grid.owner[row * cols + c]) continue;
+    const right = at.findIndex((p) => p >= x);
+    if (right <= 0) continue;
+    const gap = at[right]! - at[right - 1]!;
+    const blank = !chars[right]!.text.trim() || !chars[right - 1]!.text.trim();
+    if (!blank && gap < CHOP_GAP * typical) return true;
+  }
+  return false;
+}
+
+/**
  * 一行文字放进格子：横跨了竖线（PP-OCR 把相邻两格认成了一行）而且有每个字的位置时，在竖线处切开。
  * 返回切开后的几段，每段按中心点放进一格。
  */
@@ -528,7 +561,13 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
   };
   const lineHeight = median(flat.map((l) => l.height)) || 20;
   const placed = new Set<OcrBox>();
-  const tables: { block: TableBlock; flatBox: Box; xs: number[]; lines: OcrBox[] }[] = [];
+  const tables: {
+    block: TableBlock;
+    flatBox: Box;
+    xs: number[];
+    lines: OcrBox[];
+    chopped: number;
+  }[] = [];
   for (const table of findTables(dropTextStrokes(page, flat))) {
     const { box } = table;
     const members = flat.filter(
@@ -564,6 +603,7 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     for (const line of inside) {
       for (const { cell, piece } of piecesOf(line, grid)) texts[cell]!.push(piece);
     }
+    const chopped = inside.filter((l) => chopsWord(l, grid)).length;
     // 只有横线的表：至少两行有字、按文字空隙至少分出两列才算表（几条分隔线中间的正文分不出列）。
     const rowsWithText = new Set(grid.cells.filter((_, i) => texts[i]!.length).map((c) => c.row));
     if (!table.vs.length && (rowsWithText.size < 2 || grid.xs.length < 3)) continue;
@@ -586,6 +626,7 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
       flatBox,
       xs: grid.xs.map((x) => x.pos),
       lines: inside.map((l) => sourceOf.get(l)!),
+      chopped,
       block: {
         kind: 'table',
         rows: grid.ys.length - 1,
@@ -612,7 +653,7 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
       colSpan: map[cell.col + cell.colSpan]! - map[cell.col]!,
     }));
   });
-  for (const tb of tables) options.onTable?.(tb.block, tb.lines);
+  for (const tb of tables) options.onTable?.(tb.block, tb.lines, { chopped: tb.chopped });
   const colWidths = tables.length
     ? shared.pos.slice(1).map((x, c) => Math.round(x - shared.pos[c]!))
     : Array.from({ length: TEXT_ONLY_COLS }, () => Math.round(image.width / TEXT_ONLY_COLS));

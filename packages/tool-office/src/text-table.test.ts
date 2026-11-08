@@ -179,3 +179,74 @@ describe('numbers are not list markers (D-471)', () => {
     expect(JSON.stringify(doc)).toContain('"text":"-7.29"');
   });
 });
+
+describe('rows kept together when no table lines are found (D-502)', () => {
+  const box = (text: string, x: number, y: number, width = 80): OcrBox => ({
+    text,
+    x,
+    y,
+    width,
+    height: 20,
+  });
+  const tablesIn = (lines: OcrBox[]) =>
+    buildDocPage({ image: white(1400, 900), lines, source: 's', skew: 0 }).blocks.filter(
+      (b): b is DocTable => b.kind === 'table',
+    );
+
+  it('a payslip body (item names far from columns of amounts) becomes one row per item', () => {
+    // 工资单的表身，表格线没认出来：左边项目名，隔着七八个行高，右边三列金额；有的项目只有一两列有数。
+    const items = [
+      ['Salaire de base', '151.67', '12.3100', '1 867.06'],
+      ['Heures supplémentaires 10 %', '17.33', '13.5410', '234.67'],
+      ['Sous total Salaire de base', '169.00', '', '2 101.73'],
+      ['Indemnité congés payés', '', '', '404.18'],
+      ['AeN nourriture (repas pris)', '44.00', '4.3500', '191.40'],
+    ];
+    const lines = items.flatMap(([label, ...amounts], r) => [
+      box(label!, 100, 100 + r * 30, 300),
+      ...amounts.flatMap((a, c) => (a ? [box(a, 600 + c * 150, 100 + r * 30)] : [])),
+    ]);
+    const [table, ...others] = tablesIn(lines);
+    expect(others).toHaveLength(0);
+    expect(rowsOf(table!)).toEqual(items.map((row) => row.filter(Boolean)));
+  });
+
+  it('a list of labels with amounts far to the right becomes a two-column table', () => {
+    // 小票的合计：两列，隔得很远，右边是数。
+    const pairs = [
+      ['Total', 'RM 30.91'],
+      ['ROUNDING ADJUSTMENT', '-RM 0.01'],
+      ['TOTAL ROUNDED', 'RM 30.90'],
+      ['CASH', 'RM 51.00'],
+    ];
+    const lines = pairs.flatMap(([label, amount], r) => [
+      box(label!, 100, 100 + r * 30, 220),
+      box(amount!, 700, 100 + r * 30, 90),
+    ]);
+    const [table] = tablesIn(lines);
+    expect(rowsOf(table!)).toEqual(pairs);
+  });
+
+  it('two blocks side by side (an address next to an address) are not a table', () => {
+    const left = ['ASAKI SUSHI', '48 RUE DE CHARTRES', '91410 DOURDAN', 'Siret 81265228'];
+    const right = ['Monsieur XIA', '52T RUE VICTOR HUGO', 'PORTE 185', '93500 PANTIN'];
+    const lines = left.flatMap((t, r) => [
+      box(t, 100, 100 + r * 30, 220),
+      box(right[r]!, 800, 100 + r * 30, 220),
+    ]);
+    expect(tablesIn(lines)).toHaveLength(0);
+  });
+
+  it('amounts shifted against their labels (a steep photo) are not paired up', () => {
+    // 拍得很斜：右边的数比左边的项目高了两排，最上面两个数旁边没有项目。
+    const lines = [
+      box('497.16', 700, 40),
+      box('184.91', 700, 70),
+      ...['Room Charge', 'Room Service', 'Service VAT', 'Package VAT'].flatMap((t, r) => [
+        box(t, 100, 100 + r * 30, 220),
+        box(['11.09', '2.83', '695.99', '0.00'][r]!, 700, 100 + r * 30),
+      ]),
+    ];
+    expect(tablesIn(lines)).toHaveLength(0);
+  });
+});

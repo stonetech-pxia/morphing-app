@@ -922,3 +922,21 @@ describe('text left out of a table (D-501)', () => {
     expect(leaves.at(-1)).toMatchObject({ kind: 'paragraph', text: 'Keep this payslip' });
   });
 });
+
+describe('ruled tables whose column lines cut through words (D-502)', () => {
+  it('are not used as tables; their text stays whole', () => {
+    // 竖线从每行字的中间穿过（字的笔画、折痕认成了列线）：按这张表排，每行字被切成两半。
+    const rects: Rect[] = [...gridRects([100, 400, 700], [100, 140, 180, 220])];
+    const lines: OcrBox[] = [];
+    for (let r = 0; r < 3; r++) {
+      const text = `Consommations${r}annuelles`;
+      lines.push(fakeLine(text, { x: 150, y: 110 + r * 40, width: 500, height: 20 }, page, true));
+      rects.push(...glyphs(152, 113 + r * 40, 496, 14));
+    }
+    const doc = buildDocPage({ image: renderPage(W, H, rects), lines, source: 'p.jpg', skew: 0 });
+    const leaves = leafBlocks(doc);
+    expect(leaves.filter((b) => b.kind === 'table')).toHaveLength(0);
+    const texts = leaves.flatMap((b) => (b.kind === 'paragraph' ? b.text.split('\n') : []));
+    for (let r = 0; r < 3; r++) expect(texts.join(' ')).toContain(`Consommations${r}annuelles`);
+  });
+});

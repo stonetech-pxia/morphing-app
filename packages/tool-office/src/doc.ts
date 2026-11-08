@@ -563,6 +563,10 @@ export function isRuleGrid(table: TableBlock, lineCount = 0): boolean {
   return filled < GRID_MIN_FILLED * table.cells.length;
 }
 
+/** 至少这么多行、这么多比例的字被列线从词中间切开，就是网格认错了（D-502）。 */
+const CHOP_MIN = 2;
+const CHOP_SHARE = 0.3;
+
 /** 框的高是宽的这么多倍以上、至少两个字：竖排或旋转了的字。 */
 const VERTICAL_RATIO = 2;
 export const isVertical = (l: Box & { text: string }) =>
@@ -774,6 +778,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   const lineHeight = median(lines.map((l) => l.height)) || 20;
   // 带线的表格（和转 Excel 一样）；放进表格的行不再参加分段。
   const placedIn = new Map<TableBlock, readonly OcrBox[]>();
+  const choppedIn = new Map<TableBlock, number>();
   const sheet = buildTablePage(
     {
       image,
@@ -789,7 +794,10 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
         rowsOf(cell)
           .map((r) => join(r.lines).trim())
           .join('\n'),
-      onTable: (table, placed) => placedIn.set(table, placed),
+      onTable: (table, placed, { chopped }) => {
+        placedIn.set(table, placed);
+        choppedIn.set(table, chopped);
+      },
     },
   );
   const tol = lineHeight * 0.3;
@@ -803,9 +811,17 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
       cy <= box.y + box.height + tol
     );
   };
+  // 列线把很多行字从词中间切开的表（D-502）：网格认错了（字的笔画、折痕当成了列线），不当表，
+  // 里面的字按行排（没有线的表照样能认出来）。
+  const chopsMuch = (t: TableBlock) => {
+    const chopped = choppedIn.get(t) ?? 0;
+    return chopped >= CHOP_MIN && chopped >= CHOP_SHARE * (placedIn.get(t)?.length ?? 0);
+  };
   const ruled = sheet.blocks.filter(
     (b): b is TableBlock =>
-      b.kind === 'table' && !isRuleGrid(b, lines.filter((l) => inBox(l, b.box)).length),
+      b.kind === 'table' &&
+      !isRuleGrid(b, lines.filter((l) => inBox(l, b.box)).length) &&
+      !chopsMuch(b),
   );
   const tables: DocTable[] = ruled.map((table) => {
     // 表里的字号按表里文字的行高（D-335），和正文分开算。
