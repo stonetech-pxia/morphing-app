@@ -877,3 +877,66 @@ describe('small layout fixes (D-473)', () => {
     expect(mergeColumnRows([row(100, 'L1', 'R1'), other], 20)).toHaveLength(2);
   });
 });
+
+describe('ruled tables and barcodes (D-501)', () => {
+  it('does not cut the empty part of a ruled table with many columns out as a barcode', () => {
+    // 工资单下半截没字的地方只有一排平行的列线，按条形码剪成图片后是一条带黑竖线的空白图。
+    const xs = Array.from({ length: 13 }, (_, i) => 100 + i * 65);
+    const lines: OcrBox[] = [];
+    const rects: Rect[] = [...gridRects(xs, [100, 140, 600])];
+    for (let c = 0; c < 12; c++) {
+      lines.push(fakeLine(`h${c}`, { x: xs[c]! + 15, y: 110, width: 35, height: 20 }, page));
+      lines.push(fakeLine(`${c}.0`, { x: xs[c]! + 15, y: 150, width: 35, height: 20 }, page));
+      rects.push(...glyphs(xs[c]! + 17, 113, 30, 14), ...glyphs(xs[c]! + 17, 153, 30, 14));
+    }
+    const doc = buildDocPage({ image: renderPage(W, H, rects), lines, source: 'p.jpg', skew: 0 });
+    const leaves = leafBlocks(doc);
+    expect(leaves.filter((b) => b.kind === 'table')).toHaveLength(1);
+    expect(leaves.filter((b) => b.kind === 'image')).toHaveLength(0);
+  });
+});
+
+describe('text left out of a table (D-501)', () => {
+  it('a footer whose tall box covers the table’s bottom line comes out once, as text after the table', () => {
+    // 照片里弯的一行页脚：识别框很高，罩住了表格的底线，横跨所有列线。它不进表，也不能丢。
+    const xs = [100, 300, 500, 700, 900];
+    const rects: Rect[] = [...gridRects(xs, [200, 240, 300])];
+    const lines: OcrBox[] = [];
+    for (let c = 0; c < 4; c++) {
+      lines.push(fakeLine(`v${c}`, { x: xs[c]! + 40, y: 255, width: 80, height: 20 }, page));
+      rects.push(...glyphs(xs[c]! + 44, 258, 72, 14));
+    }
+    // 中心刚过底线（离表格的框不到 0.3 个行高）：按框算会当成表里的字，表里又没放，就丢了。
+    lines.push(fakeLine('Keep this payslip', { x: 100, y: 284, width: 800, height: 34 }, page));
+    rects.push({ x: 300, y: 300, width: 2, height: 30 }, ...glyphs(110, 304, 780, 12));
+    const doc = buildDocPage({ image: renderPage(W, H, rects), lines, source: 'p.jpg', skew: 0 });
+    const leaves = leafBlocks(doc);
+    const texts = leaves.flatMap((b) =>
+      b.kind === 'table'
+        ? b.table.cells.map((c) => c.text)
+        : b.kind === 'paragraph'
+          ? [b.text]
+          : [],
+    );
+    expect(texts.filter((t) => t.includes('Keep this payslip'))).toEqual(['Keep this payslip']);
+    expect(leaves.at(-1)).toMatchObject({ kind: 'paragraph', text: 'Keep this payslip' });
+  });
+});
+
+describe('ruled tables whose column lines cut through words (D-502)', () => {
+  it('are not used as tables; their text stays whole', () => {
+    // 竖线从每行字的中间穿过（字的笔画、折痕认成了列线）：按这张表排，每行字被切成两半。
+    const rects: Rect[] = [...gridRects([100, 400, 700], [100, 140, 180, 220])];
+    const lines: OcrBox[] = [];
+    for (let r = 0; r < 3; r++) {
+      const text = `Consommations${r}annuelles`;
+      lines.push(fakeLine(text, { x: 150, y: 110 + r * 40, width: 500, height: 20 }, page, true));
+      rects.push(...glyphs(152, 113 + r * 40, 496, 14));
+    }
+    const doc = buildDocPage({ image: renderPage(W, H, rects), lines, source: 'p.jpg', skew: 0 });
+    const leaves = leafBlocks(doc);
+    expect(leaves.filter((b) => b.kind === 'table')).toHaveLength(0);
+    const texts = leaves.flatMap((b) => (b.kind === 'paragraph' ? b.text.split('\n') : []));
+    for (let r = 0; r < 3; r++) expect(texts.join(' ')).toContain(`Consommations${r}annuelles`);
+  });
+});

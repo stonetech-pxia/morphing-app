@@ -563,6 +563,10 @@ export function isRuleGrid(table: TableBlock, lineCount = 0): boolean {
   return filled < GRID_MIN_FILLED * table.cells.length;
 }
 
+/** 至少这么多行、这么多比例的字被列线从词中间切开，就是网格认错了（D-502）。 */
+const CHOP_MIN = 2;
+const CHOP_SHARE = 0.3;
+
 /** 框的高是宽的这么多倍以上、至少两个字：竖排或旋转了的字。 */
 const VERTICAL_RATIO = 2;
 export const isVertical = (l: Box & { text: string }) =>
@@ -772,7 +776,9 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   const { image } = input;
   const lines = input.lines.filter((l) => l.text.trim());
   const lineHeight = median(lines.map((l) => l.height)) || 20;
-  // 带线的表格（和转 Excel 一样）；表格里的行不再参加分段。
+  // 带线的表格（和转 Excel 一样）；放进表格的行不再参加分段。
+  const placedIn = new Map<TableBlock, readonly OcrBox[]>();
+  const choppedIn = new Map<TableBlock, number>();
   const sheet = buildTablePage(
     {
       image,
@@ -788,6 +794,10 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
         rowsOf(cell)
           .map((r) => join(r.lines).trim())
           .join('\n'),
+      onTable: (table, placed, { chopped }) => {
+        placedIn.set(table, placed);
+        choppedIn.set(table, chopped);
+      },
     },
   );
   const tol = lineHeight * 0.3;
@@ -801,26 +811,34 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
       cy <= box.y + box.height + tol
     );
   };
-  const tables: DocTable[] = sheet.blocks
-    .filter(
-      (b): b is TableBlock =>
-        b.kind === 'table' && !isRuleGrid(b, lines.filter((l) => inBox(l, b.box)).length),
-    )
-    .map((table) => {
-      // 表里的字号按表里文字的行高（D-335），和正文分开算。
-      const h = median(lines.filter((l) => inBox(l, table.box)).map((l) => l.height));
-      return {
-        kind: 'table',
-        table: foldEmptyColumns({ ...table, col: 0 }),
-        colWidths: sheet.colWidths.slice(table.col, table.col + table.cols),
-        ...(h ? { size: Math.min(BODY_MAX, Math.max(FORM_MIN, fontSizeOf(h, image.width))) } : {}),
-        box: table.box,
-      };
-    });
-  const inTable = (l: Box) => tables.some(({ box }) => inBox(l, box));
+  // 列线把很多行字从词中间切开的表（D-502）：网格认错了（字的笔画、折痕当成了列线），不当表，
+  // 里面的字按行排（没有线的表照样能认出来）。
+  const chopsMuch = (t: TableBlock) => {
+    const chopped = choppedIn.get(t) ?? 0;
+    return chopped >= CHOP_MIN && chopped >= CHOP_SHARE * (placedIn.get(t)?.length ?? 0);
+  };
+  const ruled = sheet.blocks.filter(
+    (b): b is TableBlock =>
+      b.kind === 'table' &&
+      !isRuleGrid(b, lines.filter((l) => inBox(l, b.box)).length) &&
+      !chopsMuch(b),
+  );
+  const tables: DocTable[] = ruled.map((table) => {
+    // 表里的字号按表里文字的行高（D-335），和正文分开算。
+    const h = median(lines.filter((l) => inBox(l, table.box)).map((l) => l.height));
+    return {
+      kind: 'table',
+      table: foldEmptyColumns({ ...table, col: 0 }),
+      colWidths: sheet.colWidths.slice(table.col, table.col + table.cols),
+      ...(h ? { size: Math.min(BODY_MAX, Math.max(FORM_MIN, fontSizeOf(h, image.width))) } : {}),
+      box: table.box,
+    };
+  });
+  // 按实际放进格子的行算（D-501）：表格边线外面、横跨列线的字没放进表，照样排成正文，不丢。
+  const inTable = new Set(ruled.flatMap((t) => placedIn.get(t) ?? []));
   // 整页的倾斜（D-471）：照片拍歪、纸弯了时按斜线分行；拉平以后的行只用来分行、分段、排位置，
   // 量笔画、颜色、下划线还是看原图里原来的位置。
-  const outside = lines.filter((l) => !inTable(l) && !isStray(l, lines, lineHeight, image));
+  const outside = lines.filter((l) => !inTable.has(l) && !isStray(l, lines, lineHeight, image));
   // 竖排、旋转的字（页边的竖排标志、侧边的说明、条码旁的编号）：认出来的字多半是乱的，
   // 放进正文又会把字号撑得很大。整块剪成图片，原样保留。
   const kept = outside.filter((l) => !isVertical(l));
@@ -847,7 +865,10 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     });
   }
   // 条形码（D-471）：剪成图片，里面认出来的零星的字不要。
-  const barcodes = findBarcodes(image, kept, lineHeight);
+  // 带线的表里一段没字的地方（几条平行的列线）不是条形码（D-501）。
+  const barcodes = findBarcodes(image, kept, lineHeight).filter(
+    (b) => !tables.some((t) => !t.borderless && inBox(b, t.box)),
+  );
   const inBarcode = (l: OcrBox) => {
     const cx = l.x + l.width / 2;
     const cy = l.y + l.height / 2;

@@ -167,7 +167,10 @@ function leafHtml(
       }).join('');
       // 原图里没有线的表（D-471）不画边框。
       const cls = block.borderless ? ' class="nolines"' : '';
-      return `<table data-ref="${ref}"${cls} style="margin-top:${place.top}${u};font-size:${px}${u}"><tbody>${rows}</tbody></table>`;
+      // 每列的宽写在 colgroup 里（D-501）：table-layout:fixed 只看第一行，第一行有跨列的格子时
+      // 浏览器把宽平分给跨过的几列，和原件对不上（工资单的表头）。
+      const cols = colWidths.map((w) => `<col style="width:${((w / total) * 100).toFixed(2)}%">`);
+      return `<table data-ref="${ref}"${cls} style="margin-top:${place.top}${u};font-size:${px}${u}"><colgroup>${cols.join('')}</colgroup><tbody>${rows}</tbody></table>`;
     }
     case 'image': {
       // 按原来占页宽的比例。图片不能在页面上改，只能连同它所在的地方一起删掉（打印的版面用 pt，不用标）。

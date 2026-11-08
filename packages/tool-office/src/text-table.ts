@@ -211,6 +211,38 @@ function spanOf(seg: Segment, bands: readonly { x: number; right: number }[]): [
   return [hits[0]!.i, hits.at(-1)!.i];
 }
 
+/** 一段字是一个数（金额、数量、比率）：有数字，字母不超过 3 个（「€」「kg」「%」这类单位）。 */
+const isNumber = (s: Segment) => {
+  const text = s.lines.map((l) => l.text).join(' ');
+  return /\d/.test(text) && (text.match(/\p{L}/gu)?.length ?? 0) <= MAX_UNIT_LETTERS;
+};
+
+/**
+ * 第 k 列和第 k + 1 列之间隔得很远时，右边是不是一列列的数、一排一排对着左边（D-502）：
+ * 右边的段至少七成是数，右边有字的排至少七成在左边也有字、而且左右两边的高度差不到 1/4 个行高
+ * （拍得很斜、没拉平的照片里，碰巧挨上的左右两段差得多，配成一排会把金额配到别的项目旁边），
+ * 这样的排至少三排。
+ */
+function lockedRows(
+  spans: readonly { s: Segment; span: [number, number] }[][],
+  k: number,
+  lineHeight: number,
+): boolean {
+  const mid = (seg: Segment) => median(seg.lines.map((l) => l.y + l.height / 2));
+  const right = spans.filter((row) => row.some((x) => x.span[0] > k));
+  const both = right.filter((row) => {
+    const l = row.filter((x) => x.span[1] <= k).map((x) => mid(x.s));
+    const r = row.filter((x) => x.span[0] > k).map((x) => mid(x.s));
+    return l.length > 0 && Math.abs(median(l) - median(r)) <= LOCKED_SKEW * lineHeight;
+  });
+  const segs = right.flatMap((row) => row.filter((x) => x.span[0] > k).map((x) => x.s));
+  return (
+    both.length >= MIN_ROWS &&
+    both.length >= LOCKED_SHARE * right.length &&
+    segs.filter(isNumber).length >= LOCKED_SHARE * segs.length
+  );
+}
+
 export interface TextTable {
   /** 拉平以后的行（从 free 里拿掉）。 */
   lines: OcrBox[];
@@ -229,6 +261,10 @@ const MIN_ROWS = 3;
 const MIN_WIDE_ROWS = 2;
 const MAX_CELL_CHARS = 24;
 const MAX_COL_GAP = 3;
+/** 隔得远的右边几列：至少这么多比例是数、这么多比例的排在左边有字（D-502）。 */
+const LOCKED_SHARE = 0.7;
+const LOCKED_SKEW = 0.25;
+const MAX_UNIT_LETTERS = 3;
 
 /**
  * 找没有线的表：连续几排（中间可以夹着只有一段的排，空隙不大），按列对齐，至少三列、三排用到三列以上。
@@ -261,7 +297,17 @@ export function findTextTables(
     let found: { table: TextTable; end: number } | null = null;
     for (let end = lastMulti; end >= i + MIN_ROWS - 1 && !found; end--) {
       if (rows[end]!.segments.length < 2) continue;
-      const table = tableOf(rows.slice(i, end + 1), lineHeight, original);
+      // 表上下紧挨着的两排（隔着不到 1.8 个行高）：看隔得远的数列有没有错位（D-502）。
+      const near: TextRow[] = [];
+      for (let k = i - 1; k >= Math.max(0, i - 2); k--) {
+        if (rows[k + 1]!.top - rows[k]!.bottom > 1.8 * lineHeight) break;
+        near.push(rows[k]!);
+      }
+      for (let k = end + 1; k <= Math.min(rows.length - 1, end + 2); k++) {
+        if (rows[k]!.top - rows[k - 1]!.bottom > 1.8 * lineHeight) break;
+        near.push(rows[k]!);
+      }
+      const table = tableOf(rows.slice(i, end + 1), lineHeight, original, near);
       if (table) found = { table, end };
     }
     if (found) {
@@ -276,13 +322,29 @@ function tableOf(
   run: readonly TextRow[],
   lineHeight: number,
   original: (l: OcrBox) => OcrBox,
+  near: readonly TextRow[] = [],
 ): TextTable | null {
   const bands = columnBands(run);
-  if (bands.length < MIN_COLS) return null;
-  // 列和列隔得太远（超过 3 个行高）的是并排的两块（左边地址、右边「标签：值」），不是一张表（和分块的规则一样）。
-  if (bands.slice(1).some((b, k) => b.x - bands[k]!.right > MAX_COL_GAP * lineHeight)) return null;
+  if (bands.length < 2) return null;
   const spans = run.map((row) => row.segments.map((s) => ({ s, span: spanOf(s, bands) })));
-  const wide = spans.filter((r) => new Set(r.map((x) => x.span[0])).size >= MIN_COLS).length;
+  // 列和列隔得太远（超过 3 个行高）的是并排的两块（左边地址、右边「标签：值」），不是一张表（和分块的规则一样）。
+  // 除非远处那几列是数，而且每一排的数在左边都有字（D-502：工资单、账单的表身，左边一列项目名、
+  // 隔得很远的右边几列金额；表格线没认出来时也按排排成表，不把项目名和金额分成两块，排对不上）。
+  const far = bands
+    .slice(1)
+    .map((b, k) => k)
+    .filter((k) => bands[k + 1]!.x - bands[k]!.right > MAX_COL_GAP * lineHeight);
+  if (far.some((k) => !lockedRows(spans, k, lineHeight))) return null;
+  // 表上下紧挨着有只在远处那几列、左边没字的数：数列整体错开了几排（拍得很斜、没拉平的照片，
+  // 碰巧对齐的是别的项目），按排配会配错，不成表（D-502）。
+  const stray = (row: TextRow, k: number) =>
+    row.segments.some(isNumber) && row.segments.every((x) => spanOf(x, bands)[0] > k);
+  if (far.some((k) => near.some((row) => stray(row, k)))) return null;
+  // 两列的也算（D-502）：左边项目、隔得很远的右边一列数（小票的合计、账单的费用清单），一排一排对着；
+  // 隔得近的两列「标签：值」照旧（D-332）。
+  const minCols = bands.length === 2 && far.length === 1 ? 2 : MIN_COLS;
+  if (bands.length < minCols) return null;
+  const wide = spans.filter((r) => new Set(r.map((x) => x.span[0])).size >= minCols).length;
   if (wide < MIN_WIDE_ROWS) return null;
   if (run.filter((r) => r.segments.length >= 2).length < MIN_ROWS) return null;
   const lengths = run.flatMap((r) =>
