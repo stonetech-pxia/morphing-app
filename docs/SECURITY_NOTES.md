@@ -1,36 +1,36 @@
-# 安全说明
+# Security notes
 
-原则见 [AGENTS.md](../AGENTS.md) 的底线 1–3 和「产品背景」§8。本文件记录当前实际状态与待办。
+For the principles see invariants 1–3 and "Product background" §8 in [AGENTS.md](../AGENTS.md). This file records the current actual state and the to-dos.
 
-## 不可违反的规则
+## Rules that must not be broken
 
-1. 手机端不执行任何 AI 生成的代码；AI 只输出修改操作，必须经过 `core` 的 schema、白名单、权限和受保护元素校验。
-2. 工作流只能调用已登记的动作；不支持 `eval`、shell、任意网络请求或动态加载代码。
-3. **我们的**模型密钥、服务角色密钥只在服务端。手机端代码和 `EXPO_PUBLIC_*` 变量中不得出现任何密钥。
-   例外：用户在「设置 → AI」里填写的**自己的** API key，只保存在该设备的安全存储中（不同步、不随备份迁移），不写入日志，界面只显示末四位。Anthropic 的 key 只发送给 api.anthropic.com；OpenAI 兼容接口的 key 另存一份，只发送给用户保存的 Base URL，地址一换就删除（D-241）。Base URL 必须是 https，http 只允许 localhost / 127.x / [::1]。
-4. 回滚和卸载工具都不删除用户文件；删除文件是单独操作，需要用户确认。
-5. 把文件内容发给第三方 AI 前必须告知并取得授权；发给模型的 workspace 摘要尽量少，文件名默认脱敏。
-6. 执行记录（`tool_runs`）和日志中不写入文件内容。
-7. **AI 读不到用户记录**（D-036）：记录不在配置里；AI 的输入只有配置和用户这句话；修改操作里没有读写记录的操作。有端到端测试检查发给模型的完整请求（DATA_DESIGN.md §10）。
-8. **照片**：只通过系统的私密相册选择器读取用户选中的那一张；重新编码为 JPEG 并去掉位置等元数据后再保存（D-047）；配置里只有随机文件 ID，AI 看不到照片和文件名（D-046，有端到端测试）。
-9. **链接**：只允许 https 和 mailto，打开前弹窗显示目标并要用户确认（D-045）。
+1. The phone never executes any AI-generated code. The AI only outputs operations, which must pass `core`'s schema, allowlist, permission and protected-element validation.
+2. A workflow can only call registered actions. `eval`, shell, arbitrary network requests and dynamic code loading are not supported.
+3. **Our own** model key and service-role key exist only on the server. No key may appear in phone code or in `EXPO_PUBLIC_*` variables.
+   Exception: the user's **own** API key, entered under Settings → Tink, is stored only in that device's secure storage (not synced, not carried over by backups), is never written to logs, and the UI shows only the last four characters. An Anthropic key is sent only to api.anthropic.com. A key for an OpenAI-compatible endpoint is stored separately, sent only to the Base URL the user saved, and deleted as soon as that address changes (D-241). The Base URL must be https; http is allowed only for localhost / 127.x / [::1].
+4. Neither rollback nor uninstalling a tool deletes user files. Deleting a file is a separate operation and needs the user's confirmation.
+5. Before file content is sent to a third-party AI, the user must be told and must authorize it. The workspace summary sent to the model is kept as small as possible, and file names are redacted by default.
+6. File content is not written to execution records (`tool_runs`) or logs.
+7. **The AI cannot read user records** (D-036): records are not in the config; the AI's input is only the config and the user's sentence; no operation reads or writes records. An end-to-end test checks the complete request sent to the model (DATA_DESIGN.md §10).
+8. **Photos**: only the single photo the user selects is read, through the system's private photo picker. It is re-encoded as JPEG with location and other metadata stripped before saving (D-047). The config holds only a random file ID, and the AI cannot see photos or file names (D-046, with an end-to-end test).
+9. **Links**: only https and mailto are allowed. Before opening, a dialog shows the target and requires the user's confirmation (D-045).
 
-## 当前状态（M3 第一部分 + 自带 key）
+## Current state (M3 part one + your own key)
 
-- Claude API key 只在仓库根目录 `.env`（已被 git 忽略），只由模型转发服务（`apps/api`）读取；手机端不持有任何密钥，只知道服务地址（`EXPO_PUBLIC_MORPH_API_URL`，不是秘密）。
-- 发给模型的只有界面配置和用户的一句话；文件内容和文件名、用户记录的内容都不发送（它们都不在配置中）。从一个快捷操作打开 AI 时多发它的 id；从收件页面点「让 AI 搭一个」时多发分享文件的类型和个数（D-124），不发文件名、大小和内容。提示词在手机上写好，经服务器转发给 Claude；服务器的日志不记录提示词、用户输入和回复。TestFlight 测试期间，生产服务器另外把每次转发的提示词、界面配置、用户的话和模型回复存进一个文件（设备 id 只存哈希；`MORPH_REQUESTS_FILE`，不设就不存；D-240），App 在用 Morph 服务器时会说明；保留多久、怎么删除待定（P-041）。
-- 服务器只监听本机，对外经 Cloudflare 隧道（D-131）。它只转发规划形状的请求（系统提示词 + 1 条或 3 条消息，用户消息只能是文字，不收图片、文件、工具和客户端指定的模型或参数），模型和输出上限由服务器定；按金额限额（每台设备每天、所有设备每天），回复经常不像修改计划的设备当天停用（D-193）。模型输出只在 App 端校验（服务器不认识 Plan 的版本）。
-- 客户端令牌（`EXPO_PUBLIC_MORPH_CLIENT_TOKEN`，D-132）会打包进 App，**不是秘密**，只用来挡住随手扫到接口的请求；费用靠全局每天花费上限和 Anthropic 控制台的花费上限兜底。服务器的提示词由 App 提供，所以拿到令牌的人可以把它当 Haiku 中转用，但每次只能是纯文字、输出有上限，损失由全局上限封顶；真正的门槛是设备证明（P-024）。登录上线后去掉。
-- PDF 合并等文件处理全部在本机完成，不上传。
-- 修改流程：模型（目前是 mock）输出先经过 `PlanSchema` 解析，再经过 `prepareOps`（结构、引用、受保护元素、权限、数据流校验），通过后才能预览和保存。测试见 `packages/core/src/*.test.ts`。
-- 文件访问：工具只能读取 `AssetGrant` 授权给它的文件；卸载工具时撤销授权，文件保留。执行记录只保存状态和错误代码，不保存文件内容。
-- 存到文件夹（D-120、D-123）：Morph 记住用户最近选的一个文件夹（iOS 书签、Android 长期授权），只往里面新建文件，不读取、不列出、不修改里面已有的文件；换文件夹时放掉旧的授权。文件夹名只在本机显示，不进配置、不发给 AI。
-- **下载的工具**（D-177–D-179）：第一步只有数据工具，不含代码，只组合已有的动作。目录用 Ed25519 签名，清单按目录里的大小和 SHA-256 校验，添加前在空白工作空间里跑一遍 `validateWorkspace`；不接受比上次旧的目录（`seq`）、不降级。正式公钥两个（主用、备用，2026-10-24），私钥在创始人的密码管理器里，签名时粘贴，不写进文件；开发公钥的私钥在仓库里，只有开发版 App 和设置了 `MORPH_TOOLS_DEV_KEY=1` 的计划服务信任它。
-- 文件大小上限：单个 50 MB，单次合计 100 MB（`FILE_LIMITS`）。`.env*` 已加入 `.gitignore`（`.env.example` 除外）。
-- **npm audit**：报告约 40 个 moderate/high 漏洞，全部来自 Expo CLI 等开发与构建工具的间接依赖（例如 `braces`、`node-forge`、`sprintf-js`），不会打包进 App。`npm audit fix --force` 会降级或破坏 Expo 依赖，因此不执行；每次升级 Expo SDK 后重新检查。
-- **安装脚本**：npm 默认未执行 `fsevents`、`unrs-resolver`、`@parcel/watcher` 的安装脚本（npm 的 allowScripts 机制）。目前 lint、测试和打包都不受影响；如果以后出现相关问题，先审查脚本内容再批准。
-- **许可证**：`npm run check:licenses` 确认全部依赖与 AGPL-3.0 兼容。
+- The Claude API key lives only in the `.env` at the repository root (ignored by git) and is read only by the model relay service (`apps/api`). The phone holds no key and knows only the service address (`EXPO_PUBLIC_MORPH_API_URL`, not a secret).
+- What is sent to the model is only the UI config and the user's one sentence; file content, file names and the content of user records are never sent (none of them are in the config). When the AI is opened from a quick action, its id is sent as well. When "Ask the AI to build one" is tapped from the inbox, the types and number of the shared files are sent as well (D-124), but not file names, sizes or content. The prompt is written on the phone and forwarded through the server to Claude; the server's logs do not record the prompt, the user's input or the reply. During the TestFlight test, the production server additionally stores the prompt, UI config, user's words and model reply of each forward in a file (the device id is stored only as a hash; `MORPH_REQUESTS_FILE`, nothing is stored if unset; D-240), and the app says so when it uses the Morph server; how long to keep it and how to delete it are undecided (P-041).
+- The server listens only on the local machine and is exposed through a Cloudflare tunnel (D-131). It forwards only planning-shaped requests (system prompt + 1 or 3 messages, user messages text only; no images, files, tools, or client-specified model or parameters). The model and output cap are set by the server. There are amount-based limits (per device per day, all devices per day), and a device whose replies often do not look like change plans is disabled for that day (D-193). Model output is validated only on the app side (the server does not know the Plan version).
+- The client token (`EXPO_PUBLIC_MORPH_CLIENT_TOKEN`, D-132) is bundled into the app and is **not a secret**; it only blocks requests from someone who casually scans for the endpoint. Cost is backstopped by the global daily spend cap and the spend cap in the Anthropic console. The server's prompt is provided by the app, so whoever gets the token can use it as a Haiku relay, but each call can only be plain text with a capped output, and the loss is capped by the global limit; the real barrier is device attestation (P-024). It will be removed when sign-in goes live.
+- File handling such as PDF merging is done entirely on the device and nothing is uploaded.
+- Change flow: model output (currently the mock) is first parsed by `PlanSchema`, then by `prepareOps` (structure, references, protected elements, permissions, data-flow validation), and only after passing can it be previewed and saved. Tests are in `packages/core/src/*.test.ts`.
+- File access: a tool can read only the files granted to it by an `AssetGrant`. When a tool is uninstalled the grant is revoked and the files stay. Execution records store only status and error codes, not file content.
+- Save to folder (D-120, D-123): Morph remembers the one folder the user picked most recently (an iOS bookmark, an Android persistent grant) and only creates new files in it; it does not read, list or modify files already there, and it releases the old grant when the folder changes. The folder name is shown only on the device and does not go into the config or to the AI.
+- **Downloaded tools** (D-177–D-179): the first step has only data tools, which contain no code and only combine existing actions. The catalog is signed with Ed25519, the manifest is checked against the sizes and SHA-256 in the catalog, and `validateWorkspace` is run in an empty workspace before adding; a catalog older than the last one (`seq`) is not accepted, and there is no downgrade. There are two official public keys (primary and backup, 2026-10-24); the private keys are in the founder's password manager and are pasted in at signing time, never written to a file. The development key's private key is in the repository, and only the development build of the app and the planning service run with `MORPH_TOOLS_DEV_KEY=1` trust it.
+- File size limits: 50 MB per file, 100 MB in total per run (`FILE_LIMITS`). `.env*` is in `.gitignore` (except `.env.example`).
+- **npm audit**: the report shows about 40 moderate/high vulnerabilities, all from transitive dependencies of development and build tools such as the Expo CLI (for example `braces`, `node-forge`, `sprintf-js`), which are not bundled into the app. `npm audit fix --force` would downgrade or break Expo dependencies, so it is not run; re-check after every Expo SDK upgrade.
+- **Install scripts**: by default npm has not run the install scripts of `fsevents`, `unrs-resolver` and `@parcel/watcher` (npm's allowScripts mechanism). Lint, tests and builds are not affected so far; if related problems appear later, review the script content before approving.
+- **Licenses**: `npm run check:licenses` confirms all dependencies are compatible with AGPL-3.0.
 
-## 待办
+## To do
 
-- 账号上线时（见 [CLOUD_DESIGN.md](CLOUD_DESIGN.md)）：JWT 鉴权、Supabase RLS 与两用户隔离测试、按用户计量、隐私政策（GDPR / CCPA）、App 内删除账号与数据导出。
+- When accounts go live (see [CLOUD_DESIGN.md](CLOUD_DESIGN.md)): JWT authentication, Supabase RLS with a two-user isolation test, per-user metering, a privacy policy (GDPR / CCPA), in-app account deletion and data export.

@@ -1,325 +1,325 @@
-# Mock AI 句式清单（草案，待创始人确认）
+# Mock AI phrase list (draft, awaiting the founder)
 
-Mock AI 是**基于规则的解析器**，不是语言模型（AGENTS.md「产品背景」§7F）。
+The mock AI is a **rule-based parser**, not a language model (AGENTS.md "Product background" §7F).
 
-- 本清单就是 mock AI 的验收口径：清单里的每一句都必须有自动测试，并产出下表中预期的修改操作。
-- 不在清单里的输入必须回复“暂时无法理解”，并给出示例说法，**不得生成猜测性的修改**。
-- M3 接入真实模型后，本清单作为评测集继续使用。
+- This list is the acceptance bar for the mock AI: every sentence in the list must have an automated test and must produce the expected operations in the table below.
+- Input that is not in the list must get the reply "Can't understand that yet" with example phrasings, and **must not produce a guessed change**.
+- Once M3 connects a real model, this list continues to serve as the eval set.
 
-实现：[packages/core/src/ai/mock.ts](../packages/core/src/ai/mock.ts)（步骤说法写在各动作定义的 `phrases` 里，预设的叫法在预设的 `words`、风格的叫法在 `presets.ts` 的 `aliases`）；测试：[mock.test.ts](../packages/core/src/ai/mock.test.ts)，每个 ID 一个用例。
+Implementation: [packages/core/src/ai/mock.ts](../packages/core/src/ai/mock.ts) (step phrases live in each action definition's `phrases`; preset names live in the preset's `words`; style names live in `aliases` in `presets.ts`). Tests: [mock.test.ts](../packages/core/src/ai/mock.test.ts), one case per ID.
 
-D-265（2026-10-27）删掉了界面上没有入口、用户也不太会这么说的句式：目标句（GW8–GW10）、外观选项（LK1–LK5）、「首页加上 Morph 可以做什么」（QAC1–QAC2）、各种视频 / 音频 / 图片编辑动作的单独步骤句式（截帧、静音、配乐、旋转、裁比例、变速、音量、降噪、去背景、调色、标注、字幕、拼接视频），以及预设的别名（除了拒绝例子里用到的「签证」「发邮件」和放在签证前面的「证件照打印」）。这些预设仍能按名字添加（「添加视频去掉声音快捷操作」）。下面各节里保留的就是内置规则还认的。
+D-265 (2026-10-27) removed the phrasings that have no entry point in the UI and that users are unlikely to say: goal sentences (GW8–GW10), look options (LK1–LK5), "add what Morph can do to the home page" (QAC1–QAC2), the separate step phrasings for the various video / audio / image editing actions (extract frame, mute, background music, rotate, crop to ratio, change speed, volume, denoise, remove background, color adjustment, annotate, subtitles, join videos), and preset aliases (except 「签证」 ("visa") and 「发邮件」 ("send email"), which the refusal examples use, and 「证件照打印」 ("ID photo printing"), which sits before visa). These presets can still be added by name (「添加视频去掉声音快捷操作」, "add the remove-sound-from-videos quick action"). What remains in the sections below is what the built-in rules still understand.
 
-补充规则：已经是目标状态的子句不产生修改（例如 PDF 本来就在最上面）；提到未安装的工具时提示先安装。
+Additional rules: a clause that is already in the target state produces no change (for example the PDF is already at the top); mentioning a tool that is not installed prompts the user to install it first.
 
-## 大工程先出计划（D-415）
+## Big projects get a plan first (D-415)
 
-「搭建一个记账 App」「Build a budget app」回搭建计划（3 步，每步都是内置规则做得到的话）。句子里有「失败」「fail」时，第二步第一次抛错，重试就好，用来走失败的路径。「搭建一个记账 App，缺页面」「…with no page」的计划做完后表没有地方看，用来试「把这些补上」。
+「搭建一个记账 App」 ("build a bookkeeping app") and "Build a budget app" reply with a build plan (3 steps, each one a sentence the built-in rules can carry out). When the sentence contains 「失败」 ("fail") or "fail", the second step throws an error the first time and succeeds on retry, to exercise the failure path. The plan for 「搭建一个记账 App，缺页面」 ("build a bookkeeping app, missing page") or "…with no page" leaves the table with nowhere to view it once it is done, to exercise "Fix these".
 
-点「把这些补上」（D-418）发的 `Fix these so the app can be used:` 不靠读句子：内置规则看配置，表没有地方看或没有地方添加就在首页放列表和添加按钮，别的问题拒绝，不猜。
+The `Fix these so the app can be used:` sent by tapping "Fix these" (D-418) does not rely on reading the sentence: the built-in rules look at the config, and if a table has nowhere to view it or nowhere to add to it, they put a list and an add button on the home page; any other problem is refused, with no guessing.
 
-## 功能和外观分开改（D-191）
+## Feature changes and look changes are done separately (D-191)
 
-一个子句的修改里有快捷操作、工具或数据表结构的操作就是功能子句（新快捷操作的首页入口跟着它）。一句话里有功能子句时，只做功能子句，其余子句原样拼成计划的 `next`（中文用「，」，英文用「. 」，引号换回「」），App 把它变成一条「接着改」。
+A clause whose operations include quick actions, tools, or table structure is a feature clause (the home entry for a new quick action goes with it). When a sentence has a feature clause, only the feature clause is done; the remaining clauses are joined back as the plan's `next` (Chinese joins with 「，」, English with ". ", with the quotes turned back into 「」), and the app turns that into a "Continue" item.
 
-| ID     | 句式                                                             | 预期修改                                                         |
-| ------ | ---------------------------------------------------------------- | ---------------------------------------------------------------- |
-| FL1    | 主题换成绿色，添加签证照片快捷操作                               | 只加签证照片快捷操作；`next` =「主题换成绿色」                   |
-| FL1-en | Add the visa photo quick action. Change the theme color to green | 只加签证照片快捷操作；`next` = “Change the theme color to green” |
+| ID     | Phrase (句式)                                                    | Expected change                                                                                |
+| ------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| FL1    | 主题换成绿色，添加签证照片快捷操作                               | Only adds the visa photo quick action; `next` = 「主题换成绿色」 ("change the theme to green") |
+| FL1-en | Add the visa photo quick action. Change the theme color to green | Only adds the visa photo quick action; `next` = “Change the theme color to green”              |
 
-内置规则自己会拆开；要试模型把两样放在一个计划里的路径（D-419）用这句（MX1）：「做个月历（混合计划）」/ “Make a month calendar (mixed plan)”：建「月历」表（功能，直接生效），按钮和日历块进草稿，确认后都在。
+The built-in rules split these by themselves. To exercise the path where the model puts both in one plan (D-419), use this sentence (MX1): 「做个月历（混合计划）」 / “Make a month calendar (mixed plan)”: it builds the "Calendar" table (feature, takes effect directly), and the button and the calendar block go into the draft; after confirming, both are there.
 
-## 旅程 A：改造首页
+## Journey A: rework the home page
 
-| ID  | 句式                                                                  | 预期修改                                                                                               |
-| --- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| A1  | 把首页改成文件工作台，把 PDF 放到最上面，导航栏只保留首页、工具、设置 | 首页标题改为“文件工作台”；PDF 工具卡片移到第一位；导航改为 首页/工具/设置（AI 修改与历史仍在设置页里） |
-| A2  | PDF 放第一个                                                          | PDF 工具卡片移到第一位                                                                                 |
-| A3  | 导航只要首页、工具和设置                                              | 同 A1 的导航部分                                                                                       |
-| A4  | 首页改成文件工作台                                                    | 同 A1 的标题部分                                                                                       |
-| A5  | Put PDF at the top                                                    | 同 A2                                                                                                  |
-| A6  | Only keep Home, Tools and Settings in the navigation                  | 同 A3                                                                                                  |
+| ID  | Phrase (句式)                                                         | Expected change                                                                                                                                                                     |
+| --- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1  | 把首页改成文件工作台，把 PDF 放到最上面，导航栏只保留首页、工具、设置 | Home title becomes "File workbench"; the PDF tool card moves to first place; navigation becomes Home / Tools / Settings (AI changes and history are still inside the Settings page) |
+| A2  | PDF 放第一个                                                          | The PDF tool card moves to first place                                                                                                                                              |
+| A3  | 导航只要首页、工具和设置                                              | Same as the navigation part of A1                                                                                                                                                   |
+| A4  | 首页改成文件工作台                                                    | Same as the title part of A1                                                                                                                                                        |
+| A5  | Put PDF at the top                                                    | Same as A2                                                                                                                                                                          |
+| A6  | Only keep Home, Tools and Settings in the navigation                  | Same as A3                                                                                                                                                                          |
 
-## 基础单项修改
+## Basic single changes
 
-| ID  | 句式                          | 预期修改                                                                        |
-| --- | ----------------------------- | ------------------------------------------------------------------------------- |
-| B1  | 主题换成绿色 / 主题色改成绿色 | 主题主色改为绿色                                                                |
-| B2  | 切换到深色模式                | 主题模式改为 dark                                                               |
-| B3  | 隐藏欢迎卡片 / 显示欢迎卡片   | 切换对应组件的可见性                                                            |
-| B4  | 把最近文件放到 PDF 前面       | 「最近文件」移到 PDF 工具入口之前（首版只有一个工具，因此用文件列表做相对排序） |
+| ID  | Phrase (句式)                 | Expected change                                                                                                                       |
+| --- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | 主题换成绿色 / 主题色改成绿色 | Theme primary color becomes green                                                                                                     |
+| B2  | 切换到深色模式                | Theme mode becomes dark                                                                                                               |
+| B3  | 隐藏欢迎卡片 / 显示欢迎卡片   | Toggles the visibility of the matching component                                                                                      |
+| B4  | 把最近文件放到 PDF 前面       | "Recent files" moves before the PDF tool entry (the first version has only one tool, so the file list is used for the relative order) |
 
-## 样式（schemaVersion 2）
+## Styles (schemaVersion 2)
 
-| ID   | 句式                                                                                                    | 预期修改                                                                 |
-| ---- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| B5   | 字体大一点 / 字大一些 / Bigger text                                                                     | 字号比例 +0.15（上限 1.3，已到上限时不修改）                             |
-| B6   | 字体小一点                                                                                              | 字号比例 −0.1（下限 0.85）                                               |
-| B7   | 圆角小一点 / 圆角大一点 / 去掉圆角                                                                      | 圆角 −8 / +6（0–28）/ 0                                                  |
-| B8   | 紧凑一点 / 宽松一点                                                                                     | 疏密改为 compact / spacious                                              |
-| B9   | 去掉阴影 / 卡片加边框 / 卡片改成新粗野（新拟物、黏土、毛玻璃、霓虹发光、金属）风格                      | 卡片样式改为 flat / outline / brutal（soft、puffy、glass、glow、chrome） |
-| B9d  | 背景改成渐变 / 背景改成极光 / 背景改成纯色                                                              | 页面背景改为 gradient / aurora / plain                                   |
-| B10  | 导航栏只显示图标 / 导航栏只显示文字                                                                     | 导航栏样式改为 icon / label                                              |
-| B11  | 字体换成系统字体 / 字体改成衬线                                                                         | 字体改为 system / serif                                                  |
-| B12b | 换成杂志风 / 换成 iOS 风格 / 用赛博朋克风格 / 换成毛玻璃风格 / 换成 Y2K 风格 / Switch to terminal style | 整套套用对应的风格预设                                                   |
-| B12  | 恢复默认样式                                                                                            | 主题恢复为默认风格 Clay                                                  |
+| ID   | Phrase (句式)                                                                                           | Expected change                                                               |
+| ---- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| B5   | 字体大一点 / 字大一些 / Bigger text                                                                     | Font scale +0.15 (cap 1.3; no change when already at the cap)                 |
+| B6   | 字体小一点                                                                                              | Font scale −0.1 (floor 0.85)                                                  |
+| B7   | 圆角小一点 / 圆角大一点 / 去掉圆角                                                                      | Corner radius −8 / +6 (0–28) / 0                                              |
+| B8   | 紧凑一点 / 宽松一点                                                                                     | Density becomes compact / spacious                                            |
+| B9   | 去掉阴影 / 卡片加边框 / 卡片改成新粗野（新拟物、黏土、毛玻璃、霓虹发光、金属）风格                      | Card style becomes flat / outline / brutal (soft, puffy, glass, glow, chrome) |
+| B9d  | 背景改成渐变 / 背景改成极光 / 背景改成纯色                                                              | Page background becomes gradient / aurora / plain                             |
+| B10  | 导航栏只显示图标 / 导航栏只显示文字                                                                     | Navigation bar style becomes icon / label                                     |
+| B11  | 字体换成系统字体 / 字体改成衬线                                                                         | Font becomes system / serif                                                   |
+| B12b | 换成杂志风 / 换成 iOS 风格 / 用赛博朋克风格 / 换成毛玻璃风格 / 换成 Y2K 风格 / Switch to terminal style | Applies the whole matching style preset                                       |
+| B12  | 恢复默认样式                                                                                            | Theme returns to the default style, Clay                                      |
 
-## 导航与页面（schemaVersion 2）
+## Navigation and pages (schemaVersion 2)
 
-| ID  | 句式                                            | 预期修改                                                                         |
-| --- | ----------------------------------------------- | -------------------------------------------------------------------------------- |
-| B13 | 把 AI 入口删掉 / 把历史（改动记录）从导航栏移除 | 从导航栏和浮动按钮中移除（设置页里仍有入口）                                     |
-| B14 | 把 AI 做成浮动按钮                              | 改为浮动按钮，同时移出导航栏                                                     |
-| E1  | 新建一个叫「记账」的页面                        | 新建带标题的页面；导航栏有空位就放进导航栏（设置之前），否则在首页加一个快捷入口 |
-| E2  | 删除记账页面                                    | 删除该页面及指向它的入口；首页和工具页不能删除                                   |
+| ID  | Phrase (句式)                                   | Expected change                                                                                                                                                        |
+| --- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B13 | 把 AI 入口删掉 / 把历史（改动记录）从导航栏移除 | Removed from the navigation bar and the floating button (the Settings page still has an entry)                                                                         |
+| B14 | 把 AI 做成浮动按钮                              | Becomes a floating button and is also moved out of the navigation bar                                                                                                  |
+| E1  | 新建一个叫「记账」的页面                        | Creates a page with that title; if the navigation bar has room it goes into the navigation bar (before Settings), otherwise a shortcut entry is added to the home page |
+| E2  | 删除记账页面                                    | Deletes that page and the entries pointing to it; the home and tools pages cannot be deleted                                                                           |
 
-## 数据页面（schemaVersion 3，只改结构）
+## Data pages (schemaVersion 3, structure only)
 
-| ID  | 句式                                                                                  | 预期修改                                                                                                                                                                         |
-| --- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| F1  | 新建一个记账页面 / 新建待办清单 / 做一个读书清单 / 新建笔记页面 / Create a to-do list | 先只按模板建数据表（功能，D-191），`next` 是「增加记账页面」/「Add a budget page」；这个模板的数据表已经建好、还没有页面用到时，这句话（和 `next` 那句）只建页面并给页面一个入口 |
-| F2  | 给账目加一个「支付方式」字段                                                          | 给数据表加一个文字字段                                                                                                                                                           |
+| ID  | Phrase (句式)                                                                         | Expected change                                                                                                                                                                                                                                                                                            |
+| --- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1  | 新建一个记账页面 / 新建待办清单 / 做一个读书清单 / 新建笔记页面 / Create a to-do list | First creates only the table from the template (feature, D-191), and `next` is 「增加记账页面」 ("add a bookkeeping page") / "Add a budget page"; when this template's table is already built and no page uses it yet, this sentence (and the `next` sentence) only creates the page and gives it an entry |
+| F2  | 给账目加一个「支付方式」字段                                                          | Adds a text field to the table                                                                                                                                                                                                                                                                             |
 
-## 图片与图标（schemaVersion 4）
+## Images and icons (schemaVersion 4)
 
-| ID  | 句式                                                                   | 预期修改                                                     |
-| --- | ---------------------------------------------------------------------- | ------------------------------------------------------------ |
-| G1  | 在首页顶部加一张横幅 / 在首页加一张图片 / Add a photo to the home page | 添加一个空的图片位（照片由用户点按选择），顶部时放在标题之后 |
-| G2  | 把记账页面的图标换成💰                                                 | 页面图标改为这个 emoji；不是 emoji 或内置图标名时拒绝        |
+| ID  | Phrase (句式)                                                          | Expected change                                                                                  |
+| --- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| G1  | 在首页顶部加一张横幅 / 在首页加一张图片 / Add a photo to the home page | Adds an empty image slot (the user taps to choose the photo); at the top it goes after the title |
+| G2  | 把记账页面的图标换成💰                                                 | Page icon becomes this emoji; refused when it is neither an emoji nor a built-in icon name       |
 
-## 旅程 C：修改 PDF 工具（M2）
+## Journey C: change the PDF tool (M2)
 
-| ID  | 句式                                                                   | 预期修改                                                                                                        |
-| --- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| C1  | 把 PDF 工具首页简化成上传和合并两个步骤，完成后自动按照“合并-日期”命名 | 去掉“输入文件名”步骤，只保留“选择文件”“合并”（保存自动完成）；`file.save` 命名模板改为 `合并-{date:YYYY-MM-DD}` |
-| C2  | 合并后的文件按日期命名                                                 | `file.save` 命名模板与“输入文件名”的默认值改为 `{date:YYYY-MM-DD}`，步骤不变                                    |
+| ID  | Phrase (句式)                                                          | Expected change                                                                                                                                                     |
+| --- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C1  | 把 PDF 工具首页简化成上传和合并两个步骤，完成后自动按照“合并-日期”命名 | Removes the "enter file name" step and keeps only "choose file" and "merge" (saving is automatic); the `file.save` naming template becomes `合并-{date:YYYY-MM-DD}` |
+| C2  | 合并后的文件按日期命名                                                 | The `file.save` naming template and the default value of "enter file name" become `{date:YYYY-MM-DD}`; steps unchanged                                              |
 
-## 旅程 D：撤销与恢复
+## Journey D: undo and restore
 
-| ID  | 句式                   | 预期修改                                     |
-| --- | ---------------------- | -------------------------------------------- |
-| D1  | 恢复上一次修改前的界面 | 把上一个 revision 的配置作为新 revision 提交 |
-| D2  | 撤销刚才的修改         | 同 D1                                        |
-| D3  | Undo the last change   | 同 D1                                        |
+| ID  | Phrase (句式)          | Expected change                                          |
+| --- | ---------------------- | -------------------------------------------------------- |
+| D1  | 恢复上一次修改前的界面 | Commits the previous revision's config as a new revision |
+| D2  | 撤销刚才的修改         | Same as D1                                               |
+| D3  | Undo the last change   | Same as D1                                               |
 
-AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一个版本（不进草稿）；在草稿里说，是撤掉草稿的最近一步，只剩一步时说明要去「修改这个 App」删除草稿。
+AI changes go into the draft first (D-190): with no draft, these sentences go straight back to the previous version (not through the draft); said inside a draft, they undo the draft's most recent step, and when only one step is left they explain that the user should go to "Edit this app" and delete the draft.
 
-## 快捷操作（T7，D-083；界面上叫「快捷操作」，D-112）
+## Quick actions (T7, D-083; called "quick action" in the UI, D-112)
 
-凡是认「工作流 / 流程 / workflow」的句式，也认「快捷操作 / quick action」（新说法），例如「添加签证照片快捷操作」「新建一个快捷操作：选照片，压到 500KB，分享」「把签证照片快捷操作放到首页」「Add the visa photo quick action」。导航项「历史」也可以说「改动记录 / change history」。新旧说法的评测用例见 QA1–QA4（离线规则通过）和 QA5、QA6（「添加 / 移除工具」，只要求真实模型）。工具箱（D-181）的说法——把某个工具移到另一组、加一组、改工具箱名字、把工具箱放进底栏、在有工具箱时添加工具——内置规则不认，评测 TB1–TB5 只要求真实模型。
+Every phrasing that recognizes 「工作流 / 流程 / workflow」 ("workflow / process / workflow") also recognizes 「快捷操作 / quick action」 (the new term), for example 「添加签证照片快捷操作」, 「新建一个快捷操作：选照片，压到 500KB，分享」, 「把签证照片快捷操作放到首页」, 「Add the visa photo quick action」. The nav item 「历史」 ("History") can also be called 「改动记录 / change history」. The eval cases for old and new terms are QA1–QA4 (pass with the offline rules) and QA5, QA6 ("add / remove tool", real model only). The toolbox phrasings (D-181), such as moving a tool to another group, adding a group, renaming the toolbox, putting the toolbox in the bottom bar, and adding a tool when a toolbox exists, are not recognized by the built-in rules; evals TB1–TB5 require the real model only.
 
-工作流名字可以是预设名的一部分（「签证照片」能找到「签证 / 证件照」）。步骤句式：选照片 / 选视频 / 拍照 / 扫描文档（文档相机，D-086；单说「扫描」是找边拉正）/ 选文件、长边 N、压到 N KB / MB、转 JPG、去掉定位、打包、命名、存起来、分享（一次分享）、存到文件夹等，用「，」「、」「然后」分开。
+A workflow name can be part of a preset name (「签证照片」 ("visa photo") finds 「签证 / 证件照」 ("visa / ID photo")). Step phrasings: choose photos / choose videos / take a photo / scan documents (document camera, D-086; saying just 「扫描」 ("scan") means edge detection and straightening) / choose files, long edge N, compress to N KB / MB, convert to JPG, remove location, zip, name, save, share (one share), save to a folder, and so on, separated with 「，」, 「、」 or 「然后」 ("then"). The Chinese forms are 「选照片」 / 「选视频」 / 「拍照」 / 「扫描文档」 / 「选文件」, 「长边 N」, 「压到 N KB / MB」, 「转 JPG」, 「去掉定位」, 「打包」, 「命名」, 「存起来」, 「分享」, 「存到文件夹」.
 
-| ID  | 句式                                                                                                                                                                                  | 预期修改                                                                                                                                                                                                                                                                               |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| W1  | 添加签证照片工作流 / Add the visa photo workflow                                                                                                                                      | 从预设添加（带 `presetId`）；已经添加过就提示「已经是这样了」                                                                                                                                                                                                                          |
-| W2  | 新建一个工作流：选照片，长边 1600，压到 500KB，分享 / Create a workflow: choose photos, convert to JPG, remove location, zip, share                                                   | 按顺序拼出步骤（默认名「我的工作流」，也可以「新建一个叫「X」的工作流：…」）；类型接不上时校验不通过                                                                                                                                                                                   |
-| W3  | 把签证照片改名为美签照片                                                                                                                                                              | `renameWorkflow`                                                                                                                                                                                                                                                                       |
-| W4  | 删除签证照片工作流                                                                                                                                                                    | `removeWorkflow`，同时移除运行它的卡片（内设快捷操作的同 ID 副本除外，卡片回到内设的，D-259）；工具自带的（例如「合并 PDF」）拒绝                                                                                                                                                      |
-| W5  | 把签证照片放到首页 / Put the visa photo workflow on the home page                                                                                                                     | 首页加一个运行卡片（标题之后）；还没添加的预设先添加                                                                                                                                                                                                                                   |
-| W6  | 在签证照片里加一步去掉定位                                                                                                                                                            | 加一步；处理类步骤插在结尾的命名 / 保存 / 分享之前                                                                                                                                                                                                                                     |
-| W7  | 把签证照片的大小改成 200KB                                                                                                                                                            | 改「压到指定大小」或「证件照」的 KB 参数；没有这类步骤时拒绝，并提示先加一步                                                                                                                                                                                                           |
-| W8  | 把签证照片的命名这一步去掉                                                                                                                                                            | `removeWorkflowStep`；去掉后接不上就拒绝                                                                                                                                                                                                                                               |
-| W9  | 把本月的账目做成 PDF 报表                                                                                                                                                             | 新建工作流「账目报表」：读取记录（本月）→ 记录生成 PDF；AI 不读记录，记录在本机填进模板                                                                                                                                                                                                |
-| W10 | 新建一个工作流：扫描文档，压到 300KB，存到文件 / Create a workflow: scan documents, make a PDF, share                                                                                 | 第一步是 `in.photos`（`source: scanner`，文档相机；没有文档相机的设备改用相机）                                                                                                                                                                                                        |
-| W11 | 新建工作流：选照片，压到 500KB，存到 iCloud 的某个文件夹 / Create a workflow: choose photos, compress to 500 KB, save to a folder；在签证照片最后加一步存到 Google Drive；…，一次分享 | 「存到（iCloud / Google Drive / Dropbox / 网盘的某个）文件夹」「save to a folder」→ `out.saveToFolder`（D-120）；「一次分享 / 全部分享 / 发到微信」「share them all」→ `out.share`（一次带上全部文件，D-119）；「自动发给某人」拒绝                                                    |
-| W12 | 新建一个快捷操作：选视频，压到 20MB，分享 / Create a quick action: choose videos, compress to 25 MB, then share；…选视频，剪一段，压缩视频，分享                                      | 「选视频 / choose videos」→ `in.videos`；「压缩视频」→ `video.compress`（按大小，默认 20 MB）；「压到 N MB」跟在视频后面时也是 `video.compress`（`maxMB`）；「转成 MP4」→ `video.convert`；「剪一段 / trim」→ `video.trim`（D-147，评测 V1–V3）                                        |
-| W13 | 新建一个快捷操作：选 PDF，压到 2MB，分享 / Create a quick action: choose PDFs, compress to 1 MB                                                                                       | 「压缩 PDF」或跟在 PDF 后面的「压到 N MB / KB」→ `pdf.compress`（`maxMB`，压不到时问用户）；跟在照片后面仍是 `image.compress`；往已有快捷操作里加「压到 N MB」按它处理的是照片、视频还是 PDF 选动作；「把 X 的大小改成 N MB」也改 `video.compress` 和 `pdf.compress`（评测 V4、V4-en） |
-| W14 | 添加视频太大发不出去快捷操作 / Add the PDF too big to upload quick action                                                                                                             | 按名字（或「视频太大」「PDF 太大」）添加现成快捷操作 `video-too-big` / `pdf-too-big`（D-146，评测 V5、V6-en）                                                                                                                                                                          |
+| ID  | Phrase (句式)                                                                                                                                                                         | Expected change                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| W1  | 添加签证照片工作流 / Add the visa photo workflow                                                                                                                                      | Adds from the preset (with `presetId`); if already added, replies "already like that"                                                                                                                                                                                                                                                                                                                                                                                |
+| W2  | 新建一个工作流：选照片，长边 1600，压到 500KB，分享 / Create a workflow: choose photos, convert to JPG, remove location, zip, share                                                   | Builds the steps in order (default name "My workflow", or 「新建一个叫「X」的工作流：…」 "create a workflow called X: …"); when the types do not connect, validation fails                                                                                                                                                                                                                                                                                           |
+| W3  | 把签证照片改名为美签照片                                                                                                                                                              | `renameWorkflow`                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| W4  | 删除签证照片工作流                                                                                                                                                                    | `removeWorkflow`, and also removes the card that runs it (except the same-ID copy of a built-in quick action, where the card goes back to the built-in one, D-259); a tool's own (for example "Merge PDF") is refused                                                                                                                                                                                                                                                |
+| W5  | 把签证照片放到首页 / Put the visa photo workflow on the home page                                                                                                                     | Adds a run card to the home page (after the title); a preset that is not added yet is added first                                                                                                                                                                                                                                                                                                                                                                    |
+| W6  | 在签证照片里加一步去掉定位                                                                                                                                                            | Adds a step; processing steps are inserted before the trailing name / save / share                                                                                                                                                                                                                                                                                                                                                                                   |
+| W7  | 把签证照片的大小改成 200KB                                                                                                                                                            | Changes the KB parameter of "compress to a given size" or "ID photo"; refused with a hint to add a step first when there is no such step                                                                                                                                                                                                                                                                                                                             |
+| W8  | 把签证照片的命名这一步去掉                                                                                                                                                            | `removeWorkflowStep`; refused if the remaining steps would not connect                                                                                                                                                                                                                                                                                                                                                                                               |
+| W9  | 把本月的账目做成 PDF 报表                                                                                                                                                             | Creates the workflow "Expense report": read records (this month) → records to PDF; the AI does not read records, the records are filled into the template on the device                                                                                                                                                                                                                                                                                              |
+| W10 | 新建一个工作流：扫描文档，压到 300KB，存到文件 / Create a workflow: scan documents, make a PDF, share                                                                                 | The first step is `in.photos` (`source: scanner`, document camera; devices without a document camera use the camera)                                                                                                                                                                                                                                                                                                                                                 |
+| W11 | 新建工作流：选照片，压到 500KB，存到 iCloud 的某个文件夹 / Create a workflow: choose photos, compress to 500 KB, save to a folder；在签证照片最后加一步存到 Google Drive；…，一次分享 | 「存到（iCloud / Google Drive / Dropbox / 网盘的某个）文件夹」 ("save to a folder in iCloud / Google Drive / Dropbox / a cloud drive") and "save to a folder" → `out.saveToFolder` (D-120); 「一次分享 / 全部分享 / 发到微信」 ("share all at once / share all / send to WeChat") and "share them all" → `out.share` (all files in one go, D-119); 「自动发给某人」 ("send automatically to someone") is refused                                                     |
+| W12 | 新建一个快捷操作：选视频，压到 20MB，分享 / Create a quick action: choose videos, compress to 25 MB, then share；…选视频，剪一段，压缩视频，分享                                      | 「选视频 / choose videos」 → `in.videos`; 「压缩视频」 ("compress video") → `video.compress` (by size, default 20 MB); 「压到 N MB」 ("compress to N MB") after a video is also `video.compress` (`maxMB`); 「转成 MP4」 ("convert to MP4") → `video.convert`; 「剪一段 / trim」 ("trim a clip / trim") → `video.trim` (D-147, evals V1–V3)                                                                                                                          |
+| W13 | 新建一个快捷操作：选 PDF，压到 2MB，分享 / Create a quick action: choose PDFs, compress to 1 MB                                                                                       | 「压缩 PDF」 ("compress PDF") or 「压到 N MB / KB」 ("compress to N MB / KB") after a PDF → `pdf.compress` (`maxMB`, asks the user when it cannot get that small); after photos it is still `image.compress`; when adding 「压到 N MB」 to an existing quick action, the action is chosen by whether it handles photos, videos or PDFs; 「把 X 的大小改成 N MB」 ("change the size of X to N MB") also changes `video.compress` and `pdf.compress` (evals V4, V4-en) |
+| W14 | 添加视频太大发不出去快捷操作 / Add the PDF too big to upload quick action                                                                                                             | Adds a ready-made quick action `video-too-big` / `pdf-too-big` by name (or by 「视频太大」 "video too big" / 「PDF 太大」 "PDF too big") (D-146, evals V5, V6-en)                                                                                                                                                                                                                                                                                                    |
 
-### 从一个快捷操作打开（D-124）
+### Opening from a quick action (D-124)
 
-「让 AI 改这个」打开的 AI 修改带着这个快捷操作：句子里的「这个 / 它 / this / it」就是它，W3、W5、W7 等句式都能用，例如「把这个的大小改成 200KB」「把它改名为美签照片」「把这个放到首页」（评测 AB1）。没有上下文时「这个」照常拒绝。
+The AI change opened by "Let the AI change this" carries this quick action: 「这个 / 它 / this / it」 ("this / it / this / it") in the sentence refers to it, and phrasings such as W3, W5 and W7 all work, for example 「把这个的大小改成 200KB」 ("change this one's size to 200KB"), 「把它改名为美签照片」 ("rename it to US visa photo"), 「把这个放到首页」 ("put this on the home page") (eval AB1). With no context, 「这个」 is refused as usual.
 
-## 手机桌面（D-271）
+## Phone home screen (D-271)
 
-「放到桌面 / 手机桌面 / 主屏幕」和 “home screen” 是手机桌面（长按 Morph 图标的菜单），「放到首页 / 主页」和 “home page” 仍是 W5 的首页（D-109）。内置规则不认法语（P-037），法语的 HS1-fr、HS2-fr 只要求真实模型。
+「放到桌面 / 手机桌面 / 主屏幕」 ("put on the desktop / phone home screen / main screen") and "home screen" mean the phone home screen (the menu from long-pressing the Morph icon); 「放到首页 / 主页」 ("put on the home page / main page") and "home page" still mean the home page of W5 (D-109). The built-in rules do not understand French (P-037); the French HS1-fr and HS2-fr require the real model only.
 
-| ID  | 句式                                                              | 预期修改                                                                                |
-| --- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| HS1 | 把签证照片放到桌面 / Put the visa photo on the home screen        | `setWorkflowHomeScreen` true；首页不加卡片；还没添加的预设先添加（HS3：放到手机主屏幕） |
-| HS2 | 把签证照片放到首页 / Put the visa photo on the home page          | 首页加运行卡片（同 W5），不放到手机桌面                                                 |
-| HS4 | 把签证照片从桌面拿掉 / Remove the visa photo from the home screen | `setWorkflowHomeScreen` false，快捷操作留着                                             |
-| —   | 桌面上已经有 4 个时再放一个                                       | 拒绝（`unknown`），列出现有的 4 个，例子是先拿掉一个                                    |
+| ID  | Phrase (句式)                                                     | Expected change                                                                                                                                             |
+| --- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| HS1 | 把签证照片放到桌面 / Put the visa photo on the home screen        | `setWorkflowHomeScreen` true; no card on the home page; a preset that is not added yet is added first (HS3: 放到手机主屏幕, "put on the phone main screen") |
+| HS2 | 把签证照片放到首页 / Put the visa photo on the home page          | Adds a run card to the home page (same as W5), not on the phone home screen                                                                                 |
+| HS4 | 把签证照片从桌面拿掉 / Remove the visa photo from the home screen | `setWorkflowHomeScreen` false; the quick action stays                                                                                                       |
+| —   | 桌面上已经有 4 个时再放一个                                       | Refused (`unknown`), lists the 4 existing ones, with the example of removing one first                                                                      |
 
-## 翻译（D-171、D-174）
+## Translation (D-171, D-174)
 
-翻译**文件**是文件上的事，做成翻译快捷操作；用户自己写的一句话要译文是办事，拒绝（`errand`）且不给译文，例子都是点了就能做成的翻译快捷操作。步骤句式：「翻译成 / 翻成 / 译成 X」「translate into X」（X：中文、简体中文、繁体中文、英文、日文、韩文、法文、德文、西班牙文、葡萄牙文、意大利文、俄文、越南文、泰文，也认「英语」「日语」等和英文说法）→ `translate.text`（`from: auto`）；只说「翻译」→ 翻成界面语言，每次运行时问；「输入文字 / 粘贴文字」→ `in.text`（每次问文字）；「提取 PDF 文字」→ `pdf.extractText`；「复制文字」→ `text.copy`；「存成文字文件」→ `text.toFile`。按前一步换成接得上的动作：选 PDF 之后的「提取文字」是提取 PDF 文字，文字之后的「转成 PDF」是文字转 PDF。
+Translating a **file** is a job on files and is done as a translation quick action; a sentence the user writes asking for a translation is an errand, so it is refused (`errand`) and no translation is given; the examples are all translation quick actions that work when tapped. Step phrasings: 「翻译成 / 翻成 / 译成 X」 ("translate into X"), "translate into X" (X: Chinese, Simplified Chinese, Traditional Chinese, English, Japanese, Korean, French, German, Spanish, Portuguese, Italian, Russian, Vietnamese, Thai, written in Chinese as 中文、简体中文、繁体中文、英文、日文、韩文、法文、德文、西班牙文、葡萄牙文、意大利文、俄文、越南文、泰文; 「英语」, 「日语」 and so on are also recognized, as are the English names) → `translate.text` (`from: auto`); saying just 「翻译」 ("translate") translates into the UI language and asks each run; 「输入文字 / 粘贴文字」 ("enter text / paste text") → `in.text` (asks for the text each time); 「提取 PDF 文字」 ("extract PDF text") → `pdf.extractText`; 「复制文字」 ("copy text") → `text.copy`; 「存成文字文件」 ("save as a text file") → `text.toFile`. The action is swapped for one that connects to the previous step: 「提取文字」 ("extract text") after choosing a PDF is extract PDF text, and 「转成 PDF」 ("convert to PDF") after text is text to PDF.
 
-| ID  | 句式                                                                                                     | 预期结果                                                                                                                                                                                                          |
-| --- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ER2 | 把这份合同翻译成英文 / 翻译这份合同 / 帮我把截图翻译成中文 / Translate this PDF                          | 新建翻译快捷操作：文件 → 选 PDF → 提取 PDF 文字 → 翻译 → 文字转 PDF → 分享；截图、照片 → 选照片 → 识别文字（每次问语言）→ 翻译 → 复制文字；没说语言时翻成界面语言并每次问；名字如「合同翻成英文」                 |
-| TR1 | 帮我翻译一下这句话：… / 「下班了」用英语怎么说 / Translate “good morning” into Japanese                  | 拒绝（`errand`）：Morph 不会直接给出译文，只改这个 App；例子：「新建一个快捷操作：输入文字，翻译成英文，复制文字」「添加截图翻译快捷操作」「新建一个快捷操作：选 PDF，提取 PDF 文字，翻译成中文，转成 PDF，分享」 |
-| TR3 | 新建一个快捷操作：选截图，识别文字，翻译成中文，复制文字 / …选 PDF，提取文字，翻译成日文，转成 PDF，分享 | 按顺序拼出步骤（见上面的句式）                                                                                                                                                                                    |
-| TR5 | 添加截图翻译快捷操作 / 添加外文 PDF 翻成中文快捷操作 / Add the translate screenshots quick action        | 从预设添加（`screenshot-translate`、`foreign-pdf`、`foreign-paper`、`papers-to-english`）                                                                                                                         |
+| ID  | Phrase (句式)                                                                                            | Expected result                                                                                                                                                                                                                                                                                                                                                  |
+| --- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ER2 | 把这份合同翻译成英文 / 翻译这份合同 / 帮我把截图翻译成中文 / Translate this PDF                          | Creates a translation quick action: file → choose PDF → extract PDF text → translate → text to PDF → share; screenshot or photo → choose photos → recognize text (asks the language each time) → translate → copy text; when no language is given, translates into the UI language and asks each time; the name is like 「合同翻成英文」 ("contract to English") |
+| TR1 | 帮我翻译一下这句话：… / 「下班了」用英语怎么说 / Translate “good morning” into Japanese                  | Refused (`errand`): Morph does not give the translation directly, it only changes this app; examples: 「新建一个快捷操作：输入文字，翻译成英文，复制文字」, 「添加截图翻译快捷操作」, 「新建一个快捷操作：选 PDF，提取 PDF 文字，翻译成中文，转成 PDF，分享」                                                                                                    |
+| TR3 | 新建一个快捷操作：选截图，识别文字，翻译成中文，复制文字 / …选 PDF，提取文字，翻译成日文，转成 PDF，分享 | Builds the steps in order (see the phrasings above)                                                                                                                                                                                                                                                                                                              |
+| TR5 | 添加截图翻译快捷操作 / 添加外文 PDF 翻成中文快捷操作 / Add the translate screenshots quick action        | Adds from the preset (`screenshot-translate`, `foreign-pdf`, `foreign-paper`, `papers-to-english`)                                                                                                                                                                                                                                                               |
 
-评测：TR1、TR2-en、TR3、TR4-en、TR5、TR8 内置规则通过；TR6（「日文邮件截图看不懂，想一键翻成中文」）、TR7（从收件页面打开，分享了 1 个 PDF：「翻译成中文」）、TR9-en（「西班牙文的 PDF，想看英文」）只要求真实模型。
+Evals: TR1, TR2-en, TR3, TR4-en, TR5 and TR8 pass with the built-in rules; TR6 (「日文邮件截图看不懂，想一键翻成中文」, "can't read a Japanese email screenshot, want one-tap translation into Chinese"), TR7 (opened from the inbox, 1 PDF shared: 「翻译成中文」, "translate into Chinese") and TR9-en (「西班牙文的 PDF，想看英文」, "a PDF in Spanish, want to read it in English") require the real model only.
 
-## 音频（D-157，音频会话）
+## Audio (D-157, audio session)
 
-| ID  | 句式                                                                                                                         | 结果                                                                                                  |
-| --- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| AU1 | 新建一个快捷操作：录音，转成文字，转成 PDF，分享 / Create a quick action: choose recordings, transcribe, save as a text file | `in.audio`（录音 / 从文件选）→ `audio.transcribe`（语言跟界面，每次问）→ `text.toPdf` / `text.toFile` |
-| AU2 | 新建一个快捷操作：选录音，压到 2MB，分享                                                                                     | 选音频之后的「压到 N MB」是 `audio.compress`                                                          |
-| AU3 | 新建一个快捷操作：选几段录音，排序，合成一段，分享                                                                           | `file.order` → `audio.merge`（音频之后的「合并」也是合成一段）                                        |
-| AU4 | 新建一个快捷操作：选视频，提取声音，存到文件夹                                                                               | `in.videos` → `audio.fromVideo`                                                                       |
-| AU5 | 新建一个快捷操作：选音频，剪一段，存到文件夹                                                                                 | 音频之后的「剪一段」是 `audio.trim`                                                                   |
-| AU6 | 添加录音转文字快捷操作 / Add the recording too big to send quick action                                                      | 从预设添加（录音转文字、语音太大、几段录音合成、语音备忘、剪一段音频、视频的声音）                    |
+| ID  | Phrase (句式)                                                                                                                | Result                                                                                                                                 |
+| --- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| AU1 | 新建一个快捷操作：录音，转成文字，转成 PDF，分享 / Create a quick action: choose recordings, transcribe, save as a text file | `in.audio` (record / choose from files) → `audio.transcribe` (language follows the UI, asked each time) → `text.toPdf` / `text.toFile` |
+| AU2 | 新建一个快捷操作：选录音，压到 2MB，分享                                                                                     | 「压到 N MB」 ("compress to N MB") after choosing audio is `audio.compress`                                                            |
+| AU3 | 新建一个快捷操作：选几段录音，排序，合成一段，分享                                                                           | `file.order` → `audio.merge` (「合并」 "merge" after audio also means combine into one)                                                |
+| AU4 | 新建一个快捷操作：选视频，提取声音，存到文件夹                                                                               | `in.videos` → `audio.fromVideo`                                                                                                        |
+| AU5 | 新建一个快捷操作：选音频，剪一段，存到文件夹                                                                                 | 「剪一段」 ("trim a clip") after audio is `audio.trim`                                                                                 |
+| AU6 | 添加录音转文字快捷操作 / Add the recording too big to send quick action                                                      | Adds from the preset (recording to text, voice too big, combine several recordings, voice memo, trim an audio clip, sound from video)  |
 
-评测：AU1–AU7 内置规则通过；PAU1–PAU6、SH4 只要求真实模型（上课录音变文字笔记、语音备忘超过 10 MB、几段采访拼成一个、视频的背景音乐、总结录音 → 拒绝 errand、剪 30 秒做铃声、分享进来的录音「转成文字」）。
+Evals: AU1–AU7 pass with the built-in rules; PAU1–PAU6 and SH4 require the real model only (lecture recording to text notes, voice memo over 10 MB, several interviews joined into one, background music of a video, summarize a recording → refuse as errand, trim 30 seconds for a ringtone, a shared-in recording with 「转成文字」 "convert to text").
 
-## 文字转语音（D-270）
+## Text to speech (D-270)
 
-步骤句式：「转成语音 / 变成语音 / 做成有声书 / 朗读 / 读出来 / 文字转语音」「read it aloud / text to speech / turn it into speech / convert to speech」→ `audio.fromText`（`lang: auto`、`rate: 1`、`format: m4a`），后面的「转成 MP3」是 `audio.convert`。
+Step phrasings: 「转成语音 / 变成语音 / 做成有声书 / 朗读 / 读出来 / 文字转语音」 ("convert to speech / turn into speech / make an audiobook / read aloud / read it out / text to speech"), 「read it aloud / text to speech / turn it into speech / convert to speech」 → `audio.fromText` (`lang: auto`, `rate: 1`, `format: m4a`); a following 「转成 MP3」 ("convert to MP3") is `audio.convert`.
 
-| ID   | 句式                                                                                   | 结果                                                                  |
+| ID   | Phrase (句式)                                                                          | Result                                                                |
 | ---- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| TTS1 | 新建一个快捷操作：选 PDF，提取文字，转成语音，分享                                     | `in.files`（pdf）→ `pdf.extractText` → `audio.fromText` → `out.share` |
-| TTS2 | Create a quick action: scan documents, recognize text, read it aloud, save to a folder | `in.photos`（scanner）→ `ocr.recognize` → `audio.fromText`            |
-| TTS3 | 添加 PDF 转成音频快捷操作 / Add the read paper pages aloud quick action                | 从预设添加（`pdf-to-audio`、`paper-to-audio`）                        |
-| TTS5 | 新建一个快捷操作：输入文字，朗读，转成 MP3，分享                                       | `in.text` → `audio.fromText` → `audio.convert`（mp3）                 |
+| TTS1 | 新建一个快捷操作：选 PDF，提取文字，转成语音，分享                                     | `in.files` (pdf) → `pdf.extractText` → `audio.fromText` → `out.share` |
+| TTS2 | Create a quick action: scan documents, recognize text, read it aloud, save to a folder | `in.photos` (scanner) → `ocr.recognize` → `audio.fromText`            |
+| TTS3 | 添加 PDF 转成音频快捷操作 / Add the read paper pages aloud quick action                | Adds from the preset (`pdf-to-audio`, `paper-to-audio`)               |
+| TTS5 | 新建一个快捷操作：输入文字，朗读，转成 MP3，分享                                       | `in.text` → `audio.fromText` → `audio.convert` (mp3)                  |
 
-评测：TTS1、TTS2-en、TTS3、TTS4-en、TTS5 内置规则通过；PTTS1（「做一个把 PDF 变成音频的快捷操作」，目标句，D-265 起内置规则不认）、PTTS2-en（课上发的讲义想在路上听）、PTTS3（日文 PDF、慢一点读）、PTTS4（「把这句话读给我听：…」→ 拒绝 errand）、PTTS5（从收件页面打开，分享了 1 个 PDF：「转成音频」）只要求真实模型。
+Evals: TTS1, TTS2-en, TTS3, TTS4-en and TTS5 pass with the built-in rules; PTTS1 (「做一个把 PDF 变成音频的快捷操作」, "make a quick action that turns a PDF into audio", a goal sentence, not recognized by the built-in rules since D-265), PTTS2-en (handouts from class that you want to listen to on the way), PTTS3 (a Japanese PDF, read slower), PTTS4 (「把这句话读给我听：…」, "read this sentence to me: …" → refuse as errand) and PTTS5 (opened from the inbox, 1 PDF shared: 「转成音频」, "convert to audio") require the real model only.
 
-## 扫描件转 Excel（D-272）
+## Scans to Excel (D-272)
 
-步骤句式：「转 Excel / 转成 Excel / 表格转 Excel / 做成 Excel」「convert to Excel / turn it into an Excel file」→ `ocr.toExcel`（`lang: auto`、`scope: all`）。
+Step phrasings: 「转 Excel / 转成 Excel / 表格转 Excel / 做成 Excel」 ("to Excel / convert to Excel / table to Excel / make an Excel"), 「convert to Excel / turn it into an Excel file」 → `ocr.toExcel` (`lang: auto`, `scope: all`).
 
-| ID   | 句式                                       | 结果                                                |
+| ID   | Phrase (句式)                              | Result                                              |
 | ---- | ------------------------------------------ | --------------------------------------------------- |
-| XLS1 | 新建一个快捷操作：扫描文档，转 Excel，分享 | `in.photos`（scanner）→ `ocr.toExcel` → `out.share` |
-| XLS2 | Add the scan a table to Excel quick action | 从预设添加（`scan-table-excel`）                    |
+| XLS1 | 新建一个快捷操作：扫描文档，转 Excel，分享 | `in.photos` (scanner) → `ocr.toExcel` → `out.share` |
+| XLS2 | Add the scan a table to Excel quick action | Adds from the preset (`scan-table-excel`)           |
 
-## 扫描件转 Word（D-328）
+## Scans to Word (D-328)
 
-步骤句式：「转 Word / 转成 Word / 文档转 Word / 图片转 Word / 做成 Word 文档」「convert to Word / turn it into a Word document」→ `ocr.toWord`（`lang: auto`）。
+Step phrasings: 「转 Word / 转成 Word / 文档转 Word / 图片转 Word / 做成 Word 文档」 ("to Word / convert to Word / document to Word / image to Word / make a Word document"), 「convert to Word / turn it into a Word document」 → `ocr.toWord` (`lang: auto`).
 
-| ID   | 句式                                      | 结果                                               |
+| ID   | Phrase (句式)                             | Result                                             |
 | ---- | ----------------------------------------- | -------------------------------------------------- |
-| DOC1 | 新建一个快捷操作：扫描文档，转 Word，分享 | `in.photos`（scanner）→ `ocr.toWord` → `out.share` |
+| DOC1 | 新建一个快捷操作：扫描文档，转 Word，分享 | `in.photos` (scanner) → `ocr.toWord` → `out.share` |
 
-评测：XLS1、XLS2-en 内置规则通过；PXLS1（纸质银行流水拍下来变成 Excel）、PXLS2-en（价格表截图变成能改的表格）只要求真实模型。
+Evals: XLS1 and XLS2-en pass with the built-in rules; PXLS1 (photograph a paper bank statement into Excel) and PXLS2-en (a price list screenshot into an editable table) require the real model only.
 
-## 格式转换（D-183–D-186）
+## Format conversion (D-183–D-186)
 
-步骤句式：「转成 / 存成 MP3」「convert to MP3」→ `audio.convert`（`format: mp3`），跟在视频后面时是 `audio.fromVideo`（`format: mp3`）；「转成 GIF / 做成动图」「make an animated GIF」→ `image.toGif`，跟在视频后面时是 `video.toGif`；「从文件选视频 / 照片」「choose videos from Files」→ `in.videos` / `in.photos`（`source: files`）；「选 Word 文档 / 选文档 / 选 Excel 表格 / 选 Word 或 PPT」「choose Word documents」→ `in.files`（`accept: documents`），之后的「转成 PDF」是 `pdf.fromDocument`。
+Step phrasings: 「转成 / 存成 MP3」 ("convert / save as MP3"), 「convert to MP3」 → `audio.convert` (`format: mp3`), and after a video it is `audio.fromVideo` (`format: mp3`); 「转成 GIF / 做成动图」 ("convert to GIF / make an animated picture"), 「make an animated GIF」 → `image.toGif`, and after a video it is `video.toGif`; 「从文件选视频 / 照片」 ("choose videos / photos from Files"), 「choose videos from Files」 → `in.videos` / `in.photos` (`source: files`); 「选 Word 文档 / 选文档 / 选 Excel 表格 / 选 Word 或 PPT」 ("choose Word documents / choose documents / choose Excel sheets / choose Word or PPT"), 「choose Word documents」 → `in.files` (`accept: documents`), and a following 「转成 PDF」 ("convert to PDF") is `pdf.fromDocument`.
 
-| ID  | 句式                                                                                                                 | 结果                                                    |
-| --- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| FG1 | 新建一个快捷操作：选音频，转成 MP3，存到文件夹                                                                       | `in.audio` → `audio.convert`（mp3）→ `out.saveToFolder` |
-| FG2 | 新建一个快捷操作：选视频，转成 MP3，分享                                                                             | `in.videos` → `audio.fromVideo`（mp3）→ `out.share`     |
-| FG3 | 新建一个快捷操作：选视频，剪一段，转成 GIF，分享 / Create a quick action: choose photos, make an animated GIF, share | `video.trim` → `video.toGif`；照片之后是 `image.toGif`  |
-| FG4 | 新建一个快捷操作：从文件选视频，转成 MP4，存到文件夹                                                                 | `in.videos`（`source: files`）→ `video.convert`         |
-| FG5 | 新建一个快捷操作：选 Word 文档，转成 PDF，分享 / Create a quick action: choose Word documents, make a PDF            | `in.files`（`accept: documents`）→ `pdf.fromDocument`   |
+| ID  | Phrase (句式)                                                                                                        | Result                                                         |
+| --- | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| FG1 | 新建一个快捷操作：选音频，转成 MP3，存到文件夹                                                                       | `in.audio` → `audio.convert` (mp3) → `out.saveToFolder`        |
+| FG2 | 新建一个快捷操作：选视频，转成 MP3，分享                                                                             | `in.videos` → `audio.fromVideo` (mp3) → `out.share`            |
+| FG3 | 新建一个快捷操作：选视频，剪一段，转成 GIF，分享 / Create a quick action: choose photos, make an animated GIF, share | `video.trim` → `video.toGif`; after photos it is `image.toGif` |
+| FG4 | 新建一个快捷操作：从文件选视频，转成 MP4，存到文件夹                                                                 | `in.videos` (`source: files`) → `video.convert`                |
+| FG5 | 新建一个快捷操作：选 Word 文档，转成 PDF，分享 / Create a quick action: choose Word documents, make a PDF            | `in.files` (`accept: documents`) → `pdf.fromDocument`          |
 
-评测：FG1–FG5、FG3-en、FG5-en 内置规则通过；PFG1（车里只能放 MP3）、PFG2-en（猫的短视频做成 GIF）、PFG3（电脑下载的 MKV 手机放不了）、PFG4（Word 作业要交 PDF）只要求真实模型。PSP1-en（扫出能搜索文字的 PDF：`pdf.fromImages` 的 `textLayer`，D-195）、PPW1（对账单去密码再合并：`pdf.unlock` → `pdf.merge`，D-194）、PPW2-en（合同发出去前加密码：`pdf.protect` 在最后）、PFA1（收据接到上次的报销单后面：`file.addExisting` → `pdf.merge`，D-197）、PWF1（给客人连 Wi-Fi 的二维码：`in.wifi` → `qr.generate`，或添加二维码工具，D-199）也只要求真实模型。
+Evals: FG1–FG5, FG3-en and FG5-en pass with the built-in rules; PFG1 (the car can only play MP3), PFG2-en (turn a short cat video into a GIF), PFG3 (an MKV downloaded on a computer that the phone cannot play) and PFG4 (a Word assignment that must be handed in as PDF) require the real model only. PSP1-en (scan to a searchable-text PDF: `textLayer` of `pdf.fromImages`, D-195), PPW1 (remove the password from a statement and then merge: `pdf.unlock` → `pdf.merge`, D-194), PPW2-en (add a password before sending a contract: `pdf.protect` at the end), PFA1 (append a receipt to last time's expense report: `file.addExisting` → `pdf.merge`, D-197) and PWF1 (a QR code for guests to join Wi-Fi: `in.wifi` → `qr.generate`, or add the QR tool, D-199) also require the real model only.
 
-## 目标句（D-149，D-265 起不再认）
+## Goal sentences (D-149, no longer recognized since D-265)
 
-「我有一堆旅行照片，想发给朋友」等三句（GW8–GW10）界面上已经没有入口，D-265 起内置规则不再认，整句按「暂时无法理解」拒绝；评测用例照旧，只要求真实模型。
+Three sentences such as 「我有一堆旅行照片，想发给朋友」 ("I have a pile of travel photos and want to send them to friends") (GW8–GW10) no longer have an entry point in the UI. Since D-265 the built-in rules no longer recognize them, and the whole sentence is refused as "Can't understand that yet"; the eval cases stay as they were and require the real model only.
 
-## 记一笔（D-187）
+## Log an entry (D-187)
 
-步骤句式：「记一笔 / 记一条 / 记账（到 X）」「记到 / 记进 / 写进 / 加到 X（表）」「add a record (to X)」「log it in X」→ `out.addRecord`。X 按当前的数据表名字找；没说表名而且只有一张表时用它；找不到就整句拒绝（先说「新建一个记账页面」）。收文件而表里没有附件字段时，先加一个「附件」字段。
+Step phrasings: 「记一笔 / 记一条 / 记账（到 X）」 ("log one / log one entry / bookkeeping (to X)"), 「记到 / 记进 / 写进 / 加到 X（表）」 ("log to / log into / write into / add to X (table)"), 「add a record (to X)」, 「log it in X」 → `out.addRecord`. X is looked up among the current table names; when no table is named and there is only one table, it is used; when nothing is found the whole sentence is refused (saying 「新建一个记账页面」 "create a bookkeeping page" first). When files come in and the table has no attachment field, an "Attachments" field is added first.
 
-| ID  | 句式                                                                                            | 结果                                                       |
-| --- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| RE1 | 新建一个快捷操作：拍照，记到账目 / Create a quick action: take photos, add a record to Expenses | 给「账目」加附件字段 → 新建快捷操作：拍照 → 记一笔（账目） |
-| RE2 | 新建一个快捷操作：输入文字，记一笔                                                              | 只有一张表时记到它；文字放进第一个长文本 / 文字字段        |
-| RE3 | 新建一个快捷操作：拍照，记到不存在的表                                                          | 拒绝：没有这张数据表                                       |
+| ID  | Phrase (句式)                                                                                   | Result                                                                                                 |
+| --- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| RE1 | 新建一个快捷操作：拍照，记到账目 / Create a quick action: take photos, add a record to Expenses | Adds an attachment field to "Expenses" → creates a quick action: take photos → log an entry (Expenses) |
+| RE2 | 新建一个快捷操作：输入文字，记一笔                                                              | Logs to the only table if there is one; the text goes into the first long-text / text field            |
+| RE3 | 新建一个快捷操作：拍照，记到不存在的表                                                          | Refused: no such table                                                                                 |
 
-评测：RE1、RE1-en、RE2 内置规则通过；RE3 只有真实模型跑（点名的表不存在、用途清楚就建，D-407；内置规则不猜，照旧拒绝，见 `eval-cases.test.ts`）；PRE1（拍收据记账、照片留着；D-263 起只给账目加附件字段也算对）、PRE2-en（扫描收据进 Expenses）、PRE3（加「含税」= 金额 × 1.06 的公式字段）、PRE4（「记一笔午饭 35」→ userData 拒绝）只要求真实模型。
+Evals: RE1, RE1-en and RE2 pass with the built-in rules; RE3 is run by the real model only (when the named table does not exist and the purpose is clear, it creates it, D-407; the built-in rules do not guess and still refuse, see `eval-cases.test.ts`); PRE1 (photograph a receipt and log it, keeping the photo; since D-263 only adding an attachment field to Expenses also counts as correct), PRE2-en (scan a receipt into Expenses), PRE3 (add a "tax included" = amount × 1.06 formula field) and PRE4 (「记一笔午饭 35」, "log lunch 35" → userData refused) require the real model only.
 
-### 照片和文件放进记录（D-263）
+### Photos and files in records (D-263)
 
-句式：「给 X 加照片 / 加附件 / 加上图片」「X 里存发票 / 存收据 / 放文件」「附上照片」「add / attach / save / keep photos, pictures, attachments, files, receipts, invoices to / in / with X」→ 给数据表 X 加一个附件字段（`addField` type file，名字「附件」/「Attachments」），不另外搭「记一笔」快捷操作；用户在表单里自己拍照、选照片和文件。X 已经有附件字段时拒绝（noChange），说明添加、编辑记录时就能放。
+Phrasings: 「给 X 加照片 / 加附件 / 加上图片」 ("add photos / attachments / pictures to X"), 「X 里存发票 / 存收据 / 放文件」 ("keep invoices / receipts / files in X"), 「附上照片」 ("attach photos"), 「add / attach / save / keep photos, pictures, attachments, files, receipts, invoices to / in / with X」 → adds an attachment field to table X (`addField` type file, named "Attachments"), without building a separate "log an entry" quick action; the user takes photos and picks photos and files in the form themselves. When X already has an attachment field it is refused (noChange), explaining that they can be attached when adding or editing a record.
 
-| ID  | 句式                                       | 结果                                 |
-| --- | ------------------------------------------ | ------------------------------------ |
-| AT1 | 给账目加照片 / Attach receipts to Expenses | 给「账目」加附件字段，不新建快捷操作 |
-| AT2 | 账目里存发票                               | 同上                                 |
+| ID  | Phrase (句式)                              | Result                                                      |
+| --- | ------------------------------------------ | ----------------------------------------------------------- |
+| AT1 | 给账目加照片 / Attach receipts to Expenses | Adds an attachment field to "Expenses", no new quick action |
+| AT2 | 账目里存发票                               | Same as above                                               |
 
-评测：AT1、AT1-en、AT2 内置规则通过；PAT1（记账时附上发票照片）、PAT2-en、PAT3-fr 只要求真实模型。
+Evals: AT1, AT1-en and AT2 pass with the built-in rules; PAT1 (attach an invoice photo when logging), PAT2-en and PAT3-fr require the real model only.
 
-## 必须拒绝的输入（示例）
+## Inputs that must be refused (examples)
 
-| ID  | 句式                                                                                                                           | 预期结果                                                                                                                            |
-| --- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| X1  | 帮我订一张机票                                                                                                                 | “暂时无法理解”，并给出示例说法                                                                                                      |
-| X2  | 把设置删掉                                                                                                                     | 拒绝：设置里有 AI 修改和改动记录入口，只能换位置，不能删除                                                                          |
-| X3  | 删除我所有的 PDF 文件                                                                                                          | 拒绝：修改流程不处理删除文件，需在文件管理中手动操作                                                                                |
-| X4  | 记一笔午饭 35 / 把上个月的账都删掉 / 把待办都标成完成 / 我这个月花了多少                                                       | 拒绝（`userData`）：AI 只改界面，不读写记录的数据                                                                                   |
-| X5  | 帮我写一封请假邮件 / 帮我翻译一下这句话 / 总结一下这个 PDF / 这份合同讲了什么 / 帮我查一下… / Write… / Translate… / What does… | 拒绝（`errand`，D-128）：Morph 不替你写东西、回答问题或总结文件内容，只改这个 App；给出三句能做成快捷操作的例子（点一下填进输入框） |
-| X6  | 现在帮我运行签证照片 / Run …                                                                                                   | 拒绝（`errand`）：AI 不替你运行，点快捷操作就能开始                                                                                 |
+| ID  | Phrase (句式)                                                                                                                  | Expected result                                                                                                                                                                                                       |
+| --- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| X1  | 帮我订一张机票                                                                                                                 | "Can't understand that yet", with example phrasings                                                                                                                                                                   |
+| X2  | 把设置删掉                                                                                                                     | Refused: Settings holds the AI change and Change history entries; it can only be moved, not deleted                                                                                                                   |
+| X3  | 删除我所有的 PDF 文件                                                                                                          | Refused: the change flow does not delete files; do it by hand in file management                                                                                                                                      |
+| X4  | 记一笔午饭 35 / 把上个月的账都删掉 / 把待办都标成完成 / 我这个月花了多少                                                       | Refused (`userData`): the AI only changes the interface and does not read or write record data                                                                                                                        |
+| X5  | 帮我写一封请假邮件 / 帮我翻译一下这句话 / 总结一下这个 PDF / 这份合同讲了什么 / 帮我查一下… / Write… / Translate… / What does… | Refused (`errand`, D-128): Morph does not write things for you, answer questions or summarize file contents, it only changes this app; gives three examples that can become quick actions (tap to fill the input box) |
+| X6  | 现在帮我运行签证照片 / Run …                                                                                                   | Refused (`errand`): the AI does not run things for you; tap the quick action to start it                                                                                                                              |
 
-### 首页文件入口（FE1–FE2）
+### Home page file entries (FE1–FE2)
 
-- 「首页加上打开相册」 / `Add a photo picker to home`：添加照片与视频选择入口。
-- 「首页加上打开文件」 / `Add a file picker to home`：添加文件选择入口。选完进入收件页面，由用户选择快捷操作。
+- 「首页加上打开相册」 / `Add a photo picker to home`: adds the photo and video picker entry.
+- 「首页加上打开文件」 / `Add a file picker to home`: adds the file picker entry. After choosing, the user goes to the inbox and picks a quick action.
 
-### 拼接视频（VM1–VM2）
+### Join videos (VM1–VM2)
 
-- 「添加把几段视频拼成一段快捷操作」 / `Add the join video clips quick action`：选 2–10 段视频 → 调整顺序 → 拼接成 MP4。
+- 「添加把几段视频拼成一段快捷操作」 / `Add the join video clips quick action`: choose 2–10 videos → adjust the order → join into an MP4.
 
-### 视频截帧（VF1–VF2）
+### Video frame capture (VF1–VF2)
 
-- 「添加从视频里截一张照片快捷操作」 / `Add the photo from a video quick action`：选视频 → 在本机选时间 → 存 JPEG 到相册。
+- 「添加从视频里截一张照片快捷操作」 / `Add the photo from a video quick action`: choose a video → pick the time on the device → save a JPEG to the photo library.
 
-### 视频静音（VMU1–VMU2）
+### Video mute (VMU1–VMU2)
 
-- 「添加视频去掉声音快捷操作」 / `Add the remove sound from videos quick action`：选视频 → 去掉全部音轨 → 无声 MP4。
+- 「添加视频去掉声音快捷操作」 / `Add the remove sound from videos quick action`: choose a video → remove all audio tracks → silent MP4.
 
-### 视频配乐（VMA1–VMA2）
+### Video background music (VMA1–VMA2)
 
-- 「添加给视频换背景音乐快捷操作」 / `Add the add background music quick action`：选视频 → 运行时选音乐，默认只留音乐、短音乐循环。
+- 「添加给视频换背景音乐快捷操作」 / `Add the add background music quick action`: choose a video → choose music at run time; by default only the music is kept and short music loops.
 
-### 视频旋转（VR1–VR2）
+### Video rotation (VR1–VR2)
 
-- 「添加把视频转正快捷操作」 / `Add the fix video rotation quick action`：选视频 → 顺时针旋转 90/180/270 度。
+- 「添加把视频转正快捷操作」 / `Add the fix video rotation quick action`: choose a video → rotate clockwise 90/180/270 degrees.
 
-### 视频裁比例（VC1–VC2）
+### Video crop to ratio (VC1–VC2)
 
-- 「添加裁成竖屏视频快捷操作」 / `Add the portrait posts quick action`：选视频 → 居中裁成指定比例。
+- 「添加裁成竖屏视频快捷操作」 / `Add the portrait posts quick action`: choose a video → center-crop to the given ratio.
 
-### 视频变速（VS1–VS2）
+### Video speed (VS1–VS2)
 
-- 「添加视频加速或慢放快捷操作」 / `Add the speed up or slow down video quick action`：选视频 → 改成 0.5×–4× 速度。
+- 「添加视频加速或慢放快捷操作」 / `Add the speed up or slow down video quick action`: choose a video → change to 0.5×–4× speed.
 
-### 音量（AVL1–AVL3）
+### Volume (AVL1–AVL3)
 
-- 「添加把录音调到正常音量快捷操作」 / `Add the quiet audio easier quick action`。
-- 「添加把视频调到正常音量快捷操作」 / `Add the quiet video easier quick action`。
+- 「添加把录音调到正常音量快捷操作」 / `Add the quiet audio easier quick action`.
+- 「添加把视频调到正常音量快捷操作」 / `Add the quiet video easier quick action`.
 
-### 人声降噪
+### Voice noise reduction
 
 - 添加录音人声降噪快捷操作
 - 添加视频人声降噪快捷操作
-- 适合讲话录音，音乐可能被削弱；视频保留画面。
+- Suited to speech recordings; music may be weakened; video keeps its picture.
 
-### 图片去背景
+### Image background removal
 
 - 添加把照片背景去掉快捷操作
-- 透明或纯色 PNG，需要 iOS 17+ 或 Android Google Play 服务。
+- Transparent or solid-color PNG; needs iOS 17+ or Android with Google Play services.
 
-### 图片颜色调整
+### Image color adjustment
 
 - 添加把太暗的照片调亮快捷操作
-- 自动优化或手动亮度、对比度、饱和度，保留尺寸，透明图片输出 PNG。
+- Auto enhance or manual brightness, contrast and saturation; keeps the size; transparent images output PNG.
 
-### 图片标注
+### Image annotation
 
 - 添加在图片上画箭头和文字快捷操作
-- 运行时在本机添加文字、箭头、方框、自由画笔，六种颜色，可撤销。文字和笔画不发给 AI。
+- At run time, add text, arrows, boxes and freehand strokes on the device, six colors, undoable. The text and strokes are not sent to the AI.
 
-### 视频字幕（首版 SRT）
+### Video subtitles (first version SRT)
 
 - 添加导出视频 SRT 字幕快捷操作
-- 选择讲话语言，在本机识别并导出独立 .srt 文件；不会把字幕烧录进视频。需要核对文字和时间。
+- Choose the spoken language, recognize on the device and export a separate .srt file; subtitles are not burned into the video. The text and timing need checking.
 
-### 新手引导第 1 步（D-231，GD1）
+### Onboarding guide step 1 (D-231, GD1)
 
-- 「加入「打开相册」和「打开文件」按钮」 / `Add the “Open photo library” and “Open files” buttons`：在首页并排加上两个文件入口；已经有文件入口时回复「已经是这样了」，引导照样进入第 2 步。
+- 「加入「打开相册」和「打开文件」按钮」 / `Add the “Open photo library” and “Open files” buttons`: adds two file entries side by side on the home page; when file entries already exist it replies 「已经是这样了」 ("already like that") and the guide still goes on to step 2.
 
-### 法语界面（D-224 / P-037）
+### French UI (D-224 / P-037)
 
-内置 mock 不解析法语，法语界面下使用英文示例和句式。真实模型按界面语言创建法语名称、说明和后续请求。法语默认货币为 EUR；FR1 / FR2 / FR3 评测分别覆盖创建图片压缩操作、拒绝直接代发邮件、记账表。
+The built-in mock does not parse French; under the French UI, English examples and phrasings are used. The real model creates French names, descriptions and follow-up requests according to the UI language. The French default currency is EUR; evals FR1 / FR2 / FR3 cover creating an image compression action, refusing to send an email directly, and a bookkeeping table respectively.

@@ -1,36 +1,36 @@
-# 内置工具与工作流设计
+# Built-in Tools and Workflows Design
 
-本文是内置工具（图片、PDF、视频、扫描、文字识别、翻译、打包、二维码、打印）和跨工具工作流的设计。
-决策编号见 [DECISIONS.md](DECISIONS.md)（D-060 起）；用户数据规则见 [DATA_DESIGN.md](DATA_DESIGN.md)。
+This document is the design for the built-in tools (images, PDF, video, scanning, text recognition, translation, packaging, QR codes, printing) and for cross-tool workflows.
+For decision IDs see [DECISIONS.md](DECISIONS.md) (from D-060 on); for user data rules see [DATA_DESIGN.md](DATA_DESIGN.md).
 
-## 0. 原则
+## 0. Principles
 
-1. **全部在手机本地运行**。T7 之前要求能在 Expo Go 里用；从 T8 起 App 用开发版构建（D-084），可以写本地原生模块调用**系统框架**（iOS 的 Vision / VisionKit / Core Image / AVFoundation，没有第三方原生代码）。Android 用 Google ML Kit（D-087）和 Jetpack Media3（视频，D-141）。视频在 Expo Go 里不能处理（`needsFullApp`）。系统做不了的情况（Expo Go、Android 上给照片找边、ML Kit 不认的语言）仍要有退路（纯 JS 或 WebView 扩展包），工作流配置在各平台通用。还没做的见 §9。
-2. **AI 永远看不到用户的文件内容、文件名、OCR 出来的文字和记录内容**（D-036 / D-042 / D-046；指云端 AI，本机模型见 D-396）。AI 只能看到动作目录、参数和工作流结构。用户说出的规格（「240 KB 以内」「600×600」）是规则，可以发给 AI。
-3. **工作流是线性的、非图灵完备的**：一串步骤，每步一个登记过的动作，没有分支、循环和表达式（§7C）。
-4. **单独使用一个工具 = 只含这一个动作（加上输入步骤）的工作流**。工具页和工作流共用同一个执行器。
-5. **纯逻辑放在 `core` 和 `tool-*` 包里，用 Node 加真实文件测试**；平台能力（选照片、编码图片、WebView、打印、系统识别）由 App 注入，测试里换成假的。
+1. **Everything runs locally on the phone**. Until T7 it had to work in Expo Go; from T8 the app uses a development build (D-084), which can include local native modules that call **system frameworks** (iOS: Vision / VisionKit / Core Image / AVFoundation, with no third-party native code). Android uses Google ML Kit (D-087) and Jetpack Media3 (video, D-141). Video cannot be processed in Expo Go (`needsFullApp`). Where the system cannot do the job (Expo Go, edge detection for photos on Android, languages ML Kit does not recognize), there must still be a fallback (pure JS or a WebView pack), and the workflow config is the same on every platform. What is not done yet is listed in §9.
+2. **The AI never sees the user's file contents, file names, OCR text or record contents** (D-036 / D-042 / D-046; this means the cloud AI, for the on-device model see D-396). The AI sees only the action catalog, parameters and workflow structure. Specs the user states ("under 240 KB", "600×600") are rules and may be sent to the AI.
+3. **A workflow is linear and not Turing complete**: a series of steps, each step one registered action, with no branches, loops or expressions (§7C).
+4. **Using a single tool = a workflow containing only that one action (plus the input step)**. The tool page and workflows share the same executor.
+5. **Pure logic lives in the `core` and `tool-*` packages and is tested in Node with real files**; platform capabilities (picking photos, encoding images, WebView, printing, system recognition) are injected by the app and replaced with fakes in tests.
 
-6. **容器把数据交给工具**（D-428、D-442）：进入容器什么都不跑。用户点容器上的按钮时，第一步要什么就交什么：值（一个字段，`text`，文字、数字、日期等交它显示的文字）、这一条（`records`，一条）、列表选出的（`records`，筛选和搜索之后的全部，不截到 `limit`）、附件（`files`，附件字段里第一步收的那种文件的**副本**，一次最多 20 个，原件不动）。交出去以后工作流不知道这些值来自哪条记录，结果也不写回来源（外部运行）；做完靠导航栈回到记录页。这种快捷操作没有输入步骤（`workflow/check.ts` 的 `handedInput`），放在表的 `recordRow`、记录块的 `{as: "list"}`、单条记录块上；放不到提醒、手机桌面、普通按钮上，从快捷操作列表点只说明要从记录页或列表上点，不运行。要用户自己选文件的快捷操作仍用 `in.photos` / `in.files` 开头。
+6. **Containers hand data to tools** (D-428, D-442): opening a container runs nothing. When the user taps a button on a container, it hands over whatever the first step needs: a value (one field, `text`; text, numbers, dates and so on hand over the text they display), this record (`records`, one record), what the list selected (`records`, everything after filtering and search, not cut off at `limit`), or attachments (`files`, **copies** of the kind of file the first step takes from the attachment field, at most 20 at a time, originals untouched). Once handed over, the workflow does not know which record the values came from, and the result is not written back to the source (an external run); when it finishes, the navigation stack returns to the record page. Such a quick action has no input step (`handedInput` in `workflow/check.ts`) and is placed on a table's `recordRow`, on a record block's `{as: "list"}`, or on a single-record block. It cannot be placed on reminders, the phone home screen or ordinary buttons; tapping it from the quick action list only explains that it must be tapped from a record page or list, and does not run. A quick action that needs the user to pick files themselves still starts with `in.photos` / `in.files`.
 
-## 1. 类型化的值（替代 D-014 的 4 个固定数据槽）
+## 1. Typed Values (replacing D-014's 4 fixed data slots)
 
-步骤之间传递**一个值**，值有类型：
+Steps pass **one value** between them, and a value has a type:
 
-| 类型      | 内容                                     | 说明                                                  |
-| --------- | ---------------------------------------- | ----------------------------------------------------- |
-| `images`  | 图片文件数组（JPEG / PNG / WebP / HEIC） | 每项带宽高、可选的拍摄时间                            |
-| `pdf`     | PDF 文件数组（通常 1 个，拆分后多个）    | 每项带页数                                            |
-| `files`   | 任意文件数组                             | 是 `images`、`pdf`、`zip`、`video`、`audio` 的父类型  |
-| `zip`     | 一个 ZIP 文件                            |                                                       |
-| `video`   | 视频文件数组（MOV / MP4 等）             | 每项带时长、宽高；原生模块边读边写（D-140、D-142）    |
-| `audio`   | 音频文件数组（m4a / wav / mp3 等）       | 这一批只有类型和输入，动作由音频工具提供（D-140）     |
-| `text`    | 一段文字（OCR、二维码识别、PDF 抽文字）  | **只留在本机**：复制、存成文件、生成 PDF，绝不发给 AI |
-| `records` | 记录（一条或几条）                       | `in.records` 读一张表，或者容器交来（D-428）          |
+| Type      | Content                                                          | Notes                                                                                              |
+| --------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `images`  | Array of image files (JPEG / PNG / WebP / HEIC)                  | Each item has width and height, and optionally a capture time                                      |
+| `pdf`     | Array of PDF files (usually 1, several after splitting)          | Each item has a page count                                                                         |
+| `files`   | Array of any files                                               | Parent type of `images`, `pdf`, `zip`, `video` and `audio`                                         |
+| `zip`     | One ZIP file                                                     |                                                                                                    |
+| `video`   | Array of video files (MOV / MP4 etc.)                            | Each item has duration, width and height; native modules read and write in a stream (D-140, D-142) |
+| `audio`   | Array of audio files (m4a / wav / mp3 etc.)                      | This batch has only the type and the input; the actions are provided by the audio tools (D-140)    |
+| `text`    | A piece of text (OCR, QR recognition, text extracted from a PDF) | **Stays on the device only**: copy, save as a file, generate a PDF, never send to the AI           |
+| `records` | Records (one or several)                                         | `in.records` reads a table, or a container hands them over (D-428)                                 |
 
-类型兼容：动作声明接受 `files` 时，`images` / `pdf` / `zip` / `video` / `audio` 都能接上；反过来不行。动作可以用 `rejects` 排除处理不了的子类型（`pdf.merge` 不收视频和音频，D-140）。
+Type compatibility: when an action declares that it accepts `files`, `images` / `pdf` / `zip` / `video` / `audio` can all connect to it; not the other way around. An action can use `rejects` to exclude subtypes it cannot handle (`pdf.merge` does not take video or audio, D-140).
 
-运行时的值（App 层）：
+Runtime value (app layer):
 
 ```ts
 type RunItem = {
@@ -50,31 +50,31 @@ type RunValue =
   | { type: 'text'; text: string };
 ```
 
-中间结果是缓存目录 `runs/<runId>/` 里的临时文件，执行结束（成功、取消、失败）后清理；只有「保存」步骤或用户在结果页点「保存」才会成为用户文件（`assets` 表）。`name` 是不含扩展名的显示名，随值一起传递，「命名」步骤改的就是它。
+Intermediate results are temporary files in the cache directory `runs/<runId>/`, cleaned up when the run ends (success, cancel or failure); only the "Save" step, or the user tapping "Save" on the result page, turns them into user files (the `assets` table). `name` is the display name without the extension and travels with the value; the "Rename" step changes exactly this.
 
-## 2. 动作契约
+## 2. Action Contract
 
-每个动作在 `core` 里声明契约（`ActionDefinition`），实现在 `tool-*` 包或 App 运行时里：
+Each action declares its contract in `core` (`ActionDefinition`), and the implementation lives in a `tool-*` package or in the app runtime:
 
 ```ts
 interface ActionDefinition {
-  id: string; // 'image.compress'，按领域加前缀
-  label: Localized; // 「压到指定大小」
-  input: ValueType[]; // 接受的类型；[] = 输入动作（只能是第一步）
-  rejects?: ValueType[]; // 接受 files 但处理不了的子类型（D-140）
-  output: ValueType | 'same' | ((params) => ValueType); // 'same' = 类型不变（命名、保存、分享）
-  params: ZodType; // 参数结构，执行前再解析一次（D-020）
-  fields: ParamField[]; // 每个参数的界面元数据，编辑器据此生成表单
-  local?: LocalStepKind; // 需要用户在本地操作的步骤（§4）
-  pack?: PackId; // 需要的扩展包（§6）
+  id: string; // 'image.compress', prefixed by domain
+  label: Localized; // "Compress to size"
+  input: ValueType[]; // accepted types; [] = input action (can only be the first step)
+  rejects?: ValueType[]; // subtypes that are accepted via files but cannot be handled (D-140)
+  output: ValueType | 'same' | ((params) => ValueType); // 'same' = type unchanged (rename, save, share)
+  params: ZodType; // parameter schema, parsed once more before running (D-020)
+  fields: ParamField[]; // UI metadata for each parameter; the editor builds its form from it
+  local?: LocalStepKind; // a step that needs the user to act locally (§4)
+  pack?: PackId; // required pack (§6)
   requires: Permission[];
-  ai?: string; // 给 AI 的提示（英文）：用户怎么说时用它、怎么设参数，随动作目录发给模型（D-259）
-  aiRules?: { n: number; text: string }[]; // 只关于这个动作的提示词规则，按编号插进「## Rules」
-  phrases?: { match: RegExp; step?: (m, locale) => { params; ask?; table? } }[]; // 内置规则认的步骤说法（D-265）
+  ai?: string; // hint for the AI (English): when to use it, how to set the parameters; sent to the model with the action catalog (D-259)
+  aiRules?: { n: number; text: string }[]; // prompt rules about this action only, inserted into "## Rules" by number
+  phrases?: { match: RegExp; step?: (m, locale) => { params; ask?; table? } }[]; // step phrasings recognized by the built-in rules (D-265)
 }
 
 interface ParamField {
-  key: string; // 对应 params 的一个键
+  key: string; // one key of params
   label: Localized;
   kind: 'number' | 'choice' | 'toggle' | 'text' | 'nameTemplate' | 'color';
   unit?: 'px' | 'KB' | 'MB' | '%' | '°' | 'mm' | 'pt';
@@ -82,381 +82,381 @@ interface ParamField {
   max?;
   step?;
   options?: { value; label: Localized }[]; // choice
-  presets?: { label: Localized; values: Record<string, unknown> }[]; // 「护照 35×45」「4 MB」
-  ask?: boolean; // 默认「每次运行时问」
-  private?: boolean; // 用户自己写的文字（水印、文字戳）：发给 AI 前替换成占位符
+  presets?: { label: Localized; values: Record<string, unknown> }[]; // "Passport 35×45", "4 MB"
+  ask?: boolean; // default "ask on every run"
+  private?: boolean; // text the user wrote themselves (watermark, text stamp): replaced with a placeholder before being sent to the AI
 }
 ```
 
-测试保证每个动作的 `fields` 和 `params` 的键一一对应，`presets` 都能通过 `params` 校验。
+Tests guarantee that every action's `fields` match the keys of its `params` one to one, and that every `presets` entry passes `params` validation.
 
-加一个动作时只改它自己的定义：动作目录那一行（`label`、`description`、`ai`）、只关于它的规则（`aiRules`，编号取现在最后一条加 1）和内置规则认的说法（`phrases`，不同动作的说法不能重叠，`ai/workflow-phrases.test.ts` 检查）都从这里生成。快捷操作预设同样：提示词里那一行来自 `name`、`description` 和步骤，内置规则按名字找，另外的叫法写在 `words`。风格预设的叫法在 `presets.ts` 的 `said`（提示词规则 11）和 `aliases`（内置规则）。
+When adding an action, change only its own definition: its row in the action catalog (`label`, `description`, `ai`), the rules that concern only it (`aiRules`, numbered as the current last one plus 1) and the phrasings the built-in rules recognize (`phrases`; phrasings of different actions must not overlap, `ai/workflow-phrases.test.ts` checks this) are all generated from it. Quick action presets work the same way: the line in the prompt comes from `name`, `description` and the steps, the built-in rules look presets up by name, and other names go in `words`. The names of style presets are in `said` in `presets.ts` (prompt rule 11) and `aliases` (built-in rules).
 
-### 工作流（schemaVersion 5）
+### Workflow (schemaVersion 5)
 
 ```ts
 Workflow = { id, name, icon?, toolId?, presetId?, steps: Step[1..12] }
-Step     = { id, action, params, ask?: string[] }   // ask：这些参数每次运行时问用户
+Step     = { id, action, params, ask?: string[] }   // ask: these parameters are asked from the user on every run
 ```
 
-- `toolId`：由工具安装时创建（工具里的单功能工作流和「合并 PDF」），卸载工具时一起移除；用户可以改参数和步骤，但不能单独删除。
-- `presetId`：从预设复制来的，编辑页提供「恢复预设」。
-- 没有 `toolId` 的是用户自己的工作流（从预设添加、复制或新建）。
+- `toolId`: created when a tool is installed (the single-function workflows inside the tool and "Merge PDF") and removed together with it when the tool is uninstalled; the user can change the parameters and steps but cannot delete it separately.
+- `presetId`: copied from a preset; the edit page offers "Restore preset".
+- A workflow without `toolId` is the user's own workflow (added from a preset, duplicated or newly created).
 
-### 校验（`validateWorkspace`）
+### Validation (`validateWorkspace`)
 
-1. 每步的动作已登记，参数能通过 `params`。
-2. 第一步必须是输入动作，输入动作只能是第一步。
-3. **相邻两步类型能接上**：从第一步的输出开始，逐步检查当前类型是否被下一步接受，`'same'` 保持类型。
-4. `ask` 里的键必须是该动作 `fields` 里的键。
-5. 工具的工作流只用该工具声明过的权限（沿用 §7B）；跨工具的用户工作流不再限制动作必须属于同一个工具。
+1. Every step's action is registered, and its parameters pass `params`.
+2. The first step must be an input action, and an input action can only be the first step.
+3. **Adjacent steps must have types that connect**: starting from the first step's output, check step by step that the current type is accepted by the next step; `'same'` keeps the type.
+4. A key in `ask` must be a key in that action's `fields`.
+5. A tool's workflows use only the permissions that tool declared (continuing §7B); a user's cross-tool workflows no longer require every action to belong to the same tool.
 
-## 3. 执行器
+## 3. Executor
 
-`core/src/workflow/engine.ts` 是唯一按顺序执行动作的地方（替代 App 里的 `runner.ts` 的循环部分）：
+`core/src/workflow/engine.ts` is the only place that runs actions in order (replacing the loop part of `runner.ts` in the app):
 
-- **进度**：每步开始、结束、步内进度（例如第 3/10 张）回调给界面。
-- **取消**：界面随时可以取消；步骤之间和每张图片 / 每页之间检查。取消后清理临时文件。
-- **出错**：`RunError(code, detail)`，每个 code 有中英文提示，detail 只含规格数字和文件显示名（显示给用户，不写入执行记录）。
-- **执行前再解析参数**（D-020）；运行时询问的参数合并进本次运行，不写回配置。
-- **结果可预览**：图片缩略图、PDF 页数和大小、文字全文（只在本机显示）。结果页始终提供「保存到文件」「分享」「存到相册」（图片）「打印」（PDF / 图片）「复制」（文字）。
-- **`tool_runs` 只记录元数据**：工作流 ID、状态、错误代码、输出文件 ID，不记录内容和文件名。
-- **大小上限**（P-006）：单个文件 50 MB、一次合计 100 MB；送进 WebView 的图片先缩到 1677 万像素以内（iOS canvas 上限）。视频和音频单独算：单个 4 GB、一次最多 10 个，开始处理前查剩余空间，不复制大文件（D-142）。
-- **运行中问一句**：`LocalUi.choose` 只问固定的几种问题（文字写在 App 里），例如压缩 PDF 压不到时「转成图片 / 就用现在的」（D-145）。
+- **Progress**: the start and end of each step, and progress inside a step (for example image 3 of 10), are reported to the UI by callback.
+- **Cancel**: the UI can cancel at any time; the check happens between steps and between images / pages. Temporary files are cleaned up after a cancel.
+- **Errors**: `RunError(code, detail)`; every code has a Chinese and an English message, and detail contains only spec numbers and file display names (shown to the user, not written to the run record).
+- **Parameters are parsed again before running** (D-020); parameters asked at run time are merged into this run and not written back to the config.
+- **Results can be previewed**: image thumbnails, PDF page count and size, the full text (shown only on the device). The result page always offers "Save to files", "Share", "Save to Photos" (images), "Print" (PDF / images) and "Copy" (text).
+- **`tool_runs` records metadata only**: workflow ID, status, error code, output file ID; no content and no file names.
+- **Size limits** (P-006): 50 MB per file and 100 MB in total per run; images sent into the WebView are first scaled down to within 16.77 million pixels (the iOS canvas limit). Video and audio are counted separately: 4 GB per file and at most 10 per run, free space is checked before processing starts, and large files are not copied (D-142).
+- **Asking a question mid-run**: `LocalUi.choose` asks only a fixed set of questions (the text is in the app), for example when compressing a PDF cannot reach the target: "Convert to images / Use the current one" (D-145).
 
-动作实现的接口：
+The interface of an action implementation:
 
 ```ts
 type ActionImpl = (input: RunValue | null, params, ctx: StepContext) => Promise<RunValue>;
 interface StepContext {
-  progress(done, total): void; // 步内进度
+  progress(done, total): void; // progress inside a step
   throwIfCancelled(): void;
-  local: LocalUi; // 打开本地操作界面（§4），用户取消时返回 null
-  packs: PackGate; // 需要扩展包时暂停，请用户确认下载（§6）
-  platform: ToolPlatform; // 注入的平台能力
+  local: LocalUi; // opens a local-action UI (§4); returns null if the user cancels
+  packs: PackGate; // pauses when a pack is needed and asks the user to confirm the download (§6)
+  platform: ToolPlatform; // injected platform capabilities
 }
 ```
 
-## 4. 本地操作步骤
+## 4. Local Action Steps
 
-调研的 10 个场景里有 8 个需要用户亲手操作。这类步骤在工作流里只是一个占位（AI 只决定它出现在哪里），执行到这里时打开对应界面，用户的操作结果只在本次运行里使用：
+Of the 10 researched scenarios, 8 need the user to act by hand. In a workflow such a step is only a placeholder (the AI decides only where it appears); when execution reaches it, the matching UI opens, and the result of the user's action is used only in this run:
 
-| `local`     | 界面                                                                      | 用在                              |
-| ----------- | ------------------------------------------------------------------------- | --------------------------------- |
-| `crop`      | 裁剪框（可锁定比例），逐张确认                                            | 证件照、裁剪                      |
-| `reorder`   | 列表 + 上移 / 下移 / 删除                                                 | 材料包、合并                      |
-| `pages`     | 按页码选页、删页、排序、旋转（有 PDF 预览包时显示缩略图）                 | 选页、整理页面                    |
-| `corners`   | 在照片上拖四个角                                                          | 扫描                              |
-| `redact`    | 在图片上画框，选模糊或黑块                                                | 截图打码                          |
-| `sign`      | 签名板（画一次可以存起来）+ 选页和位置                                    | 签回表格                          |
-| `fillForm`  | PDF 表单字段逐个填写                                                      | 签回表格                          |
-| `trimMedia` | 视频画面（音频以后是波形）+ 时间轴两个把手、±1 秒、只播放这一段，逐个确认 | 剪一段（视频、以后的音频，D-143） |
+| `local`     | UI                                                                                                                            | Used in                                   |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `crop`      | Crop box (aspect ratio can be locked), confirmed one by one                                                                   | ID photo, crop                            |
+| `reorder`   | List + move up / move down / delete                                                                                           | Document bundle, merge                    |
+| `pages`     | Select, delete, reorder and rotate pages by page number (shows thumbnails when the PDF preview pack is installed)             | Select pages, organize pages              |
+| `corners`   | Drag the four corners on the photo                                                                                            | Scan                                      |
+| `redact`    | Draw boxes on the image, choose blur or black block                                                                           | Redact a screenshot                       |
+| `sign`      | Signature pad (draw once and it can be saved) + choose page and position                                                      | Sign and return a form                    |
+| `fillForm`  | Fill in the PDF form fields one by one                                                                                        | Sign and return a form                    |
+| `trimMedia` | Video frame (a waveform for audio later) + two handles on a timeline, ±1 second, play only this segment, confirmed one by one | Cut a segment (video, later audio, D-143) |
 
-签名存在 `documentDirectory/signatures/`，不进配置、不进版本，也不发给 AI。
+Signatures are stored in `documentDirectory/signatures/`; they do not go into the config or into versions, and are not sent to the AI.
 
-## 5. 动作目录（第一批）
+## 5. Action Catalog (first batch)
 
-前缀即领域，实现位置见括号。
+The prefix is the domain; implementation locations are in parentheses.
 
-- **输入输出（内核）**：`in.videos`（从相册选视频，不在选的时候转码，D-142）、`in.photos`（`source`：相册多选、拍照，或 `scanner` 系统文档相机——iOS 的 VisionKit、Android 的 ML Kit 文档扫描，实时找边、自动拍、多页、拍完已拉正，页面带 `straightened` 标记；没有文档相机的设备改用相机，D-086、D-087）、`in.files`（PDF / 图片 / 视频 / 音频 / 任意文件；这两个在第一步时也接收别的 App 分享进来的文件，§11）、`file.rename`（命名模板）、`file.filter`（按固定条件筛选，§14）、`file.save`（存到 Morph 文件）、`out.share`（一次分享全部文件，D-119）、`out.saveToFolder`（复制进「文件」里的文件夹：第一次由用户选，之后记住同一个，结果页可以换；iCloud 云盘、Google Drive 等网盘由它们自己的 App 同步，D-120、D-123）、`out.saveToPhotos`、`out.print`；`in.text`（用户输入一段文字，private）、`in.records`（读取一张数据表的记录，可按时间段，按表里第一个日期字段）。（App：expo-image-picker、expo-document-picker、本地模块 morph-share（Expo Go 里退回 expo-sharing / expo-file-system）、expo-media-library、expo-print）
-- **图片**：`image.convert`、`image.resize`、`image.compress`（压到 ≤ N KB）、`image.crop`（本地框选）、`image.rotate`、`image.stripMetadata`、`image.idPhoto`、`image.stitch`、`image.grid`、`image.redact`（本地）、`image.watermark`、`image.printSheet`（证件照排到 4×6 / 5×7 / A4 / Letter 相纸，带裁切线）。（算法：`packages/tool-image`；编码：expo-image-manipulator；合成：Skia 离屏绘制 `composeImage`，画布单边不超过 8192、总像素不超过 1677 万，超出整体缩小，D-079）
-- **视频**（工具 `video`，D-143）：`video.compress`（按大小 ≤ N MB 或按画质 1080p / 720p / 480p）、`video.convert`（转成 MP4，画质基本不变）、`video.trim`（本地 `trimMedia`，不重新编码）。输出一律 MP4（H.264 + AAC）。码率和分辨率在 `core/media.ts` 算，编码在本地模块 `morph-media`（iOS AVFoundation、Android Media3 Transformer，D-141）；输入是 `in.videos`（相册，1–10 个）或 `in.files`（`accept: videos`）。
-- **PDF**：`pdf.fromImages`（A4 / Letter / 跟随图片，可设边距和 ≤ X MB）、`pdf.compress`（把已有 PDF 压到 ≤ X MB：先只压图片、保留文字，不够小时按 `whenTooBig` 问用户 / 转成图片 / 保留文字，D-145）、`pdf.merge`（PDF 和图片混合）、`pdf.pages`（本地选页 / 删页 / 排序 / 旋转）、`pdf.selectPages`（按页码规则：全部 / 奇数 / 偶数 / 范围）、`pdf.rotate`、`pdf.split`、`pdf.pageNumbers`、`pdf.stamp`（文字戳 / 日期戳）、`pdf.sign`（本地）、`pdf.fillForm`（本地）+ 拍平、`pdf.toImages`、`pdf.extractText`。（`packages/tool-pdf`：pdf-lib；`toImages` / `extractText` / 缩略图需要 PDF 预览包）
-- **扫描**（工具 `scan`）：`scan.detect`（找边 → 本地调四角，每张都要确认 → 透视矫正，长边 2400；iOS 用 Vision 找边、Core Image 矫正，Android 和 Expo Go 用扫描包，D-086；文档相机拍的页面直接放行，也不需要扫描包；`flatten` 默认打开：拉正后用 UVDoc 展平弯曲的页面，装了文字识别模型时再按文字行去倾斜、逐行拉直，只重采样一次，模型在扩展包 `dewarp`，不下载照常扫描，D-274）、`scan.enhance`（自动 / 灰度 / 黑白 / 原样：去阴影、纠偏，自动按页面选彩色或灰度，黑白用局部阈值；Skia 着色器，不需要扩展包，D-266、D-275）。
-- **文字识别**（工具 `ocr`）：`ocr.recognize`（images → text，参数 `lang` 是 `auto`（默认，不问；按手机语言选引擎和整理方式，D-278）或 12 种语言之一。中文、日文、英法德西葡意在 iOS 和 Android 上都用 PP-OCRv6（D-269：扩展包 `ppocr` 约 31 MB，ONNX Runtime 跑模型，前后处理在 `@morph/tool-ocr`）；韩文等其余语言 iOS 用 Vision 的 `VNRecognizeTextRequest`（D-085），Android 只剩韩文用 ML Kit（D-087）；系统也识别不了时 `packFor` 按语言确保语言包，语言包连同识别包一起下载）。中日文字之间多出来的空格在本机去掉（`tidyOcrText`）。`ocr.toExcel`（images → files，D-272）：带线的表格做成一个 xlsx（每页一张工作表），参数 `lang`（和 `ocr.recognize` 一样，默认 `auto`）和 `scope`（全部内容 / 仅表格内容）；找线、组表、写 xlsx 在 `@morph/tool-office`，只用本机识别（要每行的位置，不用文字识别包），结果页可以查看和编辑。`ocr.toWord`（images → files，D-328）：印刷页面做成一个 docx（每张图一页），参数只有 `lang`（默认 `auto`）；版面分析用可选的扩展包 `layout`（PP-DocLayout-S，D-329，不下载也能转，只是不分标题和图片），带线的表格和转 Excel 共用，段落、列表、字号、粗体、颜色、剪图和写 docx 在 `@morph/tool-office`，结果页可以查看和编辑（表格用转 Excel 的编辑页）。
-- **翻译**（工具 `translate`，D-170–D-176）：`translate.text`（text → text，参数 `from`：自动识别或 20 种语言之一，`to`：20 种语言之一，默认每次运行时问）。iOS 用系统的 Translation 框架（iOS 18 起；iOS 26 起已下载的语言直接建会话，要下载或更早的系统时挂一个看不见的 SwiftUI 视图用 `.translationTask`，语言包由系统弹窗下载），NaturalLanguage 识别语言；Android 用 ML Kit 翻译（每种语言模型约 30 MB，第一次用时 App 先问「首次使用需下载约 X MB」再下载，之后离线）和 ML Kit 语言识别（打包进 App）。翻译前在本机把文字拆成段（`splitForTranslation`：空行分段，段里折行的句子接起来，标题、短行、列表项另起），自动识别时每段单独识别语言、按原文语言分组翻，和目标语言相同的段原样保留，再按原来的分段拼回（`joinTranslation`）。只出纯文字（可以接 `text.toPdf` 排成 PDF），不保留原文件排版；结果页写明「本机翻译，适合看懂意思；正式文件请找专业翻译」。一次最多 10 万字。Expo Go 和 iOS 17 及更早报「不支持这个步骤」并说明原因；ML Kit 没有繁体中文。文字不上传、不发给 AI。
-- **文字**（工具 `text`）：`text.copy`、`text.toFile`（.txt）、`text.toPdf`（expo-print，系统字体，中日韩都能显示）、`text.toDocx`（.docx，空行分段，D-441；写文件用 `tool-office` 的 `writeDocx`）；文字加工 `text.tidy`、`text.replace`、`text.extract`、`text.lines`（§14，D-245）。
-- **打包**（工具 `zip`）：`zip.create`、`zip.extract`。（`packages/tool-archive`：fflate，只用同步接口）
-- **二维码**（工具 `qr`）：`qr.generate`（文字 → PNG，tool-qr 自带的 PNG 编码器）、`qr.read`（图片 → 文字，Skia 读像素后用 jsQR）。（`packages/tool-qr`：lean-qr、jsQR）
-- **报表**（工具 `print`）：`print.records`（`records` → PDF；模板：表格 / 卡片 / 带合计的清单；记录值先转义再在本地填进去，AI 只选模板、标题和字段 ID，D-042、D-080）。模板在 `core/src/html.ts`。可选参数 `attachments`：每条记录的照片和 PDF 按记录顺序接在后面，写明是哪条记录的；读不了、超过上限的印在报表上（D-425，上限 `REPORT_ATTACHMENT_LIMITS`）。
-- **vCard**（内核动作，不属于工具）：`records.toVCard`（`records` → 一个 `.vcf`，没有参数，D-423），`records.toVCardText`（同样的内容，`records` → `text`，用来接 `qr.generate`，D-428）。纯函数在 `core/src/vcard.ts`。
-- **打开值**（内核动作，D-428）：`out.call`、`out.message`、`out.email`、`out.website`（`text` → `text`，没有参数）。链接只由 `core/field-link.ts` 造（`tel:`、`sms:`、`mailto:`、`http(s)://`），网站先问，什么都不会自己发出去。和 `out.share` 一样只能是快捷操作的一步。
-- **Excel**（内核动作，不属于工具）：`records.toExcel`（`records` → 一个 `.xlsx`，用表名命名，没有参数，D-427）。列和 CSV 一样；数字、金额、日期是真的数字和日期，文字永远是文字，文件里没有公式。格子在 `core/src/records-sheet.ts`，写文件是 `tool-office` 的 `writeRowsXlsx`。
+- **Input and output (core)**: `in.videos` (pick videos from the photo library, no transcoding at pick time, D-142), `in.photos` (`source`: multi-select from the photo library, take a photo, or `scanner`, the system document camera: VisionKit on iOS and ML Kit document scanning on Android, with live edge detection, auto capture, multiple pages, and pages already straightened when the shot is done, marked with `straightened`; devices without a document camera use the camera instead, D-086, D-087), `in.files` (PDF / image / video / audio / any file; as the first step these two also receive files shared in from other apps, §11), `file.rename` (naming template), `file.filter` (filter by fixed conditions, §14), `file.save` (save to Morph files), `out.share` (share all files at once, D-119), `out.saveToFolder` (copy into a folder in Files: the user picks it the first time and the same one is remembered afterward, and the result page can change it; cloud drives such as iCloud Drive and Google Drive are synced by their own apps, D-120, D-123), `out.saveToPhotos`, `out.print`; `in.text` (the user types a piece of text, private), `in.records` (read the records of one table, optionally by time period, using the first date field in the table). (App: expo-image-picker, expo-document-picker, local module morph-share (falls back to expo-sharing / expo-file-system in Expo Go), expo-media-library, expo-print)
+- **Image**: `image.convert`, `image.resize`, `image.compress` (compress to ≤ N KB), `image.crop` (local box selection), `image.rotate`, `image.stripMetadata`, `image.idPhoto`, `image.stitch`, `image.grid`, `image.redact` (local), `image.watermark`, `image.printSheet` (lay out ID photos on 4×6 / 5×7 / A4 / Letter paper, with cut lines). (Algorithms: `packages/tool-image`; encoding: expo-image-manipulator; compositing: Skia offscreen drawing `composeImage`, canvas at most 8192 on a side and 16.77 million pixels in total, scaled down as a whole when exceeded, D-079)
+- **Video** (tool `video`, D-143): `video.compress` (by size ≤ N MB or by quality 1080p / 720p / 480p), `video.convert` (convert to MP4, quality essentially unchanged), `video.trim` (local `trimMedia`, no re-encoding). Output is always MP4 (H.264 + AAC). Bitrate and resolution are computed in `core/media.ts`, and encoding is in the local module `morph-media` (iOS AVFoundation, Android Media3 Transformer, D-141); the input is `in.videos` (photo library, 1–10 items) or `in.files` (`accept: videos`).
+- **PDF**: `pdf.fromImages` (A4 / Letter / follow the image, margins and ≤ X MB can be set), `pdf.compress` (compress an existing PDF to ≤ X MB: first compress only the images and keep the text; if that is not small enough, `whenTooBig` decides: ask the user / convert to images / keep text, D-145), `pdf.merge` (PDFs and images mixed), `pdf.pages` (local select / delete / reorder / rotate pages), `pdf.selectPages` (by page-number rule: all / odd / even / range), `pdf.rotate`, `pdf.split`, `pdf.pageNumbers`, `pdf.stamp` (text stamp / date stamp), `pdf.sign` (local), `pdf.fillForm` (local) + flatten, `pdf.toImages`, `pdf.extractText`. (`packages/tool-pdf`: pdf-lib; `toImages` / `extractText` / thumbnails need the PDF preview pack)
+- **Scan** (tool `scan`): `scan.detect` (edge detection → adjust the four corners locally, confirmed for every page → perspective correction, long edge 2400; iOS uses Vision for edge detection and Core Image for correction, Android and Expo Go use the scan pack, D-086; pages shot with the document camera pass straight through and also do not need the scan pack; `flatten` is on by default: after straightening, the UVDoc model flattens curved pages, and when the text recognition model is installed it also deskews by text line and straightens line by line, resampling only once; the model is in the pack `dewarp`, and without the download scanning works as usual, D-274), `scan.enhance` (auto / grayscale / black and white / original: remove shadows, correct skew, auto picks color or grayscale per page, black and white uses a local threshold; Skia shader, no pack needed, D-266, D-275).
+- **Text recognition** (tool `ocr`): `ocr.recognize` (images → text; parameter `lang` is `auto` (default, not asked; the engine and the way the text is tidied are chosen by the phone's language, D-278) or one of 12 languages. Chinese, Japanese, English, French, German, Spanish, Portuguese and Italian use PP-OCRv6 on both iOS and Android (D-269: the pack `ppocr` is about 31 MB, the model runs on ONNX Runtime, and pre- and post-processing are in `@morph/tool-ocr`); for the remaining languages such as Korean, iOS uses Vision's `VNRecognizeTextRequest` (D-085), and on Android only Korean is left on ML Kit (D-087); when the system cannot recognize it either, `packFor` ensures the language pack for the language, and the language pack is downloaded together with the recognition pack). Extra spaces between Chinese and Japanese characters are removed on the device (`tidyOcrText`). `ocr.toExcel` (images → files, D-272): a table with lines becomes one xlsx (one worksheet per page), with parameters `lang` (same as `ocr.recognize`, default `auto`) and `scope` (everything / table content only); finding lines, building the table and writing the xlsx are in `@morph/tool-office`, using only on-device recognition (it needs the position of each line, and does not use the text recognition pack), and the result page can view and edit it. `ocr.toWord` (images → files, D-328): a printed page becomes one docx (one page per image), with only the parameter `lang` (default `auto`); layout analysis uses the optional pack `layout` (PP-DocLayout-S, D-329; conversion works without the download, it just does not tell titles from images), shared with the tables with lines in the Excel conversion; paragraphs, lists, font size, bold, color, image cropping and writing the docx are in `@morph/tool-office`, and the result page can view and edit it (tables use the Excel conversion's edit page).
+- **Translation** (tool `translate`, D-170–D-176): `translate.text` (text → text; parameter `from`: auto-detect or one of 20 languages; `to`: one of 20 languages; asked on every run by default). iOS uses the system Translation framework (from iOS 18; from iOS 26 a session is created directly for languages already downloaded, and when a download is needed or on an earlier system an invisible SwiftUI view with `.translationTask` is attached, with the system showing a dialog to download the language pack), and NaturalLanguage for language detection; Android uses ML Kit translation (each language model is about 30 MB; on first use the app first asks "First use needs a download of about X MB" and then downloads, after which it works offline) and ML Kit language identification (bundled in the app). Before translating, the text is split into paragraphs on the device (`splitForTranslation`: blank lines separate paragraphs, sentences wrapped within a paragraph are joined, and titles, short lines and list items start a new one); with auto-detection, the language of each paragraph is identified separately and they are translated grouped by source language, paragraphs that are already in the target language are kept as they are, and then they are joined back in the original paragraph order (`joinTranslation`). The output is plain text only (can be followed by `text.toPdf` to typeset a PDF) and does not keep the original file's layout; the result page says "Translated on this device — good for understanding the meaning. For official documents, use a professional translator." At most 100,000 characters at a time. Expo Go and iOS 17 and earlier report "This step is not supported" and explain why; ML Kit has no Traditional Chinese. The text is not uploaded and not sent to the AI.
+- **Text** (tool `text`): `text.copy`, `text.toFile` (.txt), `text.toPdf` (expo-print, system fonts, Chinese, Japanese and Korean all display), `text.toDocx` (.docx, blank lines separate paragraphs, D-441; the file is written with `writeDocx` from `tool-office`); text processing `text.tidy`, `text.replace`, `text.extract`, `text.lines` (§14, D-245).
+- **Packaging** (tool `zip`): `zip.create`, `zip.extract`. (`packages/tool-archive`: fflate, synchronous interface only)
+- **QR code** (tool `qr`): `qr.generate` (text → PNG, with tool-qr's own PNG encoder), `qr.read` (image → text, Skia reads the pixels and then jsQR). (`packages/tool-qr`: lean-qr, jsQR)
+- **Report** (tool `print`): `print.records` (`records` → PDF; templates: table / cards / list with totals; record values are escaped first and then filled in locally, and the AI only picks the template, title and field IDs, D-042, D-080). Templates are in `core/src/html.ts`. Optional parameter `attachments`: each record's photos and PDFs are appended in record order, stating which record each belongs to; those that cannot be read or exceed the limit are printed on the report (D-425, limits in `REPORT_ATTACHMENT_LIMITS`).
+- **vCard** (core actions, not part of a tool): `records.toVCard` (`records` → one `.vcf`, no parameters, D-423), `records.toVCardText` (the same content, `records` → `text`, for connecting to `qr.generate`, D-428). The pure functions are in `core/src/vcard.ts`.
+- **Open a value** (core actions, D-428): `out.call`, `out.message`, `out.email`, `out.website` (`text` → `text`, no parameters). Links are built only by `core/field-link.ts` (`tel:`, `sms:`, `mailto:`, `http(s)://`), websites ask first, and nothing is sent out by itself. Like `out.share`, it can only be a step of a quick action.
+- **Excel** (core action, not part of a tool): `records.toExcel` (`records` → one `.xlsx`, named after the table, no parameters, D-427). The columns are the same as CSV; numbers, amounts and dates are real numbers and dates, text is always text, and the file has no formulas. The cells are in `core/src/records-sheet.ts`, and the file is written by `writeRowsXlsx` from `tool-office`.
 
-文件名由用户选文件时决定，AI 只能给命名**模板**：`{date}`（= `{date:YYYY-MM-DD}`）、`{date:FORMAT}`、`{index}`、`{seq}`（两位序号 01、02…）、`{sourceName}`、`{taken}` / `{taken:FORMAT}`（照片拍摄日期，读不到时用当天）、`{ocr:规则}` / `{qr:规则}`（这张照片在本机识别出的文字 / 二维码内容里按固定规则取的一段，§14）。
+File names are decided when the user picks the file; the AI can only give a naming **template**: `{date}` (= `{date:YYYY-MM-DD}`), `{date:FORMAT}`, `{index}`, `{seq}` (two-digit sequence number 01, 02…), `{sourceName}`, `{taken}` / `{taken:FORMAT}` (the photo's capture date, the current day if it cannot be read), `{ocr:rule}` / `{qr:rule}` (a piece taken by a fixed rule from the text / QR content recognized on the device from this photo, §14).
 
-## 6. 扩展包（按需下载）
+## 6. Packs (downloaded on demand)
 
-小库直接打包进 App：pdf-lib、fflate、lean-qr、jsQR、exifr、Skia。大依赖做成扩展包：
+Small libraries are bundled directly into the app: pdf-lib, fflate, lean-qr, jsQR, exifr, Skia. Large dependencies are made into packs:
 
-| 扩展包       | 内容                                                | 大小（下载）  |
-| ------------ | --------------------------------------------------- | ------------- |
-| `scan`       | opencv.js + jscanify                                | 约 9 MB       |
-| `ocr`        | tesseract.js、worker、核心 wasm                     | 约 4 MB       |
-| `ocr-<lang>` | 每种语言一个模型（4.0.0_best_int）：eng、chi_sim 等 | 1.7–3 MB / 种 |
-| `pdfview`    | pdf.js（legacy build）                              | 实测后填写    |
-| `speech-*`   | Android 语音转文字的 whisper 模型 + 语音检测（§12） | 61 / 191 MB   |
+| Pack         | Content                                                             | Size (download)                 |
+| ------------ | ------------------------------------------------------------------- | ------------------------------- |
+| `scan`       | opencv.js + jscanify                                                | about 9 MB                      |
+| `ocr`        | tesseract.js, worker, core wasm                                     | about 4 MB                      |
+| `ocr-<lang>` | one model per language (4.0.0_best_int): eng, chi_sim, etc.         | 1.7–3 MB each                   |
+| `pdfview`    | pdf.js (legacy build)                                               | to be filled in after measuring |
+| `speech-*`   | whisper model + voice detection for speech-to-text on Android (§12) | 61 / 191 MB                     |
 
-机制：
+Mechanism:
 
-- **清单写在代码里**（`core/src/packs.ts`）：id、版本、文件列表（下载地址、SHA-256、大小）、许可证。下载后逐个校验 SHA-256，不一致就删除整个版本目录并报错。
-- **只能由用户触发下载**：界面显示大小，建议用 Wi-Fi。AI 和工作流都不能自己下载；执行到需要扩展包的步骤时暂停，弹窗请用户确认（`PackGate`），用户拒绝就取消本次运行。
-- **存储**：`documentDirectory/packs/<id>/<version>/`，写完并校验后才写 `ready.json`，所以中断的下载不会被当成已安装。不进 revision，回滚不受影响；下载过就能离线使用。
-- **管理**：「设置 → 扩展包」（`app/packs.tsx`）列出已下载的扩展包、占用空间、许可证和版本，可以删除（删除文字识别包时语言包一起删除）。Android 下载过的翻译语言（ML Kit 模型，不是扩展包，不在 `PACKS` 清单里）也列在这一页，可以删除（D-175）；iOS 的翻译语言由系统「设置 → 翻译」管理。
-- **加载**：WebView 只加载我们随 App 发布的固定 HTML，库文件从本地扩展包目录读取，不访问网络（CSP `default-src 'none'`，见 T4 实验记录）。WebView 和 App 之间只有固定格式的消息（动作名 + 数据），不注入任何模型生成的字符串（open-tool-research N3）。
-- **下载来源**：先用 jsDelivr 上固定版本的地址，以后换成自己的服务器（只改清单）。
-- **App Store 2.5.2**：见 DECISIONS（待创始人确认）。
-- **系统能做的就不要扩展包**（D-085–D-087）：执行器问 `packNotNeeded(动作, 参数, 输入)`，返回 true 就不确认扩展包——系统能识别这种语言（iOS 全部 12 种，Android 除俄文外 11 种），系统能找边（iOS），或者输入全是文档相机拉正过的页面。工作流页的「第一次运行时需要下载」也按这个算（`packsNeeded`）。扫描包和文字识别包留给 Android（相册照片找边、俄文、没有 Google Play 服务）和 Expo Go；PDF 预览包各平台都还需要。
+- **The manifest is in code** (`core/src/packs.ts`): id, version, file list (download URL, SHA-256, size), license. After the download, each file's SHA-256 is verified; on a mismatch the whole version directory is deleted and an error is reported.
+- **Only the user can trigger a download**: the UI shows the size and recommends Wi-Fi. Neither the AI nor a workflow can download by itself; when execution reaches a step that needs a pack, it pauses and shows a dialog asking the user to confirm (`PackGate`), and if the user refuses, this run is canceled.
+- **Storage**: `documentDirectory/packs/<id>/<version>/`; `ready.json` is written only after writing and verification are complete, so an interrupted download is not treated as installed. It does not go into a revision, so rollback is unaffected; once downloaded, it can be used offline.
+- **Management**: "Settings → Downloads" (`app/packs.tsx`) lists the downloaded packs, the space they use, licenses and versions, and they can be deleted (deleting the text recognition pack also deletes the language packs). Translation languages already downloaded on Android (ML Kit models, which are not packs and are not in the `PACKS` manifest) are also listed on this page and can be deleted (D-175); on iOS, translation languages are managed by the system's Settings → Translate.
+- **Loading**: the WebView loads only the fixed HTML we ship with the app, library files are read from the local pack directory, and the network is not accessed (CSP `default-src 'none'`, see the T4 experiment notes). Between the WebView and the app there are only messages in a fixed format (action name + data), and no model-generated string is injected (open-tool-research N3).
+- **Download source**: first use pinned-version URLs on jsDelivr, later switch to our own server (only the manifest changes).
+- **App Store 2.5.2**: see DECISIONS (awaiting the founder).
+- **If the system can do it, no pack** (D-085–D-087): the executor asks `packNotNeeded(action, params, input)`, and if it returns true the pack is not confirmed: the system can recognize this language (all 12 on iOS, 11 on Android, all except Russian), the system can detect edges (iOS), or the input is entirely pages already straightened by the document camera. The workflow page's "Needs a download on first run" is computed the same way (`packsNeeded`). The scan pack and the text recognition pack are left for Android (photo-library edge detection, Russian, no Google Play services) and Expo Go; the PDF preview pack is still needed on every platform.
 
-**原生依赖**（Gradle / 系统框架，不在 `check:licenses` 里，新增时要更新这张表）：
+**Native dependencies** (Gradle / system frameworks, not in `check:licenses`; update this table when adding one):
 
-| 依赖                                                                                          | 版本             | 平台    | 许可证 / 条款                     | 用途                                                          |
-| --------------------------------------------------------------------------------------------- | ---------------- | ------- | --------------------------------- | ------------------------------------------------------------- |
-| Vision、VisionKit、Core Image、ImageIO                                                        | 系统自带         | iOS     | Apple 系统框架                    | 文字识别、找边、拉正、文档相机                                |
-| Translation（弱链接，iOS 18 起）、NaturalLanguage、SwiftUI                                    | 系统自带         | iOS     | Apple 系统框架                    | 本机翻译、识别语言（morph-translate，D-170）                  |
-| `com.google.mlkit:translate`                                                                  | 17.0.3           | Android | 闭源，Google ML Kit 条款（P-015） | 本机翻译，语言模型第一次用时下载（每种约 30 MB）              |
-| `com.google.mlkit:language-id`                                                                | 17.0.6           | Android | 闭源，Google ML Kit 条款（P-015） | 识别每段文字的语言，模型打包进 App                            |
-| UIKit（`UIActivityViewController`、`UIDocumentPickerViewController`）、UniformTypeIdentifiers | 系统自带         | iOS     | Apple 系统框架                    | 一次分享多个文件、存到选定文件夹（morph-share，D-119、D-120） |
-| `androidx.core`（FileProvider，随 React Native 已经在 App 里）、存储访问框架                  | 随 RN / 系统自带 | Android | Apache-2.0 / Android 系统接口     | 一次分享多个文件、存到选定文件夹（morph-share）               |
-| `com.google.mlkit:text-recognition-korean`                                                    | 16.0.1           | Android | 闭源，Google ML Kit 条款（P-015） | 韩文识别，模型打包进 App（D-269）                             |
-| `com.microsoft.onnxruntime:onnxruntime-android`                                               | 1.30.0           | Android | MIT                               | 跑 PP-OCRv6 文字识别模型（D-269）                             |
-| `onnxruntime-objc`（CocoaPods）                                                               | 1.30.0           | iOS     | MIT                               | 跑 PP-OCRv6 文字识别模型（D-269）                             |
-| `com.google.android.gms:play-services-mlkit-document-scanner`                                 | 16.0.0           | Android | 闭源，Google APIs 条款（P-015）   | 文档扫描界面（需要 Google Play 服务）                         |
-| `com.google.android.gms:play-services-base`                                                   | 18.11.1          | Android | 闭源，Google APIs 条款（P-015）   | 检查有没有 Google Play 服务                                   |
-| AVFoundation、CoreMedia、VideoToolbox                                                         | 系统自带         | iOS     | Apple 系统框架                    | 视频压缩、转格式、剪切、取画面（morph-media，D-141）          |
-| `androidx.media3:media3-transformer`、`media3-effect`、`media3-common`                        | 1.9.1            | Android | Apache-2.0                        | 视频压缩、转格式、剪切（morph-media；和 expo-video 同版本）   |
-| `ExpoShareIntentModule`（CocoaPods，随 npm 包 expo-share-intent）                             | 9.0.0            | iOS     | MIT                               | 分享到 Morph：主 App 读共享目录（§11）                        |
-| `expo-share-intent`（Gradle 模块，随 npm 包）                                                 | 9.0.0            | Android | MIT                               | 分享到 Morph：接收 `ACTION_SEND`（§11）                       |
-| Social、UniformTypeIdentifiers、ImageIO（分享扩展 `MorphShare`）                              | 系统自带         | iOS     | Apple 系统框架                    | 分享扩展复制文件（§11）                                       |
-| Speech、AVFoundation、CryptoKit                                                               | 系统自带         | iOS     | Apple 系统框架                    | 语音转文字（morph-speech，§12）                               |
-| whisper.cpp（含 ggml，CMake 构建时按 SHA-256 下载源码）                                       | 1.9.5            | Android | MIT                               | 语音转文字（§12）                                             |
-| MediaExtractor、MediaCodec                                                                    | 系统自带         | Android | Android 系统接口                  | 把音频解码给 whisper（§12）                                   |
-| `com.google.mlkit:face-detection`                                                             | 16.1.7           | Android | 闭源，Google ML Kit 条款（P-015） | 证件照自动框脸，模型打包进 App（D-252）                       |
-| Vision（`VNDetectFaceRectanglesRequest`、`VNGeneratePersonSegmentationRequest`）、Core Image  | 系统自带         | iOS     | Apple 系统框架                    | 证件照自动框脸、换底色（D-252）                               |
-| `expo-notifications`（npm 包，带 iOS / Android 原生代码）                                     | 58.1.6           | 两端    | MIT                               | 提醒：本地通知（D-251），不注册推送                           |
+| Dependency                                                                                     | Version                         | Platform | License / terms                            | Purpose                                                                                  |
+| ---------------------------------------------------------------------------------------------- | ------------------------------- | -------- | ------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| Vision, VisionKit, Core Image, ImageIO                                                         | built into the system           | iOS      | Apple system frameworks                    | Text recognition, edge detection, straightening, document camera                         |
+| Translation (weak link, from iOS 18), NaturalLanguage, SwiftUI                                 | built into the system           | iOS      | Apple system frameworks                    | On-device translation, language detection (morph-translate, D-170)                       |
+| `com.google.mlkit:translate`                                                                   | 17.0.3                          | Android  | Closed source, Google ML Kit terms (P-015) | On-device translation; language models are downloaded on first use (about 30 MB each)    |
+| `com.google.mlkit:language-id`                                                                 | 17.0.6                          | Android  | Closed source, Google ML Kit terms (P-015) | Identifies the language of each piece of text; the model is bundled in the app           |
+| UIKit (`UIActivityViewController`, `UIDocumentPickerViewController`), UniformTypeIdentifiers   | built into the system           | iOS      | Apple system frameworks                    | Share several files at once, save to a chosen folder (morph-share, D-119, D-120)         |
+| `androidx.core` (FileProvider, already in the app with React Native), Storage Access Framework | with RN / built into the system | Android  | Apache-2.0 / Android system interface      | Share several files at once, save to a chosen folder (morph-share)                       |
+| `com.google.mlkit:text-recognition-korean`                                                     | 16.0.1                          | Android  | Closed source, Google ML Kit terms (P-015) | Korean recognition; the model is bundled in the app (D-269)                              |
+| `com.microsoft.onnxruntime:onnxruntime-android`                                                | 1.30.0                          | Android  | MIT                                        | Runs the PP-OCRv6 text recognition model (D-269)                                         |
+| `onnxruntime-objc` (CocoaPods)                                                                 | 1.30.0                          | iOS      | MIT                                        | Runs the PP-OCRv6 text recognition model (D-269)                                         |
+| `com.google.android.gms:play-services-mlkit-document-scanner`                                  | 16.0.0                          | Android  | Closed source, Google APIs terms (P-015)   | Document scanning UI (needs Google Play services)                                        |
+| `com.google.android.gms:play-services-base`                                                    | 18.11.1                         | Android  | Closed source, Google APIs terms (P-015)   | Checks whether Google Play services are present                                          |
+| AVFoundation, CoreMedia, VideoToolbox                                                          | built into the system           | iOS      | Apple system frameworks                    | Video compression, format conversion, trimming, frame extraction (morph-media, D-141)    |
+| `androidx.media3:media3-transformer`, `media3-effect`, `media3-common`                         | 1.9.1                           | Android  | Apache-2.0                                 | Video compression, format conversion, trimming (morph-media; same version as expo-video) |
+| `ExpoShareIntentModule` (CocoaPods, comes with the npm package expo-share-intent)              | 9.0.0                           | iOS      | MIT                                        | Share to Morph: the main app reads the shared directory (§11)                            |
+| `expo-share-intent` (Gradle module, comes with the npm package)                                | 9.0.0                           | Android  | MIT                                        | Share to Morph: receives `ACTION_SEND` (§11)                                             |
+| Social, UniformTypeIdentifiers, ImageIO (share extension `MorphShare`)                         | built into the system           | iOS      | Apple system frameworks                    | The share extension copies files (§11)                                                   |
+| Speech, AVFoundation, CryptoKit                                                                | built into the system           | iOS      | Apple system frameworks                    | Speech-to-text (morph-speech, §12)                                                       |
+| whisper.cpp (includes ggml; the CMake build downloads the source by SHA-256)                   | 1.9.5                           | Android  | MIT                                        | Speech-to-text (§12)                                                                     |
+| MediaExtractor, MediaCodec                                                                     | built into the system           | Android  | Android system interface                   | Decodes audio for whisper (§12)                                                          |
+| `com.google.mlkit:face-detection`                                                              | 16.1.7                          | Android  | Closed source, Google ML Kit terms (P-015) | Automatic face framing for ID photos; the model is bundled in the app (D-252)            |
+| Vision (`VNDetectFaceRectanglesRequest`, `VNGeneratePersonSegmentationRequest`), Core Image    | built into the system           | iOS      | Apple system frameworks                    | Automatic face framing for ID photos, background color change (D-252)                    |
+| `expo-notifications` (npm package, with iOS / Android native code)                             | 58.1.6                          | Both     | MIT                                        | Reminders: local notifications (D-251), no push registration                             |
 
-## 7. 预设工作流和编辑
+## 7. Preset Workflows and Editing
 
-预设写在 `core/src/workflows/presets.ts`，不随版本，是内设的快捷操作（D-236）：不用添加，在快捷操作页和收件页面直接运行，运行记录记在预设 ID 下（`builtInWorkflows()` / `findWorkflow()`）。保存修改、放到首页、合成两个快捷操作、或对 AI 说「添加签证照片工作流」时，才用 `presetWorkflow()` 以预设 ID 存进配置（一个可撤销的版本，带 `presetId` 和图标，没有 `toolId`），之后就和用户自己的工作流一样，可以改参数、改步骤、复制、放到页面上、删除；删掉后回到内设的那个。预设是用户工作流，**不要求先安装任何工具**；需要扩展包的预设在第一次运行到那一步时才请用户确认下载（§6）。
+Presets are written in `core/src/workflows/presets.ts`, are not part of versions, and are built-in quick actions (D-236): they need no Add, run directly on the quick actions page and in the inbox, and run records are filed under the preset ID (`builtInWorkflows()` / `findWorkflow()`). Only when the user saves a change, puts one on the home page, combines two quick actions, or tells the AI "add the visa photo workflow" is `presetWorkflow()` used to store it in the config under the preset ID (one undoable version, with `presetId` and an icon, without `toolId`); after that it is the same as the user's own workflow: its parameters and steps can be changed, it can be duplicated, put on a page and deleted, and once deleted it goes back to the built-in one. A preset is a user workflow and **does not require installing any tool first**; a preset that needs a pack asks the user to confirm the download only when the first run reaches that step (§6).
 
-快捷操作页的「现成的」按生活场景分组（`PRESET_SCENARIOS`，D-130）：出国办证（签证 / 证件照、证件照打印、中文材料翻成英文）、交材料签文件（材料包、签回表格、扫描文档、多份材料合一、PDF 太大传不上去、外文 PDF 翻成中文、拍外文材料翻成中文）、报销记账（收据归档）、发照片和视频（照片发邮件、截图打码分享、批量发照片、视频太大发不出去、截图翻译）（D-146）。翻译预设翻成界面语言（英文界面翻成英文），名字也跟着变。
+The "Ready-made" section of the quick actions page is grouped by everyday scenario (`PRESET_SCENARIOS`, D-130): getting papers for going abroad (visa / ID photo, print ID photos, translate Chinese documents into English), submitting documents and signing files (application packet, sign and send back, scan a document, combine documents, PDF too big to upload, translate a foreign-language PDF into Chinese, photograph foreign-language documents and translate them into Chinese), expenses and bookkeeping (receipt archive), sending photos and videos (photos for email, hide parts of screenshots and share, send many photos, video too big to send, translate screenshots) (D-146). Translation presets translate into the interface language (an English interface translates into English), and their names change with it.
 
-| id                     | 名称                | 步骤                                                                              | 扩展包    |
-| ---------------------- | ------------------- | --------------------------------------------------------------------------------- | --------- |
-| `visa-photo`           | 签证 / 证件照       | 选照片 → 证件照（美签 600×600，≤ 240 KB）→ 命名                                   |           |
-| `document-packet`      | 材料包              | 选照片 / 拍照 → 裁剪 → 排顺序（`file.order`）→ A4 PDF ≤ 4 MB → 命名 → 分享        |           |
-| `email-photos`         | 照片发邮件 / 传网站 | 选照片 → 长边 1600 → 压到 500 KB → 分享                                           |           |
-| `sign-return`          | 签回表格            | 选 PDF → 填表（没有字段时跳过）→ 签名 → 分享                                      | pdfview   |
-| `scan-document`        | 扫描文档            | 文档相机扫描（或拍照后找边）→ 变清楚 → PDF → 命名 → 分享                          | scan      |
-| `combine-documents`    | 多份材料合一        | 选 PDF 和图片 → 合并 → 选页 / 排序 / 旋转 → 命名 → 分享                           |           |
-| `receipt-archive`      | 收据归档            | 扫描收据（或拍照后拉正）→ 压到 500 KB → 按日期命名 → 存到文件                     | scan      |
-| `redact-screenshots`   | 截图打码分享        | 选截图 → 拼长图 → 打码 → 分享                                                     |           |
-| `send-photos`          | 批量发照片          | 选照片 → 转 JPG → 去掉定位 → 长边 2048 → ZIP → 分享                               |           |
-| `print-id-photos`      | 证件照打印          | 选照片 → 证件照 → 排到 6 寸相纸（裁切线）→ 打印或保存                             |           |
-| `pdf-too-big`          | PDF 太大传不上去    | 选 PDF → 压缩 PDF（默认 2 MB，每次问）→ 分享                                      |           |
-| `video-too-big`        | 视频太大发不出去    | 选视频 → 压缩视频（默认 20 MB，每次问）→ 分享                                     |           |
-| `foreign-pdf`          | 外文 PDF 翻成中文   | 选 PDF → 提取文字 → 翻成中文 → 文字转 PDF → 命名「原名-中文」→ 分享               | pdfview   |
-| `foreign-paper`        | 拍外文材料翻成中文  | 文档相机扫描 → 找边 → 识别文字（每次问语言）→ 翻成中文 → 文字转 PDF → 命名 → 分享 | scan、ocr |
-| `papers-to-english`    | 中文材料翻成英文    | 文档相机扫描 → 找边 → 识别中文 → 翻成英文 → 文字转 PDF → 命名 → 分享              | scan、ocr |
-| `screenshot-translate` | 截图翻译            | 选截图 → 识别文字（每次问语言）→ 翻成中文 → 复制文字                              | ocr       |
+| id                     | Name                                   | Steps                                                                                                                                    | Pack      |
+| ---------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `visa-photo`           | Visa / ID photo                        | pick photos → ID photo (US visa 600×600, ≤ 240 KB) → rename                                                                              |           |
+| `document-packet`      | Application packet                     | pick photos / take photos → crop → reorder (`file.order`) → A4 PDF ≤ 4 MB → rename → share                                               |           |
+| `email-photos`         | Photos for email or upload             | pick photos → long edge 1600 → compress to 500 KB → share                                                                                |           |
+| `sign-return`          | Sign and send back                     | pick PDF → fill form (skip when there are no fields) → sign → share                                                                      | pdfview   |
+| `scan-document`        | Scan a document                        | document camera scan (or take a photo and then detect edges) → clean up → PDF → rename → share                                           | scan      |
+| `combine-documents`    | Combine documents                      | pick PDFs and images → merge → select pages / reorder / rotate → rename → share                                                          |           |
+| `receipt-archive`      | Receipt archive                        | scan receipts (or take photos and then straighten) → compress to 500 KB → name by date → save to files                                   | scan      |
+| `redact-screenshots`   | Hide parts of screenshots              | pick screenshots → stitch into a long image → redact → share                                                                             |           |
+| `send-photos`          | Send many photos                       | pick photos → convert to JPG → remove location → long edge 2048 → ZIP → share                                                            |           |
+| `print-id-photos`      | ID photos to print                     | pick photos → ID photo → lay out on 4×6 paper (cut lines) → print or save                                                                |           |
+| `pdf-too-big`          | PDF too big to upload                  | pick PDF → compress PDF (default 2 MB, asked every time) → share                                                                         |           |
+| `video-too-big`        | Video too big to send                  | pick videos → compress video (default 20 MB, asked every time) → share                                                                   |           |
+| `foreign-pdf`          | Translate a PDF into English           | pick PDF → extract text → translate into Chinese → text to PDF → name "original name-Chinese" → share                                    | pdfview   |
+| `foreign-paper`        | Translate paper documents into English | document camera scan → detect edges → recognize text (language asked every time) → translate into Chinese → text to PDF → rename → share | scan, ocr |
+| `papers-to-english`    | Chinese documents into English         | document camera scan → detect edges → recognize Chinese → translate into English → text to PDF → rename → share                          | scan, ocr |
+| `screenshot-translate` | Translate screenshots                  | pick screenshots → recognize text (language asked every time) → translate into Chinese → copy text                                       | ocr       |
 
-**「工作流」页**（`app/workflows.tsx`，入口在设置页和工具页）：我的工作流（运行 / 编辑）、预设库（添加；已添加的显示「已添加」，可以再添加一个）、工具自带的（默认收起）。这个页面由内核提供，AI 不能修改它。
+**The "Workflows" page** (`app/workflows.tsx`, entered from the Settings page and the Tools page): My workflows (run / edit), the preset library (Add; already added ones show "Added" and can be added again as another copy), and the ones that come with tools (collapsed by default). This page is provided by the core, and the AI cannot change it.
 
-**编辑页**（`app/workflow/[id].tsx`，`run/WorkflowEditor.tsx`）：
+**The edit page** (`app/workflow/[id].tsx`, `run/WorkflowEditor.tsx`):
 
-- 名字（1–40 字）；每一步按 `fields` 自动生成表单（`ParamForm`，含 `presets` 快捷按钮），「每次运行时问」逐个参数勾选。
-- 「在这里加一步」只列出类型接得上的动作（`insertableActions`），新步骤的参数用 `initialParams(action)`；上移 / 下移 / 删除，接不上的步骤标红，不能保存。
-- 改动先放在草稿里；「保存」用一个 `updateWorkflow` 生成一个版本（摘要「修改工作流「X」」），提示条可撤销，历史里可恢复。工作流在别处被改了（撤销、AI）而草稿没有未保存的改动时，草稿跟着更新。
-- 「复制」「放到首页」（`addComponent` 一个 `workflowRunner`）、「恢复预设」（有 `presetId` 时）、「删除」（确认一次，文件不受影响；工具自带的不能删）。从运行页的结果区也可以进入编辑。
+- Name (1–40 characters); each step's form is generated automatically from `fields` (`ParamForm`, including the `presets` shortcut buttons), and "ask on every run" is ticked parameter by parameter.
+- "Add a step here" lists only the actions whose types connect (`insertableActions`), and a new step's parameters use `initialParams(action)`; move up / move down / delete; steps that do not connect are marked red and cannot be saved.
+- Changes go into a draft first; "Save" uses one `updateWorkflow` to produce one version (summary: Change workflow "X"), the banner can undo it, and it can be restored from the history. When the workflow is changed elsewhere (undo, the AI) and the draft has no unsaved changes, the draft updates with it.
+- "Duplicate", "Put on Home" (`addComponent` of a `workflowRunner`), "Reset to the preset" (when there is a `presetId`), "Delete" (confirmed once, files are not affected; ones that come with a tool cannot be deleted). The editor can also be entered from the result area of the run page.
 
-**新动作和参数**：
+**New actions and parameters**:
 
-- `file.order`（本地 `reorder`）：用户排顺序、可去掉几项，任意类型的 `files` / `images` 都能接。
-- `pdf.fillForm.whenNoFields`：`'stop'`（默认，报错）或 `'skip'`（原样交给下一步，「签回表格」用它处理扫描件）。
-- 输入和常用动作补了 `presets`（「相册，最多 30 张」「PDF，最多 10 个」「240 KB / 500 KB / 1 MB / 2 MB」等）。
+- `file.order` (local `reorder`): the user sorts the order and can drop some items; `files` / `images` of any type can connect to it.
+- `pdf.fillForm.whenNoFields`: `'stop'` (default, report an error) or `'skip'` (hand it to the next step as is; "Sign and send back" uses it to handle scans).
+- `presets` were added to the input and common actions ("Photo library, up to 30 photos", "PDF, up to 10", "240 KB / 500 KB / 1 MB / 2 MB" and so on).
 
-**修改操作**（`core/src/ops.ts`，说明在 `describe.ts`；编辑页和 AI 走同一个协议）：
+**Operations** (`core/src/ops.ts`, descriptions in `describe.ts`; the edit page and the AI use the same protocol):
 
-| op                                               | 说明                                                                                  |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| `addWorkflow {workflow}`                         | 不能带 `toolId`；最多 100 个工作流                                                    |
-| `removeWorkflow {workflowId}`                    | 工具自带的不能删；同时移除运行它的 `workflowRunner`（说明里写「同时移除 N 个卡片」）  |
-| `renameWorkflow {workflowId, name}`              |                                                                                       |
-| `addWorkflowStep {workflowId, step, index?}`     | 不给 `index` 加在最后                                                                 |
-| `moveWorkflowStep {workflowId, stepId, toIndex}` |                                                                                       |
-| `removeWorkflowStep`、`setStepParams`            | 原有（`setStepParams` 含 `ask`）                                                      |
-| `updateWorkflow {workflowId, name?, steps?}`     | 编辑页一次保存；AI 看到的私有参数是 `<user text>` 占位符，原样传回时保留旧值（D-082） |
-| `setWorkflowHomeScreen {workflowId, homeScreen}` | 放到手机桌面 / 拿掉（D-271）；最多 4 个，`addWorkflow` 不能带这个标记                 |
+| op                                               | Notes                                                                                                                                                                 |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `addWorkflow {workflow}`                         | Cannot carry `toolId`; at most 100 workflows                                                                                                                          |
+| `removeWorkflow {workflowId}`                    | One that comes with a tool cannot be deleted; the `workflowRunner` that runs it is removed at the same time (the description says "also removes N cards")             |
+| `renameWorkflow {workflowId, name}`              |                                                                                                                                                                       |
+| `addWorkflowStep {workflowId, step, index?}`     | Without `index` it is added at the end                                                                                                                                |
+| `moveWorkflowStep {workflowId, stepId, toIndex}` |                                                                                                                                                                       |
+| `removeWorkflowStep`, `setStepParams`            | Existing (`setStepParams` includes `ask`)                                                                                                                             |
+| `updateWorkflow {workflowId, name?, steps?}`     | One save from the edit page; the private parameters the AI sees are `<user text>` placeholders, and when they are passed back unchanged the old value is kept (D-082) |
+| `setWorkflowHomeScreen {workflowId, homeScreen}` | Put on the phone home screen / remove (D-271); at most 4, and `addWorkflow` cannot carry this flag                                                                    |
 
-所有修改之后照常跑 `validateWorkspace`（§2），接不上的工作流不会被提交。planner 的提示词包含动作目录（id、输入输出类型、参数结构及枚举和范围、需要的扩展包）、预设清单和规则 20（建工作流）、21（记录做成报表）。
+After every operation `validateWorkspace` (§2) runs as usual, and a workflow whose steps do not connect is not committed. The planner's prompt contains the action catalog (id, input and output types, parameter structure with enums and ranges, required packs), the preset list, and rules 20 (build a workflow) and 21 (turn records into a report).
 
-## 8. 迁移（schemaVersion 4 → 5）
+## 8. Migration (schemaVersion 4 → 5)
 
-只有工作流的步骤格式变了：
+Only the workflow step format changed:
 
 | v4                                                              | v5                                                                              |
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | `pdf.selectFiles {min, max}`                                    | `in.files {accept: 'pdf', min, max}`                                            |
-| `pdf.merge {}`                                                  | `pdf.merge {}`（现在也接受图片）                                                |
-| `ui.askFileName {defaultTemplate}` + `file.save {nameTemplate}` | `file.rename {template: defaultTemplate}`，`ask: ['template']` + `file.save {}` |
-| 只有 `file.save {nameTemplate}`（已去掉询问）                   | `file.rename {template: nameTemplate}` + `file.save {}`                         |
+| `pdf.merge {}`                                                  | `pdf.merge {}` (now also accepts images)                                        |
+| `ui.askFileName {defaultTemplate}` + `file.save {nameTemplate}` | `file.rename {template: defaultTemplate}`, `ask: ['template']` + `file.save {}` |
+| Only `file.save {nameTemplate}` (asking already removed)        | `file.rename {template: nameTemplate}` + `file.save {}`                         |
 
-配 v4 的 fixture（默认、简化过步骤、去掉了询问三种）和测试。工具页的组件不动；工具新增的功能通过工具目录里的「更新」按钮（`updateTool`：补上缺少的工作流和工具页上的入口，保留用户的修改）加进来。
+With v4 fixtures (default, steps simplified, asking removed) and tests. The tool page's components are untouched; features a tool gains later are added through the "Update" button in the tool catalog (`updateTool`: adds the missing workflows and the entries on the tool page, and keeps the user's changes).
 
-## 9. 还没做的（需要原生能力）
+## 9. Not Done Yet (needs native capabilities)
 
-T8 起有了开发版构建（D-084），下面这些可以用原生模块做，但还没排期：
+Since T8 there is a development build (D-084), so the following can be done with native modules, but are not scheduled:
 
-- 中文表单填写、「用 Morph 打开」（文件类型关联；「分享到 Morph」已经做了，见 §11）。证件照自动框脸和换底色已经做了（D-252）。
-- 桌面小组件、Android 相册清理；音频（语音转文字、压小 / 转格式、剪一段、录音、拼接，由音频工具做，D-150 起）。
-- 视频：iPhone 上后台继续处理（Android 已经可以，D-160；iOS 26 起也可以，2026-10-31 真机确认，D-163）、用 Morph 录像、HEVC 输出。
-- Android 上给已有照片找边（ML Kit 没有这个接口，目前用扫描包；看过的替代办法都不行，见 D-253）。
-- PDF 加密解密（第二批）；压缩 PDF 时用原生渲染代替 PDF 预览下载内容。
+- Filling in Chinese forms, "Open with Morph" (file type association; "Share to Morph" is done, see §11). Automatic face framing and background color change for ID photos are done (D-252).
+- Home-screen widgets, Android photo library cleanup; audio (speech-to-text, shrink / convert format, cut a segment, record, join; done by the audio tools, from D-150).
+- Video: continue processing in the background on iPhone (Android can already, D-160; from iOS 26 it can too, confirmed on a real device on 2026-10-31, D-163), record with Morph, HEVC output.
+- Edge detection for existing photos on Android (ML Kit has no such interface, so the scan pack is used for now; none of the alternatives we looked at work, see D-253).
+- PDF encryption and decryption (second batch); when compressing a PDF, use native rendering instead of the PDF preview download.
 
-## 10. 里程碑
+## 10. Milestones
 
-| 里程碑 | 内容                                                                                        |
-| ------ | ------------------------------------------------------------------------------------------- |
-| T0     | 合并分支；本文档                                                                            |
-| T1     | 类型化动作和执行器；迁移「合并 PDF」；内核输入输出动作                                      |
-| T2     | 图片：转格式、改尺寸、压到 N KB、裁剪界面、旋转、去定位；独立工具页                         |
-| T3     | PDF：图片转 PDF、PDF ≤ X MB、混合合并、按页码选页 / 删页 / 重排 / 旋转 / 拆分、页码和文字戳 |
-| T4     | 扩展包机制 + PDF 预览包（缩略图、签名定位）+ 签名 + 填表                                    |
-| T5     | 扫描包（找边、调四角、增强）+ 文字识别包（按语言下载）                                      |
-| T6     | Skia：拼长图、打码、水印、证件照排版；ZIP；二维码；用记录生成 PDF / 打印；文字转 PDF        |
-| T7     | 预设工作流 + 编辑器 + AI 修改和新建工作流（修改操作、planner、mock、评测）                  |
-| T8     | 开发版构建；iOS 原生文字识别和扫描（Vision、Core Image、文档相机）；扩展包留作退路          |
-| T9     | Android：ML Kit 文字识别和文档扫描（D-087）                                                 |
-| T10    | 分享到 Morph：iOS 分享扩展 + Android intent-filter，收件页面，分享的文件交给工作流（§11）   |
+| Milestone | Content                                                                                                                              |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| T0        | Merge branches; this document                                                                                                        |
+| T1        | Typed actions and executor; migrate "Merge PDF"; core input and output actions                                                       |
+| T2        | Images: convert format, resize, compress to N KB, crop UI, rotate, remove location; standalone tool pages                            |
+| T3        | PDF: images to PDF, PDF ≤ X MB, mixed merge, select / delete / reorder / rotate / split by page number, page numbers and text stamps |
+| T4        | Pack mechanism + PDF preview pack (thumbnails, signature placement) + signing + form filling                                         |
+| T5        | Scan pack (edge detection, adjust corners, enhance) + text recognition pack (downloaded per language)                                |
+| T6        | Skia: stitch into a long image, redact, watermark, ID photo layout; ZIP; QR code; generate PDF from records / print; text to PDF     |
+| T7        | Preset workflows + editor + AI changing and creating workflows (operations, planner, mock, eval)                                     |
+| T8        | Development build; iOS native text recognition and scanning (Vision, Core Image, document camera); packs kept as a fallback          |
+| T9        | Android: ML Kit text recognition and document scanning (D-087)                                                                       |
+| T10       | Share to Morph: iOS share extension + Android intent-filter, the inbox, shared files handed to workflows (§11)                       |
 
-## 11. 分享到 Morph（D-114–D-118）
+## 11. Share to Morph (D-114–D-118)
 
-用户在照片、文件、邮件、微信等 App 里点分享 → 选 Morph → 文件进入 Morph，用户选一个工作流运行，或者存成 Morph 文件。
+The user taps Share in an app such as Photos, Files, Mail or WeChat → picks Morph → the files enter Morph, and the user picks a workflow to run, or saves them as Morph files.
 
-**原生部分**（expo-share-intent 9.0.0，MIT，D-114）：
-
-```
-iOS：别的 App ──分享──▶ 分享扩展 MorphShare（我们的 ShareViewController.swift，D-118）
-        按顺序把文件复制到 App Group 共享目录（UUID.扩展名），写 UserDefaults[morphShareKey]
-        ──morph://dataUrl=morphShareKey?nonce=…#media|file──▶ 主 App
-Android：别的 App ──ACTION_SEND / ACTION_SEND_MULTIPLE（image/*、video/*、audio/*、application/*）──▶ MainActivity（singleTask）
-主 App：ExpoShareIntentModule.getShareIntent → onChange（iOS 是 JSON，Android 是带 content:// 的对象）
-```
-
-- `ios/`、`android/` 仍由 prebuild 生成：`app.json` 里 `expo-share-intent` 的参数（激活规则：图片、文件各最多 50 个；Android 的 MIME 类型；扩展 target 名 `MorphShare`），加上本地插件 `plugins/with-share-extension.js`（显示名改成「Morph」，换上我们的控制器）。
-- App 里的入口是 `share/useIncomingShare.ts`（根布局调用）：订阅原生模块的 `onChange` → `normalizeShare`（两种平台的数据 → 和选择器一样的 `PickedFile[]`，只收 `file://` / `content://`，文字和网址不收）→ 放进内存里的 `useIncoming` → 打开 `/share`。iOS 的唤起链接由 `app/+native-intent.tsx` 拦下（冷启动到首页，开着时留在当前页面）。Expo Go 和测试里没有原生模块时什么也不做；测试用假的原生模块（`__tests__/share-test.tsx`）。
-
-**收件页面**（`/share`，D-117）：文件名和大小（只在本机显示）→「存到 Morph 文件」→「用工作流处理」：`shareFit(工作流, 文件)` 看第一步：
-
-| 第一步                  | 收什么                                                                                         | 值的类型              |
-| ----------------------- | ---------------------------------------------------------------------------------------------- | --------------------- |
-| `in.photos`             | 全是图片（来源是相册、相机还是扫描都行；没拉正的照片由后面的找边处理）                         | `images`              |
-| `in.videos`             | 全是视频（D-144）                                                                              | `video`               |
-| `in.files`              | 按 `accept`：`pdf` 全是 PDF、`images` 全是图片、`pdfOrImages`、`zip`、`videos`、`audio`、`any` | `FILE_ACCEPT[accept]` |
-| `in.text`、`in.records` | 不收                                                                                           |                       |
-
-个数还要在第一步的 `min`–`max` 之间：类型对、个数不对的列出来但不能运行（「需要至少 2 个文件」「最多 1 个文件」）。超过大小上限（P-006，`sharedSizeProblem`）时只显示错误。点「运行」才运行，不会自动运行。
-
-**运行**（D-115）：`/run/<id>?shared=<分享 ID>` → `startRun({ incoming })` → `RunServices.incoming`。`in.photos` / `in.files` 在第一步看到 `incoming` 就不打开选择器，再按 `shareFitsInput` 检查一次类型和个数、按 P-006 检查大小，然后和选择器选的文件一样复制进本次运行的临时目录；第一步的「每次运行时问」不问。运行页第一步显示「分享进来的文件（N 个）」。
-
-**清理**（D-116）：运行页面关闭、存到 Morph 文件之后、关掉收件页面时 `releaseShare` 删掉共享目录里这一批；又分享一批时删掉上一批剩下的。只删分享扩展写的 UUID 文件名。
-
-**AI 看不到**：分享的文件、文件名、个数都不进配置和版本；只有用户在收件页面点「让 AI 搭一个」时，planner 会收到文件的类型和个数（例如「2 photos, 1 PDF」，D-124、D-129），文件名、大小、内容仍然不发；工作流格式没有变，AI 相关部分（提示词、mock 句式、评测）都没改。
-
-**收件页面现场搭一个**（D-129）：用户自己的快捷操作 →「让 AI 搭一个」→ 第一步收得下这些文件的内设快捷操作（直接「运行」，D-236）→ 工具里的单个功能；AI 做好后回到收件页面，新的排在最前、标「刚做好」，仍由用户点「运行」。
-
-## 12. 语音转文字（D-150、D-151，音频会话第一阶段）
-
-只做了底层：本地模块 `modules/morph-speech`、下载内容、App 一侧的适配（`runtime/speech.ts`），还没有接进快捷操作——`audio` 值类型、`speech.transcribe` 动作、录音、结果页等第二阶段在视频会话的共用底层（原生媒体模块、剪一段界面）合进 main 之后再做。
+**Native part** (expo-share-intent 9.0.0, MIT, D-114):
 
 ```
-JS（runtime/speech.ts）
-  need(语言, 模型) → ready / systemDownload（iOS）/ pack（Android）/ unsupported
-  prepare(语言)         iOS 让系统下载识别模型（用户确认后）
-  transcribe(地址, …)  → 段落 → tidyTranscript（core/speech.ts）→ 文字
-iOS（MorphSpeechModule.swift）
-  iOS 26+：SpeechAnalyzer + SpeechTranscriber；设备没有它（isAvailable 为 false）或语言不支持时 DictationTranscriber
-          文件按 1 秒一块读出、用 AVAudioConverter 转成 bestAvailableAudioFormat 再喂进去
-  更早：  SFSpeechRecognizer + requiresOnDeviceRecognition（第一次弹「语音识别」权限）
-Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
-  MediaExtractor + MediaCodec 解码 → 混成单声道 → 加窗 sinc 重采样到 16 kHz（Pcm.kt，有单元测试）
-  → 每 5 分钟一段（在段尾 20 秒里最安静处切开）→ whisper_full（束搜索 5、语音检测、普通话简体提示词）
+iOS: other app ──share──▶ share extension MorphShare (our ShareViewController.swift, D-118)
+        copies the files in order into the App Group shared directory (UUID.extension), writes UserDefaults[morphShareKey]
+        ──morph://dataUrl=morphShareKey?nonce=…#media|file──▶ main app
+Android: other app ──ACTION_SEND / ACTION_SEND_MULTIPLE (image/*, video/*, audio/*, application/*)──▶ MainActivity (singleTask)
+Main app: ExpoShareIntentModule.getShareIntent → onChange (JSON on iOS, an object with content:// on Android)
 ```
 
-- **whisper.cpp 补丁**（`cpp/patch-whisper.cmake`，构建时打）：窗口以单个时间戳结束时不再跳过剩下的部分，从最后一个时间戳接着识别（开了语音检测，送进去的都是说话；三星真机上 5 分钟会议原来漏约 1 分钟）。换 whisper.cpp 版本时补丁找不到那一行会让构建失败。
+- `ios/` and `android/` are still generated by prebuild: the `expo-share-intent` parameters in `app.json` (activation rules: at most 50 images and 50 files each; Android MIME types; extension target name `MorphShare`), plus the local plugin `plugins/with-share-extension.js` (changes the display name to "Morph" and swaps in our controller).
+- The entry point in the app is `share/useIncomingShare.ts` (called by the root layout): it subscribes to the native module's `onChange` → `normalizeShare` (data from both platforms → the same `PickedFile[]` as the pickers, accepting only `file://` / `content://`, not text or URLs) → puts it in the in-memory `useIncoming` → opens `/share`. The wake-up link on iOS is intercepted by `app/+native-intent.tsx` (a cold start goes to the home page, and while the app is open it stays on the current page). In Expo Go and in tests, where there is no native module, it does nothing; tests use a fake native module (`__tests__/share-test.tsx`).
 
-- **语言**：`SPEECH_LANGUAGES`（12 种，同文字识别）；iOS 用 `SYSTEM_SPEECH_LOCALES`（BCP 47），whisper 用 `whisperLanguage`（国语也是 zh，靠 `whisperPrompt` 出繁体）。
-- **整理**（`tidyTranscript`）：中文换全角标点、去中文之间的空格；去掉一整段都是字幕网站 / 「谢谢观看」/ [音乐] 这类 whisper 在静音里编出来的；中日文直接相连、其他语言用空格；停顿 3 秒以上换段（Android 开了语音检测后 whisper 给的时间是连着的，换段不起作用，第二阶段用语音检测的时间段补上）。
-- **下载内容**：`speech-whisper-small`（190 MB）、`speech-whisper-base`（60 MB），都依赖 `speech-vad`（0.9 MB）。大于 32 MB 的文件走 `PackFs.downloadLarge`：expo-file-system 下载到磁盘并按字节报告进度，SHA-256 由 `MorphSpeech.sha256File` 在原生代码里边读边算（Android 用 MessageDigest，iOS 用 CryptoKit），不把几百 MB 读进 JS。
-- **CPU 后端**（Android arm64）：ggml 编出 armv8.0 / 8.2（点积）/ 8.2（点积 + 半精度）/ 8.6（再加 i8mm）四种，运行时从新到旧挑这台手机支持的；带 SVE / SME 的几种不打包——苹果芯片上的 Android 模拟器声称支持 SVE2 / SME2，用上之后 22 秒的录音要 562 秒（正常版本 42 秒），Mac 上同样编译的版本直接非法指令退出。
-- **取消**：原生侧是原子变量，whisper 在计算图的间隙检查，模拟器上 10–20 秒内生效；iOS 取消 Swift 任务并 `cancelAndFinishNow`。
-- **错误码**：`ERR_SPEECH_UNSUPPORTED_LANGUAGE`、`_NEEDS_DOWNLOAD`、`_NOT_AUTHORIZED`、`_UNREADABLE_AUDIO`、`_MODEL`、`_CANCELLED`、`_UNAVAILABLE`（设备上系统识别用不了），App 一侧换成 `SpeechError.code`。
+**The inbox** (`/share`, D-117): file names and sizes (shown only on the device) → "Save to Morph files" → "Process with a workflow": `shareFit(workflow, files)` looks at the first step:
 
-**实测**（2026-10-23，测试录音是 Mac 朗读声生成的 m4a / wav）：
+| First step              | What it accepts                                                                                                                                          | Value type            |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `in.photos`             | Images only (the source can be the photo library, the camera or a scan; photos that are not straightened are handled by the edge detection that follows) | `images`              |
+| `in.videos`             | Videos only (D-144)                                                                                                                                      | `video`               |
+| `in.files`              | By `accept`: `pdf` all PDFs, `images` all images, `pdfOrImages`, `zip`, `videos`, `audio`, `any`                                                         | `FILE_ACCEPT[accept]` |
+| `in.text`, `in.records` | Not accepted                                                                                                                                             |                       |
 
-| 环境                                                            | 结果                                                                                                                                                                                                                              |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Android 模拟器 morph_api35（arm64，2.5 GB 内存），whisper small | 中文 22 秒 → 42 秒识别完，全对；中文 108 秒（前后和中间共 65 秒静音）→ 78 秒，两段都完整、没有编句子；英文 16 秒 → 30 秒，全对；取消有效；下载 190 MB 模型并校验成功                                                              |
-| iOS 模拟器 iPhone 18 Pro Max（iOS 27）                          | 系统识别**在模拟器上不能用**：SpeechTranscriber `isAvailable` 为 false，DictationTranscriber 占名额后显示已安装但没有任何可用的音频格式，旧接口报「Failed to initialize recognizer」；现在都报 `ERR_SPEECH_UNAVAILABLE`，不会崩溃 |
-| Mac（macOS 27，同一段 Swift 代码单独编译）                      | SpeechTranscriber：中文 2.3% / 22% 错字率，带 65 秒静音的录音完整；DictationTranscriber：4.7% / 36%，标点更多                                                                                                                     |
-| 真机                                                            | 没有测（iPhone 没有；三星真机是创始人在用的手机，第一阶段没装）                                                                                                                                                                   |
+The count must also be between the first step's `min` and `max`: ones with the right type but the wrong count are listed but cannot be run ("Needs at least 2 files", "Takes at most 1 file"). When the size limit (P-006, `sharedSizeProblem`) is exceeded, only an error is shown. It runs only when "Run" is tapped, never automatically.
 
-## 13. 音频工具（D-152–D-158，音频会话第二阶段）
+**Running** (D-115): `/run/<id>?shared=<share ID>` → `startRun({ incoming })` → `RunServices.incoming`. When `in.photos` / `in.files` see `incoming` as the first step, they do not open the picker; they check the type and count again with `shareFitsInput` and the size per P-006, and then copy the files into this run's temporary directory just like files chosen from a picker; the first step's "ask on every run" is not asked. The first step on the run page shows "Shared files (N)".
 
-| 动作               | 输入 → 输出           | 参数                                                              | 实现                                                                              |
-| ------------------ | --------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `in.audio`         | → audio               | `source: files / record`、`min` / `max`                           | 文件选择器 `audio/*`；录音界面 `run/local/RecordScreen.tsx`（本地界面 `record`）  |
-| `audio.transcribe` | audio → text          | `lang`（12 种）、`model`（Android：更准 / 更快）                  | morph-speech（§12）；iPhone 第一次用某种语言先问再让系统下载                      |
-| `audio.compress`   | audio → audio         | `by: size / quality`、`maxMB`、`quality: high / standard / voice` | `planAudioSize` / `planAudioQuality` → morph-media `transcode`（`video: 'drop'`） |
-| `audio.convert`    | audio → audio         | `format: m4a / wav`                                               | 已经是这种格式时不转                                                              |
-| `audio.trim`       | audio → audio         | 无（本地操作 `trimMedia`，带波形）                                | 重新编码成 M4A，带 `range`                                                        |
-| `audio.merge`      | audio → audio（1 个） | 无                                                                | morph-media `concat`                                                              |
-| `audio.fromVideo`  | video → audio         | `format`                                                          | 没有声音的视频报 `noAudio`                                                        |
-| `audio.fromText`   | text → audio          | `lang`（auto / 20 种）、`rate`（0.5–2）、`format: m4a / wav`      | morph-tts 系统声音读成 WAV，M4A 再交给 morph-media 转（§15，D-270）               |
+**Cleanup** (D-116): when the run page is closed, after saving to Morph files, and when the inbox is closed, `releaseShare` deletes this batch from the shared directory; when another batch is shared, whatever is left of the previous batch is deleted. Only UUID file names written by the share extension are deleted.
 
-- morph-media 补的部分：iOS `writeAudio`（`AVAssetReaderAudioMixOutput` → AAC `.m4a` / LPCM `.wav`）、`concat`（每段一路合成轨，首尾相接）、`waveform`（8 kHz 单声道峰值）；Android M4A 用 Media3（去掉画面、`ChannelMixingAudioProcessor` + `SonicAudioProcessor` 统一格式；封装用系统的 MediaMuxer，默认的 InAppMp4Muxer 会在文件头预留约 400 KB），WAV 和波形用 `AudioPcm.kt` 自己解码。
-- App：`runtime/actions/audio.ts`、`MediaPlatform.encodeAudio / concatAudio / waveform`、`FilePlatform.speech`、`packNotNeeded`（iPhone 不用下载内容）。
-- 错误：`audioTooSmall`、`noAudio`、`noSpeech`；`needsFullApp` 的说法改成「视频和音频」。
-- 测试：`core/audio.test.ts`、`audio-actions-test.ts`（假的 media / speech）、`audio-journeys-test.tsx`（录音、转文字、波形剪切、压小的界面旅程）。
+**The AI cannot see them**: the shared files, file names and counts never go into the config or versions; only when the user taps "Have AI build one" in the inbox does the planner receive the types and counts of the files (for example "2 photos, 1 PDF", D-124, D-129), while file names, sizes and contents are still not sent; the workflow format has not changed, and the AI-related parts (prompt, mock phrasings, eval) were not changed.
 
-## 14. 条件、分组和文字加工（D-242 起）
+**Building one on the spot in the inbox** (D-129): the user's own quick actions → "Have AI build one" → built-in quick actions whose first step can take these files (directly "Run", D-236) → single functions from tools; after the AI is done it returns to the inbox, the new one is listed first and marked "just made", and the user still taps "Run".
 
-仍然是线性步骤：条件、分组规则、提取规则都是从固定集合里选的**数据**，没有表达式、循环和分支，AI 看不到文件和文字。
+## 12. Speech-to-Text (D-150, D-151, audio session phase one)
 
-**按条件筛选**（`file.filter`，D-242）：files 进、同类型出。平铺的参数，每种条件最多一条，「不限」的不检查，其余全部满足才保留：
+Only the base layer is done: the local module `modules/morph-speech`, the downloads, and the app-side adapter (`runtime/speech.ts`). It is not yet connected to quick actions; phase two (the `audio` value type, the `speech.transcribe` action, recording, the result page, etc.) will be done after the video session's shared base layer (native media module, trim UI) is merged into main.
 
-| 参数                                   | 条件                                                                                    |
-| -------------------------------------- | --------------------------------------------------------------------------------------- |
-| `kind`                                 | 图片 / PDF / 视频 / 音频 / 办公文档（先看 MIME，不可靠时看扩展名）                      |
-| `size` + `sizeMB`                      | 大于 / 小于 N MB                                                                        |
-| `orientation`                          | 横 / 竖 / 方（宽高差 2% 以内算方）；选择器没给宽高时用 `imageSize` 读                   |
-| `date` + `days` / `period` / `from–to` | 最近 N 天、日历时间段（同数据表的 `PERIODS`）、两个日期之间；拍摄时间，没有时用修改时间 |
-| `duration` + `seconds`                 | 视频、音频长于 / 短于 N 秒；没有时长时用 `media.probe` 读                               |
+```
+JS (runtime/speech.ts)
+  need(language, model) → ready / systemDownload (iOS) / pack (Android) / unsupported
+  prepare(language)         iOS has the system download the recognition model (after the user confirms)
+  transcribe(address, …)  → paragraphs → tidyTranscript (core/speech.ts) → text
+iOS (MorphSpeechModule.swift)
+  iOS 26+: SpeechAnalyzer + SpeechTranscriber; DictationTranscriber when the device does not have it (isAvailable is false) or the language is unsupported
+          the file is read in 1-second chunks, converted with AVAudioConverter to bestAvailableAudioFormat and fed in
+  earlier: SFSpeechRecognizer + requiresOnDeviceRecognition (the first time shows the "Speech Recognition" permission prompt)
+Android (MorphSpeechModule.kt + cpp/morph_whisper.cpp)
+  MediaExtractor + MediaCodec decode → mix to mono → windowed sinc resampling to 16 kHz (Pcm.kt, has unit tests)
+  → segments of 5 minutes (cut at the quietest point within the last 20 seconds of a segment) → whisper_full (beam search 5, voice detection, Mandarin Simplified Chinese prompt)
+```
 
-读不到的信息算不满足。一个都不剩时 `whenEmpty`：`stop` 报 `noneMatched`，`skip` 原样交给下一步。只是这次运行不用，从不删除文件。纯逻辑 `core/file-filter.ts`（Node 测试），App 实现在 `runtime/actions/io.ts`。
+- **whisper.cpp patch** (`cpp/patch-whisper.cmake`, applied at build time): when a window ends with a single timestamp, the rest is no longer skipped, and recognition continues from the last timestamp (voice detection is on, so everything fed in is speech; on the Samsung real device a 5-minute meeting used to lose about 1 minute). When the whisper.cpp version is changed, if the patch cannot find that line the build fails.
 
-**分组后各出一份**（D-243）：不加「对每组执行」的循环，而是在「把一批文件变成文件」的三个动作上加 `group`：`pdf.fromImages`、`pdf.merge`、`zip.create`。`group`：`none`（默认，一份）、`count` + `groupSize`（按原来的顺序每 N 个一份）、`day` / `month`（按拍摄时间，没有时用修改时间；组按日期排，读不到日期的放最后「没有日期」）。输出仍是普通的文件数组，名字是日期或这一组第一个文件的名字，后面接 `file.rename {sourceName}`、分享、存到文件夹都照常。纯逻辑 `core/grouping.ts`。
+- **Languages**: `SPEECH_LANGUAGES` (12, same as text recognition); iOS uses `SYSTEM_SPEECH_LOCALES` (BCP 47), and whisper uses `whisperLanguage` (Mandarin is also zh, and `whisperPrompt` makes it output Traditional characters).
+- **Tidying** (`tidyTranscript`): Chinese gets full-width punctuation and the spaces between Chinese characters are removed; whole segments that whisper makes up in silence, such as subtitle-site credits, "thanks for watching" and [music], are dropped; Chinese and Japanese are joined directly and other languages with spaces; a pause of 3 seconds or more starts a new paragraph (on Android, with voice detection on, the times whisper gives are continuous, so starting new paragraphs has no effect; phase two will fill this in with the time ranges from voice detection).
+- **Downloads**: `speech-whisper-small` (190 MB), `speech-whisper-base` (60 MB), both depending on `speech-vad` (0.9 MB). Files larger than 32 MB go through `PackFs.downloadLarge`: expo-file-system downloads to disk and reports progress by bytes, and the SHA-256 is computed by `MorphSpeech.sha256File` in native code while reading (MessageDigest on Android, CryptoKit on iOS), so that hundreds of MB are not read into JS.
+- **CPU backends** (Android arm64): ggml is built in four variants, armv8.0 / 8.2 (dot product) / 8.2 (dot product + half precision) / 8.6 (plus i8mm), and at run time the newest one this phone supports is picked; the variants with SVE / SME are not bundled: the Android emulator on Apple silicon claims to support SVE2 / SME2, and with them a 22-second recording takes 562 seconds (42 seconds with the normal variant), while the same build on a Mac exits directly with an illegal instruction.
+- **Cancel**: on the native side it is an atomic variable, whisper checks it in the gaps of the compute graph, and it takes effect within 10–20 seconds on the emulator; on iOS the Swift task is canceled and `cancelAndFinishNow` is called.
+- **Error codes**: `ERR_SPEECH_UNSUPPORTED_LANGUAGE`, `_NEEDS_DOWNLOAD`, `_NOT_AUTHORIZED`, `_UNREADABLE_AUDIO`, `_MODEL`, `_CANCELLED`, `_UNAVAILABLE` (system recognition cannot be used on the device), which the app side converts to `SpeechError.code`.
 
-**用识别出的文字命名**（D-244）：`{ocr:规则}` / `{qr:规则}`，规则是 `firstLine`、`invoiceNo`、`date`、`amount`、`phone`、`email`、`url`、`number`（`core/text-rules.ts`，不接受正则）。`file.rename` 看到这两种占位符时先在本机识别每张图片：文字用系统识别（界面语言 + 英文；没有时报 `needsRecognition`），二维码用 jsQR。文字只用来取名，不留下，不发给 AI。取不到时这一段不写；什么都不剩用原来的名字。
+**Measured** (2026-10-23; the test recordings are m4a / wav files generated from a Mac reading text aloud):
 
-**「记一笔」预填**（D-244 的扩展，2026-10-28 定，原型在 `core/prefill/`；D-394、D-397 起「记一笔」和记录页的表单都接上了）：日期、金额、税额、单号以 `text-rules` 的规则为主，系统识别（iOS DataDetection / NSDataDetector，Android ML Kit 实体识别，下载模型前先问用户）只做补充；版式记忆保存一次就学会，后来的文件有任何对不上或不合理的地方就空着、不退回规则；版式记忆这条路不用大模型（新记录表单的候选可以用本机模型，D-396、D-401）。「设置 → 数据」能一键清空预填记忆、导出（也是备份）、从文件恢复，也能导出 App 配置（D-273）。评测见 `side-session-notes/model-eval/PREFILL_REPORT.md`（不在仓库里）。
+| Environment                                                        | Result                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Android emulator morph_api35 (arm64, 2.5 GB memory), whisper small | 22 seconds of Chinese → recognized in 42 seconds, all correct; 108 seconds of Chinese (65 seconds of silence in total at the start, end and middle) → 78 seconds, both parts complete, no made-up sentences; 16 seconds of English → 30 seconds, all correct; cancel works; the 190 MB model downloaded and verified successfully |
+| iOS simulator iPhone 18 Pro Max (iOS 27)                           | System recognition **cannot be used on the simulator**: SpeechTranscriber `isAvailable` is false, DictationTranscriber takes a slot and then shows installed but with no usable audio format, and the old API reports "Failed to initialize recognizer"; now all report `ERR_SPEECH_UNAVAILABLE` and do not crash                 |
+| Mac (macOS 27, the same Swift code compiled separately)            | SpeechTranscriber: character error rate 2.3% / 22% for Chinese, and the recording with 65 seconds of silence is complete; DictationTranscriber: 4.7% / 36%, with more punctuation                                                                                                                                                 |
+| Real device                                                        | Not tested (no iPhone; the Samsung real device is the founder's own phone, and phase one was not installed on it)                                                                                                                                                                                                                 |
 
-**「记一笔」放进已有的记录**（D-443）：`out.addRecord` 的 `into: "existing"`（不写是 `new`，新建一条）。运行时用户从这张表现有的记录里选一条（`recordPick`，只显示标题），文件接在它第一个附件字段原来的文件后面（总共不超过 20 个，放不下的不存；放满了不运行，`recordFull`），文字在字段是空的时写进去、否则另起一行接在后面（规则在 `core/record-append.ts`）；然后打开这条记录的表单，用户核对后保存才改这一条。只追加，原来有的不替换、不删除；取消、记录被删了、写入失败都不写，这一步新存的文件副本删掉。快捷操作仍是直链：这一步不记得文件原来在哪条记录（外部运行），做完关掉回到开启它的页面。
+## 13. Audio Tools (D-152–D-158, audio session phase two)
 
-**新记录表单的候选值**（D-394，`core/prefill/rank.ts`、`concepts.ts`、`rows.ts`）：附件里的照片（PP-OCRv6）和 PDF（文字层，扫描件画成图再认）在本机读出文字，按排切出「标签 → 值」，每个空字段最多 3 个候选，点了才填，从不自动填；点过的标签和位置记在 `prefill:picks`。文字识别模型没装时先问再下载。文字只在本机，不发给 AI。 每个字段学多个点过的标签，文件上一字不差时旁边的值排第一（D-445）。
+| Action             | Input → output         | Parameters                                                        | Implementation                                                                                            |
+| ------------------ | ---------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `in.audio`         | → audio                | `source: files / record`, `min` / `max`                           | File picker `audio/*`; recording UI `run/local/RecordScreen.tsx` (local UI `record`)                      |
+| `audio.transcribe` | audio → text           | `lang` (12), `model` (Android: more accurate / faster)            | morph-speech (§12); on iPhone, the first use of a language asks first and then has the system download it |
+| `audio.compress`   | audio → audio          | `by: size / quality`, `maxMB`, `quality: high / standard / voice` | `planAudioSize` / `planAudioQuality` → morph-media `transcode` (`video: 'drop'`)                          |
+| `audio.convert`    | audio → audio          | `format: m4a / wav`                                               | Not converted when it is already in this format                                                           |
+| `audio.trim`       | audio → audio          | None (local action `trimMedia`, with a waveform)                  | Re-encoded to M4A, with `range`                                                                           |
+| `audio.merge`      | audio → audio (1 item) | None                                                              | morph-media `concat`                                                                                      |
+| `audio.fromVideo`  | video → audio          | `format`                                                          | A video without sound reports `noAudio`                                                                   |
+| `audio.fromText`   | text → audio           | `lang` (auto / 20), `rate` (0.5–2), `format: m4a / wav`           | morph-tts reads it with the system voice into WAV, and M4A is then converted by morph-media (§15, D-270)  |
 
-**文字加工**（D-245，`core/text-ops.ts`）：都是 text → text，文字只在本机处理。
+- What was added to morph-media: on iOS `writeAudio` (`AVAssetReaderAudioMixOutput` → AAC `.m4a` / LPCM `.wav`), `concat` (one composition track per segment, joined end to end), `waveform` (8 kHz mono peaks); Android M4A uses Media3 (picture removed, `ChannelMixingAudioProcessor` + `SonicAudioProcessor` unify the format; packaging uses the system MediaMuxer, because the default InAppMp4Muxer reserves about 400 KB at the start of the file), and WAV and the waveform are decoded by `AudioPcm.kt` itself.
+- App: `runtime/actions/audio.ts`, `MediaPlatform.encodeAudio / concatAudio / waveform`, `FilePlatform.speech`, `packNotNeeded` (iPhone needs no downloads).
+- Errors: `audioTooSmall`, `noAudio`, `noSpeech`; the wording of `needsFullApp` was changed to "video and audio".
+- Tests: `core/audio.test.ts`, `audio-actions-test.ts` (fake media / speech), `audio-journeys-test.tsx` (UI journeys for recording, transcription, waveform trimming and shrinking).
 
-| 动作           | 参数                                                | 做什么                                                         |
-| -------------- | --------------------------------------------------- | -------------------------------------------------------------- |
-| `text.tidy`    | `blankLines`：remove / single / keep；`spaces`      | 去掉多余空格和空行                                             |
-| `text.replace` | `find`、`replaceWith`（都是私有参数）、`ignoreCase` | 按字面全部替换，不是正则；AI 只看到 `<user text>`（D-082）     |
-| `text.extract` | `kind`：phone / email / url / number / date         | 一行一个，规则同 `{ocr:规则}`（`core/text-rules.ts`）          |
-| `text.lines`   | `mode`：split / join；`separator`                   | 按逗号（含中文逗号、顿号）、分号、空格、制表符拆行，或接成一行 |
+## 14. Conditions, Grouping and Text Processing (from D-242)
 
-**证件照换底色 + 自动框脸**（D-252）：`image.idPhoto` 的 `background`（keep / white / blue / red / gray / custom + `color`）和 `autoCenter`。换底色在裁剪前对整张照片做：iOS 人像分割（`replacePersonBackground`），Android 主体分割（同去背景，第一次要确认下载模型）。自动框脸：系统人脸检测（`detectFaces`；iOS Vision、Android ML Kit）→ `@morph/tool-image` 的 `faceCrop`（头占照片高度按规格的 `HEAD_RATIO`）→ 作为裁剪界面的初始框，用户仍然确认。
+Steps are still linear: conditions, grouping rules and extraction rules are **data** chosen from fixed sets, with no expressions, loops or branches, and the AI cannot see files or text.
 
-## 15. 文字转语音（D-270）
+**Filter by condition** (`file.filter`, D-242): files in, the same type out. Flat parameters, at most one per kind of condition; "any" is not checked, and a file is kept only if it meets all the others:
 
-`audio.fromText`：文字 → 一个音频文件。只出文件（后面接 `audio.convert`、`audio.compress`、`out.share`、`out.saveToFolder` 都行），不做阅读器、播放、高亮，也没有 AI 声音（D-113）。
+| Parameter                              | Condition                                                                                                                                                     |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kind`                                 | Image / PDF / video / audio / office document (MIME first, the extension when that is unreliable)                                                             |
+| `size` + `sizeMB`                      | Larger / smaller than N MB                                                                                                                                    |
+| `orientation`                          | Landscape / portrait / square (a width-height difference within 2% counts as square); read with `imageSize` when the picker did not give the width and height |
+| `date` + `days` / `period` / `from–to` | The last N days, a calendar period (same as the table's `PERIODS`), between two dates; capture time, the modified time when there is none                     |
+| `duration` + `seconds`                 | Video or audio longer / shorter than N seconds; read with `media.probe` when there is no duration                                                             |
 
-- 参数：`lang`（`auto` 或和翻译相同的 20 种语言，`core/speak.ts` 的 `SPEAK_LANGUAGES`，声音用 `SPEAK_VOICE_LOCALES` 里的地区：zh-Hans → zh-CN、en → en-US…）、`rate`（0.5–2，1 是系统的正常语速）、`format`（`m4a` / `wav`；要 MP3 接「音频转格式」）。
-- 分段（`splitForSpeech`，纯函数）：先用翻译的 `splitForTranslation` 把 PDF、文字识别断开的行接回去（系统读到换行会停顿），再按句子、逗号切，每段不超过 1000 字（Android 一次最多 4000 字），短段落合成一段；只有符号的行不读。一次最多 30 000 字（`MAX_SPEAK_CHARS`，中文约 2 小时）。
-- 自动识别（`chooseSpeakLanguage`）：前 8 段交给系统的语言识别（`TranslatePlatform.detectLanguages`：iOS NaturalLanguage、Android ML Kit），按字数取最多的；认不出时按书写系统猜（假名 → 日文、谚文 → 韩文、汉字 → 简体中文、西里尔 → 俄文…），拉丁字母按界面语言（法语界面读法文，其余读英文）。一次只用一种声音。
-- 原生模块 `modules/morph-tts`（`voiceStatus`、`synthesize(segments, {taskId, voice, rate, output})`、`cancel`、`onProgress`）：
-  - iOS：`AVSpeechSynthesizer.write(_:toBufferCallback:)`，每段一个 `AVSpeechUtterance`，交回的 PCM 依次写进同一个 16 位 WAV（`AVAudioFile`）；空的缓冲区或 `didFinish` 表示这一段读完（只认正在等的那一段）。声音取这种语言质量最好的（增强 / 高级声音优先），不用趣味声音和个人声音；中文不退到 zh-HK（粤语）。语速换算：1 → `AVSpeechUtteranceDefaultSpeechRate`，两边线性。30 秒没有新的声音算卡住、报错。
-  - Android：系统 `TextToSpeech`（多数是 Google「语音服务」；清单里声明 `TTS_SERVICE` 的 `<queries>`，Android 11 起不声明连不上引擎），每段 `synthesizeToFile` 一个 WAV（放在输出文件旁边、以 `.tts-` 开头），全部读完后 `Wav.join` 接成一个（只认 PCM，各段格式不同时报错），中间文件在 `finally` 里删。声音数据缺了（`LANG_MISSING_DATA`）不偷偷下载，报 `notDownloaded`。
-  - 错误码：`ERR_TTS_NO_VOICE`、`ERR_TTS_NOT_DOWNLOADED`、`ERR_TTS_UNAVAILABLE`（没有朗读引擎）、`ERR_TTS_CANCELLED`、`ERR_TTS_FAILED`。失败、取消都删掉输出文件；取消由 App 每 0.3 秒看一次运行页的「停止」（和语音转文字一样），原生停掉系统朗读、结束正在等的那一段，Promise 一定结束。
-- App（`runtime/actions/audio.ts`、`runtime/expo-tts.ts`、`FilePlatform.speaker`）：先检查声音（没有声音、没下载、没有引擎时说明去系统设置哪里添加：iPhone「辅助功能 → 朗读内容 → 声音」，Android「文字转语音输出」），再按 `estimateSpeechBytes` 检查剩余空间，读成 WAV（进度 0–90%），M4A 时用 `planAudioConvert` 交给 morph-media 转（单声道，按 64 kbps 的人声算码率）。文件名跟着文字的来源（PDF 的名字）。
-- 预设：「PDF 转成音频」（选 PDF → 提取文字 → 朗读 → 分享）、「拍纸张读成音频」（扫描 → 找边 → 识别文字 → 朗读 → 分享），在「学习工作」；音频工具页加「文字转语音」（输入文字，每次问语言和语速）。
-- 测试：`core/speak.test.ts`（参数、分段、选语言、预设接得上、步骤说法）、`tts-test.ts`（Expo 模块的包装：输出地址、进度、取消、错误码）、`speak-actions-test.ts`（执行器：选声音、语速、格式、错误说明、取消、空间、预设）、`modules/morph-tts/android/src/test/…/WavTest.kt`（WAV 的读和接）。
+Information that cannot be read counts as not met. When nothing is left, `whenEmpty`: `stop` reports `noneMatched`, `skip` hands it to the next step as is. A file is only left out of this run and is never deleted. The pure logic is `core/file-filter.ts` (Node tests), and the app implementation is in `runtime/actions/io.ts`.
+
+**One output per group** (D-243): instead of a "do for each group" loop, `group` is added to the three actions that "turn a batch of files into files": `pdf.fromImages`, `pdf.merge`, `zip.create`. `group`: `none` (default, one output), `count` + `groupSize` (one output per N files in the original order), `day` / `month` (by capture time, the modified time when there is none; groups are sorted by date, and files whose date cannot be read go last as "No date"). The output is still an ordinary array of files, named after the date or the first file of the group, and a following `file.rename {sourceName}`, share and save to folder work as usual. The pure logic is `core/grouping.ts`.
+
+**Naming with recognized text** (D-244): `{ocr:rule}` / `{qr:rule}`, where the rule is `firstLine`, `invoiceNo`, `date`, `amount`, `phone`, `email`, `url`, `number` (`core/text-rules.ts`, regular expressions are not accepted). When `file.rename` sees these two placeholders, it first recognizes each image on the device: text uses system recognition (interface language + English; `needsRecognition` is reported when there is none), and QR codes use jsQR. The text is used only to build the name, is not kept, and is not sent to the AI. When nothing can be taken, that part is not written; if nothing is left, the original name is used.
+
+**"Add an entry" prefill** (an extension of D-244, decided 2026-10-28, prototype in `core/prefill/`; since D-394 and D-397 both "Add an entry" and the record page's form use it): date, amount, tax amount and number rely mainly on the `text-rules` rules, and system recognition (iOS DataDetection / NSDataDetector, Android ML Kit entity extraction, asking the user before the model is downloaded) is only a supplement; layout memory is learned after a single save, and when anything in a later file does not match or is unreasonable it is left blank and does not fall back to the rules; this layout-memory path does not use a large model (the suggestions for a new record form can use the on-device model, D-396, D-401). Settings → Data can clear the prefill memory in one tap, export it (also a backup) and restore it from a file, and can also export the app config (D-273). For the eval see `side-session-notes/model-eval/PREFILL_REPORT.md` (not in the repository).
+
+**"Add an entry" into an existing record** (D-443): `out.addRecord` with `into: "existing"` (when omitted it is `new`, which creates a new record). At run time the user picks one of the table's existing records (`recordPick`, showing only the title); the files are appended after the files already in its first attachment field (at most 20 in total, ones that do not fit are not saved; if it is already full it does not run, `recordFull`), and the text is written in when the field is empty, otherwise it starts a new line appended after the existing text (the rules are in `core/record-append.ts`); then the record's form opens, and only when the user checks it and saves is this record changed. It only appends: what was already there is not replaced or deleted; cancel, the record having been deleted, or a failed write all write nothing, and the file copies newly saved by this step are deleted. A quick action is still a straight chain: this step does not remember which record the file originally came from (an external run), and when it finishes it closes and returns to the page that started it.
+
+**Suggested values for a new record form** (D-394, `core/prefill/rank.ts`, `concepts.ts`, `rows.ts`): the text in the attachments' photos (PP-OCRv6) and PDFs (the text layer; scans are rendered to images and then recognized) is read on the device, and "label → value" pairs are cut out by rows; each empty field gets at most 3 suggestions, which are filled in only when tapped and never automatically; the labels and positions that were tapped are remembered in `prefill:picks`. When the text recognition model is not installed, it asks before downloading. The text stays on the device and is not sent to the AI. Each field learns several tapped labels, and when a label in the file matches exactly, the value next to it ranks first (D-445).
+
+**Text processing** (D-245, `core/text-ops.ts`): all are text → text, and the text is processed only on the device.
+
+| Action         | Parameters                                                    | What it does                                                                                                                              |
+| -------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `text.tidy`    | `blankLines`: remove / single / keep; `spaces`                | Removes extra spaces and blank lines                                                                                                      |
+| `text.replace` | `find`, `replaceWith` (both private parameters), `ignoreCase` | Replaces all literally, not a regular expression; the AI sees only `<user text>` (D-082)                                                  |
+| `text.extract` | `kind`: phone / email / url / number / date                   | One per line, with the same rules as `{ocr:rule}` (`core/text-rules.ts`)                                                                  |
+| `text.lines`   | `mode`: split / join; `separator`                             | Splits into lines at commas (including the Chinese comma and enumeration comma), semicolons, spaces and tabs, or joins them into one line |
+
+**ID photo background change + automatic face framing** (D-252): `background` of `image.idPhoto` (keep / white / blue / red / gray / custom + `color`) and `autoCenter`. The background change is applied to the whole photo before cropping: iOS person segmentation (`replacePersonBackground`), Android subject segmentation (same as background removal; the first time it needs confirmation to download the model). Automatic face framing: system face detection (`detectFaces`; iOS Vision, Android ML Kit) → `faceCrop` in `@morph/tool-image` (the head takes up a share of the photo height set by the spec's `HEAD_RATIO`) → used as the initial box of the crop UI, and the user still confirms.
+
+## 15. Text to Speech (D-270)
+
+`audio.fromText`: text → one audio file. It produces only a file (following it with `audio.convert`, `audio.compress`, `out.share` or `out.saveToFolder` all work); there is no reader, playback or highlighting, and no AI voice (D-113).
+
+- Parameters: `lang` (`auto` or the same 20 languages as translation, `SPEAK_LANGUAGES` in `core/speak.ts`; the voice uses the region in `SPEAK_VOICE_LOCALES`: zh-Hans → zh-CN, en → en-US…), `rate` (0.5–2, 1 is the system's normal speaking rate), `format` (`m4a` / `wav`; for MP3, follow with "Convert audio").
+- Splitting (`splitForSpeech`, a pure function): first use translation's `splitForTranslation` to join back the lines broken by PDFs and text recognition (the system pauses at a line break), then cut at sentences and commas, each segment at most 1000 characters (Android at most 4000 characters at a time), and short paragraphs are merged into one segment; lines with only symbols are not read. At most 30,000 characters at a time (`MAX_SPEAK_CHARS`, about 2 hours of Chinese).
+- Auto-detection (`chooseSpeakLanguage`): the first 8 segments go to the system's language identification (`TranslatePlatform.detectLanguages`: iOS NaturalLanguage, Android ML Kit), and the language with the most characters wins; when it cannot be recognized, it guesses by writing system (kana → Japanese, Hangul → Korean, Han characters → Simplified Chinese, Cyrillic → Russian…), and Latin letters follow the interface language (a French interface reads French, others read English). Only one voice is used per run.
+- Native module `modules/morph-tts` (`voiceStatus`, `synthesize(segments, {taskId, voice, rate, output})`, `cancel`, `onProgress`):
+  - iOS: `AVSpeechSynthesizer.write(_:toBufferCallback:)`, one `AVSpeechUtterance` per segment, and the returned PCM is written in turn into the same 16-bit WAV (`AVAudioFile`); an empty buffer or `didFinish` means this segment has been read (only the segment being waited on is honored). The voice is the best-quality one for the language (enhanced / premium voices first), novelty voices and personal voices are not used, and Chinese does not fall back to zh-HK (Cantonese). Rate conversion: 1 → `AVSpeechUtteranceDefaultSpeechRate`, linear on both sides. 30 seconds without new sound counts as stuck and reports an error.
+  - Android: the system `TextToSpeech` (mostly Google "Speech Services"; the manifest declares `<queries>` for `TTS_SERVICE`, because from Android 11 the engine cannot be reached without the declaration), one WAV per segment with `synthesizeToFile` (placed next to the output file and starting with `.tts-`), and after everything is read, `Wav.join` joins them into one (PCM only, an error when the segments have different formats), and the intermediate files are deleted in `finally`. When voice data is missing (`LANG_MISSING_DATA`), it does not download in secret and reports `notDownloaded`.
+  - Error codes: `ERR_TTS_NO_VOICE`, `ERR_TTS_NOT_DOWNLOADED`, `ERR_TTS_UNAVAILABLE` (no speech engine), `ERR_TTS_CANCELLED`, `ERR_TTS_FAILED`. On failure and cancel the output file is deleted; for cancel, the app checks the run page's "Stop" every 0.3 seconds (same as speech-to-text), the native side stops the system speech and ends the segment being waited on, and the Promise always ends.
+- App (`runtime/actions/audio.ts`, `runtime/expo-tts.ts`, `FilePlatform.speaker`): first check the voice (when there is no voice, it is not downloaded, or there is no engine, it explains where to add one in system settings: on iPhone Accessibility → Spoken Content → Voices, on Android "Text-to-speech output"), then check the free space with `estimateSpeechBytes`, read into WAV (progress 0–90%), and for M4A hand it to morph-media with `planAudioConvert` (mono, bitrate calculated for a 64 kbps human voice). The file name follows the source of the text (the PDF's name).
+- Presets: "PDF to audio" (pick PDF → get text → read aloud → share) and "Read paper pages aloud" (scan → detect edges → recognize text → read aloud → share), under "Study and work"; the audio tool page adds "Text to speech" (type text, language and rate asked every time).
+- Tests: `core/speak.test.ts` (parameters, splitting, language choice, presets connect, step phrasings), `tts-test.ts` (the Expo module wrapper: output address, progress, cancel, error codes), `speak-actions-test.ts` (executor: voice choice, rate, format, error messages, cancel, space, presets), `modules/morph-tts/android/src/test/…/WavTest.kt` (WAV reading and joining).

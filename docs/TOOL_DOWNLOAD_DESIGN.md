@@ -1,242 +1,242 @@
-# 从服务器下载新工具
+# Downloading new tools from the server
 
-> 状态：**第一步（数据工具）已实现**（D-177–D-179，§13），第二步（插件工具）尚未开始。创始人 2026-10-23 定了方向（只由我们写、需要系统能力的工具仍随 App 发版、分两步走），2026-10-24 定了第 12 节的细节。
-> 界面说法按 D-112：给用户看的文字里「工作流」叫「快捷操作」，「扩展包」叫「已下载内容」，「安装 / 卸载」叫「添加 / 移除」；代码标识符（`installTool`、`packs` 等）不变。本文写设计时两种说法都用，引号里的是界面文字。
-> 相关：[TOOLS_DESIGN.md](TOOLS_DESIGN.md)（动作契约、执行器、扩展包）、[SECURITY_NOTES.md](SECURITY_NOTES.md)、[DECISIONS.md](DECISIONS.md) P-011。
+> Status: **step one (data tools) is implemented** (D-177–D-179, §13); step two (plugin tools) has not started. The founder decided the direction on 2026-10-23 (only we write them, tools that need system capabilities still ship with app releases, two steps) and the details of section 12 on 2026-10-24.
+> UI wording follows D-112: in text shown to users, "workflow" is called "quick action", "pack" is called "downloads", and "install / uninstall" is called "add / remove"; code identifiers (`installTool`, `packs`, etc.) do not change. This document uses both wordings when describing the design; the ones in quotes are UI text.
+> Related: [TOOLS_DESIGN.md](TOOLS_DESIGN.md) (action contract, executor, packs), [SECURITY_NOTES.md](SECURITY_NOTES.md), [DECISIONS.md](DECISIONS.md) P-011.
 
-## 0. 目标和边界
+## 0. Goals and boundaries
 
-**目标**：App 不用更新，也能从服务器装上新工具。新工具进来以后和内置工具一样：出现在工具目录里，可以安装、卸载、撤销，AI 能用它搭快捷操作。
+**Goal**: the app can get new tools from the server without an app update. Once a new tool arrives it behaves like a built-in tool: it appears in the tool catalog, can be installed, uninstalled and undone, and the AI can use it to build quick actions.
 
-**已定的边界**（创始人 2026-10-23）：
+**Decided boundaries** (founder, 2026-10-23):
 
-1. **工具只由我们自己写**、自己测、自己签名发布。不开放给第三方（不做工具市场，MVP_SCOPE §3），也不由 AI 按用户的话现场生成代码。
-2. **需要系统能力的动作仍随 App 发版**：Vision、AVFoundation、相机、本地原生模块、第三方原生库。这是 App 审核规则 4.7.2 定死的（§2）。
-3. **分两步**：第一步只下发**数据工具**（页面、快捷操作、预设，只组合已有的动作）；第二步再下发**插件工具**（带 JS / WASM 实现的新动作，在沙盒 WebView 里运行）。
+1. **Tools are written only by us**, tested by us and signed and released by us. They are not opened to third parties (no tool marketplace, MVP_SCOPE §3), and the AI does not generate code on the spot from the user's words.
+2. **Actions that need system capabilities still ship with app releases**: Vision, AVFoundation, the camera, local native modules, third-party native libraries. This is fixed by App Review rule 4.7.2 (§2).
+3. **Two steps**: step one ships only **data tools** (pages, quick actions, presets, which only combine existing actions); step two ships **plugin tools** (new actions implemented in JS / WASM, run in a sandboxed WebView).
 
-**不变的原则**：文件只在本机处理；AI 看不到文件内容、文件名和记录（D-036、D-046）；工作流是线性的，没有分支和循环；AI 只输出修改操作。
+**Principles that do not change**: files are processed only on the device; the AI cannot see file content, file names or records (D-036, D-046); workflows are linear, with no branches or loops; the AI only outputs operations.
 
-**要改的原则**（第二步上线时改，第一步不用改）：
+**Principles to change** (when step two goes live; step one needs no change):
 
-| 位置                                             | 现在                                     | 改成                                                                                                         |
-| ------------------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| SECURITY_NOTES 规则 2                            | 不支持动态加载代码                       | 只加载**我们签名发布**的插件代码，只在沙盒 WebView 里运行，不能联网，不能调用原生接口                        |
-| 交接文档 §8「不允许动态加载未知可执行代码」      | 同上                                     | 同上；「未知」改成「没有我们签名的」                                                                         |
-| SECURITY_NOTES 规则 1                            | 手机端不执行任何 AI 生成的代码           | **不变**                                                                                                     |
-| D-064、D-151（扩展包和模型的下载地址写在代码里） | 地址、SHA-256 写死在 `core/src/packs.ts` | 现有扩展包（代码）并进插件机制；文字识别语言、whisper 模型这类数据改用同一个签名的目录（§4）；P-011 随之关闭 |
+| Where                                                                       | Now                                                     | Change to                                                                                                                                                          |
+| --------------------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| SECURITY_NOTES rule 2                                                       | Dynamic code loading is not supported                   | Load only plugin code **signed and released by us**, run only in a sandboxed WebView, with no network access and no native API calls                               |
+| Handoff document §8 "unknown executable code may not be loaded dynamically" | Same as above                                           | Same as above; change "unknown" to "not signed by us"                                                                                                              |
+| SECURITY_NOTES rule 1                                                       | The phone executes no AI-generated code                 | **Unchanged**                                                                                                                                                      |
+| D-064, D-151 (download addresses of packs and models are written in code)   | Addresses and SHA-256 hard-coded in `core/src/packs.ts` | Existing packs (code) merge into the plugin mechanism; data such as OCR languages and the whisper model move to the same signed catalog (§4); P-011 closes with it |
 
-## 1. 三类工具
+## 1. Three kinds of tools
 
-| 类别         | 包含什么                                                                                       | 怎么到用户手里     | 例子                                                     |
-| ------------ | ---------------------------------------------------------------------------------------------- | ------------------ | -------------------------------------------------------- |
-| **内置工具** | 需要系统能力的动作、新的值类型、新的本地操作界面（§6）、新的界面组件、执行器和内核的改动       | 随 App 新版本发布  | 文字识别（Vision / ML Kit）、扫描、以后的视频压缩        |
-| **数据工具** | 工具页、快捷操作、预设和场景、参数规格、文案、图标；**只引用已有的动作**                       | 随时下载（第一步） | 「租房材料」「报销」这类场景工具；给现有工具加一批新预设 |
-| **插件工具** | 数据工具的全部内容 + 新动作的契约（JSON）+ 实现（JS / WASM）+ 它要用的数据文件（模型、字体等） | 随时下载（第二步） | PDF 加密、格式转换、新的图片滤镜、版式模板               |
+| Kind               | What it contains                                                                                                                          | How it reaches the user          | Examples                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Built-in tools** | Actions that need system capabilities, new value types, new local operation UIs (§6), new UI components, changes to the executor and core | Ship with a new app version      | Text recognition (Vision / ML Kit), scanning, video compression later                                       |
+| **Data tools**     | Tool page, quick actions, presets and scenarios, parameter specs, copy, icons; **refer only to existing actions**                         | Downloadable any time (step one) | Scenario tools such as "Rental documents" and "Expense claims"; a batch of new presets for an existing tool |
+| **Plugin tools**   | Everything in a data tool + contracts (JSON) for new actions + implementation (JS / WASM) + the data files it needs (models, fonts, etc.) | Downloadable any time (step two) | PDF encryption, format conversion, new image filters, layout templates                                      |
 
-判断一个新工具属于哪一类：
+To decide which kind a new tool is:
 
-- 只用已有动作就能搭出来 → 数据工具。
-- 要新动作，但新动作只是「输入文件的字节 → 算一下 → 输出文件的字节或文字」，用 JS / WASM 能写 → 插件工具。
-- 新动作要调用系统接口、要新的值类型（比如 `audio`、`video`）、要新的本地操作界面 → 内置工具。值类型和本地操作界面加进 App 以后，后面同一类的工具就可以是插件工具了。
+- If it can be built with existing actions only → data tool.
+- If it needs a new action, but the new action is just "bytes of the input file → compute → bytes or text of the output file" and can be written in JS / WASM → plugin tool.
+- If the new action needs system APIs, a new value type (such as `audio`, `video`) or a new local operation UI → built-in tool. Once the value type and local operation UI are in the app, later tools of the same kind can be plugin tools.
 
-## 2. 平台规则和我们怎么满足
+## 2. Platform rules and how we satisfy them
 
-| 规则                                                                                                             | 原文要点                                                                                                     | 我们怎么满足                                                                   |
-| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| [App 审核 2.5.2](https://developer.apple.com/app-store/review/guidelines/)                                       | 不得下载、安装或执行会引入或改变功能的代码                                                                   | 数据工具不含代码。插件工具走 4.7 这条明确的例外                                |
-| [App 审核 4.7](https://developer.apple.com/app-store/review/guidelines/)                                         | 可以提供不在安装包里的软件：HTML5 和 JavaScript 的小程序、小游戏、聊天机器人、**插件**；开发者对它们全部负责 | 插件就是 JS / WASM，只在 WebView 里运行                                        |
-| 4.7.1                                                                                                            | 遵守隐私规则（5.1）；能过滤不良内容、能举报、能及时处理；要收费时按 3.1                                      | 插件不能联网、只在本机处理；每个工具有「报告问题」（§9）；不收费               |
-| 4.7.2                                                                                                            | 没有 Apple 事先许可，不能把原生接口暴露给插件                                                                | 插件只能通过固定格式的消息拿到输入文件、交回输出；不能调用任何本地模块         |
-| 4.7.3                                                                                                            | 每次把数据或权限交给插件都要用户明确同意                                                                     | 安装时说明工具能做什么；每次运行由用户自己选文件；插件拿不到相册、相机这类权限 |
-| 4.7.4                                                                                                            | 提供全部软件的目录和元数据，每个都有通用链接                                                                 | 网站上的公开工具目录，每个工具一个通用链接，点开进 App 的这个工具（§9）        |
-| 4.7.5                                                                                                            | 超出 App 年龄分级的软件要能识别，并按年龄限制访问                                                            | 只发布 4+ 的文件工具，目录里每个工具标年龄分级，发布检查拒绝别的分级           |
-| [开发者协议 3.3.1(B)](https://developer.apple.com/support/terms/apple-developer-program-license-agreement/#b331) | 解释执行的代码可以下载：不改变主要用途、不绕过签名和沙盒、不做别的 App 的商店                                | 只发布文件 / 文档处理工具；在 WebView 沙盒里运行；只有我们自己的工具，不是商店 |
-| [Google Play 设备和网络滥用](https://support.google.com/googleplay/android-developer/answer/16559646)            | 不得从 Google Play 以外下载 dex / so 等可执行代码；虚拟机或解释器里的代码不受限（例如 WebView 里的 JS）      | 只下载 JS / WASM；WebView 只加载我们随 App 发布的固定页面，不加载任何网址      |
+| Rule                                                                                                                      | Gist of the text                                                                                                                                                          | How we satisfy it                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| [App Review 2.5.2](https://developer.apple.com/app-store/review/guidelines/)                                              | Apps may not download, install or execute code that introduces or changes features                                                                                        | Data tools contain no code. Plugin tools use the explicit exception in 4.7                                                                 |
+| [App Review 4.7](https://developer.apple.com/app-store/review/guidelines/)                                                | Software not in the install package may be offered: HTML5 and JavaScript mini apps, mini games, chatbots, **plugins**; the developer is responsible for all of them       | Plugins are JS / WASM, run only in a WebView                                                                                               |
+| 4.7.1                                                                                                                     | Follow the privacy rules (5.1); be able to filter objectionable content, report and respond promptly; charge per 3.1 if charging                                          | Plugins cannot use the network and process only on the device; every tool has "Report a problem" (§9); no charge                           |
+| 4.7.2                                                                                                                     | Without Apple's prior permission, native APIs may not be exposed to plugins                                                                                               | A plugin gets input files and returns output only through fixed-format messages; it cannot call any local module                           |
+| 4.7.3                                                                                                                     | Every time data or permissions are given to a plugin the user must clearly consent                                                                                        | At install, explain what the tool can do; the user picks the files on each run; plugins get no permissions such as photo library or camera |
+| 4.7.4                                                                                                                     | Provide an index of all software with metadata, each with a universal link                                                                                                | A public tool catalog on the website, one universal link per tool, opening that tool in the app (§9)                                       |
+| 4.7.5                                                                                                                     | Software beyond the app's age rating must be identifiable and access restricted by age                                                                                    | Publish only 4+ file tools; every tool in the catalog is marked with an age rating, and the release check rejects other ratings            |
+| [Developer Agreement 3.3.1(B)](https://developer.apple.com/support/terms/apple-developer-program-license-agreement/#b331) | Interpreted code may be downloaded: it must not change the primary purpose, bypass signing or the sandbox, or make a store for other apps                                 | Publish only file / document processing tools; run in the WebView sandbox; only our own tools, not a store                                 |
+| [Google Play Device and Network Abuse](https://support.google.com/googleplay/android-developer/answer/16559646)           | Executable code such as dex / so may not be downloaded from outside Google Play; code in a virtual machine or interpreter is not restricted (for example JS in a WebView) | Download only JS / WASM; the WebView loads only the fixed page we ship with the app and no URLs                                            |
 
-**仍然存在的不确定**：审核员怎么理解 2.5.2 和 4.7 的关系，最后看审核时的判断。为了降低风险：
+**Remaining uncertainty**: how reviewers read the relationship between 2.5.2 and 4.7 is decided at review time. To lower the risk:
 
-- **第一次提交插件机制时，就带上至少一个能下载的插件工具**，审核说明里写清楚「文件处理插件，按 4.7 提供，全部由我们开发，只在本机处理」，附上公开目录的地址。
-- App 的描述里说明「可以下载新的文件工具」。
-- 被拒时的退路：插件工具改成随 App 发版的内置工具（契约和实现都不用改，只是换个发布方式，§6）。数据工具不受影响。
+- **The first time the plugin mechanism is submitted, include at least one downloadable plugin tool**, and write clearly in the review notes "file-processing plugin, offered under 4.7, all developed by us, processed only on the device", with the address of the public catalog attached.
+- The app description says "new file tools can be downloaded".
+- Fallback if rejected: turn plugin tools into built-in tools shipped with the app (neither the contract nor the implementation needs to change, only the way of releasing, §6). Data tools are unaffected.
 
-## 3. 工具包格式
+## 3. Tool package format
 
-一个工具包是一个目录（发布时打成一个文件），里面有：
+A tool package is a directory (packed into one file when released) containing:
 
 ```
-manifest.json      清单（下面）
-code/…             插件工具才有：JS / WASM，入口在 manifest.code.entry
-data/…             可选：模型、字体等数据文件，可以在第一次用到时再下载
+manifest.json      manifest (below)
+code/…             plugin tools only: JS / WASM, entry in manifest.code.entry
+data/…             optional: data files such as models and fonts, which can be downloaded on first use
 ```
 
-`manifest.json`（结构用 zod 在 `core` 里定义，App 和发布脚本共用同一份校验）：
+`manifest.json` (the structure is defined with zod in `core`, and the app and the release script share the same validation):
 
 ```ts
 ToolManifest = {
-  id, version,                      // version 是 semver；id 不能和内置工具重名
-  hostApi: number,                  // 需要的最低宿主能力级别（§7）
+  id, version,                      // version is semver; id must not collide with a built-in tool
+  hostApi: number,                  // the minimum host capability level required (§7)
   name, description: Localized,
   icon: IconName, aliases: string[],
   ageRating: '4+',
   permissions: Permission[],
-  page: LocalizedPage,              // 工具页：和 Page 一样，文字是 Localized，安装时按语言展开
-  workflows: LocalizedWorkflow[],   // 安装时写进配置的快捷操作
-  presets?: LocalizedPreset[],      // 预设，带 scenario（D-130）
-  actions?: ActionManifest[],       // 第二步：新动作的契约（只能用 id 前缀 = 工具 id）
-  code?: { entry: string },         // 第二步：插件入口
-  files: { path, size, sha256, lazy?: boolean }[],  // 包里的全部文件；lazy = 第一次用到时再下载
+  page: LocalizedPage,              // tool page: like Page, but text is Localized and expanded by language at install
+  workflows: LocalizedWorkflow[],   // quick actions written into the config at install
+  presets?: LocalizedPreset[],      // presets, with scenario (D-130)
+  actions?: ActionManifest[],       // step two: contracts of new actions (id prefix must equal the tool id)
+  code?: { entry: string },         // step two: plugin entry
+  files: { path, size, sha256, lazy?: boolean }[],  // all files in the package; lazy = downloaded on first use
 }
 ```
 
-现在的 `ToolDefinition` 里有三处是函数，下载来的工具要换成数据：
+Three places in today's `ToolDefinition` are functions; for a downloaded tool they become data:
 
-| 现在（代码）                                    | 下载的工具（数据）                                                                                                                                                                                                    |
-| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `createPage(locale)`、`createWorkflows(locale)` | 清单里直接写 Localized 文字，安装时 `materialize(manifest, locale)` 展开成 `Page`、`Workflow`                                                                                                                         |
-| `params: ZodType`                               | **由 `fields` 推出来**：number → 数字和范围，choice → 选项里的值，toggle → 布尔，text → 字符串和长度，nameTemplate、color 用现有的校验。`fields` 加上 `default`。现在已经有测试保证 `fields` 和 `params` 的键一一对应 |
-| `output: (params) => ValueType`、`packFor`      | 改成查表：`{ byParam: 'format', map: { pdf: 'pdf', png: 'images' } }`；数据文件用 `files[].lazy` 代替扩展包                                                                                                           |
+| Now (code)                                      | Downloaded tool (data)                                                                                                                                                                                                                                                                                        |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createPage(locale)`, `createWorkflows(locale)` | The manifest writes Localized text directly, and at install `materialize(manifest, locale)` expands it into `Page` and `Workflow`                                                                                                                                                                             |
+| `params: ZodType`                               | **Derived from `fields`**: number → number and range, choice → the values in the options, toggle → boolean, text → string and length; nameTemplate and color use the existing validation. `fields` gets a `default`. There is already a test ensuring the keys of `fields` and `params` correspond one to one |
+| `output: (params) => ValueType`, `packFor`      | Becomes a lookup table: `{ byParam: 'format', map: { pdf: 'pdf', png: 'images' } }`; data files use `files[].lazy` in place of packs                                                                                                                                                                          |
 
-内置工具不用改写，仍然是代码；两种来源在 `createRegistry` 里合并成同一个注册表（§5）。
+Built-in tools do not need rewriting and remain code; the two sources are merged into one registry in `createRegistry` (§5).
 
-## 4. 签名和信任
+## 4. Signing and trust
 
-- **签名**：Ed25519。私钥不写进任何文件：存在创始人的密码管理器里，签名时粘贴（开发用的电脑就是跑计划服务的 Mac mini）；App 里内置公钥，同时内置两个，方便换钥匙。
-- **目录** `catalog.json` 也要签名：每个工具的 id、最新版本、`hostApi`、包的地址、大小、SHA-256，以及停用名单。
-- **验证**：先验目录的签名，再验包的哈希，再逐个验 `manifest.files` 里每个文件的 SHA-256。全部通过才写 `ready.json`（沿用扩展包的做法，中断的下载不会被当成装好了）。
-- **托管不需要可信**：内容都签了名，放在静态托管（Cloudflare R2、GitHub Releases 都可以）上就行，不用经过计划服务。
-- **停用**：发现某个版本有问题，就把它写进目录的停用名单。App 联网时检查目录（打开时，一天最多一次）；被停用的工具不能运行，引用它的快捷操作显示「这个工具暂时停用了」，**不删除**用户的配置和文件。没联网时，已装好的工具照常能用。
-- **不能降级**：已装的版本号比目录里的高时不覆盖。修 bug 一律发更高的版本号。
+- **Signing**: Ed25519. The private key is not written to any file: it is kept in the founder's password manager and pasted in at signing time (the development machine is the Mac mini that runs the planning service). The app has public keys built in, two at a time, to make key rotation easy.
+- **The catalog** `catalog.json` is also signed: each tool's id, latest version, `hostApi`, package address, size and SHA-256, plus the revocation list.
+- **Verification**: first verify the catalog's signature, then the package hash, then the SHA-256 of every file in `manifest.files` one by one. Only when all pass is `ready.json` written (following the packs approach, so an interrupted download is never treated as installed).
+- **Hosting does not need to be trusted**: the content is all signed, so static hosting (Cloudflare R2 or GitHub Releases both work) is enough, without going through the planning service.
+- **Revocation**: if a version is found to be bad, write it into the catalog's revocation list. The app checks the catalog when online (on open, at most once a day). A revoked tool cannot run, and quick actions that use it show "This tool is paused for now"; the user's config and files are **not deleted**. When offline, already installed tools work as usual.
+- **No downgrade**: an installed version number higher than the catalog's is not overwritten. Bug fixes always ship under a higher version number.
 
-## 5. 安装、更新、卸载、历史版本
+## 5. Install, update, uninstall, historical versions
 
-- **注册表变成两部分**：`createRegistry([...BUILTIN_TOOLS, ...已下载的工具])`。启动时先读本机已下载、已验证的工具包，再校验工作空间。提示词在 App 里用这个注册表写（D-193），服务器不用知道下载的工具。
-- **工具目录页**：内置工具和可以下载的工具放在一起，下载的标大小。「添加」=（还没下载时）显示大小，用户确认后下载并验证 → 照常用现有的 `installTool` 操作生成一个版本，可以撤销。撤销只改配置，下载的包留在本机，到「设置 → 已下载内容」里可以删掉（和现在的扩展包一样）。
-- **AI 和下载**：AI 可以提议安装一个可下载的工具，但**不能自己下载**（TOOLS_DESIGN §6 的规则不变）。预览里显示「需要下载 X MB」，用户点应用时再确认下载。
-- **更新**：目录里有新版本时，工具卡片上显示「更新」，由用户点（和现在的 `updateTool` 一样：补上缺的快捷操作和入口，保留用户的修改）。不自动更新；有安全问题的版本靠停用名单处理。
-- **参数兼容**：新版本必须能接受老版本的全部参数（发布检查：拿上一个版本的全部快捷操作，用新版本校验）。要做不兼容的改动，就换一个新的动作 id。
-- **卸载**：现有的 `uninstallTool`，文件保留。
-- **恢复历史版本**：历史版本里装着一个本机没有的工具（换了手机、删了包）时，恢复前的校验失败，提示「需要先下载『X』」并给出下载按钮（交接文档 §7E「工具代码不随历史版本恢复」的规则不变）。
+- **The registry becomes two parts**: `createRegistry([...BUILTIN_TOOLS, ...downloaded tools])`. At startup, first read the downloaded and verified tool packages on the device, then validate the workspace. The prompt is written in the app with this registry (D-193), and the server does not need to know about downloaded tools.
+- **Tool catalog page**: built-in tools and downloadable tools sit together, with the size marked on downloaded ones. "Add" = (if not yet downloaded) show the size, download and verify after the user confirms → then use the existing `installTool` operation to produce a version as usual, which can be undone. Undo only changes the config; the downloaded package stays on the device and can be deleted under Settings → Downloads (the same as today's packs).
+- **AI and downloads**: the AI can propose installing a downloadable tool but **cannot download on its own** (the rule in TOOLS_DESIGN §6 is unchanged). The preview shows "Downloads X MB", and the user confirms the download when they tap apply.
+- **Update**: when the catalog has a newer version, the tool card shows "Update", for the user to tap (like today's `updateTool`: it fills in missing quick actions and entries and keeps the user's changes). No automatic updates; versions with security problems are handled by the revocation list.
+- **Parameter compatibility**: a new version must accept all parameters of the old version (release check: take all quick actions of the previous version and validate them with the new version). For an incompatible change, use a new action id.
+- **Uninstall**: the existing `uninstallTool`, files are kept.
+- **Restoring a historical version**: when a historical version contains a tool that is not on the device (changed phone, deleted package), validation before restore fails with the prompt "Download “X” first" and a download button (the rule in handoff document §7E "tool code is not restored with historical versions" is unchanged).
 
-## 6. 插件动作怎么运行（第二步）
+## 6. How plugin actions run (step two)
 
 ```
-执行器 ──遇到插件动作──▶ PluginHost（每个插件工具一个隐藏的 WebView）
-   页面：我们随 App 发布的固定 HTML（和扩展包页面同一套桥），CSP default-src 'none'
-   插件代码：从本机已验证的包里读出来，转成 blob: 地址加载
-   ◀── run(actionId, input, params) / progress / result ──▶   只有固定格式的消息
+Executor ──meets a plugin action──▶ PluginHost (one hidden WebView per plugin tool)
+   Page: a fixed HTML we ship with the app (the same bridge as the pack pages), CSP default-src 'none'
+   Plugin code: read from the locally verified package and loaded through a blob: address
+   ◀── run(actionId, input, params) / progress / result ──▶   fixed-format messages only
 ```
 
-插件要实现的接口：
+The interface a plugin must implement:
 
 ```ts
-// 插件入口导出的函数
+// The function exported by the plugin entry
 run(actionId: string, input: PluginValue | null, params: Record<string, unknown>, ctx: {
   progress(done: number, total: number): void;
   cancelled(): boolean;
-  file(path: string): Promise<Uint8Array>;   // 读自己包里的文件（lazy 的文件由宿主先下载好）
+  file(path: string): Promise<Uint8Array>;   // read files in its own package (lazy files are downloaded by the host first)
 }): Promise<PluginValue>;
 
-PluginValue =   // type 是 App 已有的值类型（现在还有 video、audio，D-140），按 hostApi 决定插件能用哪些
+PluginValue =   // type is a value type the app already has (now also video and audio, D-140); hostApi decides which ones a plugin may use
   | { type: 'images' | 'pdf' | 'files' | 'zip' | 'video' | 'audio'; items: { name, ext, mimeType, bytes: Uint8Array }[] }
   | { type: 'text'; text: string };
 ```
 
-- **能拿到的**：本次运行的输入文件的字节、参数、自己包里的文件。**拿不到的**：网络、别的插件（每个插件一个 WebView，不共用）、相册和相机、原生接口、配置、记录。
-- **只用 WebView 自己的能力**：JS、WASM、canvas（可以编码 JPEG / PNG）。插件**不能调用 App 的原生能力**（系统图片编码、PDF 渲染、视频处理、文字识别），因为 4.7.2 不允许把原生接口暴露给插件。要用到这些能力时，在快捷操作里把插件动作和内置动作前后串起来（例如插件出图片 → 内置的 `image.compress` 压缩），而不是在插件里调用。
-- **界面**：插件自己不画界面。需要用户动手的步骤，用现有的本地操作（`crop`、`reorder`、`pages`、`corners`、`redact`、`sign`、`fillForm`，以及视频和音频的 `trimMedia`，D-140 起），由宿主显示。要新的本地操作界面就是内置工具的改动（随 App 发版）。
-- **宿主检查输出**：类型要和契约一致，文件个数、大小在上限之内（P-006），图片尺寸在 1677 万像素之内；不对就按 `RunError` 报错。输出文件由宿主写进本次运行的临时目录，之后和内置动作的结果一样（保存、分享、打印）。
-- **超时和内存**：每次调用有超时（沿用扩展包的 180 秒，可以在契约里调大），离开运行页面时关掉 WebView。
-- **执行记录**：`tool_runs` 照旧只记录状态和错误代码。
-- **退路**：同一个动作的契约和实现，也可以随 App 发布（实现放进安装包，加载方式不变）。审核不接受插件时，按这个退路处理。
+- **What it can get**: the bytes of this run's input files, the parameters, and the files in its own package. **What it cannot get**: the network, other plugins (one WebView per plugin, not shared), the photo library and camera, native APIs, the config, records.
+- **Only the WebView's own capabilities**: JS, WASM, canvas (can encode JPEG / PNG). A plugin **cannot call the app's native capabilities** (system image encoding, PDF rendering, video processing, text recognition), because 4.7.2 does not allow exposing native APIs to plugins. When these capabilities are needed, chain the plugin action and built-in actions before and after it in a quick action (for example the plugin outputs an image → the built-in `image.compress` compresses it), instead of calling them from inside the plugin.
+- **UI**: a plugin draws no UI itself. Steps that need the user's hands use the existing local operations (`crop`, `reorder`, `pages`, `corners`, `redact`, `sign`, `fillForm`, and for video and audio `trimMedia`, since D-140), shown by the host. A new local operation UI is a change to a built-in tool (ships with an app release).
+- **The host checks the output**: the type must match the contract, the number and size of files must be within limits (P-006), and image dimensions within 16.77 million pixels; otherwise it fails with a `RunError`. The host writes the output files into this run's temporary directory, after which they are like the result of a built-in action (save, share, print).
+- **Timeout and memory**: each call has a timeout (the packs' 180 seconds, which the contract may raise), and the WebView is closed when leaving the run page.
+- **Execution record**: `tool_runs` still records only status and error codes.
+- **Fallback**: the contract and implementation of the same action can also ship with the app (the implementation goes into the install package, and the loading method is unchanged). Use this fallback if review does not accept plugins.
 
-## 7. 宿主能力级别 `hostApi`
+## 7. Host capability level `hostApi`
 
-App 每加一样插件能用的能力，就把 `hostApi` 加 1：新的值类型、新的本地操作、新的参数控件、插件接口的新字段。每个工具声明它需要的最低级别。
+Each time the app adds a capability plugins can use, `hostApi` goes up by 1: a new value type, a new local operation, a new parameter control, a new field in the plugin interface. Each tool declares the minimum level it needs.
 
-- App 的级别不够时，目录里这个工具显示「需要更新 App」，不能添加。
-- 已装的工具在新版本 App 里照常能用（插件接口只加不减）。
+- When the app's level is too low, the tool shows "Needs a newer version of this app" in the catalog and cannot be added.
+- Installed tools keep working in newer app versions (the plugin interface only adds, never removes).
 
-## 8. AI（提示词和评测）
+## 8. AI (prompt and eval)
 
-- 提示词在 App 里用本机的注册表写（D-193），所以现在只含内置和**已下载**的工具。以后要让 AI 提议安装可以下载的工具，由 App 把目录里的一行说明加进提示词，服务器仍不用管。原设计：App 在请求里带上本机**已装工具的 id 和版本**、`hostApi`；提示词里，已装工具列出完整契约，可以下载但没装的工具只列一行说明（可以提议安装）。目录变大以后靠提示词缓存控制费用。
-- 每个工具发布前，都要带上它的评测用例：只跑受影响的用例，用 Haiku（评测规则）。
-- 内置的 mock 规则不认识「添加 X 工具」（内置工具也一样）；下载的工具在「工具」页添加，用 AI 添加或搭快捷操作要用真实模型（D-178）。
+- The prompt is written in the app with the device's registry (D-193), so for now it contains only built-in and **downloaded** tools. To later let the AI propose installing downloadable tools, the app adds a one-line description from the catalog to the prompt, and the server still does not need to care. Original design: the app includes in the request the **ids and versions of installed tools** on the device and `hostApi`; in the prompt, installed tools list their full contract, and tools that are downloadable but not installed list only a one-line description (they can be proposed for installation). Once the catalog grows, prompt caching controls the cost.
+- Every tool must ship with its eval cases before release: run only the affected cases, with Haiku (eval rules).
+- The built-in mock rules do not recognize "add tool X" (the same for built-in tools); downloaded tools are added on the Tools page, and adding them with the AI or building quick actions needs a real model (D-178).
 
-## 9. 发布流程和 4.7 要做的事
+## 9. Release process and what 4.7 requires
 
-**工具在仓库里的位置**：`tools/<id>/`（清单源文件、插件源码、用 Node 和真实文件跑的测试，和现在的 `tool-*` 包一样）。发布脚本：
+**Where tools live in the repository**: `tools/<id>/` (manifest source, plugin source, tests run with Node and real files, like today's `tool-*` packages). The release script:
 
-1. 跑测试、评测、许可证检查（`check:licenses`）、大小检查。
-2. 发布检查：清单能通过校验；`hostApi` 不高于已发布的 App；参数和上一个版本兼容（§5）；年龄分级是 4+。
-3. 打包，粘贴私钥签名 `catalog.json`，上传。
-4. 更新网站上的公开工具目录。
+1. Run tests, evals, the license check (`check:licenses`) and the size check.
+2. Release checks: the manifest passes validation; `hostApi` is not higher than the released app; parameters are compatible with the previous version (§5); the age rating is 4+.
+3. Package, paste in the private key to sign `catalog.json`, upload.
+4. Update the public tool catalog on the website.
 
-**为 4.7 要新做的**：
+**New work for 4.7**:
 
-- **公开目录（4.7.4）**：网站上一个页面列出全部可下载的工具，每个工具一个地址（例如 `https://<域名>/tools/<id>`）。配好 iOS 的 apple-app-site-association 和 Android 的 App Links，点开地址就进 App 的这个工具。域名和网站可以和「App 推广网站」那边一起做。
-- **报告问题（4.7.1）**：工具页和目录里的「报告问题」，打开邮件或表单，只带工具 id 和版本，不带文件。
-- **审核说明模板**：提交时写进 App Review Notes。
-- **隐私说明**：写明插件只在本机处理文件、不能联网。
+- **Public catalog (4.7.4)**: a page on the website lists all downloadable tools, one address per tool (for example `https://<domain>/tools/<id>`). Set up iOS apple-app-site-association and Android App Links so that opening the address goes to that tool in the app. The domain and website can be built together with the "app promotion website".
+- **Report a problem (4.7.1)**: a "Report a problem" on the tool page and in the catalog, opening an email or form that carries only the tool id and version, no files.
+- **Review notes template**: written into App Review Notes at submission.
+- **Privacy statement**: state that plugins process files only on the device and cannot use the network.
 
-## 10. 两步的范围和验收
+## 10. Scope and acceptance of the two steps
 
-**第一步：数据工具**（不含任何代码，不用改 SECURITY_NOTES）
+**Step one: data tools** (no code at all, no change to SECURITY_NOTES)
 
-- `ToolManifest` 的结构和 `materialize`；注册表合并内置工具和下载的工具；签名目录、下载、验证、停用、不能降级；工具目录页的下载和安装、更新、卸载；恢复历史版本时缺工具的提示；计划服务带上已装工具；发布脚本（不含插件代码的部分）。
-- 预设和场景也可以随数据工具下发。
-- 验收：在模拟器上从本地起的目录装一个数据工具 → 用它跑一次 → 撤销 → 恢复 → 停用 → 更新；AI 能用这个工具搭快捷操作；改坏一个字节就装不上。
+- The `ToolManifest` structure and `materialize`; a registry that merges built-in and downloaded tools; signed catalog, download, verification, revocation, no downgrade; download and install, update and uninstall on the tool catalog page; the prompt when a tool is missing while restoring a historical version; the planning service carrying installed tools; the release script (without the plugin code parts).
+- Presets and scenarios can also be shipped with data tools.
+- Acceptance: on the simulator, install a data tool from a locally started catalog → run it once → undo → restore → revoke → update; the AI can use this tool to build quick actions; changing one byte makes it fail to install.
 
-**第二步：插件工具**
+**Step two: plugin tools**
 
-- 动作契约的 JSON 形式（`fields` 推出参数、查表的输出）；PluginHost 和插件接口；现有的三个扩展包并进这套签名机制；4.7 的公开目录、报告问题、审核说明；改 SECURITY_NOTES 规则 2 和交接文档 §8。
-- 验收：一个真实的插件工具（候选：PDF 加密，第二批里本来就有）从下载到运行全部走通；插件尝试联网、读别的文件、调用原生接口都失败（有测试）；带着这个插件提交审核。
+- The JSON form of the action contract (parameters derived from `fields`, lookup-table outputs); PluginHost and the plugin interface; the existing three packs merged into this signing mechanism; the 4.7 public catalog, report a problem and review notes; changes to SECURITY_NOTES rule 2 and handoff document §8.
+- Acceptance: one real plugin tool (candidate: PDF encryption, which was already in the second batch) works end to end from download to run; a plugin's attempts to use the network, read other files or call native APIs all fail (with tests); submit for review with this plugin.
 
-## 11. 现有和计划中的工具怎么归类
+## 11. How existing and planned tools are classified
 
-资料来自「Morphing 易用性优化 (fork)」两个会话的回复（2026-10-23），已对照本机 main（373e438，含音频第二阶段 D-152–D-158）核对过。
+The material comes from the replies of two sessions of "Morphing usability optimization (fork)" (2026-10-23), checked against the local main (373e438, which includes audio phase two D-152–D-158).
 
-| 工具 / 动作                                                                                               | 实现方式                                                                       | 归类         | 说明                                                                                                 |
-| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------ | ---------------------------------------------------------------------------------------------------- |
-| 现有的 image、pdf、scan、ocr、qr、zip、text、print                                                        | JS 库 + 系统框架（Vision、Core Image、ML Kit）                                 | 内置         | 新用户默认添加其中 5 个（D-104）。扫描包、文字识别包是下载来的代码，第二步并进插件签名机制           |
-| `video`：`in.videos`、`video.compress`、`video.convert`、`video.trim`（D-140–D-148）                      | 本地模块 morph-media：iOS 用 AVFoundation，Android 用 Media3 Transformer       | 内置         | 新增值类型 `video`、`audio`，新增本地操作 `trimMedia`，都是宿主能力；对应要升 `hostApi`              |
-| `pdf.compress`（D-145）                                                                                   | pdf-lib（纯 JS）+ App 的系统图片编码 + 现有的 PDF 渲染                         | 内置         | 要调用原生的图片编码，按 §6 不能做成插件。已经随 PDF 工具发布，没有理由搬                            |
-| `translate.text`（D-170–D-176）                                                                           | 本地模块 morph-translate：iOS 用 Translation 框架，Android 用 ML Kit translate | 内置         | Android 每种语言的模型约 30 MB，由 ML Kit 自己从 Google 下载（D-175），不经过我们，不进签名目录      |
-| 4 个翻译类现成快捷操作（D-173）                                                                           | 只组合已有动作                                                                 | **数据工具** | 有了第一步以后，这一类可以不发版直接下发（前提是 App 里已经有 `translate.text`）                     |
-| `audio.transcribe`（D-150、D-151、D-152）                                                                 | 本地模块 morph-speech：iOS 用 Speech 框架，Android 把 whisper.cpp 编进 App     | 内置         | whisper 模型 60–190 MB 和 VAD 模型是**数据**，现在固定在 Hugging Face 的某次提交上，可以改走签名目录 |
-| `in.audio`（选文件或录音）、`audio.compress`、`audio.convert`、`audio.trim`、`audio.merge`（D-152–D-158） | morph-media、expo-audio                                                        | 内置         | 录音界面、`microphone` 权限都是宿主能力                                                              |
-| 视频、音频的现成快捷操作                                                                                  | 只组合已有动作                                                                 | **数据工具** | 同上                                                                                                 |
-| 候选：PDF 加密 / 解密（TOOLS_DESIGN §9 第二批）                                                           | 纯 JS / WASM，只处理字节                                                       | **插件工具** | 第二步验收用的候选                                                                                   |
+| Tool / action                                                                                                    | Implementation                                                                                   | Class           | Notes                                                                                                                                                      |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Existing image, pdf, scan, ocr, qr, zip, text, print                                                             | JS libraries + system frameworks (Vision, Core Image, ML Kit)                                    | Built-in        | New users get 5 of them added by default (D-104). The scan pack and OCR pack are downloaded code; in step two they merge into the plugin signing mechanism |
+| `video`: `in.videos`, `video.compress`, `video.convert`, `video.trim` (D-140–D-148)                              | Local module morph-media: AVFoundation on iOS, Media3 Transformer on Android                     | Built-in        | The new value types `video` and `audio` and the new local operation `trimMedia` are host capabilities; `hostApi` must be raised accordingly                |
+| `pdf.compress` (D-145)                                                                                           | pdf-lib (pure JS) + the app's system image encoding + the existing PDF rendering                 | Built-in        | Calls native image encoding, so per §6 it cannot be a plugin. Already shipped with the PDF tool, no reason to move it                                      |
+| `translate.text` (D-170–D-176)                                                                                   | Local module morph-translate: Translation framework on iOS, ML Kit translate on Android          | Built-in        | On Android each language model is about 30 MB, downloaded by ML Kit itself from Google (D-175), not through us and not in the signed catalog               |
+| The 4 ready-made translation quick actions (D-173)                                                               | Only combine existing actions                                                                    | **Data tool**   | With step one, this kind can be shipped without an app release (provided the app already has `translate.text`)                                             |
+| `audio.transcribe` (D-150, D-151, D-152)                                                                         | Local module morph-speech: Speech framework on iOS, whisper.cpp compiled into the app on Android | Built-in        | The whisper models (60–190 MB) and the VAD model are **data**, currently pinned to a commit on Hugging Face, and can move to the signed catalog            |
+| `in.audio` (pick a file or record), `audio.compress`, `audio.convert`, `audio.trim`, `audio.merge` (D-152–D-158) | morph-media, expo-audio                                                                          | Built-in        | The recording UI and the `microphone` permission are host capabilities                                                                                     |
+| Ready-made quick actions for video and audio                                                                     | Only combine existing actions                                                                    | **Data tool**   | Same as above                                                                                                                                              |
+| Candidate: PDF encryption / decryption (TOOLS_DESIGN §9 second batch)                                            | Pure JS / WASM, bytes only                                                                       | **Plugin tool** | The candidate for step-two acceptance                                                                                                                      |
 
-**看下来的结论**：现在在做的新**动作**全部是内置的，因为它们都靠系统能力（视频、翻译、语音）。所以下载机制短期的价值主要在两处：
+**Conclusion from this**: all the new **actions** being built now are built-in, because they all rely on system capabilities (video, translation, speech). So in the short term the download mechanism is mainly valuable in two places:
 
-1. **第一步的数据工具**：现成快捷操作、场景、预设、工具页可以随时下发。每个新能力上线后跟着的那批快捷操作（翻译 4 个、视频和音频若干）以后就不用等发版。
-2. **模型和语言数据**：whisper 模型和文字识别语言数据都是数据，统一放进签名目录，就不用再把地址和哈希写死在代码里。
+1. **Step-one data tools**: ready-made quick actions, scenarios, presets and tool pages can be shipped at any time. The batch of quick actions that follows each new capability (4 for translation, several for video and audio) no longer has to wait for an app release.
+2. **Models and language data**: the whisper models and the OCR language data are data; putting them all in the signed catalog means addresses and hashes no longer need to be hard-coded.
 
-纯计算的插件工具（第二步）目前候选不多，值得做，但可以排在后面。
+Pure-computation plugin tools (step two) have few candidates for now; they are worth doing, but can come later.
 
-## 12. 已定的事（D-177、D-178，2026-10-24）
+## 12. Decided (D-177, D-178, 2026-10-24)
 
-1. **托管**：Cloudflare R2。
-2. **停用名单在没联网时**：不生效，已添加的工具照常能用，联网后再停用。
-3. **工具更新**：由用户点，不自动更新。
-4. **mock AI**：不认识「添加 X 工具」（内置工具也一样）；用 AI 添加下载的工具、用它们搭快捷操作要用真实模型。
-5. **签名私钥**：由创始人保管在密码管理器里，签名时粘贴，不写进文件；备用私钥放在另一个地方（以后有了 U 盘或另一台电脑可以挪过去，公钥不用改）。
-6. **插件调用原生能力**：不能，在快捷操作里和内置动作前后串起来（§6）。
+1. **Hosting**: Cloudflare R2.
+2. **The revocation list when offline**: does not take effect; added tools keep working, and they are revoked once online.
+3. **Tool updates**: by the user's tap, not automatic.
+4. **Mock AI**: does not recognize "add tool X" (the same for built-in tools); adding downloaded tools with the AI and building quick actions with them needs a real model.
+5. **Signing private key**: kept by the founder in a password manager and pasted in at signing time, never written to a file; the backup private key is kept somewhere else (once there is a USB drive or another computer it can be moved there; the public key does not change).
+6. **Plugins calling native capabilities**: not allowed; chain them with built-in actions before and after in a quick action (§6).
 
-**动代码前要做的**：本分支已快进到本机 main（373e438，2026-10-24），本机 main 还有一部分没推送到 GitHub。新的决策编号从 D-177 往后编，待定事项从 P-024 往后编。
+**To do before touching code**: this branch has been fast-forwarded to the local main (373e438, 2026-10-24), and part of the local main has not been pushed to GitHub. New decision numbers continue from D-177, and pending items from P-024.
 
-## 13. 第一步的实现（D-179，2026-10-24）
+## 13. Implementation of step one (D-179, 2026-10-24)
 
-| 部分       | 位置                                                                                                                                                            |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 格式和校验 | `packages/core/src/tool-download.ts`：清单、目录、签名、`toolFromManifest`、`checkToolManifest`、`decodeUtf8`；公钥在 `tool-keys.ts`                            |
-| 注册表     | `packages/core/src/registry.ts`：`registerTool`（只收下载的、没有自己动作的工具，不能顶替内置工具）、`registryRevision`                                         |
-| App        | `apps/mobile/src/tool-download/`：`store.ts`（下载、验证、存储）、`state.ts`（目录、已下载、停用）、`context.tsx`；工具页 `ToolsView`、运行页、「已下载内容」页 |
-| 提示词     | `packages/planner/src/prompt.ts` 的 `systemPromptFor`（App 用本机注册表写，D-193；服务器不再拉目录）                                                            |
-| 发布脚本   | `apps/api/src/publish.ts`、`apps/api/scripts/tools.ts`（`npm run tools -- …`）                                                                                  |
-| 示例工具   | `tools/job-apply/manifest.json`（求职材料：简历和证书合成一个 PDF、头像压到 200 KB）                                                                            |
+| Part                  | Location                                                                                                                                                                                                 |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Format and validation | `packages/core/src/tool-download.ts`: manifest, catalog, signature, `toolFromManifest`, `checkToolManifest`, `decodeUtf8`; public keys in `tool-keys.ts`                                                 |
+| Registry              | `packages/core/src/registry.ts`: `registerTool` (accepts only downloaded tools that have no actions of their own, and cannot replace a built-in tool), `registryRevision`                                |
+| App                   | `apps/mobile/src/tool-download/`: `store.ts` (download, verification, storage), `state.ts` (catalog, downloaded, revoked), `context.tsx`; the tools page `ToolsView`, the run page, the "Downloads" page |
+| Prompt                | `systemPromptFor` in `packages/planner/src/prompt.ts` (the app writes it with the device's registry, D-193; the server no longer fetches the catalog)                                                    |
+| Release script        | `apps/api/src/publish.ts`, `apps/api/scripts/tools.ts` (`npm run tools -- …`)                                                                                                                            |
+| Example tool          | `tools/job-apply/manifest.json` (job application documents: a résumé and certificates combined into one PDF, a profile photo compressed to 200 KB)                                                       |
 
-**发布一次**（在仓库根目录）：
+**Releasing once** (at the repository root):
 
 ```bash
 npm run tools -- build tools dist/tools
@@ -244,13 +244,13 @@ npm run tools -- sign dist/tools --prompt
 npm run tools -- verify dist/tools
 ```
 
-然后把 `dist/tools` 整个上传到 R2。停用一个版本：`npm run tools -- revoke dist/tools <id@version>`，再签名、上传。`dist/tools` 要一直保留（下一次 build 靠它检查版本号和兼容性），可以放在 R2 上，发布前下载回来。
+Then upload all of `dist/tools` to R2. To revoke a version: `npm run tools -- revoke dist/tools <id@version>`, then sign and upload again. `dist/tools` must be kept (the next build uses it to check version numbers and compatibility); it can live on R2 and be downloaded back before a release.
 
-**本机开发**：签名用 `tools/dev-signing-key.txt`，`python3 -m http.server --directory dist/tools` 提供目录，App 用 `EXPO_PUBLIC_MORPH_TOOLS_URL=http://localhost:<端口>` 启动 Metro，计划服务用 `MORPH_TOOLS_URL` 和 `MORPH_TOOLS_DEV_KEY=1`。
+**Local development**: sign with `tools/dev-signing-key.txt`, serve the catalog with `python3 -m http.server --directory dist/tools`, start Metro for the app with `EXPO_PUBLIC_MORPH_TOOLS_URL=http://localhost:<port>`, and give the planning service `MORPH_TOOLS_URL` and `MORPH_TOOLS_DEV_KEY=1`.
 
-**上线前还缺**（正式公钥已在 2026-10-24 填进 `TOOL_SIGNING_KEYS`，要随下一版 App 发出去）：建 R2 存储桶和地址，打包 App 时设置 `EXPO_PUBLIC_MORPH_TOOLS_URL`，Mac mini 的 `.env` 设置 `MORPH_TOOLS_URL`。
+**Still missing before launch** (the official public keys were filled into `TOOL_SIGNING_KEYS` on 2026-10-24 and must go out with the next app version): create the R2 bucket and address, set `EXPO_PUBLIC_MORPH_TOOLS_URL` when building the app, and set `MORPH_TOOLS_URL` in the Mac mini's `.env`.
 
-**和设计的出入**：
+**Differences from the design**:
 
-- 「预设和场景也可以随数据工具下发」（§10）这次没做：数据工具带的是自己的快捷操作，「快捷操作 → 现成的」里的预设仍然随 App 发布。
-- 「添加」时没有单独的下载确认框：工具页的卡片上已经写了「需要下载 X KB」，点「添加」就是用户确认（数据工具只有几 KB）。
+- "Presets and scenarios can also be shipped with data tools" (§10) was not done this time: a data tool carries its own quick actions, and the presets under "Quick actions → Ready-made" still ship with the app.
+- There is no separate download confirmation dialog on "Add": the tool page card already says "Downloads X KB", so tapping "Add" is the user's confirmation (a data tool is only a few KB).
