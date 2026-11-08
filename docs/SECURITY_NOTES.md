@@ -1,6 +1,6 @@
 # 安全说明
 
-原则见 [PRODUCT_HANDOFF_CLAUDE_CODE.md](../PRODUCT_HANDOFF_CLAUDE_CODE.md) §8。本文件记录当前实际状态与待办。
+原则见 [AGENTS.md](../AGENTS.md) 的底线 1–3 和「产品背景」§8。本文件记录当前实际状态与待办。
 
 ## 不可违反的规则
 

@@ -1,8 +1,8 @@
 # 架构
 
-产品事实来源：[PRODUCT_HANDOFF_CLAUDE_CODE.md](../PRODUCT_HANDOFF_CLAUDE_CODE.md)（下文 “§” 均指该文档章节）。
+产品背景见 [AGENTS.md](../AGENTS.md)「产品背景」（下文 “§” 均指那里同号的条目；原来的产品交接文档已删除）。
 
-**现行规则的优先级：** 仓库根目录 `AGENTS.md` 的底线和 `docs/DECISIONS.md` 的最新决定 > 本文 > 产品交接文档里的历史描述。本文有些段落写于早期（例如第 2、3 节的组件清单和修改流程只是当时的骨架），遇到和 AGENTS.md、DECISIONS 对不上的，以后两者为准，并顺手把这里改过来。
+**现行规则的优先级：** 仓库根目录 `AGENTS.md` 的底线和 `docs/DECISIONS.md` 的最新决定 > 本文 > AGENTS.md「产品背景」。本文有些段落写于早期（例如第 2、3 节的组件清单和修改流程只是当时的骨架），遇到和 AGENTS.md、DECISIONS 对不上的，以后两者为准，并顺手把这里改过来。
 
 ## 1. 分层与模块边界
 

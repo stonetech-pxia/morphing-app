@@ -4,7 +4,7 @@
 
 [English](README.md)（最完整的说明，包括自建服务器、环境变量、目录结构）· [常见疑问](#常见疑问)
 
-> **当前状态：早期。** App、文件工具和真实 AI（经转发服务器或用自己的 key）在 iOS 模拟器和 Android 真机上能用；部分功能只有自动化测试，还没在真机上试过。还没有 TestFlight 和 App Store 版本，也还没有用户。账号和云端同步只有设计。进度与已知限制见 [docs/MVP_SCOPE.md](docs/MVP_SCOPE.md)，产品需求见 [PRODUCT_HANDOFF_CLAUDE_CODE.md](PRODUCT_HANDOFF_CLAUDE_CODE.md)。
+> **当前状态：早期。** App、文件工具和真实 AI（经转发服务器或用自己的 key）在 iOS 模拟器和 Android 真机上能用；部分功能只有自动化测试，还没在真机上试过。还没有 TestFlight 和 App Store 版本，也还没有用户。账号和云端同步只有设计。进度与已知限制见 [docs/MVP_SCOPE.md](docs/MVP_SCOPE.md)。
 
 ## 两种用法
 

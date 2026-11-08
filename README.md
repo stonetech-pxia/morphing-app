@@ -185,7 +185,7 @@ scripts/                     License, locale and native DSP checks
 docs/                        Architecture, scope, decisions, security notes, deployment (in Chinese)
 ```
 
-Useful docs: [ARCHITECTURE](docs/ARCHITECTURE.md), [DECISIONS](docs/DECISIONS.md) (every product decision, numbered), [SECURITY_NOTES](docs/SECURITY_NOTES.md), [TOOLS_DESIGN](docs/TOOLS_DESIGN.md), [TOOL_DOWNLOAD_DESIGN](docs/TOOL_DOWNLOAD_DESIGN.md), [DATA_DESIGN](docs/DATA_DESIGN.md), [CLOUD_DESIGN](docs/CLOUD_DESIGN.md), [DEPLOY](docs/DEPLOY.md), [AGENTS.md](AGENTS.md) (rules for coding agents), and the original product brief [PRODUCT_HANDOFF_CLAUDE_CODE.md](PRODUCT_HANDOFF_CLAUDE_CODE.md).
+Useful docs: [ARCHITECTURE](docs/ARCHITECTURE.md), [DECISIONS](docs/DECISIONS.md) (every product decision, numbered), [SECURITY_NOTES](docs/SECURITY_NOTES.md), [TOOLS_DESIGN](docs/TOOLS_DESIGN.md), [TOOL_DOWNLOAD_DESIGN](docs/TOOL_DOWNLOAD_DESIGN.md), [DATA_DESIGN](docs/DATA_DESIGN.md), [CLOUD_DESIGN](docs/CLOUD_DESIGN.md), [DEPLOY](docs/DEPLOY.md), and [AGENTS.md](AGENTS.md) (rules for coding agents, including the product background).
 
 ### Platform notes
 

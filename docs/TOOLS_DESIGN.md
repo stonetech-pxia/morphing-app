@@ -429,7 +429,7 @@ Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
 
 **用识别出的文字命名**（D-244）：`{ocr:规则}` / `{qr:规则}`，规则是 `firstLine`、`invoiceNo`、`date`、`amount`、`phone`、`email`、`url`、`number`（`core/text-rules.ts`，不接受正则）。`file.rename` 看到这两种占位符时先在本机识别每张图片：文字用系统识别（界面语言 + 英文；没有时报 `needsRecognition`），二维码用 jsQR。文字只用来取名，不留下，不发给 AI。取不到时这一段不写；什么都不剩用原来的名字。
 
-**「记一笔」预填**（D-244 的扩展，2026-10-28 定，原型在 `core/prefill/`；D-394、D-397 起「记一笔」和记录页的表单都接上了）：日期、金额、税额、单号以 `text-rules` 的规则为主，系统识别（iOS DataDetection / NSDataDetector，Android ML Kit 实体识别，下载模型前先问用户）只做补充；版式记忆保存一次就学会，后来的文件有任何对不上或不合理的地方就空着、不退回规则；版式记忆这条路不用大模型（新记录表单的候选可以用本机模型，D-396、D-401）。「设置 → 数据」能一键清空预填记忆、导出（也是备份）、从文件恢复，也能导出 App 配置（D-273）。评测见 `tests/local-model-eval/PREFILL_REPORT.md`。
+**「记一笔」预填**（D-244 的扩展，2026-10-28 定，原型在 `core/prefill/`；D-394、D-397 起「记一笔」和记录页的表单都接上了）：日期、金额、税额、单号以 `text-rules` 的规则为主，系统识别（iOS DataDetection / NSDataDetector，Android ML Kit 实体识别，下载模型前先问用户）只做补充；版式记忆保存一次就学会，后来的文件有任何对不上或不合理的地方就空着、不退回规则；版式记忆这条路不用大模型（新记录表单的候选可以用本机模型，D-396、D-401）。「设置 → 数据」能一键清空预填记忆、导出（也是备份）、从文件恢复，也能导出 App 配置（D-273）。评测见 `side-session-notes/model-eval/PREFILL_REPORT.md`（不在仓库里）。
 
 **「记一笔」放进已有的记录**（D-443）：`out.addRecord` 的 `into: "existing"`（不写是 `new`，新建一条）。运行时用户从这张表现有的记录里选一条（`recordPick`，只显示标题），文件接在它第一个附件字段原来的文件后面（总共不超过 20 个，放不下的不存；放满了不运行，`recordFull`），文字在字段是空的时写进去、否则另起一行接在后面（规则在 `core/record-append.ts`）；然后打开这条记录的表单，用户核对后保存才改这一条。只追加，原来有的不替换、不删除；取消、记录被删了、写入失败都不写，这一步新存的文件副本删掉。快捷操作仍是直链：这一步不记得文件原来在哪条记录（外部运行），做完关掉回到开启它的页面。
 

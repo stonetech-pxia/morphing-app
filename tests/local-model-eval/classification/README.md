@@ -48,7 +48,7 @@ python classification/evaluate_qwen.py --model qwen35-2b --mode fixed --backend 
 
 ## 任务 124：独立样本校准「无法判断」、对上用户的表和快捷操作
 
-报告在 `CLASSIFY_124_REPORT.md`（本目录的上一级）。
+报告不在仓库里（测量结果不进 git），在本机的 `side-session-notes/model-eval/CLASSIFY_124_REPORT.md`。
 
 - `holdout/cases.jsonl`：114 条新写的虚构 OCR 文字（中英法各 38），由没看过上面 60 条的人单独写成，不是改写。含没有标题的单据、同一商家的不同单据、范围外的文件（kind 为 `none`）、识别残缺的文字、空白和乱码。`split` 分校准集和测试集，同一 `group`（同一商家 / 版式）只在一边。
 - `evaluate_holdout.py`：空白和乱码先由 App 的 `textReadability`（`packages/core/src/text-classify.ts`，经 `ts_features.ts` 调用同一份 TS 代码）拒判；其余用 Qwen3-Embedding GGUF 按维度打分，在校准集上定 `min_score` / `min_margin`，只在测试集上报正确、误分、拒判、误拒判，按语言和样本类型分开。

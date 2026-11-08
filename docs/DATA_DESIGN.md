@@ -1,7 +1,7 @@
 # 用户数据设计（数据组件：清单、表单、统计）
 
 > 状态：**已实现**（2026-10-22，schemaVersion 3）。第 9 节已由创始人确认，见 DECISIONS D-036–D-043。
-> 相关：恢复语义见交接文档 §7E，用户文件见 §7G，云端见 [CLOUD_DESIGN.md](CLOUD_DESIGN.md)。
+> 相关：恢复语义见 AGENTS.md「产品背景」§7E，用户文件见 §7G，云端见 [CLOUD_DESIGN.md](CLOUD_DESIGN.md)。
 
 ## 1. 目标
 

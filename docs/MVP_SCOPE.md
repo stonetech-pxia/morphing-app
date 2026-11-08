@@ -1,6 +1,6 @@
 # MVP 范围与进度
 
-完整定义见 [PRODUCT_HANDOFF_CLAUDE_CODE.md](../PRODUCT_HANDOFF_CLAUDE_CODE.md) §3 与 §10。本文件只跟踪进度：**未完成就标未完成，不虚报。**
+产品背景见 [AGENTS.md](../AGENTS.md)「产品背景」，原来的验收清单（§10）在本文「验收清单」一节。本文件只跟踪进度：**未完成就标未完成，不虚报。**
 
 ## 里程碑
 
