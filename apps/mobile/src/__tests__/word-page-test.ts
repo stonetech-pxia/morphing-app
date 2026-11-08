@@ -110,6 +110,44 @@ describe('Word page layout like the original (D-464, D-465)', () => {
     expect(q('[data-ref="0-3"] b u').textContent).toBe('ORDONNANCE');
   });
 
+  it('gives each table column its width from the original, even when the first row spans columns (D-501)', () => {
+    // table-layout:fixed 只看第一行：第一行一格跨两列时，没有 colgroup 浏览器会把宽平分给这两列。
+    const spanned: DocDoc = {
+      version: 1,
+      pages: [
+        {
+          ...doc.pages[0]!,
+          blocks: [
+            {
+              kind: 'table',
+              colWidths: [100, 300, 100],
+              box: box(100, 100, 500, 40),
+              table: {
+                kind: 'table',
+                rows: 2,
+                col: 0,
+                cols: 3,
+                box: box(100, 100, 500, 40),
+                cells: [
+                  { row: 0, col: 0, rowSpan: 1, colSpan: 2, text: 'Elements' },
+                  { row: 0, col: 2, rowSpan: 1, colSpan: 1, text: 'Base' },
+                  { row: 1, col: 0, rowSpan: 1, colSpan: 1, text: 'a' },
+                  { row: 1, col: 1, rowSpan: 1, colSpan: 1, text: 'b' },
+                  { row: 1, col: 2, rowSpan: 1, colSpan: 1, text: 'c' },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const { window } = open(spanned);
+    const cols = [...window.document.querySelectorAll('table colgroup col')].map(
+      (c) => (c as HTMLElement).style.width,
+    );
+    expect(cols).toEqual(['20%', '60%', '20%']);
+  });
+
   it('the whole page is one editable sheet; images cannot be typed into', () => {
     const withImage: DocDoc = {
       ...doc,

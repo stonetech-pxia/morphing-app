@@ -877,3 +877,21 @@ describe('small layout fixes (D-473)', () => {
     expect(mergeColumnRows([row(100, 'L1', 'R1'), other], 20)).toHaveLength(2);
   });
 });
+
+describe('ruled tables and barcodes (D-501)', () => {
+  it('does not cut the empty part of a ruled table with many columns out as a barcode', () => {
+    // 工资单下半截没字的地方只有一排平行的列线，按条形码剪成图片后是一条带黑竖线的空白图。
+    const xs = Array.from({ length: 13 }, (_, i) => 100 + i * 65);
+    const lines: OcrBox[] = [];
+    const rects: Rect[] = [...gridRects(xs, [100, 140, 600])];
+    for (let c = 0; c < 12; c++) {
+      lines.push(fakeLine(`h${c}`, { x: xs[c]! + 15, y: 110, width: 35, height: 20 }, page));
+      lines.push(fakeLine(`${c}.0`, { x: xs[c]! + 15, y: 150, width: 35, height: 20 }, page));
+      rects.push(...glyphs(xs[c]! + 17, 113, 30, 14), ...glyphs(xs[c]! + 17, 153, 30, 14));
+    }
+    const doc = buildDocPage({ image: renderPage(W, H, rects), lines, source: 'p.jpg', skew: 0 });
+    const leaves = leafBlocks(doc);
+    expect(leaves.filter((b) => b.kind === 'table')).toHaveLength(1);
+    expect(leaves.filter((b) => b.kind === 'image')).toHaveLength(0);
+  });
+});

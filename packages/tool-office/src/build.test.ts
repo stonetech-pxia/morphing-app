@@ -516,6 +516,122 @@ describe('cases from real scans (D-272)', () => {
   });
 });
 
+describe('dark header bands (D-501)', () => {
+  const page1 = { width: W, height: H };
+  const word = (text: string, x: number, y: number, width = 120) => ({
+    line: fakeLine(text, { x, y, width, height: 20 }, page1),
+    marks: glyphs(x + 4, y + 3, width - 8, 14),
+  });
+  /** 竖线：x 处从 top 画到 bottom。 */
+  const column = (x: number, top: number, bottom: number): Rect => ({
+    x,
+    y: top,
+    width: 2,
+    height: bottom - top,
+  });
+  /** 深色底条里的白字：识别框在底条上，不画笔画（白字在二值化后就是底条上的空隙，比例很小）。 */
+  const label = (text: string, x: number, y: number) =>
+    fakeLine(text, { x, y, width: 100, height: 20 }, page1);
+
+  it('reads a payslip table whose header is a dark band and whose column lines start below it', () => {
+    // 工资单：表头是一条深色底条（白字），列线从底条下面画到底，表身行之间没有线。
+    const xs = [100, 400, 650, 900];
+    const band = { x: 100, y: 100, width: 802, height: 40 };
+    const words = [];
+    for (let r = 0; r < 5; r++) {
+      const y = 155 + r * 32;
+      words.push(word(`item ${r}`, 110, y, 200), word(`${r}00`, 420, y), word(`${r}.5`, 670, y));
+    }
+    const rects = [
+      band,
+      ...xs.map((x) => column(x, 140, 330)),
+      { x: 100, y: 330, width: 802, height: 2 },
+      ...words.flatMap((w) => w.marks),
+    ];
+    const header = [
+      label('Eléments', 200, 110),
+      label('Base', 470, 110),
+      label('Montant', 720, 110),
+    ];
+    const page = build(rects, [...header, ...words.map((w) => w.line)]);
+    const [table, ...others] = tablesOf(page);
+    expect(others).toHaveLength(0);
+    expect([table!.rows, table!.cols]).toEqual([6, 3]);
+    expect([0, 1, 2].map((c) => cellAt(table!, 0, c)!.text)).toEqual([
+      'Eléments',
+      'Base',
+      'Montant',
+    ]);
+    for (let r = 0; r < 5; r++) {
+      expect([0, 1, 2].map((c) => cellAt(table!, r + 1, c)!.text)).toEqual([
+        `item ${r}`,
+        `${r}00`,
+        `${r}.5`,
+      ]);
+    }
+  });
+
+  it('splits two tables joined by the lower table’s header band, each with its own columns', () => {
+    // 工资单的明细表下面接着汇总表：明细表的列线止于汇总表的表头底条，底条下面是另一套列。
+    const upper = [100, 500, 900];
+    const lower = [100, 300, 500, 700, 900];
+    const words = [
+      ...['a', 'b', 'c'].flatMap((t, r) => [
+        word(`label ${t}`, 110, 150 + r * 30, 200),
+        word(`${r + 1}.00`, 520, 150 + r * 30),
+      ]),
+      ...[0, 1, 2, 3].map((c) => word(`v${c}`, lower[c]! + 40, 295, 80)),
+    ];
+    const rects = [
+      { x: 100, y: 100, width: 802, height: 40 },
+      ...upper.map((x) => column(x, 140, 240)),
+      { x: 100, y: 240, width: 802, height: 40 },
+      ...lower.map((x) => column(x, 280, 330)),
+      { x: 100, y: 330, width: 802, height: 2 },
+      ...words.flatMap((w) => w.marks),
+    ];
+    const header = [label('Elements', 200, 110), label('Montant', 620, 110)];
+    const sums = ['Heures', 'Brut', 'Net', 'Total'].map((t, c) => label(t, lower[c]! + 50, 250));
+    const page = build(rects, [...header, ...sums, ...words.map((w) => w.line)]);
+    const tables = tablesOf(page);
+    expect(tables.map((t) => t.cells.filter((c) => c.row === 0).length)).toEqual([2, 4]);
+    expect(cellAt(tables[0]!, 0, 0)!.text).toBe('Elements');
+    expect(cellAt(tables[0]!, 3, 0)!.text).toBe('label c');
+    // 两张表共用整页的列线：上面那张的第二列是共用的第 3 条列线起（第一格跨两列）。
+    expect(cellAt(tables[0]!, 3, 2)!.text).toBe('3.00');
+    expect(tables[1]!.cells.filter((c) => c.row === 0).map((c) => c.text)).toEqual([
+      'Heures',
+      'Brut',
+      'Net',
+      'Total',
+    ]);
+    expect(tables[1]!.cells.filter((c) => c.row === 1).map((c) => c.text)).toEqual([
+      'v0',
+      'v1',
+      'v2',
+      'v3',
+    ]);
+  });
+
+  it('keeps a table’s bottom line hidden in a tall text box and leaves that text out of the table', () => {
+    // 照片里弯的一行页脚：识别框很高，罩住了表格的底线；中间一条列线往下多出一截（接上了页脚的笔画）。
+    const xs = [100, 300, 500, 700, 900];
+    const words = [0, 1, 2, 3].map((c) => word(`v${c}`, xs[c]! + 40, 255, 80));
+    const footer = fakeLine('Keep this payslip', { x: 100, y: 290, width: 800, height: 40 }, page1);
+    const rects = [
+      ...gridRects(xs, [200, 240, 300]),
+      column(300, 300, 330),
+      ...words.flatMap((w) => w.marks),
+      ...glyphs(110, 312, 780, 14),
+    ];
+    const page = build(rects, [...words.map((w) => w.line), footer]);
+    const [table] = tablesOf(page);
+    expect(table!.rows).toBe(2);
+    expect(table!.cells.some((c) => c.text.includes('Keep'))).toBe(false);
+    expect(page.blocks.at(-1)).toMatchObject({ kind: 'text', text: 'Keep this payslip' });
+  });
+});
+
 describe('one grid for the whole page (D-272)', () => {
   const page1 = { width: W, height: H };
   const word = (text: string, x: number, y: number, width = 120) => ({

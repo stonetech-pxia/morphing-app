@@ -15,6 +15,8 @@ export interface RuleLine {
   thickness: number;
   /** 有墨的几段（按 from 排好，不重叠）。 */
   spans: [number, number][];
+  /** 实心横条的上边、下边（D-501）。 */
+  band?: 'top' | 'bottom';
 }
 
 export interface PageLines {
@@ -55,6 +57,18 @@ const JOIN_MIN = 8;
 const JOIN_SHARE = 0.005;
 /** 线和线算连在一起：端点离另一条线不超过长边的 0.5%（挨着的两个框不算连在一起）。 */
 const TOUCH_SHARE = 0.005;
+/**
+ * 实心的横条（D-501：工资单、发票表头的深色底条，里面是白字）：比线粗、不超过页高的 6%，长至少是粗的 2 倍，
+ * 六成以上是墨（字是白的）。只有至少两条竖线从它的上下边起止时（表格的列线）才算表格的一部分：
+ * 当成一个框，上下边是两条横线、左右两头是两条竖线。横条里那一行没有竖线盖住，格子按上下的列线分
+ * （表头格子之间的白缝在照片里常常看不出来，不靠它）。
+ * 找竖线前先把它抹掉，不然从它下面往下画的竖线和它连成一大块，被当成色块整个丢掉。
+ * 页边的黑边、彩色的箭头条、标志没有竖线起止，不算。
+ */
+const BAND_MAX_SHARE = 0.06;
+const BAND_MIN_ELONGATION = 2;
+const BAND_MIN_FILL = 0.6;
+const BAND_MIN_ANCHORS = 2;
 /** 只有横线的表：左右两端对齐的误差（页宽的 2%），相邻两条最远隔页高的 40%（三线表的表身很高）。 */
 const ALIGN_SHARE = 0.02;
 const RULED_GAP_SHARE = 0.4;
@@ -124,6 +138,15 @@ function darkMask(ink: Float32Array, width: number, height: number): Uint8Array 
   return mask;
 }
 
+/** 实心的横条：first、last 是上下两边的扫描行号，from、to 是左右（拉正后、换算前）。 */
+interface Band {
+  first: number;
+  last: number;
+  from: number;
+  to: number;
+  spans: [number, number][];
+}
+
 interface Building {
   first: number;
   last: number;
@@ -170,6 +193,8 @@ function scan(
   height: number,
   t: number,
   horizontal: boolean,
+  /** 给了就收集实心的横条（BAND_MAX_SHARE），不当成线。 */
+  bands?: Band[],
 ): RuleLine[] {
   const along = horizontal ? width : height;
   const across = horizontal ? height : width;
@@ -233,6 +258,19 @@ function scan(
     open = still;
   }
   done.push(...open);
+  if (bands) {
+    for (const l of done) {
+      const thickness = l.last - l.first + 1;
+      const length = l.to - l.from + 1;
+      if (
+        thickness > maxThickness &&
+        thickness <= across * BAND_MAX_SHARE &&
+        length >= BAND_MIN_ELONGATION * thickness &&
+        l.weight >= BAND_MIN_FILL * length * thickness
+      )
+        bands.push({ first: l.first, last: l.last, from: l.from, to: l.to, spans: l.spans });
+    }
+  }
   // 沿线方向的坐标也换到拉正后的：横线上 x' ≈ x + y'·t，竖线上 y' ≈ y − x'·t。
   const lines = done
     .filter((l) => l.last - l.first + 1 <= maxThickness)
@@ -277,6 +315,7 @@ function joinCollinear(lines: RuleLine[], posTol: number, gapTol: number): RuleL
           to: Math.max(a.to, b.to),
           thickness: Math.max(a.thickness, b.thickness),
           spans,
+          ...(a.band || b.band ? { band: a.band ?? b.band } : {}),
         };
         out.splice(j, 1);
         changed = true;
@@ -285,6 +324,67 @@ function joinCollinear(lines: RuleLine[], posTol: number, gapTol: number): RuleL
     }
   }
   return out;
+}
+
+/** 抹掉横条（扫描行号 r 上的点在 y = r + x·t）。 */
+function eraseBands(
+  mask: Uint8Array,
+  width: number,
+  height: number,
+  t: number,
+  bands: readonly Band[],
+): Uint8Array {
+  if (!bands.length) return mask;
+  const out = mask.slice();
+  for (const b of bands) {
+    for (let r = b.first; r <= b.last; r++) {
+      for (let x = Math.max(0, b.from); x <= Math.min(width - 1, b.to); x++) {
+        const y = Math.round(r + x * t);
+        if (y >= 0 && y < height) out[y * width + x] = 0;
+      }
+    }
+  }
+  return out;
+}
+
+/** 从横条的上下边起止的竖线有几条（位置相同的算一条：穿过横条被切成两段的竖线）。 */
+function bandAnchors(band: Band, vertical: readonly RuleLine[], t: number, tol: number): number {
+  const shift = ((band.first + band.last) / 2) * t;
+  const at: number[] = [];
+  for (const v of vertical) {
+    if (v.pos < band.from + shift - tol || v.pos > band.to + shift + tol) continue;
+    const starts = Math.abs(v.from - band.last) <= tol;
+    const ends = Math.abs(v.to - band.first) <= tol;
+    if ((starts || ends) && at.every((p) => Math.abs(p - v.pos) > tol)) at.push(v.pos);
+  }
+  return at.length;
+}
+
+/** 横条的上下边，当成两条横线（坐标换到拉正后，和 scan 的一样）。 */
+function bandEdges(band: Band, t: number): RuleLine[] {
+  return [band.first, band.last].map((pos, i) => {
+    const shift = pos * t;
+    return {
+      pos,
+      from: band.from + shift,
+      to: band.to + shift,
+      thickness: 1,
+      spans: band.spans.map(([a, b]) => [a + shift, b + shift] as [number, number]),
+      band: i === 0 ? ('top' as const) : ('bottom' as const),
+    };
+  });
+}
+
+/** 横条的左右两头，当成两条竖线（坐标同 scan：x' = x + y'·t，沿线的 y' 就是扫描行号）。 */
+function bandSides(band: Band, t: number): RuleLine[] {
+  const shift = ((band.first + band.last) / 2) * t;
+  return [band.from, band.to].map((x) => ({
+    pos: x + shift,
+    from: band.first,
+    to: band.last,
+    thickness: 1,
+    spans: [[band.first, band.last]],
+  }));
 }
 
 /**
@@ -299,6 +399,27 @@ export function findLines(image: RgbaImage, options: { skew?: number } = {}): Pa
   const skew = options.skew ?? findSkew(ink, width, height);
   const t = Math.tan((skew * Math.PI) / 180);
   const mask = darkMask(ink, width, height);
+  const candidates: Band[] = [];
+  const horizontal = scan(mask, width, height, t, true, candidates);
+  let vertical = scan(eraseBands(mask, width, height, t, candidates), width, height, t, false);
+  const tol = Math.max(4, Math.max(width, height) * TOUCH_SHARE);
+  const bands = candidates.filter((b) => bandAnchors(b, vertical, t, tol) >= BAND_MIN_ANCHORS);
+  // 不算的横条不抹（抹了会把穿过它的竖线切断）。
+  if (bands.length < candidates.length)
+    vertical = scan(eraseBands(mask, width, height, t, bands), width, height, t, false);
+  if (bands.length) {
+    const posTol = Math.max(2, Math.max(width, height) * MERGE_SHARE);
+    horizontal.splice(
+      0,
+      horizontal.length,
+      ...joinCollinear(
+        [...horizontal, ...bands.flatMap((b) => bandEdges(b, t))],
+        posTol,
+        Math.max(JOIN_MIN, width * JOIN_SHARE),
+      ),
+    );
+    vertical.push(...bands.flatMap((b) => bandSides(b, t)));
+  }
   const scale = (l: RuleLine): RuleLine =>
     k === 1
       ? l
@@ -308,13 +429,14 @@ export function findLines(image: RgbaImage, options: { skew?: number } = {}): Pa
           to: l.to * k + k - 1,
           thickness: l.thickness * k,
           spans: l.spans.map(([a, b]) => [a * k, b * k + k - 1]),
+          ...(l.band ? { band: l.band } : {}),
         };
   return {
     width: image.width,
     height: image.height,
     skew,
-    horizontal: scan(mask, width, height, t, true).map(scale),
-    vertical: scan(mask, width, height, t, false).map(scale),
+    horizontal: horizontal.map(scale),
+    vertical: vertical.map(scale),
   };
 }
 
@@ -487,18 +609,34 @@ export function findTables(page: PageLines): TableLines[] {
   }
   const tables: TableLines[] = [];
   for (const members of groups.values()) {
-    const th = members.filter((i) => i < hs.length).map((i) => hs[i]!);
-    const tv = members.filter((i) => i >= hs.length).map((i) => vs[i - hs.length]!);
-    if (th.length < 2) continue;
-    const left = Math.min(...th.map((h) => h.from), ...tv.map((v) => v.pos));
-    const right = Math.max(...th.map((h) => h.to), ...tv.map((v) => v.pos));
-    const top = Math.min(...th.map((h) => h.pos), ...tv.map((v) => v.from));
-    const bottom = Math.max(...th.map((h) => h.pos), ...tv.map((v) => v.to));
-    tables.push({
-      hs: th.sort((a, b) => a.pos - b.pos),
-      vs: tv.sort((a, b) => a.pos - b.pos),
-      box: { x: left, y: top, width: right - left, height: bottom - top },
-    });
+    const allH = members.filter((i) => i < hs.length).map((i) => hs[i]!);
+    const allV = members.filter((i) => i >= hs.length).map((i) => vs[i - hs.length]!);
+    // 表中间的实心横条（D-501）：上面有竖线止于它的上边，它是下面另一张表的表头
+    // （工资单的明细表下面接着汇总表，两张表的列不一样），在它的上边分成两张。
+    const cuts = allH
+      .filter(
+        (h) =>
+          h.band === 'top' &&
+          allV.some((v) => Math.abs(v.to - h.pos) <= tol && v.from < h.pos - tol),
+      )
+      .map((h) => h.pos)
+      .sort((a, b) => a - b);
+    const bounds = [-Infinity, ...cuts, Infinity];
+    for (let k = 0; k + 1 < bounds.length; k++) {
+      const [lo, hi] = [bounds[k]!, bounds[k + 1]!];
+      const th = allH.filter((h) => h.pos >= lo - tol && h.pos <= hi + tol);
+      const tv = allV.filter((v) => (v.from + v.to) / 2 > lo && (v.from + v.to) / 2 < hi);
+      if (th.length < 2) continue;
+      const left = Math.min(...th.map((h) => h.from), ...tv.map((v) => v.pos));
+      const right = Math.max(...th.map((h) => h.to), ...tv.map((v) => v.pos));
+      const top = Math.min(...th.map((h) => h.pos), ...tv.map((v) => v.from));
+      const bottom = Math.max(...th.map((h) => h.pos), ...tv.map((v) => v.to));
+      tables.push({
+        hs: th.sort((a, b) => a.pos - b.pos),
+        vs: tv.sort((a, b) => a.pos - b.pos),
+        box: { x: left, y: top, width: right - left, height: bottom - top },
+      });
+    }
   }
   return tables.sort((a, b) => a.box.y - b.box.y);
 }

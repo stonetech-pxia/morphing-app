@@ -76,6 +76,10 @@ const ALIGN_SIDE_SHARE = 0.35;
 /** 认成线的粗体字：横线在一行字的框里（上下都离框边至少 20% 行高），大半截在框的左右范围里。 */
 const STROKE_INSIDE = 0.2;
 const STROKE_SHARE = 0.7;
+/** 线和线算连在一起（和 lines.ts 的 TOUCH_SHARE 一样）：端点离另一条线不超过长边的 0.5%。 */
+const STROKE_TOUCH_SHARE = 0.005;
+const STROKE_MIN_JOINED = 3;
+const STROKE_RULE_SHARE = 0.3;
 
 const median = (values: readonly number[]) => {
   const sorted = [...values].sort((a, b) => a - b);
@@ -188,8 +192,12 @@ function buildGrid(
     tol,
   ).map((pos) => ({ pos, lined: true }));
   if (vs.length) {
-    const top = Math.min(...vs.map((v) => v.from));
-    const bottom = Math.max(...vs.map((v) => v.to));
+    // 按左右边框的竖线往上下伸（D-501）：中间的列线伸出去的一截常常是接上了表格外面字的笔画
+    // （工资单底下紧挨着的一行页脚），会把表外的字圈进来。没有边框的竖线时看所有的竖线。
+    const sides = vs.filter((v) => v.pos <= left + tol || v.pos >= right - tol);
+    const ends = sides.length ? sides : vs;
+    const top = Math.min(...ends.map((v) => v.from));
+    const bottom = Math.max(...ends.map((v) => v.to));
     if (top < ys[0]!.pos - tol) ys.unshift({ pos: top, lined: false });
     if (bottom > ys.at(-1)!.pos + tol) ys.push({ pos: bottom, lined: false });
   }
@@ -409,10 +417,24 @@ function dropTextStrokes(page: PageLines, lines: readonly OcrBox[]): PageLines {
         v.pos > l.x && v.pos < l.x + l.width && v.from >= l.y - out && v.to <= l.y + l.height + out
       );
     });
+  const vertical = page.vertical.filter((v) => !inTextV(v));
+  // 至少三成页宽、连着至少三条竖线的横线是表格线（左右两边加中间至少一条列线），哪怕压在一行字的框里
+  // （D-501：照片里弯的一行页脚，识别框很高，罩住了表格的底线）。字的笔画、纸的折痕没有这么长，
+  // 上下两行字的竖笔画连起来的短竖线也常常碰到粗体字的横笔画。
+  const tol = Math.max(4, Math.max(page.width, page.height) * STROKE_TOUCH_SHARE);
+  const joined = (h: RuleLine) =>
+    h.to - h.from >= STROKE_RULE_SHARE * page.width &&
+    vertical.filter(
+      (v) =>
+        v.pos >= h.from - tol &&
+        v.pos <= h.to + tol &&
+        h.pos >= v.from - tol &&
+        h.pos <= v.to + tol,
+    ).length >= STROKE_MIN_JOINED;
   return {
     ...page,
-    horizontal: page.horizontal.filter((h) => !inText(h)),
-    vertical: page.vertical.filter((v) => !inTextV(v)),
+    horizontal: page.horizontal.filter((h) => !inText(h) || joined(h)),
+    vertical,
   };
 }
 
@@ -519,14 +541,24 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     if (!members.length) continue;
     const grid = buildGrid(table, members, tol, lineHeight);
     if (!grid) continue;
+    // 中心在最外一条横线外面的字不是表里的（D-501：照片里弯的一行页脚压着表格的底线）；
+    // 没有线的上下边（按竖线的两头）照样留 tol。
+    const top = grid.ys[0]!;
+    const bottom = grid.ys.at(-1)!;
+    const inside = members.filter(
+      (l) =>
+        centerY(l) >= top.pos - (top.lined ? 0 : tol) &&
+        centerY(l) <= bottom.pos + (bottom.lined ? 0 : tol),
+    );
+    if (!inside.length) continue;
     const texts = grid.cells.map(() => [] as OcrBox[]);
-    for (const line of members) {
+    for (const line of inside) {
       for (const { cell, piece } of piecesOf(line, grid)) texts[cell]!.push(piece);
     }
     // 只有横线的表：至少两行有字、按文字空隙至少分出两列才算表（几条分隔线中间的正文分不出列）。
     const rowsWithText = new Set(grid.cells.filter((_, i) => texts[i]!.length).map((c) => c.row));
     if (!table.vs.length && (rowsWithText.size < 2 || grid.xs.length < 3)) continue;
-    for (const line of members) placed.add(line);
+    for (const line of inside) placed.add(line);
     const cells = grid.cells.map((cell, i) => {
       const text = texts[i]!.length ? join(texts[i]!).trim() : '';
       const flatCell = cell.box!;

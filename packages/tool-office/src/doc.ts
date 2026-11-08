@@ -847,7 +847,10 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     });
   }
   // 条形码（D-471）：剪成图片，里面认出来的零星的字不要。
-  const barcodes = findBarcodes(image, kept, lineHeight);
+  // 带线的表里一段没字的地方（几条平行的列线）不是条形码（D-501）。
+  const barcodes = findBarcodes(image, kept, lineHeight).filter(
+    (b) => !tables.some((t) => !t.borderless && inBox(b, t.box)),
+  );
   const inBarcode = (l: OcrBox) => {
     const cx = l.x + l.width / 2;
     const cy = l.y + l.height / 2;
