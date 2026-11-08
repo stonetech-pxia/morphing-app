@@ -45,42 +45,96 @@ The config does include text you wrote yourself, such as page titles and button 
 
 ## How it's built
 
+The fixed core draws 26 kinds of block, runs 97 actions and keeps your records. Everything else is the config, and the config is made of three kinds of parts:
+
+- **Data** is what's stored: tables and their fields. The config holds only the structure; the records themselves live in the phone's database.
+- **Containers** are what you see: pages made of blocks (a list, a chart, a calendar, a button…). A container reads data and shows it. It never stores or writes data.
+- **Tools** are what writes: a one-tap tool on a block (add a record, check it off, +1, drag it to another column), a quick action (a chain of actions such as scan → straighten → PDF → save) or a reminder.
+
 ```
-Config (JSON)    theme · bottom bar · apps · tables and fields · pages of blocks · quick actions · reminders
-      ▲          changed by you, Tink and presets; every change is a new version
-Fixed core       draws 26 kinds of block, checks and migrates the config, runs 97 actions,
-                 keeps records, owns the system pages (Settings, Change history, Tink)
-Native modules   scanning, text recognition, video, audio, speech, translation, sharing
+                ┌───────────────────┐
+     reads      │       Data        │      writes
+   ┌───────────►│  tables, fields   │◄────────────┐
+   │            └───────────────────┘             │
+┌──┴──────────────┐                    ┌──────────┴──────┐
+│   Containers    │    a tap starts    │      Tools      │
+│  pages, blocks  ├───────────────────►│ one-tap tools,  │
+│                 │                    │ quick actions,  │
+│                 │                    │ reminders       │
+└─────────────────┘                    └─────────────────┘
 ```
 
-The config has three layers, with fixed rules between them:
+**Example: the Habits preset.** One ring per habit; tap a ring to check in.
 
-- **Data**: tables and their fields. Only the structure; the records live in the database.
-- **Containers**: pages made of blocks. A block reads data and never stores it.
-- **Tools**: quick actions and reminders, the only things that write. A quick action is a straight chain of registered actions (scan → straighten → PDF → save), with no branches or loops.
+```
+Data         Habits       name · times a day · part of day · days
+             Check-ins    habit · date · done or skipped
+             "Today"      a field on Habits: today's check-ins, computed when shown, never stored
+
+Containers   page "Habits"
+               tiles      one ring per habit, filled by Today ÷ times a day
+               number     day streak, counted from Check-ins
+               calendar   the days you checked in
+
+Tools        on a ring    tap → add a check-in for this habit
+             reminder     20:00 on a habit's days unless it's done; "Done" adds a check-in
+```
+
+Tink builds the same way: ask it for a habit tracker and it adds tables, a page of blocks and the tools on them, all as config. The rules between the three parts are fixed: a container only reads and navigates; a tool changes only what its container shows, or the record a link leads to; each piece of data is stored once and everything else refers to it.
 
 Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## What it can do
 
-- **Pages from 26 kinds of block:** lists, checklists, boards you drag between, calendars, charts, numbers, forms, file shelves, buttons, images and more.
-- **Your own tables:** 19 field types, including money, dates, ratings, files, links between tables, rollups, formulas and schedules. Filters, search, reminders, CSV and Excel export.
-- **Quick actions from 97 on-device actions:** scan to PDF, Word or Excel, text recognition, PDF tools, image tools (ID photos, background removal, watermarks), video (compress to a size, trim, GIF), audio (record, speech to text, MP3, noise reduction), translation, QR codes, ZIP.
-- **Any look you like:** colors, fonts, card styles, backgrounds, icons, the bottom bar.
-- **Several apps in one**, each with its own style and bottom bar.
+Some tools you can make by combining a table, a page and a few actions:
+
+| Tool                       | Data                                                                           | Containers                                   | Tools                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Receipts into a budget     | Expenses (amount, date, store, category, receipt); Budgets with spent and left | what's left of each budget, a spending chart | a scan button: scan → straighten → a new expense form, with the total, date and store suggested |
+| Business cards to contacts | Contacts (name, company, phone, email, card)                                   | a contact list, a page per contact           | scan → a new contact form with suggestions; Call, Email and vCard buttons on each contact       |
+| Bills                      | Bills (amount, how often it repeats)                                           | a calendar of due dates                      | a reminder at 9:00 on the day a bill is due                                                     |
+| Trip                       | Itinerary, Bookings with their ticket PDFs, Packing list                       | a day-by-day plan, a packing checklist       | a reminder the evening before a booking; tick items as packed; itinerary as a PDF to share      |
+| Sprint board               | Tasks (status, owner, priority, due date)                                      | a board with a column per status             | drag a card to change its status; export to Excel; a stand-up reminder on weekdays              |
+| Video too big to send      | none                                                                           | a button on the home page                    | pick a video → compress to 20 MB → share                                                        |
+
+The parts:
+
+- **26 kinds of block:** lists, checklists, boards you drag between, calendars, charts, numbers, forms, file shelves, buttons, images and more.
+- **19 field types:** money, dates, ratings, files, links between tables, rollups, formulas, schedules and more. Filters, search, reminders, CSV and Excel export.
+- **97 actions that run on the phone:** scan to PDF, Word or Excel, text recognition, PDF tools, image tools (ID photos, background removal, watermarks), video (compress to a size, trim, GIF), audio (record, speech to text, MP3, noise reduction), translation, QR codes, ZIP.
+- **Any look:** colors, fonts, card styles, backgrounds, icons, the bottom bar. Several apps in one, each with its own style.
 - **Files from anywhere:** share photos, videos or PDFs to Tinkrum and it suggests the quick actions that fit.
-- **Undo anything,** back to the first version. Works offline, in English, Chinese and French.
+- **Undo anything,** back to the first version. English, Chinese and French.
 
 ## What it can't do
 
-- **Tink can't see or change your records or files**, and can't pick a photo or file for you.
-- **Tink builds tools; it doesn't do the task.** It doesn't answer questions, summarize or translate a file itself, run a quick action, or write messages to send out. Ask it to "translate this contract" and you get a translate button that runs on your phone.
-- **Tink can't change the system pages:** Settings, Change history, the Tink page and permissions are fixed, so you can always get back in and undo.
-- **No code.** The config only holds values from fixed lists. A request that needs a new kind of block, field or action can't be built from a sentence; Tink says so, and you can send that one sentence to us with "Tell us you need this".
-- **Quick actions stay simple:** no branches, no loops, and one quick action can't start another.
-- **Nothing happens on its own.** Every change to your data comes from your tap (the one exception: entries left in the trash for 30 days are deleted). Exporting, sharing and sending always need your tap; reminders only show a notification.
-- **Originals are never moved or deleted.** Tinkrum works on copies.
-- **No accounts or sync.** Your app and your records live on one phone.
+Most limits come from the rules that keep your data on your phone and keep the app safe to change. Here is what each rule rules out.
+
+**Your files and records never go to a cloud model, so:**
+
+- Tink can't read what you keep. It can't summarize a contract or answer questions about a PDF.
+- Reading documents happens on the phone (text recognition, and an optional small model that suggests form values). That's less accurate than a large cloud model: check the suggestions, and treat translations as a way to understand, not as official translations.
+
+**Everything runs offline and nothing sends your data anywhere, so:**
+
+- No live data from the internet: no exchange rates (amounts in different currencies are never added together), no weather, prices or news.
+- No connection to other services: Tinkrum doesn't sync with your calendar, bank, cloud drive or other apps, and doesn't send email or post for you. Sharing goes through the phone's share sheet, when you tap.
+- No accounts or sync: your app and records live on one phone, and nobody can edit a table with you. Export to keep a backup.
+
+**There's no code, only parts from fixed lists, so:**
+
+- A new kind of block, field or action can't be made from a sentence, and neither can custom screens or games. Tink says so, and "Tell us you need this" sends us that one sentence.
+- Quick actions are straight chains: no if/else, no loops, and one quick action can't start another. Formulas are arithmetic with a simple if.
+
+**Nothing happens without your tap, so:**
+
+- No automations: no "every Monday, export my expenses and email them", no filing new photos as they arrive. Reminders only show a notification. (One exception: entries left in the trash for 30 days are deleted.)
+- Originals are never moved or deleted, so Tinkrum can't tidy up your photo library; it works on copies.
+
+**Tink changes the app; it doesn't do the task, so:**
+
+- It doesn't answer questions, write messages to send out, or run a quick action. Ask it to "translate this contract" and you get a translate button that runs on your phone.
+- It can't change Settings, Change history, the Tink page or permissions, so you can always get back in and undo.
 
 ## Build it
 
