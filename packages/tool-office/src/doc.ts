@@ -772,7 +772,8 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   const { image } = input;
   const lines = input.lines.filter((l) => l.text.trim());
   const lineHeight = median(lines.map((l) => l.height)) || 20;
-  // 带线的表格（和转 Excel 一样）；表格里的行不再参加分段。
+  // 带线的表格（和转 Excel 一样）；放进表格的行不再参加分段。
+  const placedIn = new Map<TableBlock, readonly OcrBox[]>();
   const sheet = buildTablePage(
     {
       image,
@@ -788,6 +789,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
         rowsOf(cell)
           .map((r) => join(r.lines).trim())
           .join('\n'),
+      onTable: (table, placed) => placedIn.set(table, placed),
     },
   );
   const tol = lineHeight * 0.3;
@@ -801,26 +803,26 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
       cy <= box.y + box.height + tol
     );
   };
-  const tables: DocTable[] = sheet.blocks
-    .filter(
-      (b): b is TableBlock =>
-        b.kind === 'table' && !isRuleGrid(b, lines.filter((l) => inBox(l, b.box)).length),
-    )
-    .map((table) => {
-      // 表里的字号按表里文字的行高（D-335），和正文分开算。
-      const h = median(lines.filter((l) => inBox(l, table.box)).map((l) => l.height));
-      return {
-        kind: 'table',
-        table: foldEmptyColumns({ ...table, col: 0 }),
-        colWidths: sheet.colWidths.slice(table.col, table.col + table.cols),
-        ...(h ? { size: Math.min(BODY_MAX, Math.max(FORM_MIN, fontSizeOf(h, image.width))) } : {}),
-        box: table.box,
-      };
-    });
-  const inTable = (l: Box) => tables.some(({ box }) => inBox(l, box));
+  const ruled = sheet.blocks.filter(
+    (b): b is TableBlock =>
+      b.kind === 'table' && !isRuleGrid(b, lines.filter((l) => inBox(l, b.box)).length),
+  );
+  const tables: DocTable[] = ruled.map((table) => {
+    // 表里的字号按表里文字的行高（D-335），和正文分开算。
+    const h = median(lines.filter((l) => inBox(l, table.box)).map((l) => l.height));
+    return {
+      kind: 'table',
+      table: foldEmptyColumns({ ...table, col: 0 }),
+      colWidths: sheet.colWidths.slice(table.col, table.col + table.cols),
+      ...(h ? { size: Math.min(BODY_MAX, Math.max(FORM_MIN, fontSizeOf(h, image.width))) } : {}),
+      box: table.box,
+    };
+  });
+  // 按实际放进格子的行算（D-501）：表格边线外面、横跨列线的字没放进表，照样排成正文，不丢。
+  const inTable = new Set(ruled.flatMap((t) => placedIn.get(t) ?? []));
   // 整页的倾斜（D-471）：照片拍歪、纸弯了时按斜线分行；拉平以后的行只用来分行、分段、排位置，
   // 量笔画、颜色、下划线还是看原图里原来的位置。
-  const outside = lines.filter((l) => !inTable(l) && !isStray(l, lines, lineHeight, image));
+  const outside = lines.filter((l) => !inTable.has(l) && !isStray(l, lines, lineHeight, image));
   // 竖排、旋转的字（页边的竖排标志、侧边的说明、条码旁的编号）：认出来的字多半是乱的，
   // 放进正文又会把字号撑得很大。整块剪成图片，原样保留。
   const kept = outside.filter((l) => !isVertical(l));

@@ -632,6 +632,37 @@ describe('dark header bands (D-501)', () => {
   });
 });
 
+describe('text just outside a table (D-501)', () => {
+  const page1 = { width: W, height: H };
+  const word = (text: string, x: number, y: number, width = 120) => ({
+    line: fakeLine(text, { x, y, width, height: 20 }, page1),
+    marks: glyphs(x + 4, y + 3, width - 8, 14),
+  });
+
+  it('keeps a totals row printed just under the table’s last line, one value per column', () => {
+    // 发票：最后一条横线下面紧挨着「TOTAL: … 金额」，每段字都在一列里，是表的合计行。
+    const xs = [100, 300, 500, 700, 900];
+    const words = [
+      ...[0, 1, 2, 3].map((c) => word(`a${c}`, xs[c]! + 40, 210, 80)),
+      ...[0, 1, 2, 3].map((c) => word(`b${c}`, xs[c]! + 40, 250, 80)),
+      // 中心在底线下面 6 像素（找表时的容差以内）。
+      word('TOTAL:', 140, 276, 80),
+      word('99.00', 740, 276, 80),
+    ];
+    const rects = [...gridRects(xs, [200, 240, 280]), ...words.flatMap((w) => w.marks)];
+    const page = build(
+      rects,
+      words.map((w) => w.line),
+    );
+    // 和改之前一样并进最后一行的格子里（没有横线隔开）；不能被拿出表、让整张表变稀被丢掉。
+    const [table] = tablesOf(page);
+    const cells = table!.cells.map((c) => c.text).join('\n');
+    expect(cells).toContain('TOTAL:');
+    expect(cells).toContain('99.00');
+    expect(page.blocks.filter((b) => b.kind === 'text')).toHaveLength(0);
+  });
+});
+
 describe('one grid for the whole page (D-272)', () => {
   const page1 = { width: W, height: H };
   const word = (text: string, x: number, y: number, width = 120) => ({

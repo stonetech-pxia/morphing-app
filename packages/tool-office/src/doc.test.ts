@@ -895,3 +895,30 @@ describe('ruled tables and barcodes (D-501)', () => {
     expect(leaves.filter((b) => b.kind === 'image')).toHaveLength(0);
   });
 });
+
+describe('text left out of a table (D-501)', () => {
+  it('a footer whose tall box covers the table’s bottom line comes out once, as text after the table', () => {
+    // 照片里弯的一行页脚：识别框很高，罩住了表格的底线，横跨所有列线。它不进表，也不能丢。
+    const xs = [100, 300, 500, 700, 900];
+    const rects: Rect[] = [...gridRects(xs, [200, 240, 300])];
+    const lines: OcrBox[] = [];
+    for (let c = 0; c < 4; c++) {
+      lines.push(fakeLine(`v${c}`, { x: xs[c]! + 40, y: 255, width: 80, height: 20 }, page));
+      rects.push(...glyphs(xs[c]! + 44, 258, 72, 14));
+    }
+    // 中心刚过底线（离表格的框不到 0.3 个行高）：按框算会当成表里的字，表里又没放，就丢了。
+    lines.push(fakeLine('Keep this payslip', { x: 100, y: 284, width: 800, height: 34 }, page));
+    rects.push({ x: 300, y: 300, width: 2, height: 30 }, ...glyphs(110, 304, 780, 12));
+    const doc = buildDocPage({ image: renderPage(W, H, rects), lines, source: 'p.jpg', skew: 0 });
+    const leaves = leafBlocks(doc);
+    const texts = leaves.flatMap((b) =>
+      b.kind === 'table'
+        ? b.table.cells.map((c) => c.text)
+        : b.kind === 'paragraph'
+          ? [b.text]
+          : [],
+    );
+    expect(texts.filter((t) => t.includes('Keep this payslip'))).toEqual(['Keep this payslip']);
+    expect(leaves.at(-1)).toMatchObject({ kind: 'paragraph', text: 'Keep this payslip' });
+  });
+});

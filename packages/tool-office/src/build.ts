@@ -24,6 +24,8 @@ import type {
 export interface BuildOptions {
   /** 同一格（或同一段）里的几行接成文字；App 里用 D-268 的 layoutOcrLines 加上按语言整理。 */
   joinLines?: (lines: readonly OcrBox[]) => string;
+  /** 每张表放进格子的识别行（传进来的对象）：转 Word 时没放进表的行照样排成正文（D-501）。 */
+  onTable?: (table: TableBlock, lines: readonly OcrBox[]) => void;
 }
 
 export interface PageInput {
@@ -502,13 +504,13 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
   const t = Math.tan((page.skew * Math.PI) / 180);
   const tol = Math.max(4, Math.max(image.width, image.height) * 0.008);
   // 识别框换到拉正后的坐标（只移动中心，大小不变）。
-  const flat = input.lines
-    .filter((l) => l.text.trim())
-    .map((l): OcrBox => {
-      const cx = centerX(l);
-      const cy = centerY(l);
-      return { ...l, x: cx + cy * t - l.width / 2, y: cy - cx * t - l.height / 2 };
-    });
+  const source = input.lines.filter((l) => l.text.trim());
+  const flat = source.map((l): OcrBox => {
+    const cx = centerX(l);
+    const cy = centerY(l);
+    return { ...l, x: cx + cy * t - l.width / 2, y: cy - cx * t - l.height / 2 };
+  });
+  const sourceOf = new Map(flat.map((l, i) => [l, source[i]!]));
   // 拉正后的框 → 原图里包住它的框。
   const back = (b: Box): Box => {
     if (t === 0) return b;
@@ -526,7 +528,7 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
   };
   const lineHeight = median(flat.map((l) => l.height)) || 20;
   const placed = new Set<OcrBox>();
-  const tables: { block: TableBlock; flatBox: Box; xs: number[] }[] = [];
+  const tables: { block: TableBlock; flatBox: Box; xs: number[]; lines: OcrBox[] }[] = [];
   for (const table of findTables(dropTextStrokes(page, flat))) {
     const { box } = table;
     const members = flat.filter(
@@ -541,15 +543,22 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     if (!members.length) continue;
     const grid = buildGrid(table, members, tol, lineHeight);
     if (!grid) continue;
-    // 中心在最外一条横线外面的字不是表里的（D-501：照片里弯的一行页脚压着表格的底线）；
-    // 没有线的上下边（按竖线的两头）照样留 tol。
+    // 中心在最外一条横线外面、又横跨了列线的字不是表里的（D-501：照片里弯的一行页脚压着表格的底线，
+    // 放进表里会在列线处切碎）。只落在一列里的照旧放进表（表格底线下面的合计行）。
     const top = grid.ys[0]!;
     const bottom = grid.ys.at(-1)!;
-    const inside = members.filter(
-      (l) =>
-        centerY(l) >= top.pos - (top.lined ? 0 : tol) &&
-        centerY(l) <= bottom.pos + (bottom.lined ? 0 : tol),
-    );
+    const inside = members.filter((l) => {
+      const out = (top.lined && centerY(l) < top.pos) || (bottom.lined && centerY(l) > bottom.pos);
+      const across = grid.xs.some(
+        (x, c) =>
+          c > 0 &&
+          c < grid.xs.length - 1 &&
+          x.lined &&
+          x.pos > l.x + l.height * 0.5 &&
+          x.pos < l.x + l.width - l.height * 0.5,
+      );
+      return !(out && across);
+    });
     if (!inside.length) continue;
     const texts = grid.cells.map(() => [] as OcrBox[]);
     for (const line of inside) {
@@ -576,6 +585,7 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     tables.push({
       flatBox,
       xs: grid.xs.map((x) => x.pos),
+      lines: inside.map((l) => sourceOf.get(l)!),
       block: {
         kind: 'table',
         rows: grid.ys.length - 1,
@@ -602,6 +612,7 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
       colSpan: map[cell.col + cell.colSpan]! - map[cell.col]!,
     }));
   });
+  for (const tb of tables) options.onTable?.(tb.block, tb.lines);
   const colWidths = tables.length
     ? shared.pos.slice(1).map((x, c) => Math.round(x - shared.pos[c]!))
     : Array.from({ length: TEXT_ONLY_COLS }, () => Math.round(image.width / TEXT_ONLY_COLS));
