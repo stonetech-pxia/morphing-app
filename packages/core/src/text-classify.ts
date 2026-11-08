@@ -2,7 +2,7 @@
 // 空白和乱码直接判「无法判断」，不交给模型；能读的再拿本地 Embedding 的相似度排候选，
 // 分数不够高、或者第一和第二名太接近时也给「无法判断」。只给可点的推荐用，绝不自动运行（D-190）。
 // 文字、向量和结果都不离开手机，不发给 AI。阈值由调用方给：要在校准集上定，见
-// tests/local-model-eval/CLASSIFY_124_REPORT.md。
+// side-session-notes/model-eval/CLASSIFY_124_REPORT.md（测量报告，不在仓库里）。
 // 不用 \p{…}（Hermes 的老版本不支持 Unicode 属性），字符范围直接写出来。
 
 export type TextReadability = 'blank' | 'garbled' | 'readable';

@@ -1,22 +1,22 @@
-# 部署模型转发服务（Mac mini，D-131）
+# Deploying the model relay service (Mac mini, D-131)
 
-模型转发服务（`apps/api`，D-193）跑在创始人的 Mac mini 上，经 Cloudflare 隧道对外提供 `https://morph-api.stonetech.dev`。它不认识 App 的版本，App 升级不用重新部署；保存的只有用户主动发来的需求（见下面「需求回收」）和测试期的请求（见下面「测试期保存请求」），换机器时把这两个文件一起拷走。
+The model relay service (`apps/api`, D-193) runs on the founder's Mac mini and is exposed through a Cloudflare tunnel at `https://morph-api.stonetech.dev`. It does not know the app's version, so upgrading the app needs no redeploy. What it stores is only the requests users actively send (see "Collecting requests" below) and the requests during the test period (see "Saving requests during the test period" below); when changing machines, copy those two files along.
 
 ```
-App ──https──► Cloudflare ──隧道 morph-prod──► Mac mini 127.0.0.1:8788（launchd：dev.stonetech.morph-api）──► Claude
+App ──https──► Cloudflare ──tunnel morph-prod──► Mac mini 127.0.0.1:8788 (launchd: dev.stonetech.morph-api) ──► Claude
 ```
 
-| 东西       | 位置                                                                                       |
-| ---------- | ------------------------------------------------------------------------------------------ |
-| 生产代码   | `~/projects/morph-prod`（从本机仓库单独 clone，不从开发 worktree 运行）                    |
-| 密钥和限额 | `~/projects/morph-prod/.env`（`ANTHROPIC_API_KEY`、`MORPH_CLIENT_TOKEN` 等）               |
-| 服务       | `~/Library/LaunchAgents/dev.stonetech.morph-api.plist`                                     |
-| 隧道       | `~/.cloudflared/morph-prod.yml`，`~/Library/LaunchAgents/dev.stonetech.morph-tunnel.plist` |
-| 日志       | `~/Library/Logs/morph-api.log`、`~/Library/Logs/morph-tunnel.log`                          |
+| Item            | Location                                                                                        |
+| --------------- | ----------------------------------------------------------------------------------------------- |
+| Production code | `~/projects/morph-prod` (a separate clone of the local repository, not run from a dev worktree) |
+| Keys and limits | `~/projects/morph-prod/.env` (`ANTHROPIC_API_KEY`, `MORPH_CLIENT_TOKEN`, etc.)                  |
+| Service         | `~/Library/LaunchAgents/dev.stonetech.morph-api.plist`                                          |
+| Tunnel          | `~/.cloudflared/morph-prod.yml`, `~/Library/LaunchAgents/dev.stonetech.morph-tunnel.plist`      |
+| Logs            | `~/Library/Logs/morph-api.log`, `~/Library/Logs/morph-tunnel.log`                               |
 
-隧道和 simo 的分开：重启、修改 Morph 不影响 simo。
+This tunnel is separate from simo's: restarting or changing Morph does not affect simo.
 
-## 发布新版本
+## Releasing a new version
 
 ```bash
 cd ~/projects/morph-prod
@@ -26,58 +26,58 @@ launchctl kickstart -k gui/$(id -u)/dev.stonetech.morph-api
 curl -s https://morph-api.stonetech.dev/health
 ```
 
-## 打包 App 时
+## When building the app
 
-构建时设置两个环境变量（会打包进 App）：
+Set two environment variables at build time (they are bundled into the app):
 
 - `EXPO_PUBLIC_MORPH_API_URL=https://morph-api.stonetech.dev`
-- `EXPO_PUBLIC_MORPH_CLIENT_TOKEN=` 与服务端 `.env` 中的 `MORPH_CLIENT_TOKEN` 相同
+- `EXPO_PUBLIC_MORPH_CLIENT_TOKEN=` the same as `MORPH_CLIENT_TOKEN` in the server's `.env`
 
-Android 直接装到手机上（release 包用调试密钥签名，能覆盖开发版，数据保留）：
+To install on an Android phone directly (the release build is signed with the debug key, so it can overwrite the development build and the data is kept):
 
 ```bash
 cd apps/mobile && npx expo prebuild --platform android --no-install
 cd android && EXPO_PUBLIC_MORPH_API_URL=https://morph-api.stonetech.dev \
   EXPO_PUBLIC_MORPH_CLIENT_TOKEN="$(grep '^MORPH_CLIENT_TOKEN=' ~/projects/morph-prod/.env | cut -d= -f2-)" \
   ./gradlew app:assembleRelease -PreactNativeArchitectures=arm64-v8a
-adb -s <序列号> install -r app/build/outputs/apk/release/app-release.apk
+adb -s <serial> install -r app/build/outputs/apk/release/app-release.apk
 ```
 
-下载的工具（D-177–D-179）：打包时再设 `EXPO_PUBLIC_MORPH_TOOLS_URL=<R2 上目录的地址>`。扫描展平的模型（D-274）：打包时设 `EXPO_PUBLIC_MORPH_PACKS_URL=https://morph-tools.stonetech.dev/packs`（R2 桶 `morph-tools` 的 `packs/`，路径带扩展包 ID 和版本，只新增不覆盖；换模型时改 `packages/core/src/packs.ts` 的版本、大小和哈希）。服务器不用知道下载的工具（提示词由 App 写，D-193）；发布步骤见 [TOOL_DOWNLOAD_DESIGN.md](TOOL_DOWNLOAD_DESIGN.md) §13。
+Downloaded tools (D-177–D-179): at build time also set `EXPO_PUBLIC_MORPH_TOOLS_URL=<address of the catalog on R2>`. Scan flattening model (D-274): at build time set `EXPO_PUBLIC_MORPH_PACKS_URL=https://morph-tools.stonetech.dev/packs` (`packs/` in the R2 bucket `morph-tools`; paths carry the pack ID and version, and are only added to, never overwritten; when changing the model, update the version, size and hash in `packages/core/src/packs.ts`). The server does not need to know about downloaded tools (the prompt is written by the app, D-193); for the release steps see [TOOL_DOWNLOAD_DESIGN.md](TOOL_DOWNLOAD_DESIGN.md) §13.
 
-客户端令牌会打包进 App，不是秘密（D-132）。换令牌会让旧版本 App 全部 401，所以只在被滥用时才换。
+The client token is bundled into the app and is not a secret (D-132). Changing the token makes every old app version return 401, so change it only when it is being abused.
 
-## 需求回收（D-189）
+## Collecting requests (D-189)
 
-用户在 AI 做不到时点「把这个需求告诉我们」，那一句话追加到 `~/projects/morph-prod/apps/api/data/needs.jsonl`（一行一条 JSON：时间、这句话、语言、拒绝原因、用的哪种 AI、平台、版本；没有设备 id 和 IP）。目录在 `.gitignore` 里，发布新版本不会动它。换位置用 `.env` 的 `MORPH_NEEDS_FILE`。每台设备每天最多 20 条，全部合计每天 2000 条。
+When the AI cannot do something, the user taps "Tell us you need this", and that one sentence is appended to `~/projects/morph-prod/apps/api/data/needs.jsonl` (one JSON per line: time, the sentence, language, rejection reason, which kind of AI was used, platform, version; no device id or IP). The directory is in `.gitignore`, so releasing a new version does not touch it. To change the location, use `MORPH_NEEDS_FILE` in `.env`. At most 20 per device per day, and 2000 per day in total.
 
 ```bash
-# 最近 20 条
+# The last 20
 tail -20 ~/projects/morph-prod/apps/api/data/needs.jsonl
-# 按拒绝原因数一数（ai 是 mock 的多半是内置规则听不懂，不一定是缺功能）
+# Count by rejection reason (where ai is mock, it is mostly that the built-in rules did not understand, not necessarily a missing feature)
 jq -r '.reason + " " + (.ai // "?")' ~/projects/morph-prod/apps/api/data/needs.jsonl | sort | uniq -c
 ```
 
-隐私政策上线时要写明：只有用户点了按钮才发送，发送的只有这一句话。
+When the privacy policy goes live it must say: it is sent only when the user taps the button, and what is sent is only that one sentence.
 
-## 测试期保存请求（D-240）
+## Saving requests during the test period (D-240)
 
-TestFlight 测试期间，生产 `.env` 设 `MORPH_REQUESTS_FILE=data/requests.jsonl`（相对 `apps/api`，即 `~/projects/morph-prod/apps/api/data/requests.jsonl`），重启服务后启动日志会显示「保存请求到 …」。每次转发成功追加一行 JSON：时间、设备 id 哈希前 8 位、平台、App 版本、第几轮、`system`（规划提示词）、`messages`（界面配置和用户的话）、模型回复、结束原因、token。不设就不保存。保留多久、怎么删除还没定（P-041）；文件里有用户的原话，不要拷到别处或提交。
+During the TestFlight test, set `MORPH_REQUESTS_FILE=data/requests.jsonl` in the production `.env` (relative to `apps/api`, i.e. `~/projects/morph-prod/apps/api/data/requests.jsonl`). After restarting the service, the startup log shows "Saving requests to …". Each successful forward appends one JSON line: time, the first 8 characters of the device id hash, platform, app version, which round, `system` (the planning prompt), `messages` (the UI config and the user's words), the model reply, the stop reason, tokens. Nothing is saved if it is unset. How long to keep it and how to delete it are not decided yet (P-041); the file contains the user's own words, so do not copy it elsewhere or commit it.
 
 ```bash
-# 最近 5 条：第一条消息的末尾（用户的话在最后）和模型回复的开头
+# The last 5: the end of the first message (the user's words are last) and the start of the model reply
 tail -5 ~/projects/morph-prod/apps/api/data/requests.jsonl | jq -r '.at, .messages[0].content[-200:], .reply[:200], ""'
-# 回复里没有 "kind" 的（多半不是修改计划）
+# Replies without "kind" (mostly not change plans)
 jq -c 'select(.reply | contains("\"kind\"") | not) | {at, reply: .reply[:200]}' ~/projects/morph-prod/apps/api/data/requests.jsonl
 ```
 
-## Mac 需要保持的状态
+## State the Mac must keep
 
-- 不睡眠（`pmset -g` 里 `sleep 0`），断电后自动开机（`autorestart 1`）。
-- 开机后**自动登录**：LaunchAgent 在用户登录后才启动，系统更新重启后没有登录，服务就不会起来。
-- 在 Anthropic 控制台设置每月花费上限：令牌能被取出，这是费用的最后一道保险。
+- No sleep (`sleep 0` in `pmset -g`), and power on automatically after a power loss (`autorestart 1`).
+- **Automatic login** after boot: a LaunchAgent starts only after the user logs in, so after a system-update restart with no login the service will not come up.
+- Set a monthly spend cap in the Anthropic console: the token can be extracted, so this is the last safeguard on cost.
 
-## 排查
+## Troubleshooting
 
 ```bash
 launchctl print gui/$(id -u)/dev.stonetech.morph-api | grep -E 'state|last exit'

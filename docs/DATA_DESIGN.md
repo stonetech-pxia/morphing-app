@@ -1,113 +1,113 @@
-# 用户数据设计（数据组件：清单、表单、统计）
+# User data design (data components: list, form, stat)
 
-> 状态：**已实现**（2026-10-22，schemaVersion 3）。第 9 节已由创始人确认，见 DECISIONS D-036–D-043。
-> 相关：恢复语义见交接文档 §7E，用户文件见 §7G，云端见 [CLOUD_DESIGN.md](CLOUD_DESIGN.md)。
+> Status: **implemented** (2026-10-22, schemaVersion 3). Section 9 was confirmed by the founder, see DECISIONS D-036–D-043.
+> Related: for restore semantics see "Product background" §7E in AGENTS.md, for user files §7G, for the cloud [CLOUD_DESIGN.md](CLOUD_DESIGN.md).
 
-## 1. 目标
+## 1. Goals
 
-- 用户用一句话搭出**能记东西**的页面：记账、待办、读书清单、笔记、客户名单……
-- **数据属于用户**：改界面、撤销、恢复历史版本、卸载工具，都不会删除或改动用户填的内容（和用户文件同一原则，§6 不变量）。
-- **AI 只设计数据的“形状”和展示方式**，不读、不写用户填的内容（§8：发给模型的内容尽量少）。
-- 仍然是白名单 + 声明式：没有公式、脚本、任意查询，保持非图灵完备（§7C、应用商店动态代码政策）。
+- With one sentence the user builds a page that **can record things**: bookkeeping, to-dos, a reading list, notes, a customer list, ...
+- **The data belongs to the user**: changing the UI, undoing, restoring a historical version, or uninstalling a tool never deletes or alters what the user entered (the same principle as user files, the §6 invariant).
+- **The AI designs only the "shape" of the data and how it is displayed**; it neither reads nor writes what the user entered (§8: send as little as possible to the model).
+- It stays whitelist + declarative: no formulas, scripts or arbitrary queries, and it stays non-Turing-complete (§7C, the app store's dynamic-code policy).
 
-## 2. 核心划分：结构在配置里，内容在配置外
+## 2. The core split: structure is in the config, content is outside it
 
-|              | 数据表结构（Collection）                  | 记录（Record）                   |
-| ------------ | ----------------------------------------- | -------------------------------- |
-| 例子         | “账目”表有金额、分类、日期、备注四个字段  | 「午饭 35 元 餐饮 10-22」        |
-| 存在哪       | `WorkspaceConfig.collections`，随版本保存 | SQLite `records` 表，不随版本    |
-| 谁来改       | AI 或修改流程：预览 → 确认 → 可撤销       | 用户在页面上直接增删改，立即生效 |
-| 恢复历史版本 | 还原                                      | **不还原、不删除**               |
-| 发给 AI      | 发送（表名、字段名、选项文字）            | **从不发送**                     |
+|                                | Table structure (Collection)                                       | Records (Record)                                                             |
+| ------------------------------ | ------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| Example                        | The "Expenses" table has four fields: amount, category, date, note | "Lunch 35 yuan Food 10-22"                                                   |
+| Where it lives                 | `WorkspaceConfig.collections`, saved with versions                 | SQLite `records` table, not with versions                                    |
+| Who changes it                 | The AI or the change flow: preview → confirm → undoable            | The user adds, deletes and edits directly on the page, effective immediately |
+| Restoring a historical version | Restored                                                           | **Not restored, not deleted**                                                |
+| Sent to the AI                 | Sent (table names, field names, option text)                       | **Never sent**                                                               |
 
-这和现在“工具配置随版本、用户文件独立”的划分完全一致。用户撤销一次界面修改，不会丢掉刚记的一笔账。
+This matches the existing split of "tool config goes with versions, user files are independent". When the user undoes a UI change, the entry just recorded is not lost.
 
-## 3. 数据表结构
+## 3. Table structure
 
 ```jsonc
-// WorkspaceConfig 新增 collections（schemaVersion 3）
+// WorkspaceConfig adds collections (schemaVersion 3)
 "collections": [
   {
     "id": "expenses",
-    "name": "账目",
+    "name": "Expenses",
     "icon": "chart",
     "fields": [
-      { "id": "amount",   "name": "金额", "type": "money", "currency": "CNY", "required": true },
-      { "id": "category", "name": "分类", "type": "choice",
-        "options": [{ "id": "food", "label": "餐饮" }, { "id": "transport", "label": "交通" }] },
-      { "id": "date",     "name": "日期", "type": "date", "default": "today" },
-      { "id": "note",     "name": "备注", "type": "text" }
+      { "id": "amount",   "name": "Amount", "type": "money", "currency": "CNY", "required": true },
+      { "id": "category", "name": "Category", "type": "choice",
+        "options": [{ "id": "food", "label": "Food" }, { "id": "transport", "label": "Transport" }] },
+      { "id": "date",     "name": "Date", "type": "date", "default": "today" },
+      { "id": "note",     "name": "Note", "type": "text" }
     ]
   }
 ]
 ```
 
-### 字段类型（白名单）
+### Field types (whitelist)
 
-| 类型       | 存储的值                                         | 典型用途     |
-| ---------- | ------------------------------------------------ | ------------ |
-| `text`     | 字符串，≤ 200 字                                 | 标题、名称   |
-| `note`     | 字符串，≤ 5000 字                                | 笔记正文     |
-| `number`   | 数字；可设小数位（0–4）和单位（如“页”“km”）      | 数量、进度   |
-| `money`    | 数字（2 位小数）+ 币种（ISO 代码，整个字段统一） | 金额         |
-| `checkbox` | true / false                                     | 完成、已读   |
-| `date`     | `YYYY-MM-DD`，设备本地日期                       | 日期、截止日 |
-| `choice`   | 选项 ID（单选）                                  | 分类、状态   |
-| `rating`   | 1–5 的整数                                       | 评分         |
-| `tags`     | 一组文字（存在记录里，配置里没有标签名，D-432）  | 标签         |
-| `file`     | 一组 Morph 文件的 ID，最多 20 个（D-187、D-263） | 收据、照片   |
-| `formula`  | 不存值，按 `expression` 现算（D-188、D-246）     | 小计、含税   |
-| `link`     | 另一张表里一条记录的 ID（D-250）                 | 订单的客户   |
-| `time`     | `HH:mm`，几点几分（D-279）                       | 上班时间     |
-| `datetime` | `YYYY-MM-DDTHH:mm`，设备本地（D-279）            | 打卡、喂奶   |
-| `duration` | 整数分钟，显示 `h:mm`（D-279）                   | 休息、时长   |
-| `lookup`   | 不存值，引用的那条记录的某个字段（D-287）        | 工时的时薪   |
-| `rollup`   | 不存值，引用了这条的记录的统计（D-288）          | 客户总额     |
-| `previous` | 不存值，同组按日期的上一条的值（D-289）          | 上次里程     |
-| `schedule` | 一份重复规则（白名单 JSON，D-292）               | 浇水、续费   |
+| Type       | Stored value                                                                        | Typical use               |
+| ---------- | ----------------------------------------------------------------------------------- | ------------------------- |
+| `text`     | String, ≤ 200 characters                                                            | Title, name               |
+| `note`     | String, ≤ 5000 characters                                                           | Note body                 |
+| `number`   | Number; can set decimal places (0–4) and a unit (such as "pages", "km")             | Quantity, progress        |
+| `money`    | Number (2 decimal places) + currency (ISO code, one per field)                      | Amount                    |
+| `checkbox` | true / false                                                                        | Done, read                |
+| `date`     | `YYYY-MM-DD`, device-local date                                                     | Date, due date            |
+| `choice`   | Option ID (single choice)                                                           | Category, status          |
+| `rating`   | Integer 1–5                                                                         | Rating                    |
+| `tags`     | A set of text (stored in the record, the config has no tag names, D-432)            | Tags                      |
+| `file`     | A set of Morph file IDs, up to 20 (D-187, D-263)                                    | Receipts, photos          |
+| `formula`  | No stored value, computed from `expression` (D-188, D-246)                          | Subtotal, with tax        |
+| `link`     | ID of a record in another table (D-250)                                             | Customer of an order      |
+| `time`     | `HH:mm`, hour and minute (D-279)                                                    | Work start time           |
+| `datetime` | `YYYY-MM-DDTHH:mm`, device-local (D-279)                                            | Clock-in, feeding         |
+| `duration` | Integer minutes, shown as `h:mm` (D-279)                                            | Break, duration           |
+| `lookup`   | No stored value, a field of the record it refers to (D-287)                         | Hourly rate of a work log |
+| `rollup`   | No stored value, a statistic over the records that refer to this one (D-288)        | Customer total            |
+| `previous` | No stored value, the value of the previous record in the same group by date (D-289) | Last mileage              |
+| `schedule` | A repeat rule (whitelisted JSON, D-292)                                             | Watering, renewal         |
 
-每条记录还自带两个系统字段：`createdAt`、`updatedAt`，可以用来排序和筛选。
+Every record also carries two system fields, `createdAt` and `updatedAt`, which can be used for sorting and filtering.
 
-### 规则
+### Rules
 
-- **ID 稳定，名字可改**：字段和选项都有固定 ID；改名只改显示文字，已有数据不受影响。
-- **删除字段 = 隐藏**：记录里这个字段的值保留不动；恢复到旧版本时字段重新出现，数据也回来了。
-- **删除选项**：已经选了它的记录显示为空（数据仍在，恢复后回来）。
-- **改字段类型**：只允许兼容的转换（`text ↔ note`、`number ↔ money`）。其他情况要新建一个字段（建议，见第 9 节 Q3）。
-- **默认值**：`date` 可以是 `"today"`；其他类型是常量。
-- **上限**：每个工作空间 20 张表，每张表 30 个字段，每个选择字段 50 个选项。
+- **IDs are stable, names can change**: fields and options have fixed IDs; renaming changes only the displayed text and existing data is unaffected.
+- **Deleting a field = hiding it**: the field's values in records stay untouched; when you restore an old version the field reappears and so does the data.
+- **Deleting an option**: records that had selected it show empty (the data is still there and comes back after a restore).
+- **Changing a field's type**: only compatible conversions are allowed (`text ↔ note`, `number ↔ money`). Otherwise create a new field (proposed, see Q3 in section 9).
+- **Defaults**: `date` can be `"today"`; other types use a constant.
+- **Limits**: 20 tables per workspace, 30 fields per table, 50 options per choice field.
 
-## 4. 记录
+## 4. Records
 
 ```sql
--- 本地数据库新增（PRAGMA user_version 3）
+-- Added to the local database (PRAGMA user_version 3)
 CREATE TABLE records (
   id            TEXT PRIMARY KEY,      -- UUID
   collection_id TEXT NOT NULL,
-  values_json   TEXT NOT NULL,         -- { 字段 ID: 值 }
+  values_json   TEXT NOT NULL,         -- { field ID: value }
   created_at    INTEGER NOT NULL,
   updated_at    INTEGER NOT NULL,
-  deleted_at    INTEGER                -- 软删除
+  deleted_at    INTEGER                -- soft delete
 );
 CREATE INDEX records_by_collection ON records (collection_id, deleted_at, created_at);
 ```
 
-- **写入时严格**：按当前字段定义校验（`core` 提供纯函数 `validateRecord`），不合法的值不能保存。
-- **读取时宽容**：和当前定义对不上的值（比如恢复旧版本后类型变了），只是不显示，**绝不能让页面崩溃**。记录不经过版本校验，所以渲染器必须能承受任何数据。
-- **已删除字段的值**会原样保留在 `values_json` 里，不显示。
-- **删除记录**：软删除，提示条上可以「撤销」；「设置 → 数据 → 最近删除」保留 30 天（见 Q2）。
-- **数据表被移出配置**（AI 删除了表，或恢复到建表之前的版本）：记录保留。「设置 → 数据」列出“未使用的数据表”，可以导出或永久删除（需确认）。同一个表 ID 重新出现时，数据自动回来。
-- **规模**：每张表软上限 1 万条（满了不能再添加）。实现时筛选、排序和统计用 `core` 的纯函数在内存中计算（和测试共用同一套逻辑）；记录很多时再改为 SQLite `json_extract`（D-043）。
+- **Strict on write**: validate against the current field definitions (`core` provides the pure function `validateRecord`); invalid values cannot be saved.
+- **Tolerant on read**: values that do not match the current definition (for example the type changed after restoring an old version) are simply not shown, and **must never crash the page**. Records do not go through version validation, so the renderer must withstand any data.
+- **Values of deleted fields** stay as they are in `values_json` and are not shown.
+- **Deleting a record**: soft delete; the banner offers "Undo"; "Settings → Data → Recently deleted" keeps it for 30 days (see Q2).
+- **A table removed from the config** (the AI deleted the table, or restored to a version before the table was created): the records are kept. "Settings → Data" lists "unused tables", which can be exported or permanently deleted (with confirmation). When the same table ID reappears, the data comes back automatically.
+- **Scale**: soft cap of 10,000 records per table (when full, no more can be added). In the implementation, filtering, sorting and statistics are computed in memory with the pure functions in `core` (the same logic as the tests); when there are very many records, switch to SQLite `json_extract` (D-043).
 
-## 5. 数据组件
+## 5. Data components
 
-| 组件         | 主要属性                                                                                                                                   | 说明                                                       |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| `recordList` | `collectionId`、`display`（`list` / `cards` / `checklist`）、`titleField`、`subtitleFields`（≤ 2）、`filter`、`sort`、`limit`、`emptyText` | 点一条打开编辑；`checklist` 用一个 `checkbox` 字段直接打勾 |
-| `recordForm` | `collectionId`、`fieldIds`、`submitLabel`、`mode`（`inline` / `button`）                                                                   | 快速添加：`inline` 直接在页面上填，`button` 弹出完整表单   |
-| `stat`       | `collectionId`、`aggregate`（`count` / `sum` / `avg` / `min` / `max`）、`fieldId`、`filter`、`label`、`groupBy`（D-248）                   | 例如“本月支出 ¥1,234”“未完成 5 项”；`groupBy` 每个选项一行 |
+| Component    | Main properties                                                                                                                          | Notes                                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `recordList` | `collectionId`, `display` (`list` / `cards` / `checklist`), `titleField`, `subtitleFields` (≤ 2), `filter`, `sort`, `limit`, `emptyText` | Tap one to open it for editing; `checklist` ticks directly with a `checkbox` field                 |
+| `recordForm` | `collectionId`, `fieldIds`, `submitLabel`, `mode` (`inline` / `button`)                                                                  | Quick add: `inline` fills in directly on the page, `button` opens the full form                    |
+| `stat`       | `collectionId`, `aggregate` (`count` / `sum` / `avg` / `min` / `max`), `fieldId`, `filter`, `label`, `groupBy` (D-248)                   | For example "This month's spending ¥1,234", "5 items not done"; `groupBy` gives one row per option |
 
-**筛选**只能用白名单条件，多个条件之间是“并且”，没有表达式：
+**Filters** can use only whitelisted conditions; several conditions are combined with "and", and there are no expressions:
 
 ```jsonc
 "filter": [
@@ -117,49 +117,49 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 "sort": { "field": "date", "direction": "desc" }
 ```
 
-可用的条件：`is` / `isNot` / `contains` / `gt` / `lt` / `isEmpty` / `isNotEmpty` / `inPeriod`，日程字段还有 `due`（`today` / `overdue` / `thisWeek`，D-294）。`inPeriod` 的取值有 `today`、`thisWeek`、`thisMonth`、`thisYear`、`last7days`、`last30days`，D-285 加了 `last14days`、`last90days`、`last365days`、`thisTwoWeeks`（两周一段）、`thisHalfMonth`（1–15 号或 16 号到月底）。「今天」和一周的第一天按「设置 → 日期」（D-286）。
+Available conditions: `is` / `isNot` / `contains` / `gt` / `lt` / `isEmpty` / `isNotEmpty` / `inPeriod`, and schedule fields also have `due` (`today` / `overdue` / `thisWeek`, D-294). The values of `inPeriod` are `today`, `thisWeek`, `thisMonth`, `thisYear`, `last7days`, `last30days`; D-285 added `last14days`, `last90days`, `last365days`, `thisTwoWeeks` (a two-week span) and `thisHalfMonth` (the 1st–15th, or the 16th to the end of the month). "Today" and the first day of the week follow "Settings → Days and weeks" (D-286).
 
-**记录编辑页**由内核按字段定义自动生成，不可配置：点列表里的一条，或 `recordForm` 的 `button` 模式都会打开它，删除也在这里。已有记录的页面顶部的一排按钮由表上的 `recordRow` 配置（D-428，取代 D-423 写死的那排）：每个按钮是一个快捷操作，点了把这个字段的值或这一条记录交给它；没有配置就没有这一排。
+The **record edit page** is generated automatically by the core from the field definitions and is not configurable: tapping one in a list, or the `button` mode of `recordForm`, opens it, and deleting is also done here. The row of buttons at the top of the page for an existing record is configured by `recordRow` on the table (D-428, replacing the hard-coded row of D-423): each button is a quick action, and tapping it hands the value of this field or this record to it; with no configuration there is no row.
 
-这三个组件和其他组件一样，可以放进分组里，例如两个 `stat` 横排、列表放在网格下面。
+These three components, like the other components, can be put inside groups, for example two `stat` side by side, or a list below a grid.
 
-## 6. AI 修改操作
+## 6. AI operations
 
-新增的操作：
+New operations:
 
-| 操作                                                                               | 说明                            |
-| ---------------------------------------------------------------------------------- | ------------------------------- |
-| `addCollection {collection}`                                                       | 新建数据表                      |
-| `updateCollection {collectionId, name?, icon?}`                                    | 改名、换图标                    |
-| `addField {collectionId, field, index?}`                                           | 加字段                          |
-| `updateField {collectionId, fieldId, name?, options?, required?, default?, type?}` | 改字段；`type` 只能做兼容转换   |
-| `moveField {collectionId, fieldId, toIndex}`                                       | 调整字段顺序                    |
-| `removeField {collectionId, fieldId}`                                              | 隐藏字段，数据保留              |
-| `removeCollection {collectionId}`                                                  | 移出配置，数据保留（见第 4 节） |
+| Operation                                                                          | Notes                                                     |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `addCollection {collection}`                                                       | Create a table                                            |
+| `updateCollection {collectionId, name?, icon?}`                                    | Rename, change icon                                       |
+| `addField {collectionId, field, index?}`                                           | Add a field                                               |
+| `updateField {collectionId, fieldId, name?, options?, required?, default?, type?}` | Change a field; `type` allows only compatible conversions |
+| `moveField {collectionId, fieldId, toIndex}`                                       | Reorder fields                                            |
+| `removeField {collectionId, fieldId}`                                              | Hide the field, data is kept                              |
+| `removeCollection {collectionId}`                                                  | Remove from the config, data is kept (see section 4)      |
 
-数据组件仍然用现有的 `addComponent` / `setComponentProps` 等操作。
+Data components still use the existing operations such as `addComponent` / `setComponentProps`.
 
-**校验器**新增检查：组件引用的表和字段必须存在；用法和类型匹配（`sum` 只能用于 `number` / `money`，`checklist` 需要 `checkbox` 字段，`inPeriod` 只能用于 `date` 或系统时间字段）；筛选值必须符合字段类型和选项。
+New **validator** checks: the table and fields a component refers to must exist; usage must match types (`sum` only for `number` / `money`, `checklist` needs a `checkbox` field, `inPeriod` only for `date` or system time fields); filter values must fit the field type and options.
 
-**修改说明**举例：「新建数据表「账目」（金额、分类、日期、备注）」「隐藏「账目」的字段「备注」（已有数据保留）」。
+**Change description** examples: "Create table 'Expenses' (amount, category, date, note)", "Hide field 'Note' of 'Expenses' (existing data is kept)".
 
-**快捷操作写记录（D-187；D-397 起默认这次的文件进同一条记录，表单和记录页同一份，自动读附件给候选）**：`out.addRecord` 在快捷操作运行时弹出按表结构生成的表单，用户填完才写进数据库；文件存成 Morph 的文件放进附件字段，排在最前，用户在表单里另外加的照片和文件跟在后面（D-263）。AI 只决定记到哪张表。
+**Quick actions writing records (D-187; since D-397 the files of this run go into the same record by default, the form and the record page are the same, and attachments are read automatically to give suggestions)**: `out.addRecord` shows a form generated from the table structure when the quick action runs, and the data is written to the database only after the user fills it in; files are stored as Morph files and put into the attachment field, placed first, with photos and files the user adds in the form after them (D-263). The AI decides only which table to record into.
 
-**附件（D-263）**：记录编辑页、快速添加表单和「记一笔」的表单都能拍照、从相册或「文件」选，复制一份存成 Morph 的用户文件；原件不动。列表和卡片显示第一张图片的缩略图。文件由用户在「设置 → 存储空间」里看用在哪里、删除（D-264）。
+**Attachments (D-263)**: the record edit page, the quick-add form and the "Add entry" form can all take a photo or pick from the photo library or "Files", and a copy is stored as a Morph user file; the original is untouched. Lists and cards show the thumbnail of the first image. In "Settings → Storage" the user sees where files are used and deletes them (D-264).
 
-**AI 不碰记录内容**：「删掉上个月的账」「把所有待办标成完成」这类请求会被拒绝，并提示直接在页面上操作（和 `deleteFiles` 同一类）。AI 是否可以代写记录，见 Q1。
+**The AI does not touch record contents**: requests such as "delete last month's expenses" or "mark all to-dos as done" are refused with a hint to do it directly on the page (the same category as `deleteFiles`). For whether the AI may write records on the user's behalf, see Q1.
 
-### 例子：「做一个记账页面，显示本月花了多少」
+### Example: "Make a bookkeeping page that shows how much I spent this month"
 
-模型会输出：`addCollection`（账目表，同第 3 节）+ `addPage` + `setNavItems`。新页面是这样的：
+The model will output: `addCollection` (the Expenses table, same as section 3) + `addPage` + `setNavItems`. The new page looks like this:
 
 ```jsonc
 {
   "id": "budget",
-  "title": "记账",
+  "title": "Bookkeeping",
   "icon": "chart",
   "components": [
-    { "id": "title", "type": "header", "props": { "title": "记账" } },
+    { "id": "title", "type": "header", "props": { "title": "Bookkeeping" } },
     {
       "id": "month-total",
       "type": "stat",
@@ -167,7 +167,7 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
         "collectionId": "expenses",
         "aggregate": "sum",
         "fieldId": "amount",
-        "label": "本月支出",
+        "label": "Spent this month",
         "filter": [{ "field": "date", "op": "inPeriod", "value": "thisMonth" }],
       },
     },
@@ -177,7 +177,7 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
       "props": {
         "collectionId": "expenses",
         "fieldIds": ["amount", "category", "note"],
-        "submitLabel": "记一笔",
+        "submitLabel": "Add entry",
         "mode": "inline",
       },
     },
@@ -191,136 +191,136 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
         "subtitleFields": ["category", "date"],
         "sort": { "field": "date", "direction": "desc" },
         "limit": 20,
-        "emptyText": "还没有记录",
+        "emptyText": "No entries yet",
       },
     },
   ],
 }
 ```
 
-**Mock AI** 增加几个内置模板，例如「新建一个记账页面」「新建待办清单」「新建读书清单」「新建笔记」，以及「给账目加一个「支付方式」字段」这类单项修改。
+The **mock AI** gains several built-in templates, such as "create a bookkeeping page", "create a to-do list", "create a reading list", "create notes", and single changes such as "add a 'payment method' field to expenses".
 
-## 7. 恢复、迁移、同步、导出
+## 7. Restore, migration, sync, export
 
-- **§7E 恢复语义**新增两行：数据表结构 → 还原；记录 → 不还原、不删除。
-- **迁移**：配置 schemaVersion 2 → 3，补上 `collections: []`；本地数据库新增 `records` 表。
-- **新组件和版本号**（D-254）：只新增一种页面组件时不提升 schemaVersion。读取已存的配置时，这个版本不认识的组件原样保留（保存时写回原来的 JSON），页面上显示「需要更新 App」的占位，只能移动和删除；AI 不能新加或修改它们。改了已有结构（给已有组件加属性、加字段类型、改取值范围）仍要提升版本号并写迁移。这个版本之前装的 App 仍会拒绝含新组件的配置。
-- **云端**（CLOUD_DESIGN.md 补充）：新增 `records` 表（带 `workspace_id`，受 RLS 保护）。版本是不可变的，记录是可变的，所以同步方式不同：每条记录按 `updated_at` 以“后写入者为准”，删除用墓碑记录。两台设备同时改同一条时，后改的生效（字段级合并以后再做）。
-- **导出**：每张表可以导出 CSV，通过系统分享面板发出去（“数据高于界面”，§12）。
+- **§7E restore semantics** gain two rows: table structure → restored; records → not restored, not deleted.
+- **Migration**: config schemaVersion 2 → 3, adding `collections: []`; the local database gains the `records` table.
+- **New components and version numbers** (D-254): adding only a new kind of page component does not raise schemaVersion. When reading a stored config, components this version does not recognize are kept as they are (the original JSON is written back on save), and the page shows a "needs a newer app" placeholder that can only be moved and deleted; the AI cannot add or change them. Changing an existing structure (adding a property to an existing component, adding a field type, changing the range of values) still requires raising the version number and writing a migration. Apps installed before this version still reject configs that contain the new component.
+- **Cloud** (addition to CLOUD_DESIGN.md): a new `records` table (with `workspace_id`, protected by RLS). Versions are immutable and records are mutable, so the sync differs: each record is "last writer wins" by `updated_at`, and deletes use tombstone records. When two devices change the same record at the same time, the later change wins (field-level merge comes later).
+- **Export**: each table can be exported as CSV and sent out through the system share sheet ("data over UI", §12).
 
-## 8. 这一版不做
+## 8. Not in this version
 
-| 不做                        | 原因 / 以后怎么做                                                  |
-| --------------------------- | ------------------------------------------------------------------ |
-| 表之间的关联（客户 ↔ 订单） | D-250 做了单向引用，D-342 用页面列出属于一条的；多选、级联删除不做 |
-| 公式、计算字段              | D-188 / D-246 / D-247 做了受限的公式                               |
-| 图表、日历视图              | D-249 做了图表；D-305 做了月历外观                                 |
-| 重复任务、每日打卡          | 需要“按日期生成记录”的规则，单独设计                               |
-| 附件字段（引用用户文件）    | D-187 / D-263 做了；按文件内容搜索、多选筛选不做                   |
-| AI 代写记录                 | 见 Q1                                                              |
-| 多人共享                    | 依赖账号和云端                                                     |
+| Not done                                    | Reason / how it will be done later                                                                                                     |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Relations between tables (customer ↔ order) | D-250 did one-way references and D-342 lists those that belong to one record on a page; multi-select and cascading delete are not done |
+| Formulas, computed fields                   | D-188 / D-246 / D-247 did restricted formulas                                                                                          |
+| Charts, calendar view                       | D-249 did charts; D-305 did the month calendar look                                                                                    |
+| Repeating tasks, daily check-ins            | Need a rule for "generate records by date", designed separately                                                                        |
+| Attachment field (referencing user files)   | Done in D-187 / D-263; searching by file content and multi-select filtering are not done                                               |
+| The AI writing records                      | See Q1                                                                                                                                 |
+| Sharing among several people                | Depends on accounts and the cloud                                                                                                      |
 
-## 9. 创始人的决定（2026-10-22）
+## 9. The founder's decisions (2026-10-22)
 
-| #   | 事项                                                            | 建议                                                                              |
-| --- | --------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Q1  | AI 能不能代写记录（例如「记一笔午饭 35」）                      | **已定：不能。AI 只改界面。** 这类请求以 `userData` 拒绝（D-036）                 |
-| Q2  | 删除记录后能找回多久                                            | 提示条上可以撤销，另外「最近删除」保留 30 天，之后自动清除                        |
-| Q3  | 字段改类型                                                      | 只允许兼容的转换；其他情况新建字段，旧字段隐藏（数据不丢）                        |
-| Q4  | AI 能不能删除数据表                                             | 能，但只是移出配置，数据保留在「设置 → 数据」里；永久删除只能由用户手动操作并确认 |
-| Q5  | 第一版 Mock AI 带哪些模板                                       | 记账、待办、读书清单、笔记                                                        |
-| Q6  | 第一版是否包含 CSV 导出                                         | 包含：工作量小，对“数据属于用户”的信任很重要                                      |
-| Q7  | 表名、字段名、选项文字会发给 AI（用户可能写进客户名之类的隐私） | 接受，和页面标题同等对待；隐私说明里写清楚。记录内容始终不发送                    |
+| #   | Item                                                                                                                      | Proposal                                                                                                                                                         |
+| --- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q1  | Can the AI write records on the user's behalf (for example "log lunch 35")                                                | **Decided: no. The AI only changes the UI.** Such requests are refused with `userData` (D-036)                                                                   |
+| Q2  | How long can a deleted record be recovered                                                                                | The banner can undo it, and in addition "Recently deleted" keeps it for 30 days, after which it is cleared automatically                                         |
+| Q3  | Changing a field's type                                                                                                   | Only compatible conversions are allowed; otherwise create a new field and hide the old one (no data lost)                                                        |
+| Q4  | Can the AI delete a table                                                                                                 | Yes, but it only removes it from the config and the data stays in "Settings → Data"; permanent deletion can only be done by the user manually, with confirmation |
+| Q5  | Which templates the mock AI has in the first version                                                                      | Bookkeeping, to-dos, reading list, notes                                                                                                                         |
+| Q6  | Whether the first version includes CSV export                                                                             | Yes: little work, and very important for trust in "the data belongs to the user"                                                                                 |
+| Q7  | Table names, field names and option text are sent to the AI (users may write private things such as customer names there) | Accepted, treated the same as page titles; stated clearly in the privacy notice. Record contents are never sent                                                  |
 
-## 10. 「AI 读不到用户数据」如何保证
+## 10. How "the AI cannot read user data" is guaranteed
 
-创始人要求：一定要保证 AI 不能读到用户数据。实现上有三层：
+The founder required: it must be guaranteed that the AI cannot read user data. The implementation has three layers:
 
-1. **结构隔离**：记录只存在数据库的 `records` 表里，从不写进 `WorkspaceConfig`；发给模型的用户消息只由 `WorkspaceConfig` 和用户这句话组成（`buildUserMessage`）。
-2. **接口隔离**：`AIProvider.plan(input, ctx)` 的 `ctx` 只有配置、工具目录和语言，没有数据库或文件的访问能力；规划器（服务端和 App 内两种传输方式共用）因此不可能读到记录。
-3. **测试**：`apps/mobile/src/__tests__/data-journeys-test.tsx` 在界面上记一笔带特殊标记的账（含人名和金额），然后发起一次 AI 修改，检查发给 Claude 的**完整请求**和 AIProvider 收到的全部参数：数据表结构在里面，标记、人名和金额都不在。
+1. **Structural isolation**: records exist only in the database `records` table and are never written into `WorkspaceConfig`; the user message sent to the model consists only of `WorkspaceConfig` and the user's sentence (`buildUserMessage`).
+2. **Interface isolation**: the `ctx` of `AIProvider.plan(input, ctx)` has only the config, the tool catalog and the language, with no access to the database or files; the planner (shared by the server-side and in-app transports) therefore cannot possibly read records.
+3. **Tests**: `apps/mobile/src/__tests__/data-journeys-test.tsx` records an entry with special markers in the UI (including a person's name and an amount), then starts an AI change, and checks the **complete request** sent to Claude and all the parameters the AIProvider received: the table structure is in them, the markers, the name and the amount are not.
 
-另外，AI 也不能写记录：修改操作里没有任何读写记录的操作；涉及记录内容的请求被拒绝（`userData`）。
+In addition, the AI cannot write records either: no operation reads or writes records; requests involving record contents are refused (`userData`).
 
-## 11. 实现计划（已完成）
+## 11. Implementation plan (done)
 
-1. **core**：schema v3（collections、字段类型、三个数据组件）、新操作、校验、`validateRecord`、筛选和统计的纯函数、修改说明、迁移、Mock 模板、提示词、评测用例。
-2. **App**：`records` 存储（SQLite + 内存实现）、三个数据组件、记录编辑页、「设置 → 数据」（未使用的表、最近删除、导出 CSV）。
-3. **测试**：UI 旅程（用 AI 搭记账页 → 记几笔 → 统计更新 → 撤销界面修改后记录还在 → 恢复到建表之前的版本再恢复回来，数据完整）；评测只用 Haiku。
+1. **core**: schema v3 (collections, field types, three data components), new operations, validation, `validateRecord`, pure functions for filtering and statistics, change descriptions, migration, mock templates, prompt, eval cases.
+2. **App**: `records` storage (SQLite + in-memory implementation), three data components, the record edit page, "Settings → Data" (unused tables, recently deleted, export CSV).
+3. **Tests**: UI journey (build a bookkeeping page with the AI → record a few entries → statistics update → after undoing the UI change the records are still there → restore to a version before the table was created and restore back, data intact); evals use only Haiku.
 
-预计和上一个里程碑（样式与页面）的工作量相当。
+The estimated effort is comparable to the previous milestone (styles and pages).
 
-## 12. 公式的条件和日期（D-246 起）
+## 12. Formula conditions and dates (since D-246)
 
-公式字段（D-188）仍然只是解析成小树再计算的固定写法：
+Formula fields (D-188) are still just a fixed syntax that is parsed into a small tree and then evaluated:
 
-- **条件**（D-246）：`if(左边 运算符 右边, 是的时候, 不是的时候)`，运算符 `> < >= <= =`，只能写在 `if` 的第一项；可以嵌套，嵌套层数（20）和长度（当时 200 字，D-281 起 500 字）的上限不变。比较的两边有一边没有值时整个公式没有值。例：`if({total} >= 100, {total} * 0.9, {total})`。
-- **日期**（D-247）：日期字段 `{due}` 和 `today` 是日期，`days(从, 到)` 是相差的天数（到 − 从），两个日期可以在 `if` 里比较；日期不能加减乘除，结果必须是数字。例：「距离到期还有几天」= `days(today, {due})`，「逾期罚款」= `if({paid} > {due}, days({due}, {paid}) * 5, 0)`。日期字段为空时没有值；用到 `today` 的公式每天的值会变。
-- **函数和时间**（D-280）：`min`、`max`、`round(x, 位数?)`、`abs` 只算数字；`hours(从, 到)` / `minutes(从, 到)` 算两个时间或两个日期时间之间多久，两个时间字段跨午夜（到 < 从）时加 24 小时；`days()` 也认日期时间；时长字段是分钟数。例：「工时」= `hours({start}, {end}) - {break} / 60`。
-- **引用公式**（D-281）：公式可以引用同一张表的别的公式（用取整后的值），不能绕回自己；表达式最长 500 字（暂定，P-044）。
+- **Conditions** (D-246): `if(left operator right, when true, when false)`, with operators `> < >= <= =`, allowed only as the first argument of `if`; they can be nested, and the limits on nesting depth (20) and length (200 characters at the time, 500 since D-281) are unchanged. If either side of a comparison has no value, the whole formula has no value. Example: `if({total} >= 100, {total} * 0.9, {total})`.
+- **Dates** (D-247): the date field `{due}` and `today` are dates, `days(from, to)` is the number of days between them (to − from), and two dates can be compared inside `if`; dates cannot be added, subtracted, multiplied or divided, and the result must be a number. Examples: "days until due" = `days(today, {due})`, "late fee" = `if({paid} > {due}, days({due}, {paid}) * 5, 0)`. When a date field is empty there is no value; a formula that uses `today` changes its value every day.
+- **Functions and time** (D-280): `min`, `max`, `round(x, digits?)`, `abs` work only on numbers; `hours(from, to)` / `minutes(from, to)` compute how long it is between two times or two datetimes, adding 24 hours when two time fields cross midnight (to < from); `days()` also accepts datetimes; a duration field is a number of minutes. Example: "hours worked" = `hours({start}, {end}) - {break} / 60`.
+- **Referencing formulas** (D-281): a formula can reference other formulas of the same table (using the rounded value) and cannot loop back to itself; an expression is at most 500 characters (provisional, P-044).
 
-## 13. 分组统计、图表、表间引用（D-248 起）
+## 13. Grouped statistics, charts, references between tables (since D-248)
 
-- **分组统计**（D-248，schemaVersion 13）：`stat.groupBy` 是一个单选字段，每个选项一行（按选项顺序，没有记录的也列出），没选的记录放在最后「未选」。
-- **图表**（D-249，schemaVersion 14）：`chart {collectionId, kind: bar / line / pie, aggregate: count / sum / avg, fieldId?, group: day / week / month / choice, dateField?, choiceField?, periods?, filter?, title}`。按时间分组显示最近几段（默认 7 天、8 周、6 个月），按单选字段分组每个选项一个点；饼图只能按单选分，超过 7 块合成「其他」。分组和几何在 `core/chart.ts`，App 用 View 画柱子、Skia `Path` 画折线和饼图。
-- **表间引用**（D-250，schemaVersion 15）：字段 `link {collectionId}`，值是那条记录的 ID，显示它的标题字段（第一个文字字段）。被引用的记录删掉时值保留、显示「已删除的记录」，恢复后显示回来；别的表还引用一张表时不能移除它（先移除引用字段）。筛选只有「有没有选」（给一条记录用的页面上可以等于这条，D-342），不能按它排序。不做多选和级联删除。
-- **到期提醒**（D-251，schemaVersion 16）：`reminders` 里 `schedule: dateField` 的提醒按一张表的日期字段，在到期前 `daysBefore` 天的 `time` 用本地通知提醒；记录在本机读、正文在本机生成且只写表名（会出现在锁屏上，不写记录标题，P-043 ②），配置里只有设置。点提醒只打开页面或快捷操作，不运行。
+- **Grouped statistics** (D-248, schemaVersion 13): `stat.groupBy` is a choice field, one row per option (in option order, including those with no records), and records with no choice go last under "Not set".
+- **Charts** (D-249, schemaVersion 14): `chart {collectionId, kind: bar / line / pie, aggregate: count / sum / avg, fieldId?, group: day / week / month / choice, dateField?, choiceField?, periods?, filter?, title}`. Grouping by time shows the most recent few periods (default 7 days, 8 weeks, 6 months); grouping by a choice field gives one point per option; a pie chart can only be grouped by choice, and more than 7 slices are merged into "Other". Grouping and geometry are in `core/chart.ts`; the app draws bars with View and lines and pies with Skia `Path`.
+- **References between tables** (D-250, schemaVersion 15): field `link {collectionId}`, whose value is the ID of that record and which displays its title field (the first text field). When the referenced record is deleted the value is kept and "Deleted entry" is shown, and it shows again after a restore; a table that another table still references cannot be removed (remove the reference field first). The only filter is "whether one is chosen" (on a page made for one record it can equal that record, D-342), and it cannot be used for sorting. Multi-select and cascading delete are not done.
+- **Due reminders** (D-251, schemaVersion 16): a reminder in `reminders` with `schedule: dateField` follows a table's date field and reminds with a local notification at the `time` `daysBefore` days before it is due; the record is read on the device, the body text is generated on the device and contains only the table name (it appears on the lock screen, so no record title is written, P-043 ②), and the config holds only the settings. Tapping a reminder only opens a page or a quick action and does not run it.
 
-## 14. 样板 App（D-260 起）
+## 14. Sample apps (since D-260)
 
-- **样板**（D-260）：`packages/core/src/samples/<id>.json` 一次带来几张数据表、几个页面、快捷操作、首页入口和提醒，只有表结构，**不含任何记录**。套用时按当前配置换成不重复的 ID（已有同名的表加 -2），用户原来的表和记录不动；表之间的引用字段、公式、提醒、按钮和快捷操作卡片都指向换过的 ID。表或页面放不下（各 20 个）时整套不套用。
-- **新手引导第 3 步**（D-261、D-262）：整套修改先进草稿，「应用」后是一个版本，撤销回到套用前；记录不在版本里，套用后记下的记录在撤销后仍留在本机（「撤销不会丢掉刚记的一笔账」，见第 4 节和开头的原则）。
+- **Sample apps** (D-260): `packages/core/src/samples/<id>.json` brings several tables, pages, quick actions, home entries and reminders at once, with only the table structure and **no records at all**. When applied, IDs are replaced with non-conflicting ones for the current config (an existing table with the same name gets -2), and the user's existing tables and records are untouched; reference fields between tables, formulas, reminders, buttons and quick-action cards all point to the replaced IDs. If the tables or pages do not fit (20 of each), the whole set is not applied.
+- **Onboarding guide step 3** (D-261, D-262): the whole change goes into a draft first, "Apply" makes it one version, and undo goes back to before it was applied; records are not in versions, so records entered after applying stay on the device after the undo ("undoing does not lose the entry just recorded", see section 4 and the principle at the start).
 
-## 15. 按顺序的聚合、时间段、一天和一周从何时开始（D-284 起）
+## 15. Ordered aggregates, periods, when a day and a week start (since D-284)
 
-- **按顺序的聚合**（D-284，schemaVersion 20）：`stat.aggregate` 加 `streak`（当前连续和最佳连续，`unit` 天 / 周 / 月，`perUnit` 每单位至少几条，`skipField` + `skipOption` 指定「跳过」的单选项）、`daysSince`、`avgInterval`、`distinctDays`，按 `dateField`（默认第一个日期字段，没有就用创建时间）算日子，可以配合 `groupBy` 每个选项一行。图表只能用 `distinctDays`。纯逻辑在 `core/sequence.ts`，接口是「一组记录 + 日期字段 + 参数 → 值」，以后汇总字段也用它。
-- **时间段**（D-285）：见上面筛选条件的 `inPeriod`；筛选、`in.records`、`file.filter`、统计和图表的筛选共用。
-- **一天、一周从何时开始**（D-286）：配置的 `calendar {dayStartHour? 0–6, weekStart? monday / sunday, twoWeekStart?}`。所有按天、按周归类的计算（时间段、图表分组、连续天数、日期字段默认的今天、创建时间算哪一天）都按它；逻辑在 `core/calendar.ts`。
+- **Ordered aggregates** (D-284, schemaVersion 20): `stat.aggregate` gains `streak` (current streak and best streak, `unit` day / week / month, `perUnit` the minimum number of records per unit, `skipField` + `skipOption` designating a choice option as "skip"), `daysSince`, `avgInterval`, `distinctDays`, computing days by `dateField` (default the first date field, or the creation time if there is none), and can be combined with `groupBy` for one row per option. Charts can only use `distinctDays`. The pure logic is in `core/sequence.ts`, with the interface "a set of records + a date field + parameters → a value", which summary fields will use later too.
+- **Periods** (D-285): see `inPeriod` in the filter conditions above; shared by filters, `in.records`, `file.filter`, and the filters of statistics and charts.
+- **When a day and a week start** (D-286): the config's `calendar {dayStartHour? 0–6, weekStart? monday / sunday, twoWeekStart?}`. All calculations that sort by day or week (periods, chart grouping, streak days, the default today of a date field, which day a creation time belongs to) follow it; the logic is in `core/calendar.ts`.
 
-## 16. 查找、汇总、上一条（D-287 起）
+## 16. Lookup, rollup, previous (since D-287)
 
-- **值怎么存**：不存。三种字段的定义在配置里（结构），值在手机上读记录时由 `core/related.ts` 算出来（`computeRecords`），放进记录的副本给列表、统计、图表、记录页、CSV 和报表用；写记录时去掉。AI 只能加、改这三种字段的定义（`addField`、`updateField`），看不到、也算不了任何值（D-042、D-113）。
-- **查找**（D-287）`lookup {linkField, fieldId}`：引用字段指向的那条记录的 `fieldId`，按那个字段的类型显示、筛选、排序、进公式和统计（`expandCollection`）。
-- **汇总**（D-288）`rollup {collectionId, linkField, aggregate, …}`：`collectionId` 里 `linkField` 指向这条的记录的计数、求和、平均、最小、最大、最近一条的值，或者 D-284 的按日子算的几种；可以带 `filter`、`period`。
-- **上一条**（D-289）`previous {fieldId, dateField?, groupBy?}`：同一张表、同一组里按日期排在前面、`fieldId` 有值的最近一条的值。
-- **检查**（D-290）：不能绕回自己，最多叠 3 层（P-045）。**性能**（D-291）：每张表每个引用字段建一次索引，不逐条扫表。
+- **How values are stored**: they are not. The definitions of the three field kinds are in the config (structure), and the values are computed on the phone when records are read, by `core/related.ts` (`computeRecords`), and put into a copy of the record for lists, statistics, charts, the record page, CSV and reports; they are removed when a record is written. The AI can only add and change the definitions of these three field kinds (`addField`, `updateField`) and can neither see nor compute any values (D-042, D-113).
+- **Lookup** (D-287) `lookup {linkField, fieldId}`: the `fieldId` of the record the reference field points to, displayed, filtered, sorted, and used in formulas and statistics according to that field's type (`expandCollection`).
+- **Rollup** (D-288) `rollup {collectionId, linkField, aggregate, …}`: among the records of `collectionId` whose `linkField` points to this one, the count, sum, average, minimum, maximum, the value of the latest one, or the day-based aggregates of D-284; can take `filter` and `period`.
+- **Previous** (D-289) `previous {fieldId, dateField?, groupBy?}`: the value of the nearest earlier record by date in the same table and the same group that has a value in `fieldId`.
+- **Checks** (D-290): cannot loop back to itself, at most 3 levels stacked (P-045). **Performance** (D-291): one index per reference field per table, without scanning the table record by record.
 
-## 17. 日程（D-292 起）
+## 17. Schedules (since D-292)
 
-- **日程字段**（D-292，schemaVersion 24）：每条记录存一份重复规则 `{repeat, …, perDay?}`（每天、每周几天、每段 N 次、每月几号、每 N 天、每年某天），用户在表单里设；字段的 `default` 是新记录的规则。逻辑在 `core/schedule.ts`。
-- **上次完成**（D-293）：`lastDone` 指向同一张表里的日期或日期时间字段；由规则和它算出下一次、今天该不该做、过期几天。
-- **用在别处**（D-294、D-295）：筛选 `due`；`inPeriod` / `gt` / `lt`、排序和公式都按下一次。按记录排的提醒见 D-316。
-- **一次**（D-340，schemaVersion 30）：`{repeat: once, date?}` 只做一次，做过就结束；筛选 `due: pending` 是还没做完的。**提前做了算这一次**（D-341）：字段的 `countEarly`。
+- **Schedule field** (D-292, schemaVersion 24): each record stores a repeat rule `{repeat, …, perDay?}` (every day, certain days of the week, N times per period, certain days of the month, every N days, a certain day each year), which the user sets in the form; the field's `default` is the rule for new records. The logic is in `core/schedule.ts`.
+- **Last done** (D-293): `lastDone` points to a date or datetime field in the same table; from the rule and that field it computes the next time, whether it should be done today, and how many days overdue.
+- **Used elsewhere** (D-294, D-295): the `due` filter; `inPeriod` / `gt` / `lt`, sorting and formulas all use the next time. For reminders sorted by record see D-316.
+- **Once** (D-340, schemaVersion 30): `{repeat: once, date?}` is done once and ends when done; the filter `due: pending` means not yet done. **Doing it early counts as this time** (D-341): the field's `countEarly`.
 
-## 18. 一键记录操作（D-300 起）
+## 18. One-tap record actions (since D-300)
 
-- **挂在哪里**（D-300、D-302，schemaVersion 25）：按钮的 `action`（`create`、`setAll`、`open`，和 `target` 二选一），记录列表每一行的 `rowActions`（`set`、`toggle`、`increment`、`create`、`open`，每行显示第一个 `when` 满足的）。逻辑在 `core/record-ops.ts`。
-- **能写的值**（D-301）：单选项、数字、勾选、`today`、`now`、清空，行按钮的 `create` 里引用字段可以是 `row`；不能写文字。
-- **执行**（D-303）：用户点了才在本机写记录，不经过 AI、不生成版本；每次都能在提示条上撤销。`setAll` 先问、一次最多 200 条。删字段、删表时用到它的操作跟着去掉（D-304）。
+- **Where they attach** (D-300, D-302, schemaVersion 25): the button's `action` (`create`, `setAll`, `open`, mutually exclusive with `target`), and the `rowActions` of each row of a record list (`set`, `toggle`, `increment`, `create`, `open`; each row shows the first one whose `when` is satisfied). The logic is in `core/record-ops.ts`.
+- **Values that can be written** (D-301): a choice option, a number, a tick, `today`, `now`, clear; in the `create` of a row button the reference field can be `row`; text cannot be written.
+- **Execution** (D-303): records are written on the device only after the user taps, without going through the AI and without creating a version; every time it can be undone from the banner. `setAll` asks first and handles at most 200 records at a time. When a field or table is deleted, the operations that use it are removed along with it (D-304).
 
-## 19. 月历、计时和进度、统计的目标和比较（D-305 起）
+## 19. Month calendar, timing and progress, goals and comparisons in statistics (since D-305)
 
-- **月历**（D-305，schemaVersion 26）：`recordList.display: "calendar"`，`dateField?`、`colorField?`（单选）。一个月的格子，按条数分深浅或按当天最后一条的选项上色，点某天在下面列出当天的记录。App 只读这个月的记录（`listRecordsInRange`，表里有查找、汇总、上一条时读整张表）。
-- **右侧字段的显示格式**（D-306）：`recordList.trailingFormat`：`elapsed`（开始到结束或到现在，没有结束时每秒在走）、`progress`（值 / 目标，目标是固定数或这条记录的另一个数字类字段）。只是显示，不存值、不进导出。
-- **统计**（D-307、D-308）：`goal` 显示「值 / 目标」和进度；`compare: "previous"` 把筛选里唯一的时间段换成上一段同期再算一次。
-- AI 只配置这些属性，看不到记录和算出来的值（D-042、D-113）。
+- **Month calendar** (D-305, schemaVersion 26): `recordList.display: "calendar"`, `dateField?`, `colorField?` (choice). A grid for one month, shaded by the number of records or colored by the option of the last record of the day; tapping a day lists that day's records below. The app reads only this month's records (`listRecordsInRange`; when the table has lookup, rollup or previous it reads the whole table).
+- **Display format of the right-hand field** (D-306): `recordList.trailingFormat`: `elapsed` (start to end or to now, ticking every second when there is no end), `progress` (value / goal, where the goal is a fixed number or another numeric field of the record). Display only, not stored, not in exports.
+- **Statistics** (D-307, D-308): `goal` shows "value / goal" and the progress; `compare: "previous"` replaces the only period in the filter with the previous period of the same length and computes again.
+- The AI only configures these properties and cannot see records or computed values (D-042, D-113).
 
-## 20. 大圆块和看板（D-311 起）
+## 20. Big circles and board (since D-311)
 
-- **大圆块**（D-311，schemaVersion 27）：`recordList.display: "tiles"`，每条记录一个大圆，点一下执行这一块的行操作（D-300），没有行操作时打开记录，有行操作时长按打开记录（单组件编辑让路）；`trailingFormat: progress` 画成圆外的进度环。最多显示 24 个（D-312）。
-- **看板**（D-313、D-314）：`recordList.display: "board"` + `groupField`（单选）。每个选项一栏，再加「未分」；拖到另一栏或点卡片选「移到…」，等于一键操作的 `set`，可以撤销。
-- AI 只配置外观，看不到记录（D-042、D-113）；移动卡片是用户自己做的修改，和表单一样直接写数据库，不生成版本。
+- **Big circles** (D-311, schemaVersion 27): `recordList.display: "tiles"`, one big circle per record; a tap runs this tile's row action (D-300), and when there is no row action it opens the record, and when there is a row action a long press opens the record (single-component edit gives way); `trailingFormat: progress` is drawn as a progress ring outside the circle. At most 24 are shown (D-312).
+- **Board** (D-313, D-314): `recordList.display: "board"` + `groupField` (choice). One column per option plus "Not set"; dragging to another column, or tapping a card and choosing "Move to…", is equivalent to the `set` of a one-tap action and can be undone.
+- The AI configures only the look and cannot see records (D-042, D-113); moving a card is a change the user makes themselves, written straight to the database like a form, without creating a version.
 
-## 21. 给一条记录用的页面、本机认日期（D-340 起）
+## 21. Pages for one record, date recognition on the device (since D-340)
 
-- **给一条记录用的页面**（D-342，schemaVersion 30）：页面的 `recordOf` + 列表的 `opens`；组件里的 `"$record"` 打开时在本机换成那条记录的 ID（`core/record-pages.ts`），配置里只有占位值，AI 看不到 ID。快速添加表单的 `values`（D-343）可以把引用设成它。
-- **本机认日期**（D-344）：`core/date-phrases.ts` 按规则认三种语言的日期、时间和重复，`core/smart-date.ts` 换成要填的字段。快速添加表单的 `smartDate`、日期框都在手机上认，文字不发给 AI。
+- **Page for one record** (D-342, schemaVersion 30): the page's `recordOf` + the list's `opens`; `"$record"` in a component is replaced on the device with that record's ID when opened (`core/record-pages.ts`), the config holds only a placeholder value, and the AI cannot see the ID. The `values` of the quick-add form (D-343) can set a reference to it.
+- **Date recognition on the device** (D-344): `core/date-phrases.ts` recognizes dates, times and repeats in the three languages by rules, and `core/smart-date.ts` converts them into the fields to fill. The `smartDate` of the quick-add form and the date box both recognize on the phone, and the text is not sent to the AI.
 
-## 22. 分段、钟点、月历认日程、就地添加（D-346 起）
+## 22. Segments, clock times, month calendar reading schedules, add in place (since D-346)
 
-- **钟点**（D-346，schemaVersion 31）：日程规则的 `time`，按记录排的提醒用它。
-- **分段**（D-347）：`recordList.groupBy` + `groupUnit` + `showEmpty`，逻辑在 `core/list-groups.ts`。
-- **月历认日程**（D-348）：月历的 `dateField` 可以是日程，记录落在接下来的每一次。
-- **就地添加**（D-349）：`recordList.addHere`，打开新记录的表单，预设这一段的值和列表筛选里的「等于」条件。
-- **看板按引用分栏**（D-351，schemaVersion 32）：`groupField` 可以是引用字段，`groupFilter` 筛出要哪几栏。
-- **底部弹出的快速添加**（D-352）：`recordForm.mode: "sheet"`，页面右下角的「+」。
+- **Clock time** (D-346, schemaVersion 31): the schedule rule's `time`, used by reminders sorted by record.
+- **Segments** (D-347): `recordList.groupBy` + `groupUnit` + `showEmpty`, with the logic in `core/list-groups.ts`.
+- **Month calendar reading schedules** (D-348): the month calendar's `dateField` can be a schedule, and the record lands on each upcoming occurrence.
+- **Add in place** (D-349): `recordList.addHere` opens the form for a new record, preset with the values of this segment and the "equals" conditions in the list filter.
+- **Board columns by reference** (D-351, schemaVersion 32): `groupField` can be a reference field, and `groupFilter` selects which columns to show.
+- **Quick add as a bottom sheet** (D-352): `recordForm.mode: "sheet"`, the "+" at the bottom right of the page.

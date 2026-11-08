@@ -1,8 +1,8 @@
-# 新增一种字段类型
+# Adding a field type
 
-数据表的字段（文字、金额、单选、引用……）每种只有一份定义：`packages/core/src/fields/<type>.ts`。结构、写入和读取、显示、CSV、打印报表、公式、筛选和排序、统计和图表、修改说明、发给 AI 的说明都从这份定义读；App 端怎么填写在 `apps/mobile/src/renderer/data.tsx` 的 `FIELD_EDITORS`。下面以引用字段 `link`（D-250）为例（代码缩写自 `packages/core/src/fields/link.ts`，以那个文件为准；引用的表在字段里叫 `table`）。新增页面组件见 `docs/COMPONENTS.md`。
+Each table field type (text, amount, single choice, link, …) has exactly one definition: `packages/core/src/fields/<type>.ts`. Structure, writing and reading, display, CSV, printed reports, formulas, filtering and sorting, statistics and charts, change descriptions and the description sent to the AI are all read from that definition. On the app side, how to fill it in is in `FIELD_EDITORS` in `apps/mobile/src/renderer/data.tsx`. The example below is the link field `link` (D-250); the code is abridged from `packages/core/src/fields/link.ts`, which is authoritative (the linked table is called `table` in the field). For adding a page component, see `docs/COMPONENTS.md`.
 
-## 1. 定义文件：`packages/core/src/fields/link.ts`
+## 1. Definition file: `packages/core/src/fields/link.ts`
 
 ```ts
 const schema = z.strictObject({ ...fieldBase, type: z.literal('link'), table: IdSchema });
@@ -17,44 +17,44 @@ export const linkField: FieldDefinitionOf<'link', typeof schema> = defineField({
     links ? (links(f.table, v as string) ?? t(locale, 'linkDeleted')) : '',
   filter: { is: isText, emptyOnly: true },
   sort: false,
-  check: (f, { config, collection }) => /* 引用的表要存在 */ [],
+  check: (f, { config, collection }) => /* the linked table must exist */ [],
   ai: { doc: '{table} (picks one entry of another table, …)', docAfter: 'formula' },
   example: { id: 'parent', name: 'Parent', type: 'link', table: 'expenses' },
   exampleValue: 'r1',
 });
 ```
 
-每一项的意思（类型和注释见 `fields/define.ts`）：
+What each entry means (types and comments are in `fields/define.ts`):
 
-- **schema**：字段定义的结构，带上 `...fieldBase`（id、name、required）。只有白名单里的取值。
-- **label**：修改说明里的类型名 `[中文, 英文]`；法语用英文那一个在 `french-pairs.ts` 里的对照（没有就加一条）。
-- **read**：宽容读取。值和当前定义对不上（恢复旧版本后类型变了、选项删了）就返回 `undefined`，只是不显示，绝不报错。
-- **write**：表单输入 → 存的值，严格校验，返回 `{ value }` 或 `{ issue: 'invalid' | 'tooLong' }`。不写就是不存值（公式）。**initial**：新记录的默认值（不写用定义里的 `default`）；**emptyNew**：新记录没有值时存什么（勾选框是 `false`）。
-- **format**：显示文字（列表、记录页、导出、报表都用它）。**csv**：CSV 里要更机器可读的写法时才写（金额两位小数）。**formatAmount**：合计、平均怎么显示（金额带货币、数字带单位）。**print**：报表里是不是靠右的数字列、收据合计用不用它。
-- **formula**：公式里能不能引用、当作 `number` 还是 `date`。**numeric**：统计和图表能不能求和、平均。**inForm: false**：记录表单里不能填。
-- **filter**：筛选支持什么：`is`（值对不对得上）、`contains`、`compare`（`number` 或 `date`）、`period`、`emptyOnly`（只能看有没有值）、`schedule`（筛选 due，日程字段，D-294）。**sort: false** 不能排序；也可以给一个函数按自己的顺序排（单选按选项顺序）。
-- **titleRank**：被引用时用哪个字段当标题（数字小的优先）。**convertGroup**：同一组的类型可以互相改（文字和长文本、数字和金额）。
-- **check**：字段定义本身的检查（引用的表要存在、选项不重复），问题文字会发给 AI。
-- **ai.doc**：提示词里 `Field = …` 那一行的一段（类型名后面的部分，英文）；**docAfter** 只有为了不改动已有提示词的顺序才写。
-- **example / exampleValue**：一个能用的字段和一个值，通用测试拿它们写入、读出、显示、筛选。引用的表写 `expenses`，公式用 `weight` 字段。
+- **schema**: the structure of the field definition, including `...fieldBase` (id, name, required). Only allowlisted values.
+- **label**: the type name used in change descriptions, as `[Chinese, English]` (here the Chinese is `'引用'`, "link"); French uses the mapping of the English one in `french-pairs.ts` (add an entry if there is none).
+- **read**: tolerant reading. If the value does not match the current definition (the type changed after restoring an old version, an option was deleted), return `undefined`; it is simply not shown and must never raise an error.
+- **write**: form input → stored value, strictly validated, returning `{ value }` or `{ issue: 'invalid' | 'tooLong' }`. If absent, no value is stored (formula). **initial**: the default value of a new record (if absent, the `default` in the definition is used). **emptyNew**: what to store when a new record has no value (for a checkbox it is `false`).
+- **format**: the display text (lists, record pages, export and reports all use it). **csv**: only write it when CSV needs a more machine-readable form (an amount with two decimals). **formatAmount**: how totals and averages are displayed (amounts with currency, numbers with units). **print**: whether it is a right-aligned number column in reports and whether the receipt total uses it.
+- **formula**: whether a formula can reference it, and whether it counts as `number` or `date`. **numeric**: whether statistics and charts can sum and average it. **inForm: false**: it cannot be filled in the record form.
+- **filter**: what filtering supports: `is` (whether the value matches), `contains`, `compare` (`number` or `date`), `period`, `emptyOnly` (can only check whether there is a value), `schedule` (filter by due, for the schedule field, D-294). **sort: false** means it cannot be sorted; you can also give a function to sort in its own order (single choice sorts by option order).
+- **titleRank**: which field is used as the title when referenced (smaller number first). **convertGroup**: types in the same group can be converted into each other (text and long text, number and amount).
+- **check**: checks on the field definition itself (the linked table must exist, options must not repeat); the issue text is sent to the AI.
+- **ai.doc**: the segment of the `Field = …` line in the prompt (the part after the type name, in English). **docAfter** is only written to avoid changing the order of the existing prompt.
+- **example / exampleValue**: a working field and a value, which the generic tests use to write, read, display and filter. For a linked table write `expenses`, and formulas use the `weight` field.
 
-然后加到 `fields/index.ts` 的 `FIELDS` **最后**（顺序就是配置 JSON Schema 里的顺序）。
+Then add it to `FIELDS` in `fields/index.ts` **at the end** (the order is the order in the config JSON Schema).
 
-## 2. App：`apps/mobile/src/renderer/data.tsx`
+## 2. App: `apps/mobile/src/renderer/data.tsx`
 
-在 `FIELD_EDITORS` 里加一项：`input` 是表单里的控件（按函数调用，要用 hook 的写成自己的组件，例如 `LinkInput`）；`toForm` 是记录的值换成表单里的值（数字编辑时是文字）；`inline` 是标签和控件在同一行；`computed` 是不能填、只显示算出来的值。列表、记录页、导出都用 core 的 `format`，不用另写。
+Add an entry to `FIELD_EDITORS`: `input` is the control in the form (called as a function; anything that needs a hook is written as its own component, for example `LinkInput`); `toForm` turns the record's value into the form's value (a number is text while being edited); `inline` puts the label and the control on the same line; `computed` means it cannot be filled in and only shows the computed value. Lists, record pages and export all use core's `format`, with nothing more to write.
 
-## 3. 文案、评测、基线
+## 3. Copy, eval, baseline
 
-- 显示用到的文字进 `packages/core/src/messages/` 的 `en.ts`、`zh.ts`、`fr.ts`，写完整的句子，带数量的照 AGENTS.md 写单数，跑 `npm run check:locales`。
-- 在 `packages/core/src/ai/eval-cases.ts` 照 `LK1` 加一两个用例；提示词变了，只用 Haiku 跑受影响的用例。
-- 配置 JSON Schema（`core/src/__snapshots__/baseline.test.ts.snap`）和提示词（`planner/src/__snapshots__/system-prompt.txt`）会变：确认差异只是新类型，再用 `-u` 更新。`fields-baseline` 的快照锁住已有类型的输出，加新类型时它不应该变。
-- 自动覆盖新类型的测试：`core/src/fields.test.ts`（结构、写入读出显示导出、筛选、表单、排序、统计、公式都和定义一致）、`planner/src/prompt-baseline.test.ts`（提示词里有它的说明）、`mobile/src/__tests__/field-registry-test.tsx`（三种语言都能填、能显示）。这种字段自己的行为另写测试。
+- Text used for display goes into `en.ts`, `zh.ts` and `fr.ts` in `packages/core/src/messages/`, as complete sentences; for copy with a count, write the singular as AGENTS.md says, and run `npm run check:locales`.
+- In `packages/core/src/ai/eval-cases.ts`, add one or two cases following `LK1`; if the prompt changed, run only the affected cases with Haiku.
+- The config JSON Schema (`core/src/__snapshots__/baseline.test.ts.snap`) and the prompt (`planner/src/__snapshots__/system-prompt.txt`) will change: confirm the difference is only the new type, then update with `-u`. The `fields-baseline` snapshot locks the output of existing types and should not change when a new type is added.
+- Tests that cover a new type automatically: `core/src/fields.test.ts` (structure, write/read/display/export, filtering, forms, sorting, statistics and formulas all match the definition), `planner/src/prompt-baseline.test.ts` (the prompt contains its description) and `mobile/src/__tests__/field-registry-test.tsx` (it can be filled in and displayed in all three languages). Write separate tests for the field's own behavior.
 
-## 4. DECISIONS 和版本号
+## 4. DECISIONS and version number
 
-新增字段类型改了已有的数据表结构，按 D-254 要提升 `CURRENT_SCHEMA_VERSION`，在 `migrate.ts` 加一个只提升版本号的迁移和测试；在 `docs/DECISIONS.md` 和 `docs/DATA_DESIGN.md` 写清楚值怎么存、AI 能做什么。
+Adding a field type changes the existing table structure, so per D-254 `CURRENT_SCHEMA_VERSION` must be raised: add a migration that only raises the version number, with a test, in `migrate.ts`; and write clearly in `docs/DECISIONS.md` and `docs/DATA_DESIGN.md` how the value is stored and what the AI can do.
 
-## 5. 模拟器
+## 5. Simulator
 
-在一张表里加上这种字段，三种语言、深色模式各看一遍：新记录（没有值）、有值、边界（值很长、很大、恢复旧版本后对不上）；记录页、列表、统计、筛选、导出 CSV、生成 PDF 都走一遍。
+Add this field to a table and look at all three languages and dark mode: a new record (no value), with a value, and edge cases (very long or very large value, mismatch after restoring an old version); go through the record page, list, statistics, filtering, CSV export and PDF generation.

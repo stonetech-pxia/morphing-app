@@ -1,75 +1,75 @@
-# 云端设计（M3 第二部分：账号、云端数据、服务端鉴权）
+# Cloud design (M3 part two: accounts, cloud data, server-side authentication)
 
-> 状态：**设计稿，尚未实现**。实现前需要创始人确认第 8 节的事项（会产生 Supabase 和托管费用）。
-> 已实现的部分：服务端 AI（`apps/api`），见 [ARCHITECTURE.md](ARCHITECTURE.md) §6。
+> Status: **design draft, not yet implemented**. Before implementation the founder must confirm the items in section 8 (they incur Supabase and hosting costs).
+> Already implemented: the server-side AI (`apps/api`), see [ARCHITECTURE.md](ARCHITECTURE.md) §6.
 
-## 1. 目标
+## 1. Goals
 
-- 用户登录后，工作空间（全部版本历史）和文件在多台设备间同步，换手机不丢。
-- 托管 AI 按用户计量和限额（为 §14 的付费点做准备）。
-- 未登录时 App 照常离线使用（本地优先，开源版不依赖云端）。
+- After signing in, the user's workspace (full version history) and files sync across devices, so changing phones loses nothing.
+- Hosted AI is metered and limited per user (preparing for the paid tier in §14).
+- When not signed in, the app works offline as usual (local first; the open-source version does not depend on the cloud).
 
-## 2. 架构
+## 2. Architecture
 
 ```
-App ──(Supabase Auth 登录，拿到用户 JWT)──► Supabase Auth
-App ──(JWT，受 RLS 保护)───────────────────► Supabase Postgres / Storage   版本、文件元数据、文件
-App ──(JWT)──► Morph API（Hono，无状态）──► Claude API                       只做 AI 计划与计量
-                    └──(service role，仅服务端)──► Postgres：ai_usage 计量表
+App ──(Supabase Auth sign-in, gets the user JWT)──► Supabase Auth
+App ──(JWT, protected by RLS)───────────────────► Supabase Postgres / Storage   versions, file metadata, files
+App ──(JWT)──► Morph API (Hono, stateless)──► Claude API                       AI plans and metering only
+                    └──(service role, server only)──► Postgres: ai_usage metering table
 ```
 
-- 数据读写由 App 直接访问 Supabase，**隔离完全依赖行级安全（RLS）**：每条数据都属于某个用户，策略只允许 `auth.uid()` 访问自己的数据。
-- Morph API 不保存工作空间数据，只验证 JWT、计量、调用模型。service role key 只在服务端。
-- 本地 SQLite 仍是 App 的工作副本；云端是同步目标，而不是唯一来源（开源版可以完全不配置云端）。
+- The app reads and writes data directly against Supabase, and **isolation relies entirely on row-level security (RLS)**: every row belongs to a user, and the policy allows only `auth.uid()` to access its own data.
+- The Morph API stores no workspace data; it only verifies the JWT, meters usage and calls the model. The service role key exists only on the server.
+- The local SQLite is still the app's working copy; the cloud is a sync target, not the only source (the open-source version can run with no cloud configured at all).
 
-## 3. 数据模型（Postgres）
+## 3. Data model (Postgres)
 
-| 表                | 主要字段                                                                                                            | 说明                              |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| `workspaces`      | `id`, `owner_id → auth.users`, `head_revision_id`, `updated_at`                                                     | 每个用户一个（§6 Workspace）      |
-| `revisions`       | `id`, `workspace_id`, `parent_id`, `schema_version`, `config jsonb`, `source`, `summary`, `created_at`, `device_id` | 只追加，不修改、不删除            |
-| `change_requests` | `id`, `workspace_id`, `input`, `plan jsonb`, `status`, `base_revision_id`, `result_revision_id`, `error`            | 可选同步（含用户原话，见第 6 节） |
-| `assets`          | `id`, `workspace_id`, `name`, `mime_type`, `size`, `sha256`, `storage_path`, `source`, `created_at`, `deleted_at`   | 文件元数据；删除为软删除          |
-| `asset_grants`    | `workspace_id`, `tool_id`, `asset_id`                                                                               | 与本地语义相同                    |
-| `ai_usage`        | `user_id`, `day`, `requests`, `input_tokens`, `output_tokens`                                                       | 只由 Morph API 写入               |
+| Table             | Main fields                                                                                                         | Notes                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `workspaces`      | `id`, `owner_id → auth.users`, `head_revision_id`, `updated_at`                                                     | One per user (§6 Workspace)                                  |
+| `revisions`       | `id`, `workspace_id`, `parent_id`, `schema_version`, `config jsonb`, `source`, `summary`, `created_at`, `device_id` | Append-only, never modified or deleted                       |
+| `change_requests` | `id`, `workspace_id`, `input`, `plan jsonb`, `status`, `base_revision_id`, `result_revision_id`, `error`            | Optional sync (contains the user's own words, see section 6) |
+| `assets`          | `id`, `workspace_id`, `name`, `mime_type`, `size`, `sha256`, `storage_path`, `source`, `created_at`, `deleted_at`   | File metadata; deletion is a soft delete                     |
+| `asset_grants`    | `workspace_id`, `tool_id`, `asset_id`                                                                               | Same semantics as local                                      |
+| `ai_usage`        | `user_id`, `day`, `requests`, `input_tokens`, `output_tokens`                                                       | Written only by the Morph API                                |
 
-RLS 策略（每张表都开启）：`workspace_id in (select id from workspaces where owner_id = auth.uid())`；`workspaces` 直接按 `owner_id = auth.uid()`。`ai_usage` 对客户端只读自己的行。
+RLS policy (enabled on every table): `workspace_id in (select id from workspaces where owner_id = auth.uid())`; `workspaces` uses `owner_id = auth.uid()` directly. `ai_usage` is read-only to the client, and only for its own rows.
 
-**提交新版本**用一个 Postgres 函数完成，语义与本地 `commitRevision` 相同：在事务中锁定 `workspaces` 行，检查 `head_revision_id = base`，插入 revision，移动 head；不一致则返回冲突。
+**Committing a new version** is done by one Postgres function with the same semantics as the local `commitRevision`: inside a transaction, lock the `workspaces` row, check `head_revision_id = base`, insert the revision and move head; if they do not match, return a conflict.
 
-## 4. 同步
+## 4. Sync
 
-- 版本是不可变快照，同步就是上传本地新增的 revision、下载对方新增的 revision。
-- 离线修改先记在本地，联网后按顺序推送；若云端 head 已经不是本地的 base（另一台设备也改过），**两边的版本都保留在历史里**，App 提示用户选择当前使用哪一个（选择本身是一次“恢复”，生成新版本）。不自动合并配置。
-- 首次登录：把本地的全部历史和文件上传到新建的云端工作空间；如果云端已有数据，询问用户保留哪一边作为当前版本（另一边仍在历史中）。
+- A version is an immutable snapshot, so syncing means uploading the locally added revisions and downloading the revisions added by the other side.
+- Offline changes are first recorded locally and pushed in order once online. If the cloud head is no longer the local base (another device also changed it), **both sides' versions are kept in the history**, and the app asks the user to choose which one to use as current (the choice itself is a "restore" that produces a new version). Configs are not merged automatically.
+- First sign-in: upload the entire local history and files into a newly created cloud workspace; if the cloud already has data, ask the user which side to keep as the current version (the other side stays in the history).
 
-## 5. 文件
+## 5. Files
 
-- Supabase Storage 私有 bucket `assets`，路径 `{user_id}/{asset_id}/{name}`；Storage 策略要求路径第一段等于 `auth.uid()`。
-- 保存文件后后台上传；`sha256` 用于去重和完整性校验。
-- 卸载工具、恢复版本都不删除云端文件（与本地不变量一致）；删除文件是单独、需确认的操作。
-- 端到端加密作为后续增强（§14 的信任卖点），首版使用 Supabase 的静态加密。
+- A private Supabase Storage bucket `assets`, path `{user_id}/{asset_id}/{name}`; the Storage policy requires the first path segment to equal `auth.uid()`.
+- After a file is saved it is uploaded in the background; `sha256` is used for deduplication and integrity checks.
+- Uninstalling a tool or restoring a version never deletes cloud files (consistent with the local invariant); deleting a file is a separate operation that needs confirmation.
+- End-to-end encryption is a later enhancement (the trust selling point of §14); the first version uses Supabase's encryption at rest.
 
-## 6. 隐私与合规（海外）
+## 6. Privacy and compliance (overseas)
 
-- 发给模型的内容只有界面配置和用户的一句话；文件内容、文件名不发送（已实现）。
-- `change_requests.input` 含用户原话，默认**不同步**到云端，只保留在本机。
-- 上线前：隐私政策（GDPR / CCPA）、App Store 隐私标签与 Google Play 数据安全表、**App 内删除账号**（Apple 审核要求）及数据导出。
-- 数据区域（美国 / 欧盟）在创建 Supabase 项目时确定，之后不易迁移。
+- What is sent to the model is only the UI config and the user's one sentence; file content and file names are not sent (already implemented).
+- `change_requests.input` contains the user's own words and by default is **not synced** to the cloud, staying only on the device.
+- Before launch: a privacy policy (GDPR / CCPA), the App Store privacy labels and Google Play data safety form, **in-app account deletion** (an Apple review requirement) and data export.
+- The data region (US / EU) is decided when the Supabase project is created and is hard to migrate later.
 
-## 7. 服务端鉴权与限额
+## 7. Server-side authentication and limits
 
-- App 请求 Morph API 时带 `Authorization: Bearer <Supabase access token>`；服务端用 Supabase 的 JWKS 验证签名和过期时间。
-- 限额从“每台设备的内存计数器 + 全局花费上限”（现状，D-132、D-193）改为按用户计量：写入 `ai_usage`，按 D-192 计算额度（一次性 50 次 + 每月 20 次，只有返回修改计划才计数），用完返回 429。届时去掉客户端令牌。
-- 服务只监听 `127.0.0.1`，对外经 Cloudflare 隧道（现状，D-131）。
-- 需要的自动测试：两个测试用户互相读写对方数据必须失败（RLS）；伪造或过期的 JWT 被拒绝；额度用完返回 429。
+- When the app calls the Morph API it sends `Authorization: Bearer <Supabase access token>`; the server verifies the signature and expiry with Supabase's JWKS.
+- Limits change from "an in-memory counter per device + a global spend cap" (the current state, D-132, D-193) to per-user metering: write to `ai_usage` and compute the quota per D-192 (50 one-time uses + 20 per month, counting only when a change plan is returned); when used up, return 429. The client token is removed at that point.
+- The service listens only on `127.0.0.1` and is exposed through a Cloudflare tunnel (the current state, D-131).
+- Automated tests needed: two test users reading and writing each other's data must fail (RLS); a forged or expired JWT is rejected; an exhausted quota returns 429.
 
-## 8. 待创始人决定
+## 8. For the founder to decide
 
-| #   | 事项                            | 建议                                                                                     |
-| --- | ------------------------------- | ---------------------------------------------------------------------------------------- |
-| 1   | 是否现在开通 Supabase，以及套餐 | 开发期用免费层，上线前再评估                                                             |
-| 2   | 数据区域                        | 先确定首发市场：美国用户为主选 US，欧洲为主选 EU                                         |
-| 3   | Morph API 托管位置              | 已定：先放在创始人的 Mac mini 上（D-131）                                                |
-| 4   | 文件是否默认同步                | 默认同步，可在设置中关闭                                                                 |
-| 5   | 免费用户的 AI 额度              | 已定（D-192）：新用户送 50 次，之后每月 20 次，用 Haiku 5.5；付费额度随定价确定（P-008） |
+| #   | Item                                         | Recommendation                                                                                                |
+| --- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| 1   | Whether to enable Supabase now, and the plan | Use the free tier during development, re-evaluate before launch                                               |
+| 2   | Data region                                  | Decide the launch market first: US if mainly US users, EU if mainly Europe                                    |
+| 3   | Where the Morph API is hosted                | Decided: on the founder's Mac mini first (D-131)                                                              |
+| 4   | Whether files sync by default                | Sync by default, can be turned off in settings                                                                |
+| 5   | AI quota for free users                      | Decided (D-192): new users get 50, then 20 per month, using Haiku 5.5; the paid quota follows pricing (P-008) |

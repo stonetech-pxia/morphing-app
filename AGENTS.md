@@ -1,88 +1,107 @@
-# Morph：给编码代理的规则
+# Morph: Rules for Coding Agents
 
-先读 `PRODUCT_HANDOFF_CLAUDE_CODE.md` §1–§3、`docs/TOOLS_DESIGN.md` §0 和 `docs/DECISIONS.md`。移动端另有 `apps/mobile/AGENTS.md`（Expo 的写法）。创始人用中文交流，代码注释跟着周围代码写中文。
+Read the "Product background" section of this file, `docs/TOOLS_DESIGN.md` §0 and `docs/DECISIONS.md` first. Mobile has its own `apps/mobile/AGENTS.md` (the Expo way of writing things). The founder communicates in Chinese; code comments follow the surrounding code, which means Chinese.
 
-完整的背景和例子见 `~/Library/Application Support/Claude/side-session-notes/codex-handoff/CODEX_LESSONS.md`（这份文档不在仓库里）。下面是必须遵守的部分。
+The full background and examples are in `~/Library/Application Support/Claude/side-session-notes/codex-handoff/CODEX_LESSONS.md` (this document is not in the repository). What follows is the part you must obey.
 
-## 底线（D-375，暂定）
+## Invariants (D-375, provisional)
 
-创始人 2026-10-31 在对话里定的 19 条（「规则暂定这样吧」；同一天改了 3、7、11、16，加了 19，见 D-377–D-381；11 当天又改，见 D-385；2026-11-06 改了 14，见 D-455）。**只有创始人能改**，改了要记进 `docs/DECISIONS.md`（写明日期、在哪里说的）。**每份汇报都要写明这次改动碰没碰底线。** 守护测试：core 的 `packages/core/src/invariants.test.ts`（下面写「core」），mobile 的 `apps/mobile/src/__tests__/invariants-test.tsx`（「mobile」）和 `invariants-files-test.ts`（「files」），每条一个 `describe`。测出的违反不擅自修，用 `it.fails` / `it.failing` 标出、注释「违反底线 N，待创始人决定」（D-376）。
+19 rules the founder set in conversation on 2026-10-31 ("Let's go with these rules for now"; the same day 3, 7, 11 and 16 were changed and 19 was added, see D-377–D-381; 11 was changed again that day, see D-385; on 2026-11-06 14 was changed, see D-455). **Only the founder can change them**, and every change goes into `docs/DECISIONS.md` (with the date and where it was said). **Every report must say whether this change touched an invariant.** Guard tests: for core, `packages/core/src/invariants.test.ts` (called "core" below); for mobile, `apps/mobile/src/__tests__/invariants-test.tsx` ("mobile") and `invariants-files-test.ts` ("files"). Each invariant has its own `describe`. When a test finds a violation, do not fix it on your own: mark it `it.fails` / `it.failing` with the comment "violates invariant N, awaiting the founder's decision" (D-376).
 
-数据和隐私
+Data and privacy
 
-1. 用户的数据永远不离开手机：记录、文件、识别出的文字、录音只在本机处理；任何联网请求都不带数据内容。（core 联网清单；mobile 哨兵字符串）
-2. AI 永远看不到数据内容：只看结构（指云端 AI；手机上本机跑的模型不算，结果只进候选，D-396）；看不到记录内容、文件名、文件内容、识别文字；收件页面打开 AI 时只发文件的类型和个数。（mobile 两种 AI 的请求；core 收件页面的上下文、参数脱敏）
-3. AI 永远不碰文件：不读、不写、不移动、不删除；配置里指向用户文件的地方（文件位、图片、图片背景）只能由用户自己选，AI 的修改一律不能写文件引用，发给 AI 的文件 ID 换成占位符（D-377）。（core 14 个操作、AI 写文件引用被拒绝；mobile 请求里没有文件 ID、AI 换不了文件位）
-4. 原件永远不移动、不删除（相册、「文件」、content://）；只处理副本。（files；core）
-5. 改 App 永远不删数据：改配置、删表、删字段、恢复旧版本，记录都还在；记录只能由用户亲手删除。（mobile；core）
+1. The user's data never leaves the phone: records, files, recognized text and recordings are processed only on the device, and no network request carries data content. (core network allowlist; mobile sentinel strings)
+2. The AI never sees the content of the data, only its structure (this means the cloud AI; a model running on the phone does not count, and its results only become suggestions, D-396). It sees no record content, file names, file content or recognized text. When the inbox opens the AI, only the file types and the number of files are sent. (mobile: the requests of both kinds of AI; core: the inbox context, parameter redaction)
+3. The AI never touches files: it does not read, write, move or delete them. Places in the config that point at user files (file slots, images, image backgrounds) can only be chosen by the user; an AI change can never write a file reference, and file IDs sent to the AI are replaced with placeholders (D-377). (core: the 14 operations, AI writes of file references are rejected; mobile: no file IDs in requests, the AI cannot replace a file slot)
+4. Originals are never moved or deleted (photo library, "Files", content://); only copies are processed. (files; core)
+5. Changing the app never deletes data: changing the config, deleting a table, deleting a field or restoring an old version leaves the records in place. Records can only be deleted by the user's own hand. (mobile; core)
 
-AI 的权限
+What the AI may do
 
-6. AI 只改 App，不替用户办事（D-113）：不运行工具、不回答问题；不写要发到 App 外面的文字。用户要放在页面上的文字可以写，只拦敏感和违规内容（D-408）。（core）
-7. 外观修改先进草稿，用户确认才生效；功能修改（D-191，建表、加快捷操作等）直接生效，但随时能在改动记录里撤销；改动记录永远能回到以前任何时候（D-378）。（mobile 外观进草稿、功能进改动记录能撤销能恢复；core）
-8. AI 改不了系统层：AI 页、草稿确认、改动记录 / 撤销、设置、权限。（core）
+6. The AI only changes the app and does not do things for the user (D-113): it does not run tools, does not answer questions, and does not write text meant to leave the app. Text the user wants on a page may be written; only sensitive or offending content is blocked (D-408). (core)
+7. Look changes go into a draft first and take effect only when the user confirms; feature changes (D-191: creating a table, adding a quick action, etc.) take effect directly but can be undone at any time in Change history; Change history can always return to any earlier point (D-378). (mobile: look changes go into a draft, feature changes go into Change history and can be undone and restored; core)
+8. The AI cannot change the system layer: the AI page, draft confirmation, Change history / undo, Settings, permissions. (core)
 
-工具
+Tools
 
-9. 工具不能触发工具；没有分支、循环。（core；`relation-rules.test.ts` 规则 13）
-10. 数据离开 App 只能由用户每次亲手点；定时或自动触发的永远不能导出、分享、联网发送。（core；`relation-rules.test.ts` 规则 14）
-11. 写数据的操作都能挽回：存下的和用户确认过的操作不弹撤销提示，用户用同样简单的操作改回去（取消勾选、再编辑、删掉）；只有删除弹撤销提示；批量修改一定先问（D-385）。（mobile；`record-actions-test.tsx`、`tiles-board-test.tsx`；core setAll 没有不问的设置、先问的话不提撤销）
+9. A tool cannot trigger a tool; there are no branches and no loops. (core; `relation-rules.test.ts` rule 13)
+10. Data leaves the app only by the user's own tap, every time; anything scheduled or automatic can never export, share or send over the network. (core; `relation-rules.test.ts` rule 14)
+11. Every action that writes data can be taken back: what is saved and what the user has confirmed shows no undo banner, and the user reverses it with an equally simple action (uncheck, edit again, delete); only deletion shows an undo banner; a bulk change must always ask first (D-385). (mobile; `record-actions-test.tsx`, `tiles-board-test.tsx`; core: setAll has no setting that skips the question, and when it asks it does not mention undo)
 
-兼容
+Compatibility
 
-12. 旧的永远能打开：每次改格式带迁移，旧数据和改动记录里的旧版本都能升级，迁移不丢东西。（core；`migrate-v34.test.ts`、`v34-equivalence.test.ts`）
-13. 不联网也能用：除了 AI 修改和第一次下载，所有功能离线可用。（core 联网清单；原生模块要真机）
+12. Old data always opens: every format change comes with a migration, old data and old versions in Change history can all be upgraded, and migrations lose nothing. (core; `migrate-v34.test.ts`, `v34-equivalence.test.ts`)
+13. Works without a network: everything works offline except AI changes and the first download. (core network allowlist; native modules need a real device)
 
-容器、工具、数据之间
+Between containers, tools and data
 
-14. 数据只有一份，只在数据里：容器和工具只引用、不保存数据；配置里永远没有用户数据内容；算出来的值现算不存。唯一的例外：文件的缩略图和识别出的文字（图片识别、PDF 文字）在用户扫描、分享、打开、保存文件时存在本机这个文件旁边，跟着文件一起删，不进配置、不发给 AI（D-455）。（core）
-15. 看永远不会改：打开页面、滚动、翻月、展开、切语言都不写数据。（mobile 渲染模版、样板每一页）
-16. 每次写入都来自用户的一次操作；提醒到点只弹通知；没有后台自己改数据。唯一的例外：回收站里删掉超过 30 天的记录在启动时自动永久删除（D-037、D-380，起因是用户自己删的）。（mobile 启动时只有这一个写入；core）
-17. 用户看到的就是被改的：工具只改所在容器显示的数据，或顺着关联到达的那一条（关系规则 12）。（core；`record-ops.test.ts` 规则 12）
-18. 配置永远自洽：没有指向不存在的表、字段、工具、页面的引用（包括快捷操作步骤的参数）；删除时要么连带清理（草稿说明）要么拒绝。（core 每种删除、随机删除序列、删表删字段不因步骤被拒；`step-refs.test.ts`）
+14. There is only one copy of the data, and it lives only in the data: containers and tools only reference data and never store it; the config never holds user data content; computed values are computed on demand and not stored. The only exception: a file's thumbnail and recognized text (image recognition, PDF text) are stored on the device next to that file when the user scans, shares, opens or saves the file, are deleted together with the file, do not enter the config and are not sent to the AI (D-455). (core)
+15. Looking never changes anything: opening a page, scrolling, turning a month, expanding and switching language write no data. (mobile: render templates, every page of the sample apps)
+16. Every write comes from one user action; a reminder that fires only shows a notification; nothing changes data in the background. The only exception: records that have been in the trash for more than 30 days are permanently deleted automatically at startup (D-037, D-380; it originates from the user's own deletion). (mobile: this is the only write at startup; core)
+17. What the user sees is what gets changed: a tool only changes the data shown by the container it is in, or the one record reached by following a link (relation rule 12). (core; `record-ops.test.ts` rule 12)
+18. The config is always self-consistent: no references to tables, fields, tools or pages that do not exist (including the parameters of quick-action steps); a deletion either cleans up along with it (see the draft description) or is rejected. (core: every kind of deletion, random deletion sequences, deleting a table or field is not rejected because of steps; `step-refs.test.ts`)
 
-用户要的事
+What the user wants
 
-19. 用户要的事都能做到：快捷操作处理文件，最后交给页面（例如新记录表单、记录页），由用户确认保存；类型对得上的动作都能串；AI 不能因为「不合理」拒绝做得到的组合，最多提醒一句。仍然是直链，每步只拿上一步的输出（底线 9）（D-381）。（core 任意两个类型对得上的动作都能串；planner `invariants.test.ts` 提示词里没有拒绝做得到的组合的规则）
+19. What the user wants can be done: a quick action processes files and ends by handing over to a page (for example a new-record form or the record page) where the user confirms the save; any two actions whose types match can be chained; the AI cannot refuse a combination that can be done because it is "unreasonable", at most it adds a reminder. It is still a straight chain, and each step only takes the output of the previous one (invariant 9) (D-381). (core: any two actions whose types match can be chained; planner `invariants.test.ts`: the prompt has no rule that refuses a combination that can be done)
 
-设计规则（读法只有一种写法、嵌套层数、6 种出现方式和 5 种一键记录、setAll ≤200、包含和引用）不是底线，可以经 DECISIONS 调整。
+The design rules (the one way to write a read, nesting depth, 6 ways of appearing and 5 one-tap records, setAll ≤ 200, containment and references) are not invariants and can be adjusted through DECISIONS.
 
-## 产品原则
+## Product principles
 
-- AI 只改 App，不替用户办事（D-113，指云端 AI；本机模型见 D-396）：不写要发到 App 外面的文字（页面上的文字可以写，D-408）、不回答问题、不总结文件或录音、不自己运行快捷操作。
-- 云端 AI 看不到文件内容、文件名、识别出的文字和记录内容（本机模型见 D-396）；收件页面打开 AI 时只发文件的类型和个数。
-- 收件页面不自动运行；外观修改先进草稿（D-190），功能修改直接生效（D-191），都能撤销。
-- 给用户看的词用「快捷操作」「添加」「移除」（D-112）；AI 对用户叫 Tink；只有信任说明写明它是 AI、默认由 Claude 提供（D-436）。
+- The AI only changes the app and does not do things for the user (D-113, this means the cloud AI; for the on-device model see D-396): it does not write text meant to leave the app (text on a page may be written, D-408), does not answer questions, does not summarize files or recordings, and does not run quick actions itself.
+- The cloud AI cannot see file content, file names, recognized text or record content (for the on-device model see D-396); when the inbox opens the AI, only the file types and the number of files are sent.
+- The inbox does not run automatically; look changes go into a draft first (D-190), feature changes take effect directly (D-191), and both can be undone.
+- Words shown to users: "quick action", "Add", "Remove" (D-112); the AI is called Tink to the user; only the trust notice says it is an AI, provided by Claude by default (D-436).
 
-## 能靠改配置实现的，绝对不能硬改
+## Product background (formerly `PRODUCT_HANDOFF_CLAUDE_CODE.md`)
 
-- 外观、入口、文案、排布这类修改，**只要能通过改配置实现，就改配置**：加字段或取值（schema），起始配置 / 模版 / 样板里写上，旧数据靠迁移升级（每次改格式都带迁移和测试，底线 12）。
-- **绝对不能**在渲染器、外壳或别处按页面 ID、块 ID、`opens` 的目标、表名这类具体值写特例，让画面和配置对不上（例如「打开工具箱页的按钮一律画成一行」）。这样配置里写的值不起作用，用户、Tink 和页面编辑都改不动，旧配置和新配置也说不清。
-- 渲染器只认配置里的值（`look`、`variant`、`show.*`、`style.*`），不认具体的页面和块。需要新样子，就给配置加一个值，再让渲染器认这个值。
-- 允许固定写在代码里的只有系统层（设置、改动记录、Tink 页、权限、引导气泡和提示条，底线 8）；它们不是配置里的页面，Tink 也不能改。拿不准一个修改算不算系统层，问创始人。
-- 汇报里写明：这次改动改的是配置（哪个字段、哪个迁移），还是代码里的固定写法；后者要说明为什么配置做不到。
+The original product handoff document was deleted on 2026-11-08; the parts that are still useful are written here. Numbers such as §5.1, §7C, §7E and §7G that appear in code comments and docs without a file name, and "handoff document §N", refer to the entry with the same number below. The original is in git history (`git show 21db2d98:PRODUCT_HANDOFF_CLAUDE_CODE.md`). Where this section disagrees with the invariants or `docs/DECISIONS.md`, the latter two win.
 
-## 这台 Mac 也是生产服务器
+- **§1 In one sentence**: the user installs once, and after that keeps changing the interface and features of **the same app** in natural language; data, tools, config and change history are always there. It is not an App Builder: it does not generate another app, and it does not rebuild from a blank template each time. The current scope is files and personal records (from D-368 on).
+- **§2 Users**: people who do not program and often handle personal files and records. What is to be validated: they would rather stay and keep changing this one app than install many single-purpose apps that do not talk to each other.
+- **§3 Not doing**: no AI-generated or downloaded code running on the phone; "changing features" is limited to registered capabilities plus editable config; no third-party tool marketplace; no autonomous background actions.
+- **§4 How a change is presented**: the user is not forced to start from chat. Every change shows the user a restatement, what changed, a preview, and "Apply" and "Cancel", and can be undone after applying. A model saying it succeeded does not count: success is shown only after persistence is done and re-reading and rendering succeeded; if rendering fails, it automatically returns to the last valid version, records the reason and tells the user.
+- **§5 Fixed core + changeable layer**: the core (file storage, permissions, tool registry, executor, AI requests, validation, snapshots and restore, rollback, logs) cannot be changed by the AI. The changeable layer is all declarative config, which the renderer only maps to whitelisted components; the AI cannot generate JSX / JS to inject into the runtime. §5.1 Protected elements: "Settings" is always reachable (navigation bar or floating entry), and the validator rejects changes that make it unreachable (D-031). §5.3 A change, wherever it comes from (Tink, long-press edit, other entries later), goes through the same ChangeRequest → Plan → Validate → Preview → Commit. §5.4 `core` does not depend on React Native or Expo, and the server reuses the same validation; the model key lives only on the server.
+- **§7B Tools**: a tool declares its actions, input and output types and permissions, and cannot quietly read another tool's data.
+- **§7C Quick actions**: linear steps, not Turing-complete (invariant 9). Naming templates accept only whitelisted placeholders (`{date:YYYY-MM-DD}`, `{index}`, `{sourceName}`, etc.), use the device time zone; on a name clash a sequence number is appended, and an existing file is never overwritten.
+- **§7D Change protocol**: use semantic operations, not JSON Patch; each kind of operation has its own schema, permission rules and a human-readable description. `baseRevision` is checked at commit, so an old plan cannot overwrite a newer version. Undo and restore both create new versions; the history is append-only and never rewritten.
+- **§7E Restoring an old version**: pages, navigation, theme, quick actions, tool settings and install state, and table structure are restored; user files, records and run logs are neither restored nor deleted; tool code always uses the current version, and if an action referenced by the old config no longer exists, validation before the restore fails and tells the user. An old snapshot is migrated step by step → validated → previewed → confirmed, and if migration fails it is not restored (invariant 12).
+- **§7F Built-in rules (mock AI)**: a rule parser, not a language model; it recognizes only the phrases in `docs/MOCK_AI_PHRASES.md` (a test reads that list). When it does not recognize a sentence it says "Can't understand that for now" and gives example sentences; it does not guess.
+- **§7G File ownership**: user files belong to the workspace, not to a tool. A tool can read only files authorized to it (chosen by the user inside it, or explicitly authorized); files a tool outputs belong to the workspace. Removing a tool only removes its entry points, settings and authorizations and does not delete files; deleting a file is a separate action that needs the user's confirmation.
+- **§8 Security and store release**: model output is untrusted; all config first goes through the schema, the capability whitelist and permission checks; backend credentials and model keys are not sent down to the client. For store release, Apple App Review 2.5.2 / 4.7 and Google Play's dynamic code policy must be checked specifically (selling subscriptions on iOS also involves 3.1): whitelisted components and non-Turing-complete quick actions are the main risk reducers, and "technically it runs" does not mean "it can be listed". For the current state and to-dos see `docs/SECURITY_NOTES.md`.
+- **§12 Long-term principles**: the core stays stable; the user's software space keeps changing; data ranks above interface; new features are testable, undoable and traceable.
+- **§14 Open source and cloud**: AGPL-3.0. The open-source version must be fully usable locally, including with your own key (D-028, D-241); what the cloud sells is convenience, compute and cross-device use, not a crippled open-source version sold for money. Closed-source cloud code does not go into this repository, and the repository has no cloud keys or internal config. The open-source and official versions use the same config format and can import and export. Before merging outside code there must be a CLA (`CONTRIBUTING.md`, P-001). Before launching the cloud there must be a privacy policy (GDPR / CCPA) and store privacy labels, and the app must let users delete their account.
 
-- **绝不 `pkill -f "tsx src/main.ts"`**。生产服务是 launchd 的 `dev.stonetech.morph-api`。自己起的测试服务记下 PID，只停自己的，端口避开 8787 和 8788。
-- **不 push、不部署，除非创始人明确要求。** 改了 `apps/api` 时，在汇报开头单独写明「需要部署生产才生效」。
-- 真模型评测只用 Haiku：`npm run eval -- --model claude-haiku-5-5 --cases <ids>`。只在改了提示词、mock 或动作描述时跑，只跑受影响的用例。key 在主目录的 `.env` 里，绝不打印。
+## If it can be done by changing the config, never hard-code it
 
-## Node 里的测试证明不了手机上能跑
+- For changes to look, entry points, copy and layout, **whenever it can be done by changing the config, change the config**: add a field or value (schema), write it into the starting config / templates / sample apps, and upgrade old data through a migration (every format change comes with a migration and tests, invariant 12).
+- **Never** write special cases in the renderer, the shell or anywhere else keyed on specific values such as a page ID, a block ID, the target of `opens` or a table name, so that what is on screen no longer matches the config (for example "the button that opens the toolbox page is always drawn as one row"). That makes the values written in the config have no effect, the user, Tink and page editing cannot change it, and old and new configs cannot be explained.
+- The renderer only recognizes values in the config (`look`, `variant`, `show.*`, `style.*`), not specific pages and blocks. If a new look is needed, add a value to the config and let the renderer recognize that value.
+- Only the system layer may be written into the code (Settings, Change history, the Tink page, permissions, guide bubbles and banners, invariant 8); these are not pages in the config, and Tink cannot change them. If you are unsure whether a change counts as system layer, ask the founder.
+- The report states whether this change changed the config (which field, which migration) or a fixed way of writing things in the code; for the latter, explain why the config could not do it.
 
-- App 跑在 Hermes 上。Hermes 只有 `Intl.Collator`、`Intl.DateTimeFormat`、`Intl.NumberFormat`；**不要用 `Intl.PluralRules`、`ListFormat`、`RelativeTimeFormat`**，复数用 `messages.ts` 里的 `isSingular`。
-- 改动涉及原生模块（AVFoundation、Media3、Vision、ML Kit、文件路径和扩展名）、JS 内置 API、触摸和布局、大文件和内存的，**必须在模拟器或真机上跑一次真实路径**。模拟器面板没有授权时，停下来请创始人授权，不要跳过。
-- 不需要界面也能验证原生行为：临时加一个探针路由，直接调原生模块，用 `xcrun simctl io <UDID> screenshot` 读结果；用完用 `git checkout` 恢复，不提交。新加的路由文件要重启 Metro（加 `--clear`）才会生效。
-- 原生改动要两边都编译：iOS 跑整个 App（`npx expo run:ios`），Android 至少跑改动模块的 `compileDebugKotlin` 和 `externalNativeBuildDebug`。引入第三方 C 库时，读它的构建开关，并比较开关前后的体积。
-- iOS 处理音频只取主音轨（第一条启用的），按源文件的声道数处理。Android 解码图片先缩到目标尺寸。原生中间文件在任务结束时删掉，成功和失败都要删。取消任务一定要让 Promise 结束。
+## This Mac is also the production server
 
-## 打包装到真机
+- **Never `pkill -f "tsx src/main.ts"`**. The production service is the launchd job `dev.stonetech.morph-api`. Note the PID of any test server you start and stop only your own; avoid ports 8787 and 8788.
+- **Do not push or deploy unless the founder explicitly asks.** When `apps/api` changed, say so on its own line at the top of the report: "needs a production deploy to take effect".
+- Real-model evals use Haiku only: `npm run eval -- --model claude-haiku-5-5 --cases <ids>`. Run them only when you changed a prompt, a mock or an action description, and run only the affected cases. The key is in `.env` in the home directory; never print it.
 
-- **只在创始人明确要求时才动他的手机**。平时需要真机测试，就写好测试步骤交给他。装哪个分支、哪个提交，先问清楚。
-- 目前只在 Android（创始人的三星 SM-S948B，USB 连接）上打过包。**iPhone 真机还没打过包**：要先有苹果开发者团队和签名，prebuild 时会提示分享扩展没有 `DEVELOPMENT_TEAM`。这件事问创始人，不要自己猜着配。
-- 环境：`export JAVA_HOME=~/development/jdk-17/Contents/Home ANDROID_HOME=~/development/android-sdk`。CocoaPods 和 Gradle 前面都加 `LANG=en_US.UTF-8`。
-- **先备份手机上的数据。** release 包不能 `run-as`，所以先 `adb install -r` 一个 debug 包，**不要打开它**，再执行 `adb exec-out run-as app.morph.mobile tar cf - . > app-data.tar`，备份进 `side-session-notes/android-backups/<时间>/`。两种包都用 Expo 模板的调试密钥签名，所以能互相覆盖安装，数据保留。
-- **打 release 包**（不依赖 Metro，JS 在打包时就固定了）：
+## Tests in Node do not prove it runs on the phone
+
+- The app runs on Hermes. Hermes has only `Intl.Collator`, `Intl.DateTimeFormat` and `Intl.NumberFormat`; **do not use `Intl.PluralRules`, `ListFormat` or `RelativeTimeFormat`**; for plurals use `isSingular` in `messages.ts`.
+- When a change involves native modules (AVFoundation, Media3, Vision, ML Kit, file paths and extensions), JS built-in APIs, touch and layout, or large files and memory, **you must run the real path once in a simulator or on a real device**. If the simulator panel is not authorized, stop and ask the founder to authorize it; do not skip it.
+- Native behavior can be verified without a UI: temporarily add a probe route that calls the native module directly, and read the result with `xcrun simctl io <UDID> screenshot`; when done, restore with `git checkout` and do not commit. A newly added route file takes effect only after restarting Metro (with `--clear`).
+- Native changes must compile on both sides: on iOS run the whole app (`npx expo run:ios`); on Android run at least `compileDebugKotlin` and `externalNativeBuildDebug` for the changed module. When you bring in a third-party C library, read its build switches and compare the size before and after the switch.
+- On iOS, audio processing takes only the main audio track (the first enabled one) and follows the source file's channel count. On Android, decode images only after scaling them down to the target size. Delete native intermediate files when the task ends, on success and on failure. Cancelling a task must always end its Promise.
+
+## Building and installing on the real device
+
+- **Touch the founder's phone only when he explicitly asks.** When a real-device test is needed, write the test steps and hand them to him. Ask which branch and which commit to install first.
+- So far builds have been made only for Android (the founder's Samsung SM-S948B, connected by USB). **An iPhone build has not been made yet**: it needs an Apple developer team and signing first, and prebuild will warn that the share extension has no `DEVELOPMENT_TEAM`. Ask the founder about this; do not guess at the configuration.
+- Environment: `export JAVA_HOME=~/development/jdk-17/Contents/Home ANDROID_HOME=~/development/android-sdk`. Put `LANG=en_US.UTF-8` in front of CocoaPods and Gradle.
+- **Back up the data on the phone first.** A release build cannot `run-as`, so first `adb install -r` a debug build, **do not open it**, then run `adb exec-out run-as app.morph.mobile tar cf - . > app-data.tar` and save the backup in `side-session-notes/android-backups/<time>/`. Both kinds of build are signed with the Expo template's debug key, so they can be installed over each other and the data stays.
+- **Building a release build** (it does not depend on Metro; the JS is fixed at build time):
 
   ```bash
   cd apps/mobile && npx expo prebuild --platform android --no-install
@@ -91,42 +110,43 @@ AI 的权限
     EXPO_PUBLIC_MORPH_PACKS_URL=https://morph-tools.stonetech.dev/packs \
     EXPO_PUBLIC_MORPH_CLIENT_TOKEN="$(grep '^MORPH_CLIENT_TOKEN=' ~/projects/morph-prod/.env | cut -d= -f2-)" \
     ./gradlew app:assembleRelease -PreactNativeArchitectures=arm64-v8a
-  adb -s <序列号> install -r app/build/outputs/apk/release/app-release.apk
+  adb -s <serial> install -r app/build/outputs/apk/release/app-release.apk
   ```
 
-  四个环境变量都会打包进 App。漏掉一个，AI、下载工具或扫描展平（D-274，漏掉 `PACKS_URL` 时扫描不会提示下载展平模型，页面照常扫出来但不展平）在手机上就用不了，而模拟器和单元测试都发现不了。令牌不是秘密（D-132），但不要打印到日志里。
+  All four environment variables are baked into the app. If one is missing, AI, tool downloads or scan flattening (D-274; when `PACKS_URL` is missing, scanning does not offer to download the flattening model, and pages still scan but are not flattened) will not work on the phone, and neither the simulator nor unit tests will notice. The token is not a secret (D-132), but do not print it into logs.
 
-- adb 的毛病：在命令沙盒里 adb server 会崩，要在沙盒外后台跑 `adb nodaemon server`。别的会话也在用 adb 时，换一个端口（`ANDROID_ADB_SERVER_PORT=5038`）。每条命令都带 `-s <序列号>`，失败了就重试。`adb devices` 显示 offline（usb_read e00002eb）时，只能重新插线，或者在手机上关掉再打开 USB 调试。
-- 装完打开一次，确认 App 能启动、AI 修改能用。然后在汇报和项目记忆里写下：手机上现在是哪个分支、哪个提交，备份放在哪里。
-- 模拟器上的开发版也会过期：原生代码改过之后，旧的开发版跑新的 JS 可能一启动就报错（例如「无法打开工作空间」）。遇到这种情况先 `npx expo run:ios --device <UDID> --no-bundler` 重新打开发版（不能同时带 `--port`），不要当成代码的 bug。
+- adb quirks: inside the command sandbox the adb server crashes, so run `adb nodaemon server` in the background outside the sandbox. When other sessions also use adb, switch to another port (`ANDROID_ADB_SERVER_PORT=5038`). Give every command `-s <serial>`, and retry on failure. When `adb devices` shows offline (usb_read e00002eb), the only fixes are to replug the cable, or to turn USB debugging off and on again on the phone.
+- After installing, open the app once and confirm it starts and AI changes work. Then write down in the report and in the project memory which branch and which commit is on the phone now, and where the backup is.
+- The development build on the simulator also goes stale: after native code changes, an old development build running new JS may fail right at startup (for example "cannot open workspace"). In that case first rebuild the development build with `npx expo run:ios --device <UDID> --no-bundler` (it cannot be combined with `--port`); do not treat it as a bug in the code.
 
-## 测试
+## Tests
 
-- 修 bug 先写一个**在旧代码上会失败**的测试，再改代码让它通过。
-- 断言要写「应该怎样」，不要把现在的行为照抄成断言。测试替身要模拟真实会出问题的属性：扩展名、文件所在目录、`content://` 和 `file://` 的区别、声道数。
-- 界面用三种状态各走一遍：新用户（没有数据）、有数据、边界情况（个数不对、文件很大、类型混合）。
+- To fix a bug, first write a test that **fails on the old code**, then change the code so that it passes.
+- Assert what it **should** do; do not copy today's behavior into assertions. Test doubles must model the properties that really cause trouble: extensions, the directory a file is in, the difference between `content://` and `file://`, channel counts.
+- For UI, walk through all three states: a new user (no data), with data, and edge cases (wrong count, very large file, mixed types).
 
-## 文件的归属
+## File ownership
 
-- 用户相册或「文件」里的原件、`content://`：永远不移动、不删除。
-- 分享扩展放在 App Group 里的副本、选择器放在 `Caches/ImagePicker` 和 `Caches/DocumentPicker` 里的副本：属于收件那一批，批次释放时删；收件那一批不能移动，因为「再来一次」还要用。
-- `cache/runs/<runId>/`：属于这次运行，可以移动，运行页面关闭时删。
-- 要移动文件的步骤（例如改名）先判断文件是不是这次运行自己的，不是就复制。
+- Originals in the user's photo library or "Files", and `content://`: never moved, never deleted.
+- Copies that the share extension puts in the App Group, and copies that pickers put in `Caches/ImagePicker` and `Caches/DocumentPicker`: they belong to the inbox batch and are deleted when the batch is released; the inbox batch's files cannot be moved, because "Do it again" still needs them.
+- `cache/runs/<runId>/`: belongs to this run, can be moved, and is deleted when the run page is closed.
+- A step that has to move a file (for example rename) first checks whether the file belongs to this run; if not, it copies.
 
-## 多语言（en / zh / fr）
+## Languages (en / zh / fr)
 
-- 文案都放进 `packages/core/src/messages/` 的 `en.ts`、`zh.ts`、`fr.ts`（三份的键必须一样，少一个就编译不过；带数量的单数写法在 `enSingular` / `frSingular`），不要写 `zh ? '…' : '…'`（`npm run check:locales` 会查出来）。
-- 每条带数量的文案都要有单数写法，并写明用哪个参数判断单复数。法语里 0 和 1 都用单数。
-- 不要把翻译过的词拼成句子，每种语言写完整的句子。法语术语：记录 = entrée，数据表 = tableau，Morph 的设置页 = Paramètres，录音 = enregistrement。
-- 改了界面文案，就把模拟器切成法语，从新装开始走一遍主流程。
+- All copy goes into `en.ts`, `zh.ts` and `fr.ts` in `packages/core/src/messages/` (the keys of the three files must be identical; one missing and it will not compile; singular forms for strings with counts go in `enSingular` / `frSingular`). Do not write `zh ? '…' : '…'` (`npm run check:locales` will catch it).
+- Every string with a count needs a singular form, and must state which parameter decides singular or plural. In French, both 0 and 1 use the singular.
+- Do not assemble sentences from translated words; write a complete sentence in each language. French terms: record = entrée, table = tableau, Morph's settings page = Paramètres, recording = enregistrement.
+- When you change UI copy, switch the simulator to French and walk through the main flow starting from a fresh install.
 
-## DECISIONS 和文档
+## DECISIONS and docs
 
-- 没做完的不标「已定」。改一个决定时，把引用它的所有地方都 `grep` 出来一起更新。写「创始人确认」时，注明在哪里、哪一天确认的。
-- 交接报告、测试计划、测量结果不进 git，放在 `~/Library/Application Support/Claude/side-session-notes/`。
-- 决策编号经常撞号：合并前重新查一次 main 上最大的编号。新加表格行时，每一格都不要比那一列最宽的格子还宽（否则 prettier 会把整张表重新补空格）。
-- 改规划提示词时不要破坏原有的规则结构，新内容接在规则末尾。
+- Docs (Markdown) are written in English. README.zh-CN.md is the only Chinese doc and follows README.md. Code comments still follow the surrounding code (D-499).
+- Do not mark something "Decided" if it is not finished. When you change a decision, `grep` for every place that cites it and update them all. When you write "the founder confirmed", say where and on what day he confirmed it.
+- Handoff reports, test plans and measurement results do not go into git; put them in `~/Library/Application Support/Claude/side-session-notes/`.
+- Decision numbers often collide: before merging, check the largest number on main again. When you add a table row, no cell may be wider than the widest cell in its column (otherwise prettier re-pads the whole table).
+- When you change the planning prompt, do not break the existing rule structure; append new content at the end of the rules.
 
-## 合并前
+## Before merging
 
-`npm run check` 全过；受影响的评测跑过；每个修复都有一个会失败的测试；原生和界面改动在模拟器上跑过；三种语言都看过；DECISIONS 前后一致。汇报分三类写清楚：模拟器上验证过的、只有单元测试的、只有真机能测的。
+`npm run check` passes in full; the affected evals have been run; every fix has a test that fails without it; native and UI changes have been run in the simulator; all three languages have been looked at; DECISIONS is consistent from start to end. The report has three separate parts: verified in the simulator, unit tests only, and testable only on a real device.
