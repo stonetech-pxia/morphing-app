@@ -788,8 +788,10 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
       ...(input.skew !== undefined ? { skew: input.skew } : {}),
     },
     // 格子里的字按原图一排一行（D-333）：表单一格里的地址、日期各占一行，不接成一段（Word 里格子宽按原图，字号按比例）。
+    // 没有线的表在下面去掉竖排、零星的字以后再认（D-471）。
     {
       ...options,
+      textTables: false,
       joinLines: (cell) =>
         rowsOf(cell)
           .map((r) => join(r.lines).trim())

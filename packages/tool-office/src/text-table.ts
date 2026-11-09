@@ -249,6 +249,8 @@ export interface TextTable {
   table: TableBlock;
   /** 每列的宽（原图像素）。 */
   colWidths: number[];
+  /** 每列的字从哪到哪（x）：列线可以放在两列之间的空白里任何地方（D-506）。 */
+  bands: { x: number; right: number }[];
   box: Box;
 }
 
@@ -265,6 +267,8 @@ const MAX_COL_GAP = 3;
 const LOCKED_SHARE = 0.7;
 const LOCKED_SKEW = 0.25;
 const MAX_UNIT_LETTERS = 3;
+/** 表上下的排算紧挨着：和表的隔开不超过表里最大的排间空隙再多这么多个行高（D-506）。 */
+const NEAR_SLACK = 0.5;
 
 /** 这一排能按这张表的列排：至少两段，每段从不同的列开始（没有两段挤在同一列，跨到下一列的截到那一列为止）。 */
 function fitsBands(row: TextRow, bands: readonly Band[]): boolean {
@@ -342,13 +346,21 @@ function runTables(
     for (let end = lastMulti; end >= i + MIN_ROWS - 1 && !found; end--) {
       if (rows[end]!.segments.length < 2) continue;
       // 表上下紧挨着的两排（隔着不到 1.8 个行高）：看隔得远的数列有没有错位（D-502）。
+      // 错开的数是这张表自己的那列数，和表里的排一样密；隔得比表里任何两排之间都明显远（多半个行高以上）的
+      // 是另一块（发票表下面右边两列的 Subtotal / VAT / Total），不算错开的数（D-506）。
+      let spacing = 0;
+      for (let k = i + 1; k <= end; k++) {
+        spacing = Math.max(spacing, rows[k]!.top - rows[k - 1]!.bottom);
+      }
+      const close = (gap: number) =>
+        gap <= Math.min(1.8 * lineHeight, Math.max(0, spacing) + NEAR_SLACK * lineHeight);
       const near: TextRow[] = [];
       for (let k = i - 1; k >= Math.max(0, i - 2); k--) {
-        if (rows[k + 1]!.top - rows[k]!.bottom > 1.8 * lineHeight) break;
+        if (!close(rows[k + 1]!.top - rows[k]!.bottom)) break;
         near.push(rows[k]!);
       }
       for (let k = end + 1; k <= Math.min(rows.length - 1, end + 2); k++) {
-        if (rows[k]!.top - rows[k - 1]!.bottom > 1.8 * lineHeight) break;
+        if (!close(rows[k]!.top - rows[k - 1]!.bottom)) break;
         near.push(rows[k]!);
       }
       const hit = tableOf(rows.slice(i, end + 1), lineHeight, original, near, twoColumns);
@@ -475,6 +487,7 @@ function buildTable(
     lines: all,
     table: { kind: 'table', rows: run.length, col: 0, cols: bands.length, cells, box },
     colWidths,
+    bands: bands.map(({ x, right }) => ({ x, right })),
     box,
   };
 }
