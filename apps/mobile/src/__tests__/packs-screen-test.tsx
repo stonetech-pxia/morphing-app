@@ -5,7 +5,7 @@ import { Alert } from 'react-native';
 import { PackStore } from '../packs/store';
 import { makePalette } from '../renderer/theme';
 import { PacksScreen } from '../shell/PacksScreen';
-import { MemoryPackFs, manifests, sha256 } from '../test-utils/memory-packs';
+import { MemoryPackFs, bundlePack, manifests, sha256, text } from '../test-utils/memory-packs';
 
 // 「设置 → 扩展包」：列出已下载的扩展包和占用空间；删除文字识别包时语言包一起删除。
 
@@ -33,5 +33,21 @@ describe('extension packs screen', () => {
     expect(alert).toHaveBeenCalled();
     expect(await screen.findByTestId('packs-empty')).toBeTruthy();
     expect(await store.isInstalled('ocr-eng')).toBe(false);
+  });
+
+  // D-510：随 App 打包的不是下载的，不列（删了用到时又会从 App 里复制回来）；说明也不再说 PDF 预览要下载。
+  it('does not list the packs that come with the app as downloads', async () => {
+    const fs = new MemoryPackFs();
+    const lookup = await manifests(fs);
+    bundlePack(fs, lookup.get('ocr')!, (path) => (path === 'a.js' ? text('aaa') : text('bbbb')));
+    const store = new PackStore(fs, sha256, (id) => lookup.get(id));
+    const palette = makePalette(createDefaultWorkspace('zh').theme, false);
+    await render(<PacksScreen store={store} palette={palette} locale="en" />);
+    expect(await screen.findByTestId('packs-empty')).toHaveTextContent('Nothing downloaded yet.');
+    expect(screen.queryByTestId('pack-ocr')).toBeNull();
+    expect(await store.isInstalled('ocr')).toBe(true);
+    expect(
+      screen.getByText(/PDF preview, page flattening and layout come with the app/),
+    ).toBeTruthy();
   });
 });

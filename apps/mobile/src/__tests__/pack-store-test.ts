@@ -1,7 +1,7 @@
-import { PACKS, PACK_HOST, packFileUrl } from '@morph/core';
+import { BUNDLED_PACKS, PACKS, PACK_HOST, PREFILL_MODEL_PACK, packFileUrl } from '@morph/core';
 
 import { PackError, PackStore } from '../packs/store';
-import { MemoryPackFs, manifests, sha256, text } from '../test-utils/memory-packs';
+import { MemoryPackFs, bundlePack, manifests, sha256, text } from '../test-utils/memory-packs';
 
 // 扩展包下载、校验和删除。
 
@@ -186,5 +186,98 @@ describe('extension packs', () => {
       { ids: ['ocr'], ok: true },
       { ids: ['ocr-eng'], ok: false },
     ]);
+  });
+
+  // D-510：处理文件常用的扩展包随 App 打包，算已安装；第一次用到时从 App 里复制，和下载一样校验。
+  describe('packs that come with the app (D-510)', () => {
+    it('only the file tools are bundled, not the big optional downloads', () => {
+      const ids = PACKS.map((p) => p.id);
+      for (const id of [...BUNDLED_PACKS.ios, ...BUNDLED_PACKS.android]) expect(ids).toContain(id);
+      expect(BUNDLED_PACKS.ios).toEqual(['ppocr', 'pdfview', 'dewarp', 'layout']);
+      // 拉正照片只有 Android 要（iOS 系统能找纸边）。
+      expect(BUNDLED_PACKS.android).toEqual([...BUNDLED_PACKS.ios, 'scan']);
+      for (const id of [...BUNDLED_PACKS.ios, ...BUNDLED_PACKS.android]) {
+        expect(id).not.toBe(PREFILL_MODEL_PACK);
+        expect(id).not.toMatch(/^(speech-|ocr$|ocr-)/);
+      }
+    });
+
+    it('counts as installed without a download: copied once, verified, offline', async () => {
+      const fs = new MemoryPackFs();
+      const lookup = await manifests(fs);
+      const ocr = lookup.get('ocr')!;
+      bundlePack(fs, ocr, (path) => (path === 'a.js' ? text('aaa') : text('bbbb')));
+      fs.net.clear();
+      const store = new PackStore(
+        fs,
+        sha256,
+        (id) => lookup.get(id),
+        () => 5,
+      );
+      const changed = jest.fn();
+      store.subscribe(changed);
+
+      expect(await store.isInstalled('ocr')).toBe(true);
+      expect(fs.downloads).toEqual([]);
+      expect(fs.copies.sort()).toEqual(['ocr/7.0.0/a.js', 'ocr/7.0.0/b.js']);
+      expect(await store.readText('ocr', 'b.js')).toBe('bbbb');
+      expect(changed).toHaveBeenCalledTimes(1);
+      expect(await store.installed()).toEqual([
+        { id: 'ocr', version: '7.0.0', bytes: 7, installedAt: 5, bundled: true },
+      ]);
+      // 复制过一次就不再复制。
+      expect(await store.isInstalled('ocr')).toBe(true);
+      expect(fs.copies).toHaveLength(2);
+      // 没带的照旧要下载。
+      expect(await store.isInstalled('ocr-eng')).toBe(false);
+    });
+
+    it('lists bundled packs as installed before anything asked for them', async () => {
+      const fs = new MemoryPackFs();
+      const lookup = await manifests(fs);
+      bundlePack(fs, lookup.get('ocr')!, (path) => (path === 'a.js' ? text('aaa') : text('bbbb')));
+      const store = new PackStore(fs, sha256, (id) => lookup.get(id));
+      expect((await store.installed()).map((p) => [p.id, p.bundled])).toEqual([['ocr', true]]);
+    });
+
+    it('a bundled file with the wrong hash is not used; the pack then downloads as before', async () => {
+      const fs = new MemoryPackFs();
+      const lookup = await manifests(fs);
+      bundlePack(fs, lookup.get('ocr')!, () => text('evil'));
+      const store = new PackStore(fs, sha256, (id) => lookup.get(id));
+      expect(await store.isInstalled('ocr')).toBe(false);
+      expect(fs.files.size).toBe(0);
+      expect(await store.installed()).toEqual([]);
+      // 没经过用户确认不下载；用户点了下载才下载。
+      expect(fs.downloads).toEqual([]);
+      await store.install('ocr');
+      expect(fs.downloads.sort()).toEqual(['https://cdn/a.js', 'https://cdn/b.js']);
+      expect((await store.installed()).map((p) => [p.id, p.bundled])).toEqual([['ocr', undefined]]);
+    });
+
+    it('a newer version in the manifest is downloaded and replaces the bundled copy', async () => {
+      const fs = new MemoryPackFs();
+      const lookup = await manifests(fs);
+      const old = lookup.get('ocr')!;
+      bundlePack(fs, old, (path) => (path === 'a.js' ? text('aaa') : text('bbbb')));
+      expect(await new PackStore(fs, sha256, (id) => lookup.get(id)).isInstalled('ocr')).toBe(true);
+
+      // 下一个 App 版本的清单换了新版本（例如 R2 上的新模型），App 里带的还是旧的。
+      const body = text('newer');
+      fs.net.set('https://cdn/c.js', body);
+      const newer = {
+        ...old,
+        version: '7.1.0',
+        files: [{ path: 'c.js', url: 'https://cdn/c.js', size: 5, sha256: await sha256(body) }],
+      };
+      const store = new PackStore(fs, sha256, (id) => (id === 'ocr' ? newer : lookup.get(id)));
+      expect(await store.isInstalled('ocr')).toBe(false);
+      await store.install('ocr');
+      expect(fs.downloads).toEqual(['https://cdn/c.js']);
+      expect([...fs.files.keys()].sort()).toEqual(['ocr/7.1.0/c.js', 'ocr/7.1.0/ready.json']);
+      expect((await store.installed()).map((p) => [p.version, p.bundled])).toEqual([
+        ['7.1.0', undefined],
+      ]);
+    });
   });
 });

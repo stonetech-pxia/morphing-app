@@ -1780,6 +1780,17 @@ export const ocrPackId = (lang: string) => `ocr-${lang.replace('_', '-')}`;
 
 export const packById = (id: string) => PACKS.find((p) => p.id === id);
 
+/**
+ * 随 App 打包的扩展包（D-510）：处理文件常用的那几个（D-456 一次问完的那一组），装好 App 就有，不用第一次下载。
+ * prebuild 时按清单下载、校验后放进 App 的 packs/<id>/<version>/（apps/mobile/plugins/with-bundled-packs.js），
+ * 第一次用到时复制到 documentDirectory/packs，同样校验大小和 SHA-256。拉正照片的扫描包只有 Android 要
+ * （iOS 系统能找纸边）。本机模型、各语言的识别包、语音模型太大或用得少，还是第一次用到时下载。
+ */
+export const BUNDLED_PACKS: Readonly<Record<'ios' | 'android', readonly string[]>> = {
+  ios: ['ppocr', 'pdfview', 'dewarp', 'layout'],
+  android: ['ppocr', 'pdfview', 'dewarp', 'layout', 'scan'],
+};
+
 /** 一个扩展包连同依赖一共要下载的字节数。 */
 export function packDownloadSize(id: string, installed: ReadonlySet<string> = new Set()): number {
   const pack = packById(id);

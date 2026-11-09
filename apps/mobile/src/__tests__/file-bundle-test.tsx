@@ -1,4 +1,4 @@
-import { packById, type PackManifest, type PackNeed } from '@morph/core';
+import { BUNDLED_PACKS, packById, type PackManifest, type PackNeed } from '@morph/core';
 import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
@@ -10,7 +10,7 @@ import { PackStore } from '../packs/store';
 import { useIncoming } from '../share/incoming';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles, FakeVision, TINY_JPEG, makePdf } from '../test-utils/fake-files';
-import { MemoryPackFs, sha256, text } from '../test-utils/memory-packs';
+import { MemoryPackFs, bundlePack, sha256, text } from '../test-utils/memory-packs';
 import { renderToolsApp } from '../test-utils/render-app';
 
 // 文件处理包一次问完（D-456）：扫描完、分享或打开文件后问一次，一起下载；运行时不再为可选的弹框。
@@ -23,6 +23,32 @@ async function packStore(installed: string[] = []) {
   for (const id of installed)
     await fs.writeText(`${id}/${packById(id)!.version}/ready.json`, '{"bytes":1,"installedAt":1}');
   return store;
+}
+
+/**
+ * 新装的 App（D-510）：documentDirectory/packs 是空的，App 里带着这个平台的扩展包。真实清单的哈希对不上
+ * 测试里的内容，所以每个扩展包换成一个小文件的清单（ID 和版本不变）。
+ */
+async function freshInstall(platform: 'ios' | 'android') {
+  const fs = new MemoryPackFs();
+  const lookup = new Map<string, PackManifest>();
+  for (const id of BUNDLED_PACKS[platform]) {
+    const body = text(`${id} body`);
+    const pack = {
+      ...packById(id)!,
+      files: [
+        {
+          path: 'model.bin',
+          url: `https://cdn/${id}`,
+          size: body.length,
+          sha256: await sha256(body),
+        },
+      ],
+    };
+    lookup.set(id, pack);
+    bundlePack(fs, pack, () => body);
+  }
+  return { fs, store: new PackStore(fs, sha256, (id) => lookup.get(id) ?? packById(id)) };
 }
 
 function phone({ documentCamera = true, canFindPaper = true } = {}) {
@@ -52,6 +78,20 @@ describe('which packs the file bundle lists (D-456)', () => {
   it('adds the photo straightener only when the phone has no document camera and cannot find paper', async () => {
     const files = phone({ documentCamera: false, canFindPaper: false });
     expect(await fileBundleMissing(files, await packStore())).toContain('scan');
+  });
+
+  // D-510：新用户不再看到「下载文件工具」：这一组都随 App 打包。
+  it('lists nothing on a fresh install: the file tools come with the app (D-510)', async () => {
+    const iphone = await freshInstall('ios');
+    expect(await fileBundleMissing(phone(), iphone.store)).toEqual([]);
+    // Android 不能自己找纸边；没有 Google Play 服务时也没有文档相机，要拉正照片的扫描包，也带着。
+    for (const documentCamera of [true, false]) {
+      const android = await freshInstall('android');
+      const files = phone({ documentCamera, canFindPaper: false });
+      expect(await fileBundleMissing(files, android.store)).toEqual([]);
+      expect(android.fs.downloads).toEqual([]);
+    }
+    expect(iphone.fs.downloads).toEqual([]);
   });
 
   it('leaves out what is already installed', async () => {
@@ -99,6 +139,28 @@ describe('the one-time prompt after opening a file (D-456)', () => {
     await act(async () => useIncoming.getState().receive([picked], [], 'picker'));
     await act(() => router.push('/share'));
   }
+
+  it('a fresh install with the bundled packs does not ask at all (D-510)', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    const files = phone();
+    const { fs, store } = await freshInstall('ios');
+    const bridge = {
+      subscribe: () => () => undefined,
+      activePages: () => NO_PAGES,
+      close: () => undefined,
+    } as unknown as PackBridge;
+    await renderToolsApp(repo, files, { packs: { store, bridge } as Packs });
+    const picked = files.offer('bill.jpg', TINY_JPEG, 'image/jpeg');
+    await act(async () => useIncoming.getState().receive([picked], [], 'picker'));
+    await act(() => router.push('/share'));
+    expect(await screen.findByTestId('share-screen')).toBeTruthy();
+    await waitFor(() => expect(fs.copies.length).toBe(BUNDLED_PACKS.ios.length));
+    expect(screen.queryByTestId('pack-gate')).toBeNull();
+    expect(screen.queryByText(/^下载文件工具/)).toBeNull();
+    expect(fs.downloads).toEqual([]);
+    // 没问就不记「问过了」：以后清单换了新版本时还能问一次。
+    expect(await repo.getMeta(FILE_BUNDLE_ASKED)).toBeNull();
+  });
 
   it('asks once with everything in one list, and not again after "not now"', async () => {
     const repo = new MemoryWorkspaceRepo();

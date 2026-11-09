@@ -2,8 +2,7 @@ import { layoutOcrLines } from '@morph/core';
 import { Directory, File, Paths } from 'expo-file-system';
 
 import MorphVision from '../../modules/morph-vision';
-import { expoPackFs, expoSha256 } from '../packs/expo-pack-fs';
-import { PackStore } from '../packs/store';
+import { expoPackFs, expoPackStore } from '../packs/expo-pack-fs';
 import { classifyImageWith } from './classify-image';
 import { detectDataWith } from './detect-data';
 import type { Pixels, VisionPlatform } from './platform';
@@ -22,8 +21,8 @@ import { ocrPixels, openFlattenPage } from './skia';
 // 文字识别用 PP-OCRv6（D-269）：中文、日文、英法德西葡意；其余语言用系统自带的（iOS Vision、Android 只剩韩文用 ML Kit）。
 // 没有这个模块（Expo Go）时为 null。
 
-/** 只用来找文字识别模型的文件（下载由 App 根布局的 PackStore 负责，D-064）。 */
-const ocrPacks = new PackStore(expoPackFs, expoSha256);
+/** 只用来找文字识别模型的文件（下载由 App 根布局负责，D-064）；和根布局是同一个（D-510）。 */
+const ocrPacks = expoPackStore;
 
 /** 拉正后和文档相机页面的 JPG 质量。 */
 const QUALITY = 0.9;

@@ -34,9 +34,8 @@ import { HomeScreenBridge } from '@/home-screen/useHomeScreen';
 import { t } from '@/i18n';
 import { LANGUAGE_META_KEY, parseLanguage, resolveLocale, useLanguage } from '@/language';
 import { PackBridge } from '@/packs/bridge';
-import { expoBridgeFiles, expoPackFs, expoSha256 } from '@/packs/expo-pack-fs';
+import { expoBridgeFiles, expoPackStore, expoSha256 } from '@/packs/expo-pack-fs';
 import { PackHostProvider } from '@/packs/PackHost';
-import { PackStore } from '@/packs/store';
 import { onReminderAction, reminders } from '@/reminders/background';
 import {
   useReminderActionFeedback,
@@ -66,16 +65,8 @@ import { WidgetProvider } from '@/widgets/context';
 import { nativeWidgets } from '@/widgets/native';
 import { WidgetBridge } from '@/widgets/useWidgets';
 
-// 扩展包：只在用户确认后下载，存在 documentDirectory/packs（D-064）。还没定托管地址的扩展包（展平模型，D-274）
-// 从 EXPO_PUBLIC_MORPH_PACKS_URL 下载，没配置时不提示下载。
-const packStore = new PackStore(
-  expoPackFs,
-  expoSha256,
-  undefined,
-  undefined,
-  process.env.EXPO_PUBLIC_MORPH_PACKS_URL,
-);
-const packs = { store: packStore, bridge: new PackBridge(expoBridgeFiles(packStore)) };
+// 扩展包（D-064、D-510）：App 里唯一的 PackStore，见 expo-pack-fs.ts。
+const packs = { store: expoPackStore, bridge: new PackBridge(expoBridgeFiles(expoPackStore)) };
 const registry = createRegistry(BUILTIN_TOOLS);
 // 从服务器下载的工具（D-177、D-178）：目录地址不是秘密；开发版另外信任仓库里的开发公钥。
 const toolsUrl = process.env.EXPO_PUBLIC_MORPH_TOOLS_URL;

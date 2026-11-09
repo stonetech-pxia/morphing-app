@@ -88,6 +88,7 @@
         }
       ],
       "./plugins/with-llama-from-source",
+      "./plugins/with-bundled-packs",
       [
         "./plugins/with-share-extension",
         {

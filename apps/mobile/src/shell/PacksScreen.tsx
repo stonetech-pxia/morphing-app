@@ -13,6 +13,7 @@ import { formatBytes } from '../run/ResultView';
 /**
  * 「设置 → 扩展包」（D-064，TOOLS_DESIGN §6）：已下载的扩展包和占用空间，可以删除。
  * 删除文字识别包时各语言包一起删除。不进版本，删除后需要时会再次请用户确认下载。
+ * 随 App 打包的（D-510）不列：不是下载的，删了用到时又从 App 里复制回来。
  */
 export function PacksScreen({
   store,
@@ -34,7 +35,7 @@ export function PacksScreen({
   const [list, setList] = useState<InstalledPack[] | null>(null);
   const [languages, setLanguages] = useState<string[]>([]);
   const reload = useCallback(() => {
-    void store.installed().then(setList);
+    void store.installed().then((all) => setList(all.filter((p) => !p.bundled)));
     void translator?.downloadedLanguages?.().then(setLanguages);
   }, [store, translator]);
   useEffect(reload, [reload]);

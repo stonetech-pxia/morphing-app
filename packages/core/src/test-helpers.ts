@@ -65,10 +65,24 @@ export function withStarterTheme(config: WorkspaceConfig): WorkspaceConfig {
 /** fixtures/v33/<name>.json：v34 迁移前用 v33 代码存下来的配置（默认、新用户、模版、样板、评测 setup）。 */
 export function v33Fixture(name: string): Record<string, unknown> {
   // 欢迎语是存下来时的默认文案；D-436 把 AI 改名 Tink 后，新配置的默认文案不同，老配置的不动。
+  // D-510：文件工具随 App 打包，扫描和文字识别工具页的说明不再说第一次要下载；同样只有新配置换了文案。
   const raw = readFileSync(join(__dirname, 'fixtures', 'v33', `${name}.json`), 'utf8')
     .replaceAll('点「AI 修改」', '点「Tink」')
     .replaceAll('Tap AI and describe', 'Tap Tink and describe')
-    .replaceAll('Touchez « IA »', 'Touchez « Tink »');
+    .replaceAll('Touchez « IA »', 'Touchez « Tink »')
+    .replaceAll(
+      '不会上传。扫描用系统自带的文档扫描；拉正已有照片时，有的设备第一次要下载一些内容（之后不联网也能用）。',
+      '不联网也能用，不会上传。扫描用系统自带的文档扫描。',
+    )
+    .replaceAll('第一次用时下载文字识别模型（约 30 MB）；', '文字识别模型已经内置，不联网也能用；')
+    .replaceAll(
+      'Everything runs on this device; nothing is uploaded. Scanning uses the built-in document scanner; straightening photos may download what it needs the first time (it works offline after that).',
+      'Everything runs on this device and works offline; nothing is uploaded. Scanning uses the built-in document scanner.',
+    )
+    .replaceAll(
+      'The text recognition model (about 30 MB) is downloaded the first time you use it;',
+      'The text recognition model comes with the app and works offline;',
+    );
   return JSON.parse(raw) as Record<string, unknown>;
 }
 

@@ -351,7 +351,7 @@ export const fr: MessageTable = {
   packsTitle: 'Téléchargements',
   packsRowHint: 'Contenu téléchargé et espace utilisé',
   packsHint:
-    'Certaines fonctions (redressement des photos, reconnaissance de texte dans d’autres langues, aperçu PDF) téléchargent ce dont elles ont besoin lors de la première utilisation. Elles fonctionnent ensuite hors connexion.',
+    'La reconnaissance de texte, l’aperçu PDF, l’aplanissement des pages et l’analyse de mise en page sont inclus dans l’app. Les autres fonctions (le modèle sur l’appareil, la transcription, la reconnaissance de texte dans d’autres langues) téléchargent ce dont elles ont besoin lors de la première utilisation. Elles fonctionnent ensuite hors connexion.',
   packsEmpty: 'Aucun téléchargement pour l’instant.',
   packsTotal: 'Occupe {size}',
   packDelete: 'Supprimer',
@@ -891,6 +891,8 @@ export const fr: MessageTable = {
   // 划屏介绍：每页一张图配一句话。
   guideIntro1: 'Transformez vos documents papier en PDF, Word ou Excel bien nets.',
   guideIntro1Sub: 'Gratuit, sans pub. Les fichiers sont traités uniquement sur votre téléphone.',
+  guideIntro1Offline:
+    'Les outils pour les fichiers sont intégrés et fonctionnent hors connexion. Les extras, comme le modèle sur l’appareil qui aide à remplir les formulaires (environ 1,2 Go), ne se téléchargent qu’à la première utilisation. Wi-Fi conseillé.',
   guideIntro2:
     'Numérisez ou ouvrez un fichier, puis enregistrez-le comme entrée dans le bon tableau.',
   guideIntro3: 'Dites une phrase à Tink : le style et la mise en page changent.',
@@ -1393,11 +1395,11 @@ export const fr: MessageTable = {
   scan_Scan_5b295: 'Numérisation {date}',
   scan_Scanner_08f22: 'Numériser',
   scan_Everything_runs_on_this_device_nothing_09e42:
-    'Tout s’exécute sur cet appareil ; rien n’est envoyé. La numérisation utilise le scanneur de documents intégré au système ; pour redresser des photos existantes, certains appareils doivent télécharger des éléments la première fois (ensuite, cela fonctionne hors ligne).',
+    'Tout s’exécute sur cet appareil et fonctionne hors connexion ; rien n’est envoyé. La numérisation utilise le scanneur de documents intégré au système.',
   scan_Scans_7ac9d: 'Numérisations',
   ocr_Text_recognition_fe569: 'Reconnaissance de texte',
   ocr_Runs_on_this_device_the_text_is_never__38fca:
-    'S’exécute sur cet appareil ; le texte n’est jamais envoyé. Le modèle de reconnaissance de texte (environ 30 Mo) est téléchargé à la première utilisation ; le coréen, le russe et le vietnamien utilisent la reconnaissance intégrée au téléphone ou un téléchargement séparé.',
+    'S’exécute sur cet appareil ; le texte n’est jamais envoyé. Le modèle de reconnaissance de texte est inclus dans l’app et fonctionne hors connexion ; le coréen, le russe et le vietnamien utilisent la reconnaissance intégrée au téléphone ou un téléchargement séparé.',
   html_Created_1626a: 'Création',
   html_Updated_74f0c: 'Modifié',
   html_records_3f794: '{v0} entrées',
