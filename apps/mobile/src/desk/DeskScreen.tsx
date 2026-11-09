@@ -130,6 +130,8 @@ export function DeskScreen({ deskId }: { deskId: string }) {
   const [panel, setPanel] = useState<(AskRequest & { entry: ToolEntry }) | null>(null);
   const [sheet, setSheet] = useState(false);
   const [saved, setSaved] = useState(false);
+  // 存到手机（复制进「文件」App 里选的文件夹）：存进了哪个文件夹。
+  const [folderSaved, setFolderSaved] = useState<string | null>(null);
   const [selecting, setSelecting] = useState(false);
   const signal = useRef({ cancelled: false });
   const alive = useRef(true);
@@ -252,6 +254,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
     if (!current || busy) return;
     setError(null);
     setSaved(false);
+    setFolderSaved(null);
     const steps = workflow.steps;
     setBusy({ label: label(steps[Math.min(1, steps.length - 1)]!) });
     signal.current = { cancelled: false };
@@ -335,6 +338,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
     const on = await sealedTargets();
     if (entry.room === 'share') return void act(() => files.shareUris(items()));
     if (entry.room === 'save') return void act(save);
+    if (entry.room === 'folder') return void act(saveToPhone);
     if (entry.room === 'preview') return systemPreview();
     if (entry.workflow) {
       void run(entry.workflow, { kind: 'workflow', workflowId: entry.workflow.id }, on);
@@ -390,6 +394,12 @@ export function DeskScreen({ deskId }: { deskId: string }) {
     bumpAssets();
     setSavedAt(d.current);
     setSaved(true);
+  }
+
+  /** 存到手机：每次让用户在「文件」App 里选文件夹，复制进去（D-120）；取消时什么都不变。 */
+  async function saveToPhone() {
+    const done = await files.saveToFolder(items(), 'desk', true);
+    if (done) setFolderSaved(done.folder);
   }
 
   async function act(fn: () => Promise<void>) {
@@ -661,6 +671,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
           onPress={() =>
             void edit.seal().then(() => {
               setSaved(false);
+              setFolderSaved(null);
               finish();
             })
           }
@@ -702,6 +713,13 @@ export function DeskScreen({ deskId }: { deskId: string }) {
           testID="desk-saved"
           style={[palette.font('bodyMedium', 14), styles.error, { color: palette.caption }]}>
           {t(locale, 'resultSaved')}
+        </Text>
+      ) : null}
+      {folderSaved && !sheet ? (
+        <Text
+          testID="desk-folder-saved"
+          style={[palette.font('bodyMedium', 14), styles.error, { color: palette.caption }]}>
+          {t(locale, 'resultFolderDone', { name: folderSaved })}
         </Text>
       ) : null}
       {layout.strip && list.length > 1 ? (
@@ -829,6 +847,16 @@ export function DeskScreen({ deskId }: { deskId: string }) {
                 palette={palette}
                 disabled={saved}
                 onPress={() => void act(save)}
+              />
+              <SheetRow
+                id="desk-folder"
+                label={
+                  folderSaved
+                    ? t(locale, 'resultFolderDone', { name: folderSaved })
+                    : t(locale, 'resultFolder')
+                }
+                palette={palette}
+                onPress={() => void act(saveToPhone)}
               />
               <SheetRow
                 id="desk-share"

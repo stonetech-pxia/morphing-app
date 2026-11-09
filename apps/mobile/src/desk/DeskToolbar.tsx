@@ -45,7 +45,7 @@ const GROUP_TITLE: Record<DeskGroupId, StringKey> = {
 };
 
 /** 「文件」这一组：房间自己的按钮。 */
-export type RoomTool = 'share' | 'save' | 'preview';
+export type RoomTool = 'share' | 'save' | 'folder' | 'preview';
 
 export interface ToolEntry {
   key: string;
@@ -127,6 +127,7 @@ export function roomEntries(
         : [
             entry('share', 'resultShare', 'share'),
             entry('save', 'resultSave', 'save'),
+            entry('folder', 'resultFolder', 'folder'),
             entry('preview', 'deskToolPreview', 'preview'),
           ],
   };

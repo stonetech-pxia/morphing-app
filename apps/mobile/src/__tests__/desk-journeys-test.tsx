@@ -266,6 +266,7 @@ describe('有数据：转 Excel 的结果在桌上', () => {
       'desk-tool-pdf.fromDocument',
       'desk-tool-room-share',
       'desk-tool-room-save',
+      'desk-tool-room-folder',
       'desk-tool-room-preview',
     ]);
     // 撤销回到照片。
@@ -362,6 +363,7 @@ describe('布局配置（D-358）', () => {
       // 「文件」这一组是房间自己的，不在配置里，总在最后。
       'desk-tool-room-share',
       'desk-tool-room-save',
+      'desk-tool-room-folder',
       'desk-tool-room-preview',
     ]);
     expect(screen.getByTestId('desk-above')).toHaveTextContent(/先旋转再转 PDF/);

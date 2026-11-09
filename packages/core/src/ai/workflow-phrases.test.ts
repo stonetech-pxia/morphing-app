@@ -87,4 +87,13 @@ describe('step phrases in action definitions', () => {
       params: { lang: 'auto' },
     });
   });
+
+  // 按钮改叫「存到手机」「存到 Tinkrum」之后（2026-11-09），照按钮上的字说也要认。
+  it('knows the words on the save buttons', () => {
+    expect(parseStepPhrase('存到手机', 'zh')?.action).toBe('out.saveToFolder');
+    expect(parseStepPhrase('save to phone', 'en')?.action).toBe('out.saveToFolder');
+    expect(parseStepPhrase('save them to my phone', 'en')?.action).toBe('out.saveToFolder');
+    expect(parseStepPhrase('存到 Tinkrum', 'zh')?.action).toBe('file.save');
+    expect(parseStepPhrase('save to Tinkrum', 'en')?.action).toBe('file.save');
+  });
 });
