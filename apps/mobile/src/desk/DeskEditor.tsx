@@ -67,6 +67,7 @@ export function DeskEditor({
     [table, page],
   );
   const readOnly = table ? pageCellCount(table, pageIndex) > EDITABLE_CELLS : false;
+  const hasText = !!table?.pages.some((p) => p.blocks.some((b) => b.kind === 'text'));
 
   useEffect(() => {
     onSelecting(selected !== null);
@@ -233,6 +234,7 @@ export function DeskEditor({
 
   const actions = sheetActions();
   const source = sourceOf();
+  const hasOriginal = !!page?.source;
   const radius = palette.radius;
   // 底部的编辑层：浮在页面上的圆角面板，跟着主题的卡片样式。
   const layer = [
@@ -289,8 +291,9 @@ export function DeskEditor({
       ) : selected ? (
         <View testID="desk-edit-bar" style={layer}>
           <View style={styles.sourceRow}>
+            {/* 这一页没有原图（外来的 xlsx 读进来的，D-509）：不显示「原件」这一栏。 */}
             <Text style={[palette.font('bodyBold', 13), styles.flex, { color: palette.muted }]}>
-              {t(locale, 'tableSource')}
+              {hasOriginal ? t(locale, 'tableSource') : ''}
             </Text>
             <Pressable
               testID="desk-deselect"
@@ -302,7 +305,7 @@ export function DeskEditor({
               </Text>
             </Pressable>
           </View>
-          {source?.box ? (
+          {!hasOriginal ? null : source?.box ? (
             // 面板左右各留 12，面板里再缩进 14（D-488）。
             <Crop page={source.page} box={source.box} maxWidth={width - 52} palette={palette} />
           ) : (
@@ -317,17 +320,17 @@ export function DeskEditor({
             {actions.map((a) => button(a.id, t(locale, a.label), a.run, a.danger))}
           </ScrollView>
         </View>
-      ) : table &&
-        (pages > 1 || table.pages.some((p) => p.blocks.some((b) => b.kind === 'text'))) ? (
+      ) : table && (pages > 1 || hasText) ? (
         // 没选中东西：识别范围（只影响写不写表外的文字）和页签。一行普通高度：横向 ScrollView 默认
         // flexGrow: 1，不压住会和表格平分高度，按钮被撑成大竖条（三星真机，2026-10-30）。
+        // 没有表外的文字时（外来的 xlsx 读进来的，D-509）识别范围不起作用，只有页签。
         <ScrollView
           horizontal
           testID="desk-scope-bar"
           style={styles.bar}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabs}>
-          {(['tables', 'all'] as const).map((scope) => {
+          {(hasText ? (['tables', 'all'] as const) : []).map((scope) => {
             const on = table.scope === scope;
             return (
               <Pressable

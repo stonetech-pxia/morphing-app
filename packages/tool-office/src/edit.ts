@@ -36,11 +36,21 @@ function updateTable(doc: TableDoc, at: TableRef, fn: (t: TableBlock) => TableBl
   };
 }
 
-/** 改一格的文字。 */
+/**
+ * 改一格的文字。原来写明了写成什么（外来的 xlsx 里的数字、日期，D-509）的格子改了字以后不再照原来的值写：
+ * 和扫描件的格子一样按字猜（纯数字写成数字），不然存出来还是改之前的数。
+ */
 export function setCellText(doc: TableDoc, at: TableRef, cell: number, text: string): TableDoc {
   return updateTable(doc, at, (t) =>
     t.cells[cell] && t.cells[cell]!.text !== text
-      ? { ...t, cells: t.cells.map((c, i) => (i === cell ? { ...c, text } : c)) }
+      ? {
+          ...t,
+          cells: t.cells.map((c, i) => {
+            if (i !== cell) return c;
+            const { write: _write, ...rest } = c;
+            return { ...rest, text };
+          }),
+        }
       : t,
   );
 }

@@ -1826,6 +1826,16 @@ export const fr: MessageTable = {
   deskPageFailed: 'Impossible d’afficher cette page ici.',
   deskNoPreview:
     'Impossible d’afficher ce fichier ici. Vous pouvez l’ouvrir dans l’aperçu du système.',
+  officeLocked:
+    'Ce fichier est protégé par un mot de passe : Tinkrum ne peut pas l’ouvrir. Vous pouvez l’ouvrir dans l’aperçu du système.',
+  officeTooLarge:
+    'Ce fichier est trop volumineux pour être affiché ici. Vous pouvez l’ouvrir dans l’aperçu du système.',
+  officeRebuiltTitle: 'Une partie de la mise en forme ne sera pas conservée',
+  officeRebuiltDoc:
+    'Tinkrum enregistre vos modifications dans un nouveau fichier Word. Le texte, les titres, les listes, les tableaux et les images sont conservés. Les en-têtes et pieds de page, les commentaires, les polices et la mise en page exacte de l’original ne le sont pas. Le fichier d’origine n’est pas modifié.',
+  officeRebuiltSheet:
+    'Tinkrum enregistre vos modifications dans un nouveau fichier Excel. Les valeurs, les cellules fusionnées et la largeur des colonnes sont conservées. Les formules gardent leur dernier résultat comme valeur fixe ; les couleurs, les bordures et les graphiques ne sont pas conservés. Le fichier d’origine n’est pas modifié.',
+  officeRebuiltContinue: 'Continuer',
   discardTitle: 'Abandonner les modifications ?',
   deskDiscardMessage:
     'Vos modifications ne sont pas encore enregistrées. Elles seront perdues si vous quittez.',

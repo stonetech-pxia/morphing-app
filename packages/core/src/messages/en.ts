@@ -1749,6 +1749,15 @@ export const en = {
   deskDownload: 'Download',
   deskPageFailed: 'This page can’t be shown here.',
   deskNoPreview: 'This file can’t be shown here. You can open it in the system preview.',
+  officeLocked:
+    'This file is protected with a password, so Tinkrum can’t open it. You can open it in the system preview.',
+  officeTooLarge: 'This file is too large to show here. You can open it in the system preview.',
+  officeRebuiltTitle: 'Some formatting won’t be kept',
+  officeRebuiltDoc:
+    'Tinkrum saves your edits as a new Word file. The text, headings, lists, tables and pictures stay. Headers and footers, comments, fonts and the exact layout of the original are not kept. The original file is not changed.',
+  officeRebuiltSheet:
+    'Tinkrum saves your edits as a new Excel file. The values, merged cells and column widths stay. Formulas keep their last result as a fixed value, and colors, borders and charts are not kept. The original file is not changed.',
+  officeRebuiltContinue: 'Continue',
   discardTitle: 'Discard changes?',
   deskDiscardMessage: 'Your changes on the desk are not saved yet. They will be lost if you leave.',
   formDiscardMessage: 'What you entered is not saved yet. It will be lost if you leave.',

@@ -1,9 +1,11 @@
 import { deskKindOf, type Desk, type DeskFile, type Locale } from '@morph/core';
-import type { DocDoc } from '@morph/tool-office';
-import { useEffect, useRef, useState } from 'react';
+import { layoutSheet, type DocDoc, type OfficeImport, type TableDoc } from '@morph/tool-office';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -18,6 +20,7 @@ import { Button } from '../renderer/ui';
 import { t } from '../i18n';
 import { PackGate } from '../packs/PackGate';
 import { usePacks } from '../packs/PackHost';
+import { SheetView } from '../run/SheetView';
 import { InlineVideo } from '../share/FileViewer';
 import { ZoomImage } from '../share/ZoomImage';
 import type { FilePlatform } from '../runtime/platform';
@@ -26,8 +29,11 @@ import { WordPreview } from './WordPreview';
 
 // 房间的大预览（file-room DESIGN §4、§11.3，D-360）：图片能双指放大；PDF 一页一页左右翻（用「PDF 预览」
 // 扩展包把页面画成图，不加原生依赖）；转 Excel / 转 Word 的结果不在这里画，房间直接用编辑器（DeskEditor，D-366）；
-// 视频直接播放；别的文件（外来的 Word、Excel 等）用系统预览看（§8：第一版不读外来的办公文档）。
-// 全部只在本机显示，不发给 AI。
+// 视频直接播放；外来的 docx / xlsx 在预览页上按读出来的中间格式显示（D-509，取代 §8「第一版不读外来的办公文档」），
+// 别的文件（.doc、.pptx 等）用系统预览看。全部只在本机显示，不发给 AI。
+
+/** 预览页上外来的 docx / xlsx（D-509）：还在读、读好的中间格式，或者读不了的原因。只在内存里，什么都不写。 */
+export type OfficePreview = 'loading' | OfficeImport;
 
 /** PDF 一页画多大（最长边，像素）：全屏看得清，又不会太占内存。 */
 const PDF_SIDE = 1600;
@@ -44,9 +50,12 @@ export function DeskPreview({
   locale,
   onSystemPreview,
   wordDoc,
+  office,
 }: {
   /** 存过的 Word 的中间格式（D-470）：有时按编辑页的版面显示。 */
   wordDoc?: DocDoc | null;
+  /** 外来的 docx / xlsx 读出来的样子（D-509）。 */
+  office?: OfficePreview | null;
   /** 桌上的文件；预览页（收到的一份文件，不在桌上）改给 `uri`。 */
   desk?: Desk;
   uri?: string;
@@ -91,11 +100,41 @@ export function DeskPreview({
           readImage={(u) => files.readUri(u)}
         />
       );
+    } else if (office === 'loading') {
+      body = <ActivityIndicator style={styles.flex} color={palette.primary} />;
+    } else if (office?.ok && office.kind === 'doc') {
+      const images = office.images;
+      body = (
+        <WordPreview
+          doc={office.doc}
+          width={size.width}
+          palette={palette}
+          readImage={async (src) => {
+            const image = images.get(src);
+            if (!image) throw new Error(`no image ${src}`);
+            return image.bytes;
+          }}
+        />
+      );
+    } else if (office?.ok && office.kind === 'table') {
+      body = <TablePreview doc={office.doc} palette={palette} />;
     } else if (kind === 'video') {
       body = <InlineVideo key={uri} uri={uri} height={size.height} />;
     } else {
+      const note =
+        office && !office.ok && office.error === 'encrypted'
+          ? t(locale, 'officeLocked')
+          : office && !office.ok && office.error === 'tooLarge'
+            ? t(locale, 'officeTooLarge')
+            : undefined;
       body = (
-        <Generic file={file} palette={palette} locale={locale} onSystemPreview={onSystemPreview} />
+        <Generic
+          file={file}
+          palette={palette}
+          locale={locale}
+          onSystemPreview={onSystemPreview}
+          {...(note ? { note } : {})}
+        />
       );
     }
   }
@@ -106,7 +145,7 @@ export function DeskPreview({
   );
 }
 
-/** 只有名字、大小和「用系统预览看」（音频、外来的办公文档、认不出的文件）。 */
+/** 只有名字、大小和「用系统预览看」（音频、.doc / .pptx 这些、读不了的 docx / xlsx、认不出的文件）。 */
 function Generic({
   file,
   palette,
@@ -139,6 +178,50 @@ function Generic({
         label={t(locale, 'deskSystemPreview')}
         onPress={onSystemPreview}
       />
+    </View>
+  );
+}
+
+/** 外来的 xlsx（D-509）：和桌上的表格编辑器一样的表格视图，只能看；几张工作表时下面有页签。 */
+function TablePreview({ doc, palette }: { doc: TableDoc; palette: Palette }) {
+  const [index, setIndex] = useState(0);
+  const page = doc.pages[Math.min(index, doc.pages.length - 1)];
+  const layout = useMemo(() => (page ? layoutSheet(page, doc.scope) : null), [page, doc.scope]);
+  if (!layout) return null;
+  return (
+    <View style={styles.flex} testID="table-preview">
+      <SheetView layout={layout} palette={palette} testID="table-preview-sheet" />
+      {doc.pages.length > 1 ? (
+        <ScrollView
+          horizontal
+          style={styles.tabs}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabRow}>
+          {doc.pages.map((p, i) => (
+            <Pressable
+              key={`sheet-${i}`}
+              testID={`table-preview-page-${i}`}
+              accessibilityRole="button"
+              accessibilityState={{ selected: i === index }}
+              onPress={() => setIndex(i)}
+              style={[
+                styles.tab,
+                {
+                  borderColor: i === index ? palette.primary : palette.border,
+                  backgroundColor: i === index ? palette.primaryTint : palette.surface,
+                },
+              ]}>
+              <Text
+                style={[
+                  palette.font(i === index ? 'bodyBold' : 'body', 13),
+                  { color: palette.text },
+                ]}>
+                {p.name}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
     </View>
   );
 }
@@ -300,6 +383,16 @@ function PdfPages({
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
+  // 页签一行普通高度（横向 ScrollView 默认 flexGrow: 1，同 DeskEditor）。
+  tabs: { flexGrow: 0, flexShrink: 0 },
+  tabRow: { flexDirection: 'row', gap: 8, padding: 8, alignItems: 'center' },
+  tab: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    minHeight: 32,
+    justifyContent: 'center',
+  },
   note: { textAlign: 'center' },
   // D-488：深色半透明的小药丸，压在页面上也看得清（不跟着主题变，纸是白的）。
   counter: {

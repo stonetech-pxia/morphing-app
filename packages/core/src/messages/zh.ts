@@ -1657,6 +1657,14 @@ export const zh: MessageTable = {
   deskDownload: '下载',
   deskPageFailed: '这一页在这里显示不出来。',
   deskNoPreview: '这种文件在这里看不了，可以用系统预览看。',
+  officeLocked: '这份文件设了密码，Tinkrum 打不开。可以用系统预览看。',
+  officeTooLarge: '这份文件太大，在这里显示不了。可以用系统预览看。',
+  officeRebuiltTitle: '有些格式不会保留',
+  officeRebuiltDoc:
+    'Tinkrum 会把改好的存成一份新的 Word 文件：文字、标题、列表、表格和图片都在；原来的页眉页脚、批注、字体和精确的排版不会保留。原来的文件不会改动。',
+  officeRebuiltSheet:
+    'Tinkrum 会把改好的存成一份新的 Excel 文件：数值、合并的格子和列宽都在；公式只留下最后算出的结果，颜色、边框和图表不会保留。原来的文件不会改动。',
+  officeRebuiltContinue: '继续',
   discardTitle: '放弃修改？',
   deskDiscardMessage: '桌上改过的还没有保存，离开就没有了。',
   formDiscardMessage: '填的内容还没有保存，离开就没有了。',

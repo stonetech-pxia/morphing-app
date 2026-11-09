@@ -1,5 +1,6 @@
 import {
   A4_WIDTH_PT,
+  imageExt,
   leafBlocks,
   type DocBlock,
   type DocDoc,
@@ -754,7 +755,10 @@ export const WORD_PAGE_SCRIPT = String.raw`
 })();
 `;
 
-/** 图片的字节 → data: 地址（编辑页不读文件，图片直接写进页面）。 */
+/**
+ * 图片的字节 → data: 地址（编辑页不读文件，图片直接写进页面）。剪下来的是 JPG；外来的 docx 读进来的
+ * 图片（D-509）按文件开头认出 PNG、GIF、BMP。
+ */
 export function jpegDataUrl(bytes: Uint8Array): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   let out = '';
@@ -766,5 +770,7 @@ export function jpegDataUrl(bytes: Uint8Array): string {
     out += b === undefined ? '=' : chars[((b & 15) << 2) | ((c ?? 0) >> 6)]!;
     out += c === undefined ? '=' : chars[c & 63]!;
   }
-  return `data:image/jpeg;base64,${out}`;
+  const ext = imageExt(bytes);
+  const type = ext === 'png' || ext === 'gif' || ext === 'bmp' ? ext : 'jpeg';
+  return `data:image/${type};base64,${out}`;
 }
