@@ -21,7 +21,7 @@ describe('tool journeys (UI)', () => {
     // 工具页的功能排成宫格，整块可点，没有单独的「开始」按钮（D-108）。
     // 方块上显示固定的设置；每次运行时问的大小不列出。
     expect(await screen.findByText('压缩图片')).toBeTruthy();
-    expect(screen.getByText('格式 JPG')).toBeTruthy();
+    expect(screen.getByText('格式：JPG')).toBeTruthy();
     expect(screen.queryAllByText('开始')).toEqual([]);
 
     files.nextPhotos = [
@@ -37,7 +37,7 @@ describe('tool journeys (UI)', () => {
     expect(await repo.listAssets()).toEqual([]);
 
     await fireEvent.press(screen.getByTestId('result-save'));
-    expect(await screen.findByText('已保存 · IMG_1.jpg')).toBeTruthy();
+    expect(await screen.findByText('已存到 Tinkrum · IMG_1.jpg')).toBeTruthy();
     expect((await repo.listAssets()).map((a) => a.name)).toEqual(['IMG_1.jpg']);
     expect((await repo.listAssets())[0]!.size).toBeLessThanOrEqual(240 * 1024);
 
@@ -70,7 +70,7 @@ describe('tool journeys (UI)', () => {
     // 关掉文件夹选择器：不算存好，也不报错。
     files.folderChoice = 'cancel';
     await fireEvent.press(screen.getByTestId('result-folder'));
-    expect(screen.getByText('存到文件夹')).toBeTruthy();
+    expect(screen.getByText('存到手机')).toBeTruthy();
     expect(files.folders.size).toBe(0);
 
     files.folderChoice = 'notWritable';

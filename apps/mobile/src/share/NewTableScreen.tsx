@@ -337,7 +337,8 @@ export function NewTableScreen() {
             {t(locale, 'newTableWorking')}
           </Text>
         ) : null}
-        {modelMissing && !recommended && !working ? (
+        {/* 类型已经定了（点了推荐或自己选了），就不再提议下载模型来判断类型。 */}
+        {modelMissing && !recommended && chosenFor !== pages && !working ? (
           <View testID="new-table-model-need" style={{ gap: 8, alignItems: 'flex-start' }}>
             <Text style={muted}>{t(locale, 'newTableModelNeed')}</Text>
             <Pill

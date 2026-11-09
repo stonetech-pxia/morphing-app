@@ -2,7 +2,7 @@ import {
   builtinText,
   describeParams,
   findWorkflowTarget,
-  localize,
+  stepLabel,
   quickActionsOf,
   type Backdrop,
 } from '@morph/core';
@@ -43,7 +43,8 @@ export function WorkflowRunner({
   if (!found) return null;
   // 内设快捷操作的名字跟着界面语言显示（用户改过的不换）。
   const workflow = { ...found, name: builtinText(found.name, locale, registry) };
-  const label = (action: string) => localize(registry.actions.get(action)?.label, locale) ?? action;
+  const label = (s: { action: string; params: Record<string, unknown> }) =>
+    stepLabel(registry.actions.get(s.action), s.params, locale) ?? s.action;
   // 关键设置（例如「不超过 500 KB」）；每次运行时询问的参数不列出。
   const settings = workflow.steps
     .flatMap((s) => {
@@ -68,7 +69,7 @@ export function WorkflowRunner({
     workflow.steps.length > 2
       ? workflow.steps
           .slice(1)
-          .map((s) => label(s.action))
+          .map((s) => label(s))
           .join(' → ')
       : settings;
 
@@ -157,7 +158,7 @@ export function WorkflowRunner({
             key={s.id}
             testID={`step-${s.id}`}
             style={[palette.font('body', 14), { color: palette.muted }]}>
-            {`${i > 0 ? '→ ' : ''}${label(s.action)}`}
+            {`${i > 0 ? '→ ' : ''}${label(s)}`}
           </Text>
         ))}
       </View>

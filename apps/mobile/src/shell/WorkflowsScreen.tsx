@@ -11,6 +11,7 @@ import {
   shareFit,
   type Workflow,
   workflowKinds,
+  stepLabel,
 } from '@morph/core';
 
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -32,7 +33,7 @@ import { Banner } from './Banner';
 /** 步骤串成一行：「选照片 → 证件照 → 命名」。 */
 export function stepChain(wf: Pick<Workflow, 'steps'>, registry: Registry, locale: Locale): string {
   return wf.steps
-    .map((s) => localize(registry.actions.get(s.action)?.label, locale) ?? s.action)
+    .map((s) => stepLabel(registry.actions.get(s.action), s.params, locale) ?? s.action)
     .join(' → ');
 }
 

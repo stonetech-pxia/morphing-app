@@ -625,6 +625,25 @@ describe('Word 在桌上就是整页编辑器（D-465）', () => {
   });
 });
 
+// 2026-11-09 用户测试：桌上「完成」和「文件」里只有存进 App 自己的文件库，用户到「文件」App 里找不到。
+describe('桌上的文件能存到手机（复制进「文件」App 里选的文件夹）', () => {
+  it('「完成」里和「文件」页签里都有，每次让用户选文件夹', async () => {
+    const { files } = await openOnDesk('table', tableDoc());
+    await fireEvent.press(screen.getByTestId('desk-done'));
+    await fireEvent.press(await screen.findByTestId('desk-folder'));
+    await waitFor(() =>
+      expect([...(files.folders.get('MorphOut')?.keys() ?? [])]).toEqual(['明细.xlsx']),
+    );
+    await fireEvent.press(screen.getByTestId('desk-sheet-backdrop'));
+    files.nextFolder = 'Work';
+    await fireEvent.press(await deskTool('desk-tool-room-folder'));
+    await waitFor(() =>
+      expect([...(files.folders.get('Work')?.keys() ?? [])]).toEqual(['明细.xlsx']),
+    );
+    expect(files.folderPicks).toBe(2);
+  });
+});
+
 describe('存成用户文件以后还能放回桌上改（D-367）', () => {
   it('保存时中间格式和原图跟着存；存储空间里算在这个文件上，能放回桌上改；删文件一起删', async () => {
     const { files, repo } = await openOnDesk('table', tableDoc());

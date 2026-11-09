@@ -122,14 +122,14 @@ describe('user journeys (UI)', () => {
     expect(screen.getAllByText('文件工作台').length).toBeGreaterThan(0);
     expect(screen.queryByTestId('nav-ai')).toBeNull();
     expect(store.getState().config!.nav.bar).toHaveLength(5);
-    expect(screen.getByTestId('draft-reply')).toHaveTextContent(/改好了/);
+    expect(screen.getByTestId('draft-reply')).toHaveTextContent(/点「应用」才会生效/);
     // 修改内容显示时界面淡下去；收起后不再淡化，留一个小按钮能再打开。
     expect(screen.getByTestId('draft-dim')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('draft-reply-hide'));
     expect(screen.queryByTestId('draft-reply')).toBeNull();
     expect(screen.queryByTestId('draft-dim')).toBeNull();
     await fireEvent.press(screen.getByTestId('draft-reply-show'));
-    expect(screen.getByTestId('draft-reply')).toHaveTextContent(/改好了/);
+    expect(screen.getByTestId('draft-reply')).toHaveTextContent(/点「应用」才会生效/);
     // 点淡下去的界面也是收起。
     await fireEvent.press(screen.getByTestId('draft-dim'));
     expect(screen.queryByTestId('draft-reply')).toBeNull();
@@ -514,7 +514,7 @@ describe('user journeys (UI)', () => {
     // 运行页面打开即开始；「命名」步骤：确认建议的名字。
     expect(await screen.findByDisplayValue('报告-合并')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('prompt-ok'));
-    expect(await screen.findByText('已保存「报告-合并.pdf」（3 页）')).toBeTruthy();
+    expect(await screen.findByText('已存到 Tinkrum：「报告-合并.pdf」（3 页）')).toBeTruthy();
     await testRouter.back();
     expect(await screen.findByTestId('file-报告-合并.pdf')).toBeTruthy();
 
@@ -559,7 +559,9 @@ describe('user journeys (UI)', () => {
       files.offer('b.pdf', await makePdf(1)),
     ];
     await fireEvent.press(screen.getByTestId('run-pdf-merge'));
-    expect(await screen.findByText(/^已保存「合并-\d{4}-\d{2}-\d{2}\.pdf」（2 页）$/)).toBeTruthy();
+    expect(
+      await screen.findByText(/^已存到 Tinkrum：「合并-\d{4}-\d{2}-\d{2}\.pdf」（2 页）$/),
+    ).toBeTruthy();
     expect(screen.queryByTestId('prompt-ok')).toBeNull();
   });
 

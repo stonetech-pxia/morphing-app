@@ -45,7 +45,7 @@ describe('French journeys', () => {
     );
     await fireEvent.press(await screen.findByTestId('share-run-email-photos'));
     await fireEvent.press(await screen.findByTestId('prompt-ok'));
-    expect(await screen.findByTestId('run-result')).toHaveTextContent(/Enregistrer dans Fichiers/);
+    expect(await screen.findByTestId('run-result')).toHaveTextContent(/Enregistrer dans Tinkrum/);
     expect(files.shared).toHaveLength(1);
     expect(quickActionsOf(store.getState().config!).some((w) => w.preset === 'email-photos')).toBe(
       false,

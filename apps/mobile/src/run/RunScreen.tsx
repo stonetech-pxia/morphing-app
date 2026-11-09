@@ -1,6 +1,6 @@
 import {
   calendarOf,
-  localize,
+  stepLabel,
   RunError,
   isFileValue,
   type AskedAnswer,
@@ -136,10 +136,13 @@ export function RunScreen({
   // 这次运行里「每次运行时问」的回答，结果页据此提议做成快捷操作（D-127）。
   const answers = useRef<AskedAnswer[]>([]);
   const [runCount, setRunCount] = useState(0);
+  // 相机用不了时这一次改从相册选（D-508）：只换这一次运行的来源，快捷操作本身不改。
+  const [fromLibrary, setFromLibrary] = useState(false);
+  const shown = fromLibrary ? fromPhotoLibrary(workflow) : workflow;
   const label = (action: string, index: number) =>
     incoming && index === 0
       ? t(locale, 'shareInputStep', { n: incoming.files.length })
-      : (localize(registry.actions.get(action)?.label, locale) ?? action);
+      : (stepLabel(registry.actions.get(action), shown.steps[index]?.params, locale) ?? action);
 
   const ui: LocalUi = {
     confirm: (title, ok, cancel, message) =>
@@ -185,20 +188,21 @@ export function RunScreen({
     return c.total ? `  ${t(locale, 'runProgress', { done: c.done ?? 0, total: c.total })}` : '';
   }
 
-  /** 「再来一次」：清掉上一次的结果再运行。 */
-  async function restart() {
+  /** 「再来一次」：清掉上一次的结果再运行。library：这一次照片改从相册选（D-508）。 */
+  async function restart(library = false) {
     signal.current = { cancelled: false };
+    setFromLibrary(library);
     setOutcome(null);
     setCurrent({ index: 0 });
     await run.current?.dispose();
     run.current = null;
-    await execute();
+    await execute(library ? fromPhotoLibrary(workflow) : workflow);
   }
 
-  async function execute() {
+  async function execute(use: Workflow = workflow) {
     answers.current = [];
     const started = await startRun({
-      workflow,
+      workflow: use,
       revisionId,
       repo,
       files,
@@ -318,6 +322,15 @@ export function RunScreen({
 
   const running = current !== null;
   const failedAt = outcome?.status === 'failed' ? outcome.stepIndex : null;
+  // 停在拍照或扫描这一步、原因是相机用不了或没给相机权限：提议这一次改从相册选（D-508）。
+  const failedStep = failedAt !== null ? workflow.steps[failedAt] : undefined;
+  const offerLibrary =
+    outcome?.status === 'failed' &&
+    !fromLibrary &&
+    failedStep?.action === 'in.photos' &&
+    (failedStep.params.source === 'camera' || failedStep.params.source === 'scanner') &&
+    (outcome.error.code === 'cameraUnavailable' ||
+      (outcome.error.code === 'permissionDenied' && outcome.error.detail?.what === 'camera'));
   const value = outcome?.status === 'succeeded' ? outcome.value : null;
   // 结果只有一个文件：不停在结果页，直接进它的预览页（D-457）。限两种：拍照扫描做出来的，和在收到的文件上
   // 运行的（从预览页、收件页面来的）。自己会发出去、存起来、记下来的快捷操作（有 out. 步骤）、容器交值的运行和
@@ -568,6 +581,15 @@ export function RunScreen({
                 style={[palette.font('bodyMedium', 15), { color: palette.danger }]}>
                 {runErrorText(locale, outcome.error.code, outcome.error.detail)}
               </Text>
+              {offerLibrary ? (
+                <Button
+                  palette={palette}
+                  testID="run-from-library"
+                  variant="outline"
+                  label={t(locale, 'runFromLibrary')}
+                  onPress={() => void restart(true)}
+                />
+              ) : null}
             </Card>
           ) : null}
           {/* 翻译的结果下面说明一句（D-172）：本机翻译适合看懂意思，正式文件找专业翻译。 */}
@@ -775,3 +797,15 @@ const styles = StyleSheet.create({
   links: { flexDirection: 'row', justifyContent: 'center', gap: 24 },
   editLink: { paddingVertical: 4 },
 });
+
+/** 这一次运行改从相册选照片（D-508）：拍照、扫描的那一步来源换成相册，别的不变；不写配置。 */
+function fromPhotoLibrary(workflow: Workflow): Workflow {
+  return {
+    ...workflow,
+    steps: workflow.steps.map((s) =>
+      s.action === 'in.photos' && (s.params.source === 'camera' || s.params.source === 'scanner')
+        ? { ...s, params: { ...s.params, source: 'library' } }
+        : s,
+    ),
+  };
+}

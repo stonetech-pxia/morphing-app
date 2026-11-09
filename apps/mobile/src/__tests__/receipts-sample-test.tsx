@@ -269,6 +269,22 @@ describe('the spending page follows the time range (D-439, D-440)', () => {
     expect(screen.getByTestId('period-range')).toHaveTextContent('2026-03-01 到 2026-03-31');
   });
 
+  // 2026-11-09 用户测试：点了「自定义」，「本月」和「自定义」两个同时亮着。
+  it('while picking custom dates only Custom is lit; closing it lights this month again', async () => {
+    await open('spending', records);
+    const selected = (id: string, on: boolean) =>
+      expect(screen.getByTestId(id)).toHaveProp(
+        'accessibilityState',
+        expect.objectContaining({ selected: on }),
+      );
+    await fireEvent.press(await screen.findByTestId('period-custom'));
+    selected('period-custom', true);
+    selected('period-thisMonth', false);
+    await fireEvent.press(screen.getByTestId('period-custom'));
+    selected('period-custom', false);
+    selected('period-thisMonth', true);
+  });
+
   it('nothing in the range: totals read 0 and the page does not fail; choosing writes nothing', async () => {
     const { repo } = await open('spending', [records[3]!]);
     await screen.findByTestId('period-thisMonth');

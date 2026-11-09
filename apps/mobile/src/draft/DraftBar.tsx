@@ -1,4 +1,4 @@
-import { appViewOf, localize, quickActionsOf, type Workflow } from '@morph/core';
+import { appViewOf, stepLabel, quickActionsOf, type Workflow } from '@morph/core';
 
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -272,7 +272,7 @@ function GrowingSteps({
             </Text>
           </View>
           <Text style={[palette.font('body', 14), styles.flex, { color: palette.text }]}>
-            {localize(registry.actions.get(step.action)?.label, locale) ?? step.action}
+            {stepLabel(registry.actions.get(step.action), step.params, locale) ?? step.action}
           </Text>
         </Animated.View>
       ))}

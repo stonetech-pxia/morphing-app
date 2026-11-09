@@ -3,7 +3,7 @@ import {
   HOME_PAGE_ID,
   handedInput,
   isKnownComponent,
-  localize,
+  stepLabel,
   type Workflow,
 } from '@morph/core';
 
@@ -65,7 +65,7 @@ export function ReadyScreen({ workflow, notes = [] }: { workflow: Workflow; note
         {workflow.steps.map((step, i) => (
           <View key={step.id} style={styles.step}>
             <Text style={[body, styles.flex]}>
-              {`${i + 1}. ${localize(registry.actions.get(step.action)?.label, locale) ?? step.action}`}
+              {`${i + 1}. ${stepLabel(registry.actions.get(step.action), step.params, locale) ?? step.action}`}
             </Text>
           </View>
         ))}

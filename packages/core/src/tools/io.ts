@@ -112,6 +112,12 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     id: 'in.photos',
     ai: 'Pictures from the Files app → source "files". To scan paper → source "scanner" followed by scan.detect (it passes pages from the document camera through and straightens camera photos on devices without one).',
     label: { en: 'Choose photos', zh: '选照片', fr: 'Choisir des photos' },
+    labelFor: (p) =>
+      p.source === 'camera'
+        ? { en: 'Take photos', zh: '拍照', fr: 'Prendre des photos' }
+        : p.source === 'scanner'
+          ? { en: 'Scan documents', zh: '扫描文档', fr: 'Numériser des documents' }
+          : undefined,
     description: {
       en: 'Pick photos from the library or from the Files app (pictures downloaded or sent from a computer), take them with the camera, or scan paper with the document camera (finds the edges, captures automatically, several pages, already straightened; where it is not available, the camera is used).',
       zh: '从相册或「文件」App 选照片（下载的、电脑传来的图片），用相机拍照，或用文档相机扫描纸张（自动找边、自动拍、可以多页、拍完已经拉正；没有文档相机的设备改用相机）。',
@@ -904,9 +910,9 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
   {
     id: 'file.save',
     label: {
-      en: 'Save to Tinkrum files',
-      zh: '存到文件',
-      fr: 'Enregistrer dans les fichiers de Tinkrum',
+      en: 'Save to Tinkrum',
+      zh: '存到 Tinkrum',
+      fr: 'Enregistrer dans Tinkrum',
     },
     description: {
       en: 'Save the result to the files in this app.',
@@ -919,7 +925,12 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     fields: [],
     requires: ['files.write'],
     // 内置规则认的步骤说法（D-265）。
-    phrases: [{ match: /^(?:保存|存到文件|存起来)$|^save(?: to files| it)?$/i }],
+    phrases: [
+      {
+        match:
+          /^(?:保存|存到文件|存起来|存到\s*tinkrum)$|^save(?: to files| it)?$|^save (?:it |them )?(?:to|in|into) tinkrum$/i,
+      },
+    ],
   },
   {
     id: 'out.share',
@@ -947,7 +958,7 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
   {
     id: 'out.saveToFolder',
     ai: '"Put them in my cloud drive / a folder" → this: the user picks a folder in Files, which is also how files reach iCloud Drive, Google Drive or Dropbox.',
-    label: { en: 'Save to a folder', zh: '存到文件夹', fr: 'Enregistrer dans un dossier' },
+    label: { en: 'Save to phone', zh: '存到手机', fr: 'Enregistrer sur le téléphone' },
     description: {
       en: 'Copy the files into a folder in Files (on this device, iCloud Drive, Google Drive, Dropbox…). The user picks the folder the first time; after that the same folder is used (it can be changed on the result page). Tinkrum does not upload anything; the cloud app syncs the folder.',
       zh: '把文件复制进「文件」里的一个文件夹（本机、iCloud 云盘、Google Drive、Dropbox…）。第一次由用户选，之后存到同一个文件夹（可以在结果页换）。Tinkrum 不上传，网盘由它自己的 App 同步。',
@@ -961,6 +972,11 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     // 内置规则认的步骤说法（D-265）。
     phrases: [
       // 存到用户在「文件」里选的文件夹（D-120）：本机、iCloud 云盘、Google Drive、Dropbox 都走系统选择器。
+      // 按钮叫「存到手机」，照着说也认。
+      {
+        match:
+          /^(?:存到|保存到|存进)手机(?:里)?$|^save (?:it |them )?(?:to|on|onto) (?:my |the )?phone$/i,
+      },
       {
         match:
           /^(?:存到|保存到|存进|放到)\s*(?:icloud\s*(?:云盘|drive)?|google\s*drive|dropbox|onedrive|网盘|云盘)?\s*(?:的|里的)?\s*(?:某个|一个|指定的?|选定的?)?\s*文件夹(?:里)?$|^(?:存到|保存到|存进)\s*(?:icloud\s*(?:云盘|drive)?|google\s*drive|dropbox|onedrive|网盘|云盘)$|^save (?:it |them )?(?:to|into|in) (?:a |the |my )?(?:chosen )?(?:folder|icloud(?: drive)?(?: folder)?|google drive(?: folder)?|dropbox(?: folder)?)$/i,

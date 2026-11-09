@@ -22,6 +22,7 @@ import {
   handedInput,
   workflowProblems,
   type WorkflowStep,
+  stepLabel,
 } from '@morph/core';
 
 import { useRouter } from 'expo-router';
@@ -88,7 +89,10 @@ export function WorkflowEditor({
   );
   const nameOk = draft.name.trim().length > 0 && draft.name.trim().length <= 40;
   const canSave = dirty && problems.length === 0 && nameOk;
-  const label = (a: ActionDefinition | undefined, id: string) => localize(a?.label, locale) ?? id;
+  const label = (
+    a: ActionDefinition | undefined,
+    step: { action: string; params: Record<string, unknown> },
+  ) => stepLabel(a, step.params, locale) ?? step.action;
   const home = config.containers.pages.find((p) => p.id === HOME_PAGE_ID)!;
   const onHome = allComponents(home).some(
     (c) =>
@@ -231,7 +235,7 @@ export function WorkflowEditor({
                   <Text
                     style={[palette.font('title', 16), styles.flex, { color: palette.text }]}
                     numberOfLines={1}>
-                    {label(action, step.action)}
+                    {label(action, step)}
                   </Text>
                   <Pressable
                     testID={`step-up-${i}`}
