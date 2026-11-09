@@ -642,6 +642,44 @@ describe('桌上的文件能存到手机（复制进「文件」App 里选的文
     );
     expect(files.folderPicks).toBe(2);
   });
+
+  // 2026-11-09 PDF 用户复测：存到手机以后点返回，还问「放弃修改？」，以为刚改好的文件要丢。
+  it('存到手机以后离开不再问「放弃修改？」；取消选文件夹、存完又改了，照常问', async () => {
+    const { files } = await openOnDesk('table', tableDoc());
+    await fireEvent.press(screen.getByTestId('table-cell-1-0'));
+    await fireEvent.press(screen.getByTestId('desk-col-delete'));
+    const ask = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+
+    // 取消选文件夹：什么都没存，照常问。
+    files.folderChoice = 'cancel';
+    await fireEvent.press(screen.getByTestId('desk-done'));
+    await fireEvent.press(await screen.findByTestId('desk-folder'));
+    await fireEvent.press(screen.getByTestId('desk-sheet-backdrop'));
+    await fireEvent.press(screen.getByTestId('desk-close'));
+    expect(ask.mock.lastCall?.[0]).toBe('放弃修改？');
+
+    // 存完又改了：照常问。
+    files.folderChoice = 'pick';
+    await fireEvent.press(screen.getByTestId('desk-done'));
+    await fireEvent.press(await screen.findByTestId('desk-folder'));
+    await waitFor(() => expect(files.folders.get('MorphOut')?.size).toBe(1));
+    await fireEvent.press(screen.getByTestId('desk-sheet-backdrop'));
+    await fireEvent.press(screen.getByTestId('table-cell-0-0'));
+    await fireEvent.press(screen.getByTestId('desk-block-delete'));
+    ask.mockClear();
+    await fireEvent.press(screen.getByTestId('desk-close'));
+    expect(ask.mock.lastCall?.[0]).toBe('放弃修改？');
+
+    // 存到手机以后没再改：直接离开。
+    await fireEvent.press(screen.getByTestId('desk-done'));
+    await fireEvent.press(await screen.findByTestId('desk-folder'));
+    await waitFor(() => expect(files.folderPicks).toBe(3));
+    await fireEvent.press(screen.getByTestId('desk-sheet-backdrop'));
+    ask.mockClear();
+    await fireEvent.press(screen.getByTestId('desk-close'));
+    expect(ask).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByTestId('desk-screen')).toBeNull());
+  });
 });
 
 describe('存成用户文件以后还能放回桌上改（D-367）', () => {

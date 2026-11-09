@@ -22,6 +22,11 @@ import {
 const PAD = { width: 320, height: 140 };
 const STROKE = 3.2;
 
+/** 「放置签名」出来以后这么久之内的「完成」当作连点的第二下，不算。 */
+const DOUBLE_TAP_MS = 600;
+
+type Signature = { bytes: Uint8Array; aspect: number; uri?: string };
+
 /** 一笔：一串点。 */
 type Stroke = { x: number; y: number }[];
 
@@ -127,11 +132,9 @@ export function SignScreen({ input, palette, locale, onDone, onCancel }: LocalSc
     void files.loadSignatures().then(setSaved);
   }, [files]);
   const [keep, setKeep] = useState(true);
-  const [signature, setSignature] = useState<{
-    bytes: Uint8Array;
-    aspect: number;
-    uri?: string;
-  } | null>(null);
+  const [signature, setSignature] = useState<Signature | null>(null);
+  /** 选好签名的时刻：「放置签名」刚出来时那一下点按不算「完成」（D-512）。 */
+  const chosenAt = useRef(0);
   const [pageIndex, setPageIndex] = useState(input.pages.length - 1);
   const [box, setBox] = useState({ width: 0, height: 0 });
   const page = input.pages[pageIndex]!;
@@ -188,6 +191,7 @@ export function SignScreen({ input, palette, locale, onDone, onCancel }: LocalSc
           const png = strokesToPng(strokes);
           if (!png) return;
           if (keep) void files.saveSignature(png.bytes, png.aspect);
+          chosenAt.current = Date.now();
           setSignature(png);
         }}>
         <ScrollView contentContainerStyle={styles.step}>
@@ -201,7 +205,10 @@ export function SignScreen({ input, palette, locale, onDone, onCancel }: LocalSc
                   <Pressable
                     key={s.uri}
                     testID="signature-saved"
-                    onPress={() => setSignature({ bytes: s.bytes, aspect: s.aspect, uri: s.uri })}
+                    onPress={() => {
+                      chosenAt.current = Date.now();
+                      setSignature({ bytes: s.bytes, aspect: s.aspect, uri: s.uri });
+                    }}
                     style={[
                       styles.saved,
                       { borderColor: palette.border, backgroundColor: '#FFFFFF' },
@@ -241,7 +248,11 @@ export function SignScreen({ input, palette, locale, onDone, onCancel }: LocalSc
       cancelLabel={t(locale, 'cancel')}
       doneLabel={t(locale, 'localDone')}
       onCancel={onCancel}
-      onDone={() => onDone({ png: signature.bytes, pageIndex, ...place })}>
+      onDone={() => {
+        // 手快连点两下「下一步」，第二下落在同一个位置上的「完成」，放置这一步就被跳过了（2026-11-09 用户复测）。
+        if (Date.now() - chosenAt.current < DOUBLE_TAP_MS) return;
+        onDone({ png: signature.bytes, pageIndex, ...place });
+      }}>
       <Text style={[palette.font('body', 13), styles.hint, { color: palette.muted }]}>
         {t(locale, 'signTapHint')}
       </Text>
