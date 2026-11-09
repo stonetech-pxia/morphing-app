@@ -714,8 +714,10 @@ export const fr: MessageTable = {
   annotateBox: 'Cadre',
   annotatePen: 'Stylo',
   annotateHighlight: 'Surligneur',
+  signTapHint:
+    'Touchez la ligne où signer : la signature s’y pose. Faites-la glisser pour ajuster.',
   annotateTap:
-    'Saisissez du texte si vous voulez, puis touchez l’image pour le placer. Touchez un texte placé pour le sélectionner, le déplacer, et changer sa taille, son angle et sa couleur plus bas.',
+    'Saisissez le texte, puis touchez l’endroit où il commence : il se pose sur la ligne touchée. Touchez un espace vide pour terminer. Touchez un texte placé pour le déplacer ou le modifier plus bas.',
   annotateDragBox: 'Faites glisser un cadre sur la zone. Annulez et redessinez en cas d’erreur.',
   annotateDelete: 'Supprimer',
   annotateRotate: 'Rotation',

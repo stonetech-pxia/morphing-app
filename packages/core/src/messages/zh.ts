@@ -648,8 +648,9 @@ export const zh: MessageTable = {
   annotateNote: '注释',
   annotateColor: '颜色 {n}',
   annotateTextHint: '输入简短文字',
+  signTapHint: '点一下要签名的那一行，签名就放在这一行上；可以再拖动调整。',
   annotateTap:
-    '可以先输入文字，再点页面放置。点已放的文字可以选中、拖动，并在下面改大小、角度和颜色。',
+    '先输入文字，再点要写的位置：字从那里开始，落在点的那一行上。点空白处结束。点已放的文字可以拖动，或在下面修改。',
   annotateDrag: '在图片上拖动画。画错可撤销后重画。',
   annotateCount: '{n}/100 处',
   annotateUndo: '撤销一个',

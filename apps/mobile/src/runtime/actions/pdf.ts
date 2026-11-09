@@ -294,6 +294,31 @@ async function mergeGroup(
  * 一页的文字层（D-267）：先在增强前的图上认（更准），框换算到这张图上；
  * 增强前的图读不了，或者宽高比对不上（例如方向不同）时，在这张图上认。
  */
+/**
+ * 页面预览上认出的行（预览图的点）：标注时新写的字照最近的一行定字号，签名照它定高度（2026-11-09 用户测试：
+ * 默认的字和签名比合同正文大好几倍）。只在本机认，不存不发；认不出、没有文字识别时是空的。
+ */
+function previewLines(ctx: Ctx, preview: RunItem) {
+  const vision = ctx.services.files.vision;
+  const { width, height } = preview;
+  if (!vision || !width || !height) return Promise.resolve([]);
+  return vision
+    .recognizeLines(preview.uri, textLayerLanguages(ctx.locale, deviceLanguageTags()))
+    .then(
+      (layer) => {
+        const kx = width / layer.width;
+        const ky = height / layer.height;
+        return layer.lines.map((l) => ({
+          x: l.x * kx,
+          y: l.y * ky,
+          width: l.width * kx,
+          height: l.height * ky,
+        }));
+      },
+      () => [],
+    );
+}
+
 async function pageTextLayer(
   vision: VisionPlatform,
   item: RunItem,
@@ -594,6 +619,8 @@ export const PDF_IMPLS: Record<string, Impl> = {
       const all = await ctx.services.ui.open('annotate', {
         items: previews,
         tool: params.start as AnnotateTool,
+        document: true,
+        lines: (i) => (previews[i] ? previewLines(ctx, previews[i]) : Promise.resolve([])),
       });
       if (!all) throw new RunCancelled();
       let out = bytes;
@@ -646,6 +673,7 @@ export const PDF_IMPLS: Record<string, Impl> = {
       const placed = await ctx.services.ui.open('sign', {
         item,
         pages: previews.map((p) => ({ uri: p.uri, width: p.width!, height: p.height! })),
+        lines: (i) => (previews[i] ? previewLines(ctx, previews[i]) : Promise.resolve([])),
       });
       if (!placed) throw new RunCancelled();
       return stampImage(bytes, {

@@ -683,8 +683,9 @@ export const en = {
   annotateNote: 'Note',
   annotateColor: 'Color {n}',
   annotateTextHint: 'Type a short label',
+  signTapHint: 'Tap the line where you sign: the signature sits on it. Drag it to adjust.',
   annotateTap:
-    'Type text if you like, then tap the picture to place it. Tap a placed text to select it, drag to move it, and change its size, angle and color below.',
+    'Type the text, then tap where it starts: it sits on the line you tap. Tap an empty spot to finish. Tap a placed text to drag it or change it below.',
   annotateDrag: 'Drag on the photo to draw. Undo to replace a mark.',
   annotateCount: '{n}/100 marks',
   annotateUndo: 'Undo',

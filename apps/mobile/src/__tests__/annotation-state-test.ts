@@ -1,5 +1,9 @@
 import { annotationPaths, markRect } from '../runtime/annotations';
-import { reduceAnnotations, type AnnotationState } from '../run/local/annotation-state';
+import {
+  lineFontSize,
+  reduceAnnotations,
+  type AnnotationState,
+} from '../run/local/annotation-state';
 
 const sizes = [
   { width: 1000, height: 500 },
@@ -85,7 +89,7 @@ describe('文字：选中、拖动、改样式、删除', () => {
     return reduceAnnotations(state, { type: 'end' }, sizes);
   };
 
-  it('puts the text at the tap, centered, selects it, and uses the default text when none was typed', () => {
+  it('puts the text at the tap, selects it, and uses the default text when none was typed', () => {
     const state = placed();
     expect(state.selected).toBe(0);
     expect(state.marks[0]![0]).toMatchObject({ kind: 'text', text: '你好' });
@@ -153,7 +157,57 @@ describe('文字：选中、拖动、改样式、删除', () => {
     const tap = (x: number, y: number) =>
       reduceAnnotations(state, { type: 'grant', x: x / 5, y: y / 5 }, sizes);
     expect(tap(cx, cy + 90).drag).toBe(true);
-    expect(tap(cx + 90, cy).marks[0]).toHaveLength(2);
+    // 横着的一端点不中：只是取消选中，不再多放一个（2026-11-09）。
+    expect(tap(cx + 90, cy).selected).toBeNull();
+    expect(tap(cx + 90, cy).marks[0]).toHaveLength(1);
+  });
+
+  // 2026-11-09 用户测试：放好一段字后点空白处想「取消选中」，结果又多了一段；字以手指为中心，落不到线上。
+  it('tapping an empty spot while a text is selected only deselects it; the next tap adds one', () => {
+    let state = placed();
+    expect(state.selected).toBe(0);
+    state = reduceAnnotations(state, { type: 'grant', x: 180, y: 90 }, sizes);
+    state = reduceAnnotations(state, { type: 'end' }, sizes);
+    expect(state.marks[0]).toHaveLength(1);
+    expect(state.selected).toBeNull();
+    // 没有选中的时候再点空白处：照写好的字再放一段（同一个日期写在两处）。
+    state = reduceAnnotations(state, { type: 'grant', x: 180, y: 90 }, sizes);
+    expect(state.marks[0]).toHaveLength(2);
+    expect(state.marks[0]![1]).toMatchObject({ text: '你好' });
+  });
+
+  it('a new text starts at the tap and sits on it (its bottom edge on the tapped line)', () => {
+    let state = reduceAnnotations(textState(), { type: 'text', text: 'Date' }, sizes);
+    state = reduceAnnotations(state, { type: 'grant', x: 40, y: 60, fontSize: 20 }, sizes);
+    const mark = state.marks[0]![0] as { point: { x: number; y: number }; fontSize: number };
+    // 200 点的框对应 1000 点的页：点在页面 (200, 300)。
+    expect(mark.fontSize).toBe(20);
+    expect(mark.point.x).toBe(200);
+    expect(mark.point.y + 20 * 1.6).toBe(300);
+  });
+
+  it('without a size from the page, documents use about the size of body text', () => {
+    const doc = reduceAnnotations(textState(), { type: 'text', text: 'x' }, sizes);
+    const placedDoc = reduceAnnotations(
+      doc,
+      { type: 'grant', x: 40, y: 60, document: true },
+      sizes,
+    );
+    // 短边 500：约 1.9%，接近 A4 上 11 磅的字。
+    expect((placedDoc.marks[0]![0] as { fontSize: number }).fontSize).toBeCloseTo(9.5, 1);
+    const photo = reduceAnnotations(doc, { type: 'grant', x: 40, y: 60 }, sizes);
+    expect((photo.marks[0]![0] as { fontSize: number }).fontSize).toBeCloseTo(22.5, 1);
+  });
+
+  it('the nearest recognized line gives the size: same row first, then the closest', () => {
+    const lines = [
+      { x: 100, y: 100, width: 300, height: 20 },
+      { x: 100, y: 160, width: 300, height: 40 },
+    ];
+    expect(lineFontSize(lines, { x: 450, y: 170 })).toBe(30);
+    expect(lineFontSize(lines, { x: 120, y: 112 })).toBe(15);
+    expect(lineFontSize(lines, { x: 120, y: 135 })).toBe(15);
+    expect(lineFontSize([], { x: 0, y: 0 })).toBeUndefined();
   });
 
   it('erase and mosaic are boxes between two points, filled white / gray', () => {

@@ -1,6 +1,6 @@
 import { Canvas, Group, Paragraph, Path, Rect } from '@shopify/react-native-skia';
 import { Image } from 'expo-image';
-import { useReducer, useState } from 'react';
+import { useEffect, useReducer, useState } from 'react';
 import {
   PanResponder,
   Pressable,
@@ -115,6 +115,18 @@ export function AnnotateScreen({
       selected: null,
     }),
   );
+  // 这一页认出的行（原图点）：新写的字照最近的一行定字号。只在本机认、只在用文字工具时认，不存不发。
+  const textTool = state.tool === 'text' || state.tool === 'note';
+  const pageLines = state.lines?.[state.index];
+  useEffect(() => {
+    if (!textTool || !input.lines || pageLines) return;
+    const at = state.index;
+    dispatch({ type: 'lines', index: at, lines: [] });
+    void input.lines(at).then(
+      (found) => dispatch({ type: 'lines', index: at, lines: found }),
+      () => undefined,
+    );
+  }, [textTool, state.index, pageLines, input]);
   const [responder] = useState(() =>
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -126,6 +138,7 @@ export function AnnotateScreen({
           x: e.nativeEvent.locationX,
           y: e.nativeEvent.locationY,
           defaultText,
+          ...(input.document ? { document: true } : {}),
         }),
       onPanResponderMove: (_e, g) => dispatch({ type: 'move', dx: g.dx, dy: g.dy }),
       onPanResponderRelease: () => dispatch({ type: 'end' }),
@@ -143,7 +156,6 @@ export function AnnotateScreen({
   const maxFont = Math.min(sizes[state.index]!.width, sizes[state.index]!.height) * 0.3;
   const activeColor = selected ? selected.color : state.color;
   const boxTool = state.tool === 'erase' || state.tool === 'mosaic';
-  const textTool = state.tool === 'text' || state.tool === 'note';
   return (
     <LocalFrame
       palette={palette}
@@ -151,8 +163,9 @@ export function AnnotateScreen({
       cancelLabel={t(locale, 'cancel')}
       doneLabel={t(locale, last ? 'localDone' : 'localNext')}
       onCancel={onCancel}
-      onDone={() => (last ? onDone(state.marks) : dispatch({ type: 'next' }))}
-      avoidKeyboard>
+      // 弹键盘时不把页面挤小：唯一的输入框在最上面，键盘盖住的是页面下半截（2026-11-09 用户测试：
+      // 页面一缩、整屏重排，正在打的字丢了）。
+      onDone={() => (last ? onDone(state.marks) : dispatch({ type: 'next' }))}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -205,14 +218,22 @@ export function AnnotateScreen({
           ))}
         </View>
       )}
-      {textTool && !selected ? (
+      {textTool ? (
+        // 只有这一个输入框：没选中时写要放的字，选中时改选中的那段。不用 value 控制（屏幕重画时不会把正在打的字
+        // 改回旧的），换了选中的那段就换一个输入框（key）显示它的字。
         <TextInput
+          key={selected ? `mark-${state.index}-${state.selected}` : `draft-${state.index}`}
           testID="annotate-text"
           accessibilityLabel={t(locale, 'annotateText')}
           placeholder={t(locale, 'annotateTextHint')}
           placeholderTextColor={palette.muted}
-          value={state.text}
-          onChangeText={(text) => dispatch({ type: 'text', text })}
+          defaultValue={selected ? selected.text : state.text}
+          onChangeText={(text) =>
+            selected
+              ? dispatch({ type: 'style', patch: { text } })
+              : dispatch({ type: 'text', text })
+          }
+          returnKeyType="done"
           maxLength={160}
           style={[
             styles.input,
@@ -306,20 +327,12 @@ export function AnnotateScreen({
           </View>
         ) : null}
       </View>
-      {selected ? (
-        <View testID="annotate-style" style={styles.style}>
-          <TextInput
-            testID="annotate-style-text"
-            accessibilityLabel={t(locale, 'annotateText')}
-            value={selected.text}
-            onChangeText={(text) => dispatch({ type: 'style', patch: { text } })}
-            maxLength={160}
-            style={[
-              styles.input,
-              palette.font('body', 16),
-              { color: palette.text, borderColor: palette.border, marginHorizontal: 0 },
-            ]}
-          />
+      {textTool ? (
+        // 样式区一直占着位置（没选中时点不了）：放好一段字时页面不会被挤小、挪位置。
+        <View
+          testID="annotate-style"
+          pointerEvents={selected ? 'auto' : 'none'}
+          style={[styles.style, selected ? null : styles.idle]}>
           <View style={styles.row}>
             <Text style={[palette.font('body', 14), styles.rowLabel, { color: palette.text }]}>
               {t(locale, 'annotateSize')}
@@ -331,14 +344,14 @@ export function AnnotateScreen({
                 palette={palette}
                 min={10}
                 max={maxFont}
-                value={selected.fontSize}
+                value={selected?.fontSize ?? 10}
                 onChange={(fontSize) => dispatch({ type: 'style', patch: { fontSize } })}
               />
             </View>
           </View>
           <View style={styles.row}>
             <Text style={[palette.font('body', 14), styles.rowLabel, { color: palette.text }]}>
-              {t(locale, 'annotateRotate')} {Math.round(selected.rotation ?? 0)}°
+              {t(locale, 'annotateRotate')} {Math.round(selected?.rotation ?? 0)}°
             </Text>
             <View style={styles.rowSlider}>
               <Slider
@@ -347,7 +360,7 @@ export function AnnotateScreen({
                 palette={palette}
                 min={0}
                 max={359}
-                value={selected.rotation ?? 0}
+                value={selected?.rotation ?? 0}
                 onChange={(rotation) => dispatch({ type: 'style', patch: { rotation } })}
               />
             </View>
@@ -393,6 +406,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   style: { paddingHorizontal: 16, paddingBottom: 8, gap: 10 },
+  idle: { opacity: 0.35 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   rowLabel: { width: 76 },
   rowSlider: { flex: 1 },

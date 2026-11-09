@@ -1,13 +1,20 @@
 import { Canvas, ImageFormat, Path, Skia } from '@shopify/react-native-skia';
 import { Image } from 'expo-image';
-import { useEffect, useReducer, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../../i18n';
 import type { LocalScreenProps } from '../RunScreen';
 import { useWorkspaceContext } from '../../workspace/context';
 import type { SavedSignature } from '../../runtime/platform';
+import { nearestLine, type LineBox } from './annotation-state';
 import { LocalFrame } from './LocalFrame';
+import {
+  initialPlacement,
+  reducePlacement,
+  type SignAction,
+  type SignPlacement,
+} from './sign-placement';
 
 // 签名（TOOLS_DESIGN §4 sign）：第一步在签名板上画（可以存起来下次直接用），第二步选页并把签名拖到位置上。
 // 签名存在 documentDirectory/signatures/，不进配置、不进版本，也不发给 AI。
@@ -131,56 +138,31 @@ export function SignScreen({ input, palette, locale, onDone, onCancel }: LocalSc
   const scale = box.width ? Math.min(box.width / page.width, box.height / page.height) : 0;
   const shown = { width: page.width * scale, height: page.height * scale };
 
-  // 签名在页面上的位置（比例坐标，默认右下）。拖动时以按下时的位置为起点（PanResponder 的 dx 是累计值）。
+  // 签名在页面上的位置（比例坐标）：点一下页面就放到那一行上，高度照那一行字定（sign-placement.ts）。
+  const aspect = signature?.aspect ?? 3;
   const [placement, move] = useReducer(
-    (
-      state: {
-        place: { x: number; y: number; width: number };
-        start: { x: number; y: number };
-        size: { width: number; height: number };
-      },
-      action:
-        | { type: 'grant' }
-        | { type: 'move'; dx: number; dy: number }
-        | { type: 'size'; width: number }
-        | { type: 'layout'; width: number; height: number },
-    ) => {
-      const { place } = state;
-      switch (action.type) {
-        case 'grant':
-          return { ...state, start: { x: place.x, y: place.y } };
-        case 'move': {
-          if (!state.size.width) return state;
-          const x = state.start.x + action.dx / state.size.width;
-          const y = state.start.y + action.dy / state.size.height;
-          return {
-            ...state,
-            place: {
-              ...place,
-              x: Math.min(1 - place.width, Math.max(0, x)),
-              y: Math.min(0.97, Math.max(0, y)),
-            },
-          };
-        }
-        case 'size':
-          return {
-            ...state,
-            place: { ...place, width: action.width, x: Math.min(place.x, 1 - action.width) },
-          };
-        case 'layout':
-          return { ...state, size: { width: action.width, height: action.height } };
-      }
-    },
-    {
-      place: { x: 0.55, y: 0.8, width: 0.32 },
-      start: { x: 0, y: 0 },
-      size: { width: 0, height: 0 },
-    },
+    (state: SignPlacement, action: SignAction) => reducePlacement(state, action, page, aspect),
+    null,
+    () => initialPlacement(page, aspect),
   );
   const place = placement.place;
   useEffect(() => {
     move({ type: 'layout', width: shown.width, height: shown.height });
   }, [shown.width, shown.height]);
+  useEffect(() => {
+    if (signature) move({ type: 'reset' });
+  }, [signature]);
+  // 这一页认出的行（原图点）：只在本机认，只用来定签名多高，不存不发。
+  const lines = useRef(new Map<number, readonly LineBox[]>());
+  useEffect(() => {
+    if (!signature || !input.lines || lines.current.has(pageIndex)) return;
+    const at = pageIndex;
+    lines.current.set(at, []);
+    void input.lines(at).then(
+      (found) => lines.current.set(at, found),
+      () => undefined,
+    );
+  }, [signature, pageIndex, input]);
 
   const [mover] = useState(() =>
     PanResponder.create({
@@ -260,6 +242,9 @@ export function SignScreen({ input, palette, locale, onDone, onCancel }: LocalSc
       doneLabel={t(locale, 'localDone')}
       onCancel={onCancel}
       onDone={() => onDone({ png: signature.bytes, pageIndex, ...place })}>
+      <Text style={[palette.font('body', 13), styles.hint, { color: palette.muted }]}>
+        {t(locale, 'signTapHint')}
+      </Text>
       <View style={styles.pageNav}>
         <Pressable
           testID="sign-prev"
@@ -296,7 +281,22 @@ export function SignScreen({ input, palette, locale, onDone, onCancel }: LocalSc
         }>
         {scale > 0 ? (
           <View style={[shown, styles.page]}>
-            <Image source={{ uri: page.uri }} style={shown} contentFit="fill" />
+            <Pressable
+              testID="sign-page"
+              accessibilityLabel={t(locale, 'signTapHint')}
+              onPress={(e) => {
+                const { locationX: x, locationY: y } = e.nativeEvent;
+                const line =
+                  scale > 0
+                    ? nearestLine(lines.current.get(pageIndex) ?? [], {
+                        x: x / scale,
+                        y: y / scale,
+                      })
+                    : undefined;
+                move({ type: 'tap', x, y, ...(line ? { lineHeight: line.height } : {}) });
+              }}>
+              <Image source={{ uri: page.uri }} style={shown} contentFit="fill" />
+            </Pressable>
             <View
               testID="sign-mark"
               {...mover.panHandlers}
@@ -375,6 +375,7 @@ const styles = StyleSheet.create({
   savedRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
   saved: { width: 140, height: 64, borderWidth: 1, borderRadius: 10, padding: 6 },
   savedImage: { width: '100%', height: '100%' },
+  hint: { paddingHorizontal: 16 },
   pageNav: {
     flexDirection: 'row',
     justifyContent: 'center',

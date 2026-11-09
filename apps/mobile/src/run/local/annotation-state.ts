@@ -11,6 +11,36 @@ const estimate: Measure = (text, fontSize) => ({
 export const NOTE_FILL = '#FDE68A';
 
 type Size = { width: number; height: number };
+/** 页面上认出的一行字的框（原图点）。 */
+export type LineBox = { x: number; y: number; width: number; height: number };
+
+/** 文件页上新写的字默认多大：约是短边的 1.9%，A4、Letter 上接近 11 磅的正文。 */
+const DOCUMENT_FONT = 0.019;
+
+/**
+ * 点附近那一行字（原图点）：同一行的优先（竖直距离算两倍），再看左右离得多远。没有认出字时是 undefined。
+ */
+export function nearestLine(lines: readonly LineBox[], p: AnnotationPoint): LineBox | undefined {
+  let best: LineBox | undefined;
+  let bestScore = Infinity;
+  for (const line of lines) {
+    const dy = Math.max(line.y - p.y, 0, p.y - (line.y + line.height));
+    const dx = Math.max(line.x - p.x, 0, p.x - (line.x + line.width));
+    const score = dy * 2 + dx;
+    if (score < bestScore) {
+      best = line;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+/** 照着点附近那一行字定新文字的字号：认出的行框比字号高一些（上下留白），取行高的 3/4。 */
+export function lineFontSize(lines: readonly LineBox[], p: AnnotationPoint): number | undefined {
+  const line = nearestLine(lines, p);
+  return line ? line.height * 0.75 : undefined;
+}
+
 export interface AnnotationState {
   index: number;
   marks: ImageAnnotation[][];
@@ -25,19 +55,33 @@ export interface AnnotationState {
   /** 开始拖时文字的位置（拖动是从这里加上手指移动的距离）。 */
   dragFrom?: AnnotationPoint | null;
   draft: Exclude<ImageAnnotation, { kind: 'text' }> | null;
+  /** 每页认出的行（原图点），新写的字照最近的一行定字号；还在认或认不出时是空的。 */
+  lines?: Record<number, readonly LineBox[]>;
 }
 export type AnnotationAction =
   | { type: 'layout'; width: number; height: number }
   | { type: 'tool'; tool: AnnotationTool }
   | { type: 'color'; color: string }
   | { type: 'text'; text: string }
-  | { type: 'grant'; x: number; y: number; defaultText?: string }
+  | {
+      type: 'grant';
+      x: number;
+      y: number;
+      defaultText?: string;
+      /** 新写的字的字号（原图点）；不给时照 lines 里最近的那一行，再没有时按页面大小。 */
+      fontSize?: number;
+      /** 这一页认出的行（原图点），用来定字号。 */
+      lines?: readonly LineBox[];
+      /** 是文件的页面（PDF）：没认出字时按正文大小写，不按照片上的标签大小。 */
+      document?: boolean;
+    }
   | { type: 'style'; patch: Partial<Pick<TextMark, 'text' | 'fontSize' | 'color' | 'rotation'>> }
   | { type: 'remove' }
   | { type: 'move'; dx: number; dy: number }
   | { type: 'end' }
   | { type: 'undo' }
-  | { type: 'next' };
+  | { type: 'next' }
+  | { type: 'lines'; index: number; lines: readonly LineBox[] };
 export function annotationLayout(box: Size, size: Size) {
   const scale =
     box.width && box.height ? Math.min(box.width / size.width, box.height / size.height) : 0;
@@ -155,17 +199,25 @@ export function reduceAnnotations(
           draft: null,
         };
       }
+      // 选着一段字时点空白处：只是取消选中，不再放一段（2026-11-09 用户测试：想「点一下完成」却多了一段）。
+      if (texty && state.selected != null)
+        return { ...state, selected: null, drag: false, start: null, draft: null };
       if (pageMarks.length >= 100) return state;
       if (texty) {
         const text = state.text.trim() || action.defaultText || '';
         if (!text) return state;
-        const fontSize = Math.max(12, Math.min(size.width, size.height) * 0.045);
+        const short = Math.min(size.width, size.height);
+        const fontSize =
+          action.fontSize ??
+          lineFontSize(action.lines ?? state.lines?.[state.index] ?? [], point) ??
+          (action.document ? short * DOCUMENT_FONT : Math.max(12, short * 0.045));
         const box = measure(text, fontSize);
+        // 字从点的地方开始、底边落在点上：点在一条横线上，字就写在这条线上，手指也不挡住要写的地方。
         const mark: TextMark = {
           kind: 'text',
           point: {
-            x: clamp(point.x - box.width / 2, Math.max(0, size.width - box.width)),
-            y: clamp(point.y - box.height / 2, Math.max(0, size.height - box.height)),
+            x: clamp(point.x, Math.max(0, size.width - box.width)),
+            y: clamp(point.y - box.height, Math.max(0, size.height - box.height)),
           },
           text,
           fontSize,
@@ -253,6 +305,8 @@ export function reduceAnnotations(
         drag: false,
         marks: state.marks.map((marks, i) => (i === state.index ? marks.slice(0, -1) : marks)),
       };
+    case 'lines':
+      return { ...state, lines: { ...state.lines, [action.index]: action.lines } };
     case 'next':
       return {
         ...state,

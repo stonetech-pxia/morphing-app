@@ -16,7 +16,14 @@ export interface Rect {
 
 export interface LocalSteps {
   annotate: {
-    in: { items: RunItem[]; tool?: ImageAnnotation['kind'] | 'note' };
+    in: {
+      items: RunItem[];
+      tool?: ImageAnnotation['kind'] | 'note';
+      /** 是文件的页面（PDF）：新写的字默认是正文大小，不是照片上的标签大小。 */
+      document?: boolean;
+      /** 第几页上认出的行（原图点），新写的字照最近的一行定字号；只在本机认，不存不发。 */
+      lines?: (index: number) => Promise<readonly Rect[]>;
+    };
     out: ImageAnnotation[][];
   };
   /** 逐张框选裁剪区域（原图像素）。aspect 为 null 时自由比例。 */
@@ -39,7 +46,12 @@ export interface LocalSteps {
    * 返回签名 PNG 和位置（页面比例坐标，左上角为原点）。
    */
   sign: {
-    in: { item: RunItem; pages: { uri: string; width: number; height: number }[] };
+    in: {
+      item: RunItem;
+      pages: { uri: string; width: number; height: number }[];
+      /** 第几页上认出的行（原图点），签名的高度照点附近那一行定；只在本机认，不存不发。 */
+      lines?: (index: number) => Promise<readonly Rect[]>;
+    };
     out: { png: Uint8Array; pageIndex: number; x: number; y: number; width: number };
   };
   /** 填表：字段由 pdf-lib 读出，用户在本地填写。返回字段名 → 值。 */
