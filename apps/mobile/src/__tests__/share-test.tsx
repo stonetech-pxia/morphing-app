@@ -586,6 +586,49 @@ describe('share journeys (UI)', () => {
     expect(screen.queryByText('Choose photos')).toBeNull();
   });
 
+  // 2026-11-09 用户测试：相机用不了时只停在第 1 步，没有别的路（D-508）。
+  it('when the camera is not available, this run can take photos from the library instead', async () => {
+    const app = await renderToolsApp(undefined, undefined, { locale: 'en' });
+    app.files.cameraAvailable = false;
+    await app.store
+      .getState()
+      .proposeOps([{ op: 'addTool', tool: photoPdf('scan-pdf', 'scanner') }], 'prepare');
+    await act(() => app.store.getState().confirm());
+    await act(() =>
+      router.push({ pathname: '/run/[workflowId]', params: { workflowId: 'scan-pdf' } }),
+    );
+    expect(await screen.findByTestId('run-from-library', {}, { timeout: 5000 })).toHaveTextContent(
+      'Choose photos instead',
+    );
+    // 「再来一次」照快捷操作原样跑：还是相机，还是停在第 1 步。
+    await fireEvent.press(screen.getByTestId('run-again'));
+    const instead = await screen.findByTestId('run-from-library', {}, { timeout: 5000 });
+    app.files.nextPhotos = [app.files.offerImage('page.jpg', 1000, 1400)];
+    await fireEvent.press(instead);
+    // 还是一次扫描：做出一个文件就直接进预览页（D-457）。
+    expect(await screen.findByTestId('preview-bar', {}, { timeout: 5000 })).toBeTruthy();
+    expect(useIncoming.getState().share!.files[0]!.name).toMatch(/\.pdf$/);
+    // 只是这一次：快捷操作本身还是用文档相机，配置没写。
+    const saved = quickActionsOf(app.store.getState().config!).find((w) => w.id === 'scan-pdf');
+    expect(saved!.steps[0]!.params).toMatchObject({ source: 'scanner' });
+  });
+
+  it('other failures do not offer the photo library', async () => {
+    const app = await renderToolsApp(undefined, undefined, { locale: 'en' });
+    app.files.cameraAvailable = false;
+    await app.store
+      .getState()
+      .proposeOps([{ op: 'addTool', tool: photoPdf('lib-pdf', 'library') }], 'prepare');
+    await act(() => app.store.getState().confirm());
+    // 相册这一步没选照片就关了：照常结束，不提议「改从相册选」。
+    app.files.nextPhotos = [];
+    await act(() =>
+      router.push({ pathname: '/run/[workflowId]', params: { workflowId: 'lib-pdf' } }),
+    );
+    await screen.findByTestId('run-again', {}, { timeout: 5000 });
+    expect(screen.queryByTestId('run-from-library')).toBeNull();
+  });
+
   it('a run where the person picks the photo inside it keeps its result page (D-457)', async () => {
     const app = await renderToolsApp();
     await app.store

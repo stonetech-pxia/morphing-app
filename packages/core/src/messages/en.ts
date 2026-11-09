@@ -299,6 +299,7 @@ export const en = {
   runItemFile: 'file {n} of {total}',
   runFailedAt: 'Stopped at step {n}',
   runSucceeded: 'Done',
+  runFromLibrary: 'Choose photos instead',
   runEdit: 'Adjust settings',
   askTitle: 'Before this step',
   askName: 'File name',

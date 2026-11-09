@@ -318,6 +318,7 @@ export const fr: MessageTable = {
   runItemFile: 'fichier {n} sur {total}',
   runFailedAt: 'Arrêté à l’étape {n}',
   runSucceeded: 'Terminé',
+  runFromLibrary: 'Choisir dans la photothèque',
   runEdit: 'Ajuster les réglages',
   askTitle: 'Avant cette étape',
   askName: 'Nom du fichier',

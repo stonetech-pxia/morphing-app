@@ -284,6 +284,7 @@ export const zh: MessageTable = {
   runItemFile: '第 {n}/{total} 个',
   runFailedAt: '在第 {n} 步停下',
   runSucceeded: '完成',
+  runFromLibrary: '改从相册选',
   runEdit: '调整设置',
   askTitle: '这一步之前',
   askName: '文件名',
