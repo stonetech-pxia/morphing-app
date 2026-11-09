@@ -179,6 +179,31 @@ describe('outside Word files (docx)', () => {
     expect(alerts).toHaveLength(1);
   });
 
+  // 合并 D-507 和 D-509（2026-11-09）：「存到手机」也是把重新生成的文件交出去，同样先说一句。
+  it('after editing, Save to phone also says it first; Cancel copies nothing', async () => {
+    const { files } = await openPreview('Report.docx', TABLES, DOCX);
+    await fireEvent.press(await screen.findByTestId('preview-edit'));
+    await screen.findByTestId('word-editor-page');
+    const page = wordPage();
+    await page.state({ focus: true });
+    page.q('[data-ref="0-0"]').textContent = 'Edited before saving to the phone';
+    await page.input();
+    await page.state({ focus: false });
+
+    let alerts = answerAlert('Cancel');
+    await fireEvent.press(await deskTool('desk-tool-room-folder'));
+    await waitFor(() => expect(alerts).toHaveLength(1));
+    expect(alerts[0]!.title).toBe('Some formatting won’t be kept');
+    expect(files.folderPicks).toBe(0);
+
+    jest.restoreAllMocks();
+    alerts = answerAlert('Continue');
+    await fireEvent.press(await deskTool('desk-tool-room-folder'));
+    await waitFor(() => expect(files.folders.get('MorphOut')?.size).toBe(1));
+    const [saved] = [...files.folders.get('MorphOut')!.values()];
+    expect(docxText(saved!)).toContain('Edited before saving to the phone');
+  });
+
   it('a password-protected file says it cannot be opened, also when tapping Edit (French)', async () => {
     const { files } = await openPreview('Contrat.docx', LOCKED, DOCX, 'fr');
     expect(await screen.findByTestId('desk-preview-generic')).toHaveTextContent(

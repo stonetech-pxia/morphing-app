@@ -436,8 +436,12 @@ export function DeskScreen({ deskId }: { deskId: string }) {
     setSaved(true);
   }
 
-  /** 存到手机：每次让用户在「文件」App 里选文件夹，复制进去（D-120）；取消时什么都不变。 */
+  /**
+   * 存到手机：每次让用户在「文件」App 里选文件夹，复制进去（D-120）；取消时什么都不变。
+   * 改过的外来 docx / xlsx 和保存、分享一样先说一句哪些格式不留（D-509）。
+   */
   async function saveToPhone() {
+    if (!(await confirmRebuilt(nowFiles()))) return;
     const done = await files.saveToFolder(items(), 'desk', true);
     if (done) setFolderSaved(done.folder);
   }
