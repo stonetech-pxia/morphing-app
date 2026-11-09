@@ -1,7 +1,8 @@
 import { strFromU8, unzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 
-import { buildDocPage, type DocDoc, type DocTable } from './doc';
+import { buildDocPage, leafBlocks, type DocDoc, type DocTable } from './doc';
+import { INVOICE, INVOICE_ITEMS } from './fixtures/invoice-ocr';
 import { RECEIPT } from './fixtures/receipt-ocr';
 import { writeDocx } from './docx';
 import { renderPage, type Rect } from './test-helpers';
@@ -313,5 +314,37 @@ describe('rows kept together when no table lines are found (D-502)', () => {
       ]),
     ];
     expect(tablesIn(lines)).toHaveLength(0);
+  });
+});
+
+describe('an invoice’s item table with its totals under the right-hand columns (D-506)', () => {
+  // 用户测试（2026-11-09）里的文字版发票：表头和四排商品，每排下面一条很浅的细横线（找线找不到）；
+  // 表下面隔一段，右边两列是 Subtotal / VAT 20% / Total due。
+  // 以前：合计一排排只在远处的两列、左边没字，被当成「错开的数」（D-502），整张表不认；
+  // 商品名接成一段、几列数各成一段，最后一排和合计凑成一张两列的表。
+  const page = buildDocPage({
+    image: white(INVOICE.width, INVOICE.height),
+    lines: INVOICE.lines,
+    source: 's',
+    skew: 0,
+  });
+  const leaves = leafBlocks(page);
+  const tables = leaves.filter((b): b is DocTable => b.kind === 'table');
+
+  it('the header and the four items become one four-column table', () => {
+    const items = tables.find((t) => rowsOf(t)[0]?.[0] === 'Item');
+    expect(items?.table.cols).toBe(4);
+    expect(rowsOf(items!).slice(0, INVOICE_ITEMS.length)).toEqual(INVOICE_ITEMS);
+  });
+
+  it('no paragraph holds item names or their amounts, and nothing is lost', () => {
+    const paragraphs = leaves.flatMap((b) => (b.kind === 'paragraph' ? [b.text] : []));
+    for (const text of ['Toner cartridge', '£129.80', 'Desk organiser']) {
+      expect(paragraphs.filter((p) => p.includes(text))).toEqual([]);
+    }
+    const all = [...paragraphs, ...tables.flatMap((t) => t.table.cells.map((c) => c.text))].join(
+      ' ',
+    );
+    for (const l of INVOICE.lines) expect(all).toContain(l.text);
   });
 });

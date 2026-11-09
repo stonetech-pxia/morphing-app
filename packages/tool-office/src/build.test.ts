@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildTablePage, sharedColumns } from './build';
+import { INVOICE, INVOICE_ITEMS } from './fixtures/invoice-ocr';
 import { findLines, findTables } from './lines';
 import { fakeLine, glyphs, gridRects, renderPage, type Rect } from './test-helpers';
 import type { OcrBox, TableBlock, TablePage } from './types';
@@ -829,5 +830,46 @@ describe('findTables', () => {
     expect(tables).toHaveLength(1);
     expect(tables[0]!.hs).toHaveLength(3);
     expect(tables[0]!.vs).toHaveLength(3);
+  });
+});
+
+describe('tables without lines in Excel (D-506)', () => {
+  // 用户测试（2026-11-09）里的文字版发票：细横线太浅、找不到线，以前整页成了 A 列里几大格字。
+  // 转 Excel 和转 Word 一样认没有线的表（D-471、D-502、D-503 的规则）。
+  const rowsOf = (t: TableBlock) =>
+    Array.from({ length: t.rows }, (_, r) =>
+      t.cells
+        .filter((c) => c.row === r)
+        .sort((a, b) => a.col - b.col)
+        .map((c) => c.text)
+        .filter(Boolean),
+    );
+  const page = buildTablePage({
+    image: renderPage(INVOICE.width, INVOICE.height, []),
+    lines: INVOICE.lines,
+    name: 'Page 1',
+    source: 'file:///page.jpg',
+    skew: 0,
+  });
+
+  it('the invoice’s items become a four-column table', () => {
+    const items = tablesOf(page).find((t) => rowsOf(t)[0]?.[0] === 'Item');
+    expect(items?.cols).toBe(4);
+    expect(rowsOf(items!).slice(0, INVOICE_ITEMS.length)).toEqual(INVOICE_ITEMS);
+  });
+
+  it('the text outside the table stays, and no line is written twice', () => {
+    const texts = page.blocks.flatMap((b) =>
+      b.kind === 'text' ? [b.text] : b.cells.map((c) => c.text),
+    );
+    for (const l of INVOICE.lines) {
+      expect(texts.filter((t) => t.includes(l.text)).length, l.text).toBeGreaterThan(0);
+    }
+    expect(texts.filter((t) => t.includes('Toner cartridge'))).toHaveLength(1);
+  });
+
+  it('the columns of the table are the page’s columns', () => {
+    const items = tablesOf(page).find((t) => rowsOf(t)[0]?.[0] === 'Item')!;
+    expect(page.colWidths.length).toBeGreaterThanOrEqual(items.col + items.cols);
   });
 });

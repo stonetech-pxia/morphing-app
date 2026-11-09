@@ -7,6 +7,7 @@ import {
   type RuleLine,
   type TableLines,
 } from './lines';
+import { findTextTables, levelLines } from './text-table';
 import type {
   Block,
   Box,
@@ -29,6 +30,11 @@ export interface BuildOptions {
    * chopped 是被列线从一个词中间切开的行数（D-502）：真的表里字不跨列线，跨了多半是网格认错了。
    */
   onTable?: (table: TableBlock, lines: readonly OcrBox[], check: { chopped: number }) => void;
+  /**
+   * 带线的表以外也认没有线的表（D-506：和转 Word 同一套规则，D-471、D-502、D-503），默认认。
+   * 转 Word 自己在去掉竖排、零星的字以后再认，不在这里认。
+   */
+  textTables?: boolean;
 }
 
 export interface PageInput {
@@ -87,6 +93,8 @@ const STROKE_MIN_JOINED = 3;
 const STROKE_RULE_SHARE = 0.3;
 /** 切口两边的字距比平常大这么多倍就是两段字之间的空隙，不是一个词的中间。 */
 const CHOP_GAP = 1.8;
+/** 没有线的表最外两条列线往外最多挪这么多个行高去对上别的表的列线（D-506，和 D-471 列间距的上限一样）。 */
+const SNAP_REACH = 3;
 
 const median = (values: readonly number[]) => {
   const sorted = [...values].sort((a, b) => a - b);
@@ -636,6 +644,45 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
         box: back(flatBox),
       },
     });
+  }
+  // 没有线的表（D-506）：找线没找到的表（很浅的细线、只按空白对齐的列）用剩下的行按列对齐认，
+  // 和转 Word 一样先按局部的斜率拉平再分排。
+  if (options.textTables !== false) {
+    const rest = flat.filter((l) => !placed.has(l));
+    const leveled = levelLines(rest, lineHeight, image.width / 2);
+    const flatOf = new Map(leveled.map((l, k) => [l, rest[k]!]));
+    const toFlat = (l: OcrBox) => flatOf.get(l) ?? l;
+    for (const found of findTextTables(leveled, lineHeight, toFlat)) {
+      const members = found.lines.map(toFlat);
+      for (const line of members) placed.add(line);
+      let x = found.box.x;
+      const xs = [x, ...found.colWidths.map((w) => (x += w))];
+      // 整页共用一套列（D-272）：没有线的表的列线可以放在两列之间的空白里任何地方，最外两条可以往外挪
+      // （不超过 3 个行高，和 D-471 列和列隔开的上限一样）。那里有别的表的列线时对上它，
+      // 不然一张表的列线挨着另一张表的列线，整页多出一条窄列，把格子劈成两半（发票表下面的合计）。
+      const others = tables.flatMap((tb) => tb.xs);
+      const { bands } = found;
+      const reach = SNAP_REACH * lineHeight;
+      xs.forEach((at, e) => {
+        const lo = e === 0 ? at - reach : bands[e - 1]!.right;
+        const hi = e === bands.length ? at + reach : bands[e]!.x;
+        const near = others.filter((o) => o >= lo && o <= hi);
+        if (near.length) {
+          xs[e] = near.reduce((a, b) => (Math.abs(b - at) < Math.abs(a - at) ? b : a));
+        }
+      });
+      tables.push({
+        flatBox: found.box,
+        xs,
+        lines: members.map((l) => sourceOf.get(l)!),
+        chopped: 0,
+        block: {
+          ...found.table,
+          cells: found.table.cells.map((c) => (c.box ? { ...c, box: back(c.box) } : c)),
+          box: back(found.box),
+        },
+      });
+    }
   }
   // 整页共用的列：每张表的格子换成共用列上的位置，原来一格跨过几条共用列线就是 colSpan 几。
   const shared = sharedColumns(
