@@ -137,6 +137,8 @@ export function DeskScreen({ deskId }: { deskId: string }) {
   const alive = useRef(true);
   /** 清空了桌面：离开时不再合上编辑。 */
   const cleared = useRef(false);
+  /** 说过外来的文件重新生成时哪些格式不留（D-509）：这个桌面只说一次。 */
+  const toldRebuilt = useRef(false);
   // 桌面不留着（D-462，取代「先留在桌上」）：离开就清掉；要留下的在「完成」里保存或分享。
   // 有没保存的改动时，离开前先问「放弃修改？」（见下面的 beforeRemove）。
   useEffect(
@@ -336,7 +338,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
     if (locked) return locked();
     // 用别的工具、保存、分享前先把编辑合成一个版本（§11.2）。
     const on = await sealedTargets();
-    if (entry.room === 'share') return void act(() => files.shareUris(items()));
+    if (entry.room === 'share') return void act(shareAll);
     if (entry.room === 'save') return void act(save);
     if (entry.room === 'folder') return void act(saveToPhone);
     if (entry.room === 'preview') return systemPreview();
@@ -383,10 +385,48 @@ export function DeskScreen({ deskId }: { deskId: string }) {
       size: f.size,
     }));
 
+  /**
+   * 要存、要分享的文件里有改过的外来 docx / xlsx（重新生成的，D-509）：第一次先用一句话说清哪些格式不留，
+   * 点「继续」才做，点「取消」什么都不做。没改过的外来文件存的是原件的副本，不用说。
+   */
+  function confirmRebuilt(list: readonly DeskFile[]): Promise<boolean> {
+    const kinds = new Set(
+      list.filter((f) => f.source?.imported === 'rebuilt').map((f) => f.source!.kind),
+    );
+    if (toldRebuilt.current || kinds.size === 0) return Promise.resolve(true);
+    const message = [
+      ...(kinds.has('doc') ? [t(locale, 'officeRebuiltDoc')] : []),
+      ...(kinds.has('table') ? [t(locale, 'officeRebuiltSheet')] : []),
+    ].join('\n\n');
+    return new Promise((resolve) => {
+      Alert.alert(
+        t(locale, 'officeRebuiltTitle'),
+        message,
+        [
+          { text: t(locale, 'cancel'), style: 'cancel', onPress: () => resolve(false) },
+          {
+            text: t(locale, 'officeRebuiltContinue'),
+            onPress: () => {
+              toldRebuilt.current = true;
+              resolve(true);
+            },
+          },
+        ],
+        { cancelable: true, onDismiss: () => resolve(false) },
+      );
+    });
+  }
+
+  /** 分享桌上的文件（工具栏、「完成」里的「分享」）。 */
+  async function shareAll() {
+    if (await confirmRebuilt(nowFiles())) await files.shareUris(items());
+  }
+
   /** 存成用户文件；转 Excel、转 Word 的结果带着中间格式和原图，以后还能放回桌上改（D-367）。 */
   async function save() {
     const d = deskRef.current;
     if (!d) return;
+    if (!(await confirmRebuilt(currentFiles(d)))) return;
     await saveDeskFiles(files, repo, d, currentFiles(d), {
       now: () => new Date(),
       newId: newAssetId,
@@ -498,6 +538,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
   async function giveBack(back: DeskReturn, mode: DeskReturnMode) {
     const d = deskRef.current;
     if (!d) return;
+    if (!(await confirmRebuilt(currentFiles(d)))) return;
     const fresh = await saveDeskFiles(files, repo, d, currentFiles(d), {
       now: () => new Date(),
       newId: newAssetId,
@@ -862,7 +903,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
                 id="desk-share"
                 label={t(locale, 'resultShare')}
                 palette={palette}
-                onPress={() => void act(() => files.shareUris(items()))}
+                onPress={() => void act(shareAll)}
               />
               {allImages ? (
                 <SheetRow

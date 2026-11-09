@@ -1,6 +1,6 @@
 import { strToU8, zipSync, type Zippable } from 'fflate';
 
-import type { CellAlign, TableCell, TableDoc, TablePage } from './types';
+import type { CellAlign, TableBlock, TableCell, TableDoc, TablePage } from './types';
 
 // 写 xlsx（D-272）：自己写 XML，用 fflate 的同步 API 打包（Hermes 没有 Worker，也没有 Node 的 stream）。
 // 每页一张工作表；字符串放 sharedStrings（Numbers 和 WPS 对它的支持比 inlineStr 稳）；
@@ -113,6 +113,19 @@ const BUILT_IN_FORMATS: Record<string, number> = {
   '#,##0.00': 4,
   '0%': 9,
   '0.00%': 10,
+  // 日期、时间（外来的 xlsx 读进来的，D-509）：写回自带的编号，Excel 按手机、电脑的地区显示短日期。
+  'mm-dd-yy': 14,
+  'd-mmm-yy': 15,
+  'd-mmm': 16,
+  'mmm-yy': 17,
+  'h:mm AM/PM': 18,
+  'h:mm:ss AM/PM': 19,
+  'h:mm': 20,
+  'h:mm:ss': 21,
+  'm/d/yy h:mm': 22,
+  'mm:ss': 45,
+  '[h]:mm:ss': 46,
+  'mmss.0': 47,
 };
 
 /** 估一段文字在 width 个字符宽的格子里占几行（中日韩文字算两个字符宽）。编辑页也用它估行高。 */
@@ -330,6 +343,8 @@ function sheetXml(
   const merges: string[] = [];
   for (const cell of layout.cells) {
     const table = cell.cell !== undefined;
+    // 外来的 xlsx 读进来的表（D-509）不画边框。
+    const plain = table && (page.blocks[cell.block] as TableBlock).borderless === true;
     const at = ref(cell.row, cell.col);
     const number =
       cell.write?.kind === 'number'
@@ -338,14 +353,14 @@ function sheetXml(
           ? cellNumber(cell.text)
           : null;
     const align = cell.align ? { align: cell.align } : {};
-    const empty = styles.style({ border: true });
+    const empty = styles.style({ border: !plain });
     let xml: string;
     if (!cell.text) xml = `<c r="${at}" s="${empty}"/>`;
     else if (number) {
-      const s = styles.style({ border: true, format: number.format, ...align });
+      const s = styles.style({ border: !plain, format: number.format, ...align });
       xml = `<c r="${at}" s="${s}"><v>${number.value}</v></c>`;
     } else {
-      const s = styles.style({ border: table, ...align });
+      const s = styles.style({ border: table && !plain, ...align });
       xml = `<c r="${at}" s="${s}" t="s"><v>${strings.index(cell.text)}</v></c>`;
     }
     rowCells[cell.row]!.set(cell.col, xml);

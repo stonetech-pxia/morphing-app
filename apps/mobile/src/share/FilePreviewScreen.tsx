@@ -8,11 +8,16 @@ import {
 } from '@morph/core';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { DocDoc } from '@morph/tool-office';
+import {
+  importOffice,
+  isImportableOffice,
+  type DocDoc,
+  type OfficeImport,
+} from '@morph/tool-office';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { DeskPreview } from '../desk/DeskPreview';
+import { DeskPreview, type OfficePreview } from '../desk/DeskPreview';
 import { placeAssetOnDesk, savedWordDoc } from '../desk/saved-source';
 import { loadDesk, placeOnDesk } from '../desk/store';
 import { runErrorText, t, type StringKey } from '../i18n';
@@ -21,7 +26,7 @@ import { formatSize } from '../renderer/FileList';
 import { Icon, UiIcon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
 import { Card, SectionLabel } from '../renderer/ui';
-import { baseName, extOf, mimeOf } from '../runtime/actions/helpers';
+import { baseName, extOf, extOfMime, mimeOf } from '../runtime/actions/helpers';
 import { AIEntryButton } from '../shell/ai-entry';
 import type { SucceededRuns } from '../storage/types';
 import { useWorkspace, useWorkspaceContext, useAppTheme } from '../workspace/context';
@@ -138,6 +143,34 @@ export function FilePreviewScreen({ index }: { index?: number }) {
         : null,
     [file],
   );
+  // 外来的 docx / xlsx（D-509）：读成中间格式显示；只在内存里读，什么都不写（看不改变任何东西，不变量 15）。
+  // 读好的那一份按文件地址记着：换了文件、还没读好时是「还在读」。
+  const officeExt = file ? extOf(file.name) || extOfMime(file.mimeType) : '';
+  const fileUri = file?.uri;
+  const importable = !!fileUri && isImportableOffice(officeExt);
+  const [read, setRead] = useState<{ uri: string; result: OfficeImport } | null>(null);
+  const office: OfficePreview | null = !importable
+    ? null
+    : read?.uri === fileUri
+      ? read.result
+      : 'loading';
+  useEffect(() => {
+    if (!fileUri || !importable) return;
+    let alive = true;
+    void files
+      .readUri(fileUri)
+      .then(
+        (bytes) =>
+          importOffice(bytes, officeExt) ?? { ok: false as const, error: 'notOffice' as const },
+      )
+      .then(
+        (result) => alive && setRead({ uri: fileUri, result }),
+        () => alive && setRead({ uri: fileUri, result: { ok: false, error: 'damaged' } }),
+      );
+    return () => {
+      alive = false;
+    };
+  }, [files, fileUri, officeExt, importable]);
   const shown = useMemo<DeskFile | null>(() => {
     if (!file || !info) return null;
     const ext = extOf(file.name);
@@ -180,6 +213,11 @@ export function FilePreviewScreen({ index }: { index?: number }) {
   /** 放到桌上改：第一次复制一份工作副本，原件和收到的这一批不动。返回回到这一页。 */
   async function edit() {
     if (busy) return;
+    // 设了密码的 docx / xlsx（D-509）：打不开，也就改不了，直接说。
+    if (office && office !== 'loading' && !office.ok && office.error === 'encrypted') {
+      setError(t(locale, 'officeLocked'));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -475,6 +513,7 @@ export function FilePreviewScreen({ index }: { index?: number }) {
               locale={locale}
               onSystemPreview={() => void systemPreview()}
               wordDoc={wordDoc}
+              office={office}
             />
           </View>
         </View>

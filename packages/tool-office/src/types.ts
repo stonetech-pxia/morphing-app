@@ -60,6 +60,8 @@ export interface TableBlock {
   /** 按行、列排好。 */
   cells: TableCell[];
   box: Box;
+  /** 写 xlsx 时格子不画边框（外来的 xlsx 读进来的表，D-509：原来的边框读不出来，也不给每一格加上）。 */
+  borderless?: boolean;
 }
 
 /** 表格外的一段文字（识别范围是「全部内容」时写进 xlsx，每段一行，横跨合并）。 */

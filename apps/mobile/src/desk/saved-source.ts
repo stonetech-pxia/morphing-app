@@ -55,7 +55,8 @@ export async function saveDeskFiles(
   );
   for (const [i, file] of list.entries()) {
     const assetId = saved[i]?.assetId;
-    if (!file.source || !assetId) continue;
+    // 从外来的 docx / xlsx 读出来的中间格式（D-509）不存：存下来的文件下次打开时再读一遍（只存一份，不变量 14）。
+    if (!file.source || file.source.imported || !assetId) continue;
     const source = await loadDeskSource(files, desk, file);
     if (!source) continue;
     await writeSavedSource(files, assetId, source, file.source.pagesWithoutTables);

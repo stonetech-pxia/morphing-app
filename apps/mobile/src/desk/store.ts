@@ -21,6 +21,8 @@ import {
   type RunValue,
 } from '@morph/core';
 import {
+  importOffice,
+  isImportableOffice,
   leafBlocks,
   pagesWithoutTables,
   parseDocDoc,
@@ -161,7 +163,7 @@ function checkSpace(files: Files, bytes: number) {
 
 /**
  * 放到桌上（收件页面的「放到桌上」）：每份复制一份工作副本，原件永远不动。
- * 收件那一批（分享扩展、选择器的副本）照旧由收件页面释放。
+ * 收件那一批（分享扩展、选择器的副本）照旧由收件页面释放。外来的 docx / xlsx 读成中间格式（D-509）。
  */
 export async function placeOnDesk(
   files: Files,
@@ -180,6 +182,7 @@ export async function placeOnDesk(
       const ext = cleanExt(extOf(f.name) || extOfMime(f.mimeType));
       const path = `v1-${i}.${ext}`;
       const size = await files.desk.copyIn(f.uri, `${deskId}/${path}`);
+      const source = await importedSource(files, deskId, path, ext, `v1-${i}`);
       placed.push({
         id: `f1-${i}`,
         name: baseName(f.name) || f.name,
@@ -189,6 +192,7 @@ export async function placeOnDesk(
         path,
         ...(f.width && f.height ? { width: f.width, height: f.height } : {}),
         ...(f.durationMs ? { durationMs: f.durationMs } : {}),
+        ...(source ? { source } : {}),
       });
     }
     const desk = newDesk(deskId, placed, now);
@@ -198,6 +202,45 @@ export async function placeOnDesk(
     await files.desk.removeDesk(deskId);
     throw error;
   }
+}
+
+/**
+ * 外来的 docx / xlsx（D-509）：从桌上的副本读出中间格式，桌上就是 Word / 表格编辑器（和转出来的一样）；
+ * 图片写进 assets/。读不了的（加了密码、坏了、太大）照旧只是一个文件（能看、能转 PDF）。
+ * 桌上的文件还是原件的副本，改了才重新生成。
+ */
+async function importedSource(
+  files: Files,
+  deskId: string,
+  path: string,
+  ext: string,
+  tag: string,
+): Promise<DeskSource | undefined> {
+  if (!isImportableOffice(ext)) return undefined;
+  let result;
+  try {
+    result = importOffice(await files.readUri(files.desk.uri(`${deskId}/${path}`)), ext);
+  } catch {
+    return undefined;
+  }
+  if (!result?.ok) return undefined;
+  const assets: DeskBlob[] = [];
+  let doc: TableDoc | DocDoc = result.doc;
+  if (result.kind === 'doc') {
+    const paths = new Map<string, string>();
+    for (const [k, [src, image]] of [...result.images].entries()) {
+      const rel = `assets/${tag}-${k}.${image.ext}`;
+      assets.push({
+        path: rel,
+        size: await files.desk.writeBytes(`${deskId}/${rel}`, image.bytes),
+      });
+      paths.set(src, rel);
+    }
+    doc = mapSourcePaths({ kind: 'doc', doc: result.doc }, (p) => paths.get(p) ?? '').doc;
+  }
+  const json = `${tag}.json`;
+  const size = await files.desk.writeText(`${deskId}/${json}`, JSON.stringify(doc));
+  return { kind: result.kind, path: json, size, assets, imported: 'original' };
 }
 
 /** 运行交回的文件放进桌面：桌面里原有的直接用，运行目录里的移进来，别的复制。 */
@@ -394,7 +437,8 @@ export async function deskPickedWithSources(
   return Promise.all(
     picked.map(async (p, i) => {
       const file = list[i]!;
-      if (file.source?.kind !== 'doc') return p;
+      // 外来的 Word 没改过（D-509）：照原件转，不按编辑页的版面。
+      if (file.source?.kind !== 'doc' || file.source.imported === 'original') return p;
       const source = await loadDeskSource(files, desk, file).catch(() => null);
       return source?.kind === 'doc' ? { ...p, docDoc: source.doc } : p;
     }),
@@ -501,7 +545,12 @@ async function docxImages(files: Files, desk: Desk, doc: DocDoc) {
       if (block.kind !== 'image' || !block.src || out.has(block.src)) continue;
       try {
         const uri = deskFileUri(files, desk, block.src);
-        out.set(block.src, { bytes: await files.readUri(uri), ...(await files.imageSize(uri)) });
+        const bytes = await files.readUri(uri);
+        // 量不出大小（外来的 docx 里的 GIF、BMP，D-509）时按它在文档里的大小定长宽比，图片照样写进去。
+        const size = await files
+          .imageSize(uri)
+          .catch(() => ({ width: block.box.width, height: block.box.height }));
+        out.set(block.src, { bytes, ...size });
       } catch {
         // 读不了的图片不写进文件。
       }
@@ -566,6 +615,8 @@ export async function commitEdit(
       size: jsonSize,
       assets: [...file.source.assets, ...added].filter((a) => used.has(a.path)),
       ...(missing.length ? { pagesWithoutTables: missing } : {}),
+      // 外来的文件改过了：这一版是重新生成的（D-509）。
+      ...(file.source.imported ? { imported: 'rebuilt' as const } : {}),
     },
   };
   const change = commitVersion(

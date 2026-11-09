@@ -27,6 +27,11 @@ export interface DeskSource extends DeskBlob {
   /** 识别范围是「仅表格内容」、但没找到带线的表格的页（转 Excel，从 1 开始）。 */
   pagesWithoutTables?: number[];
   assets: DeskBlob[];
+  /**
+   * 中间格式是从外来的 docx / xlsx 读出来的（D-509）：original 是桌上的文件还是原件的副本（没改过），
+   * rebuilt 是改过以后按中间格式重新生成的（原件的一些格式没了，第一次保存前告诉用户）。
+   */
+  imported?: 'original' | 'rebuilt';
 }
 
 /** 桌上的一份文件（某个版本里的样子）。 */

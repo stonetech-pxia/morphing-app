@@ -12,6 +12,7 @@ import {
   type DocTable,
 } from './doc';
 import { splitRuns } from './doc-runs';
+import { imageExt } from './docx-import';
 import { cleanXmlText } from './xlsx';
 
 // 写 docx（D-328）：自己写最少的 OOXML，用 fflate 的同步 API 打包（和写 xlsx 一样，D-272）。
@@ -545,7 +546,9 @@ export function writeDocx(
           const out = pageBreak() ? [paragraphXml('', {}, bodySize, { pageBreak: true })] : [];
           const n = media.length + 1;
           const rid = `rIdImg${n}`;
-          media.push({ name: `image${n}.jpg`, rid, bytes: image.bytes });
+          // 剪下来的是 JPG；外来的 docx 读进来的图片（D-509）也可能是 PNG、GIF、BMP，按文件开头认。
+          const ext = imageExt(image.bytes) ?? 'jpg';
+          media.push({ name: `image${n}.${ext}`, rid, bytes: image.bytes });
           // 大小按它在原图里占的宽度，放不下时等比缩小。
           let w = (block.box.width / page.width) * PAGE_W;
           let h = (w * image.height) / Math.max(1, image.width);
@@ -629,6 +632,9 @@ export function writeDocx(
         '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
         '<Default Extension="xml" ContentType="application/xml"/>' +
         '<Default Extension="jpg" ContentType="image/jpeg"/>' +
+        '<Default Extension="png" ContentType="image/png"/>' +
+        '<Default Extension="gif" ContentType="image/gif"/>' +
+        '<Default Extension="bmp" ContentType="image/bmp"/>' +
         '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
         '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
         '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' +
