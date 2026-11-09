@@ -787,7 +787,7 @@ export const fr: MessageTable = {
   draftApply: 'Appliquer',
   draftLeave: 'Quitter',
   draftLocked: 'Ceci est un brouillon. Appliquez-le pour l’utiliser.',
-  draftReplyTitle: 'C’est fait, voici le nouveau rendu',
+  draftReplyTitle: 'Aperçu : touchez « Appliquer » pour le garder',
   draftReplyHide: 'Masquer',
   draftReplyShow: 'Voir les modifications',
   draftChatTitle: 'Modifier le brouillon',
@@ -1429,6 +1429,7 @@ export const fr: MessageTable = {
   format_off_4b193: 'désactivé',
   format_report_25207: 'rapport',
   format_e_g_248d5: ' (par ex. {v0})',
+  format_choice: '{label} : {value}',
   format_your_text_6c667: '(votre texte)',
   ShareScreen_Shared_with_Morph_bb8fe: 'Partagé avec Tinkrum',
   ShareScreen_Morph_only_takes_files_photos_PDFs_and_91f45:

@@ -1,6 +1,6 @@
 import {
   calendarOf,
-  localize,
+  stepLabel,
   RunError,
   isFileValue,
   type AskedAnswer,
@@ -139,7 +139,7 @@ export function RunScreen({
   const label = (action: string, index: number) =>
     incoming && index === 0
       ? t(locale, 'shareInputStep', { n: incoming.files.length })
-      : (localize(registry.actions.get(action)?.label, locale) ?? action);
+      : (stepLabel(registry.actions.get(action), workflow.steps[index]?.params, locale) ?? action);
 
   const ui: LocalUi = {
     confirm: (title, ok, cancel, message) =>

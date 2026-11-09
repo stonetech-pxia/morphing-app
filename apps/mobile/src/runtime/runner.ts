@@ -2,7 +2,7 @@ import {
   HANDED_FILES_MAX,
   RunCancelled,
   RunError,
-  localize,
+  stepLabel,
   isFileValue,
   sanitizeFileName,
   ocrPackId,
@@ -125,11 +125,11 @@ async function keepAlive(ctx: RunContext) {
       const now = ctx.now().getTime();
       if (e.kind === 'progress' && now - notifiedAt < NOTIFY_MS) return;
       notifiedAt = now;
-      const action = workflow.steps[e.index]!.action;
+      const step = workflow.steps[e.index]!;
       const text = t(locale, 'bgStep', {
         n: e.index + 1,
         total: workflow.steps.length,
-        step: localize(registry.actions.get(action)?.label, locale) ?? action,
+        step: stepLabel(registry.actions.get(step.action), step.params, locale) ?? step.action,
       });
       if (e.kind === 'step' || e.total <= 0) {
         background.update(text, null);

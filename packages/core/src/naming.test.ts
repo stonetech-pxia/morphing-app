@@ -40,6 +40,15 @@ describe('name templates', () => {
     expect(renderNameTemplate('{sourceName}', { now, sourceName: '' })).toBe('untitled');
   });
 
+  // 2026-11-09 用户测试：模板「../../a/b:*?|x {date}」存成「..-..-a-b----x 2026-11-09.pdf」，
+  // 点开头的名字在「文件」App 里是隐藏文件。
+  it('never starts a name with a dot, and a run of bad characters becomes one dash', () => {
+    expect(renderNameTemplate('../../a/b:*?|x {date}', { now })).toBe('a-b-x 2026-10-22');
+    expect(renderNameTemplate('.hidden', { now })).toBe('hidden');
+    expect(renderNameTemplate('{sourceName}', { now, sourceName: '...' })).toBe('untitled');
+    expect(renderNameTemplate('v1.2 final', { now })).toBe('v1.2 final');
+  });
+
   it('never reuses an existing name', () => {
     expect(uniqueFileName('合并', 'pdf', [])).toBe('合并.pdf');
     expect(uniqueFileName('合并', 'pdf', ['合并.pdf', '合并-2.PDF'])).toBe('合并-3.pdf');

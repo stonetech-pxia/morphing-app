@@ -112,6 +112,12 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     id: 'in.photos',
     ai: 'Pictures from the Files app → source "files". To scan paper → source "scanner" followed by scan.detect (it passes pages from the document camera through and straightens camera photos on devices without one).',
     label: { en: 'Choose photos', zh: '选照片', fr: 'Choisir des photos' },
+    labelFor: (p) =>
+      p.source === 'camera'
+        ? { en: 'Take photos', zh: '拍照', fr: 'Prendre des photos' }
+        : p.source === 'scanner'
+          ? { en: 'Scan documents', zh: '扫描文档', fr: 'Numériser des documents' }
+          : undefined,
     description: {
       en: 'Pick photos from the library or from the Files app (pictures downloaded or sent from a computer), take them with the camera, or scan paper with the document camera (finds the edges, captures automatically, several pages, already straightened; where it is not available, the camera is used).',
       zh: '从相册或「文件」App 选照片（下载的、电脑传来的图片），用相机拍照，或用文档相机扫描纸张（自动找边、自动拍、可以多页、拍完已经拉正；没有文档相机的设备改用相机）。',

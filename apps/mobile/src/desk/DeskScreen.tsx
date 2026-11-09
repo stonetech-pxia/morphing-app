@@ -12,7 +12,7 @@ import {
   deskToolbar,
   deskToolWorkflow,
   initialParams,
-  localize,
+  stepLabel,
   quickActionsOf,
   resolveDeskLayout,
   type RunEvent,
@@ -245,7 +245,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
   }
 
   const label = (step: Workflow['steps'][number]) =>
-    localize(registry.actions.get(step.action)?.label, locale) ?? step.action;
+    stepLabel(registry.actions.get(step.action), step.params, locale) ?? step.action;
 
   async function run(workflow: Workflow, by: DeskStep, on: readonly DeskFile[]) {
     const current = deskRef.current;

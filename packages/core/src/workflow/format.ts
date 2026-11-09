@@ -63,7 +63,24 @@ export function describeParams(
       parts.push(localize(field.zeroMeans, locale));
       continue;
     }
-    parts.push(`${localize(field.label, locale)} ${formatParamValue(field, value, locale, now)}`);
+    const label = localize(field.label, locale);
+    const shown = formatParamValue(field, value, locale, now);
+    // 选项的名字自成一句（「Ask me」），接在标签后面要加冒号，不然读成半句话。
+    parts.push(
+      field.kind === 'choice'
+        ? t(locale, 'format_choice', { label, value: shown })
+        : `${label} ${shown}`,
+    );
   }
   return parts.join(t(locale, 'separatorList'));
+}
+
+/** 步骤在列表里的名字：动作可以按参数换说法（选照片的来源是相机时叫「拍照」）。 */
+export function stepLabel(
+  action: ActionDefinition | undefined,
+  params: Record<string, unknown> | undefined,
+  locale: Locale,
+): string | undefined {
+  if (!action) return undefined;
+  return localize((params && action.labelFor?.(params)) ?? action.label, locale);
 }

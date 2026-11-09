@@ -72,11 +72,15 @@ function formatDate(format: string, d: Date): string {
   });
 }
 
-/** 去掉文件系统不允许的字符。 */
+/**
+ * 去掉文件系统不允许的字符：连着的几个换成一个连接符；开头的点和连接符去掉
+ * （点开头在「文件」App 里是隐藏文件，「../」换完只剩一串点和连接符）。
+ */
 export function sanitizeFileName(name: string): string {
   const cleaned = name
-    .replace(/[/\\:*?"<>|\u0000-\u001f]/g, '-')
+    .replace(/[/\\:*?"<>|\u0000-\u001f]+/g, '-')
     .replace(/\s+/g, ' ')
+    .replace(/^[\s.-]+/, '')
     .trim();
   return cleaned.slice(0, MAX_NAME_LENGTH) || 'untitled';
 }

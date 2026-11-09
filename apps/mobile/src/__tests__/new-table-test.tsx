@@ -144,6 +144,52 @@ describe('新建表单页', () => {
     expect(screen.getByTestId('new-table-name').props.value).toBe('My entries');
   });
 
+  // 2026-11-09 用户测试：规则已经说「This looks like “Receipts”」，点「Use this」后
+  // 又冒出「下载本机模型来判断这是什么文件」。类型定了，这句就不再出现。
+  describe('模型没下载、可以下载', () => {
+    beforeEach(() => {
+      process.env.EXPO_PUBLIC_MORPH_PACKS_URL = 'https://packs.test';
+    });
+    afterEach(() => {
+      delete process.env.EXPO_PUBLIC_MORPH_PACKS_URL;
+    });
+    const receipt = () => [
+      {
+        width: 600,
+        height: 300,
+        lines: ['Maple Corner', 'Subtotal 165.03', 'Tax 13.20', 'Total 178.23'].map((text, i) => ({
+          text,
+          x: 20,
+          y: 20 + i * 40,
+          width: 200,
+          height: 20,
+        })),
+      },
+    ];
+
+    it('没有推荐时提议下载模型', async () => {
+      await setup(['ppocr']);
+      expect(await screen.findByTestId('new-table-model-need')).toBeTruthy();
+    });
+
+    it('点了规则推荐的类型：不再提议下载模型', async () => {
+      await setup(['ppocr'], undefined, receipt());
+      expect(await screen.findByTestId('new-table-recommend')).toBeTruthy();
+      expect(screen.queryByTestId('new-table-model-need')).toBeNull();
+      await fireEvent.press(screen.getByTestId('new-table-use'));
+      expect(screen.queryByTestId('new-table-recommend')).toBeNull();
+      expect(screen.queryByTestId('new-table-model-need')).toBeNull();
+    });
+
+    it('自己选了类型：不再提议下载模型', async () => {
+      await setup(['ppocr']);
+      expect(await screen.findByTestId('new-table-model-need')).toBeTruthy();
+      await fireEvent.press(screen.getByTestId('new-table-change-type'));
+      await fireEvent.press(screen.getByTestId('new-table-type-insurance'));
+      expect(screen.queryByTestId('new-table-model-need')).toBeNull();
+    });
+  });
+
   it('文件里的字段名多：先显示前四个，「展开」看全部，「收起」回去', async () => {
     const labels = ['Insurer', 'Policy number', 'Holder', 'Premium', 'Agent', 'Broker'];
     const lines = labels.map((name, i) => ({

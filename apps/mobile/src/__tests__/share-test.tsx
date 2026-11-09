@@ -570,6 +570,22 @@ describe('share journeys (UI)', () => {
     expect(app.files.shared).toHaveLength(0);
   });
 
+  // 2026-11-09 用户测试：「扫描成 PDF」第一步叫「Choose photos」，停下时却说相机用不了。
+  it('the run page names the first step after where the photos come from', async () => {
+    const app = await renderToolsApp(undefined, undefined, { locale: 'en' });
+    app.files.cameraAvailable = false;
+    await app.store
+      .getState()
+      .proposeOps([{ op: 'addTool', tool: photoPdf('scan-pdf', 'scanner') }], 'prepare');
+    await act(() => app.store.getState().confirm());
+    await act(() =>
+      router.push({ pathname: '/run/[workflowId]', params: { workflowId: 'scan-pdf' } }),
+    );
+    expect(await screen.findByText('Stopped at step 1', {}, { timeout: 5000 })).toBeTruthy();
+    expect(screen.getByText('Scan documents')).toBeTruthy();
+    expect(screen.queryByText('Choose photos')).toBeNull();
+  });
+
   it('a run where the person picks the photo inside it keeps its result page (D-457)', async () => {
     const app = await renderToolsApp();
     await app.store

@@ -744,7 +744,7 @@ export const en = {
   draftApply: 'Apply',
   draftLeave: 'Leave',
   draftLocked: 'This is a draft. Apply it to use this.',
-  draftReplyTitle: 'Done. This is how it looks now',
+  draftReplyTitle: 'Preview. Tap Apply to keep it',
   draftReplyHide: 'Hide',
   draftReplyShow: 'Show changes',
   draftChatTitle: 'Change the draft',
@@ -1361,6 +1361,7 @@ export const en = {
   format_off_4b193: 'off',
   format_report_25207: 'report',
   format_e_g_248d5: ' (e.g. {v0})',
+  format_choice: '{label}: {value}',
   format_your_text_6c667: '(your text)',
   ShareScreen_Shared_with_Morph_bb8fe: 'Shared with Tinkrum',
   ShareScreen_Morph_only_takes_files_photos_PDFs_and_91f45:

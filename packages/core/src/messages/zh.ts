@@ -699,7 +699,7 @@ export const zh: MessageTable = {
   draftApply: '应用',
   draftLeave: '离开',
   draftLocked: '这是草稿，应用之后才能用。',
-  draftReplyTitle: '改好了，这是改完后的样子',
+  draftReplyTitle: '预览：点「应用」才会生效',
   draftReplyHide: '收起',
   draftReplyShow: '看修改内容',
   draftChatTitle: '修改草稿',
@@ -1289,6 +1289,7 @@ export const zh: MessageTable = {
   format_off_4b193: '关',
   format_report_25207: '报告',
   format_e_g_248d5: '（例如 {v0}）',
+  format_choice: '{label}：{value}',
   format_your_text_6c667: '（你写的文字）',
   ShareScreen_Shared_with_Morph_bb8fe: '分享到 Tinkrum',
   ShareScreen_Morph_only_takes_files_photos_PDFs_and_91f45:

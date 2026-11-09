@@ -21,7 +21,7 @@ describe('tool journeys (UI)', () => {
     // 工具页的功能排成宫格，整块可点，没有单独的「开始」按钮（D-108）。
     // 方块上显示固定的设置；每次运行时问的大小不列出。
     expect(await screen.findByText('压缩图片')).toBeTruthy();
-    expect(screen.getByText('格式 JPG')).toBeTruthy();
+    expect(screen.getByText('格式：JPG')).toBeTruthy();
     expect(screen.queryAllByText('开始')).toEqual([]);
 
     files.nextPhotos = [

@@ -1,4 +1,4 @@
-import { findWorkflow, findWorkflowTarget, localize, quickActionsOf } from '@morph/core';
+import { findWorkflow, findWorkflowTarget, stepLabel, quickActionsOf } from '@morph/core';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { ScrollView, Text } from 'react-native';
 
@@ -49,7 +49,7 @@ export default function ReminderRoute() {
             </Text>
             {workflow.steps.map((step, i) => (
               <Text key={step.id} style={body}>
-                {`${i + 1}. ${localize(registry.actions.get(step.action)?.label, locale) ?? step.action}`}
+                {`${i + 1}. ${stepLabel(registry.actions.get(step.action), step.params, locale) ?? step.action}`}
               </Text>
             ))}
           </Card>

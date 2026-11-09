@@ -156,6 +156,8 @@ export type OutputSpec = ValueType | 'same' | ((params: Record<string, unknown>)
 export interface ActionDefinition {
   id: string;
   label: Localized;
+  /** 步骤按参数换的名字（来源是相机时「选照片」改叫「拍照」）；不写或返回 undefined 时用 label。 */
+  labelFor?: (params: Record<string, unknown>) => Localized | undefined;
   /** 一句话说明，显示在动作选择器里，也发给 AI。 */
   description: Localized;
   /** 接受的输入类型；空数组表示输入动作（只能是第一步）。 */

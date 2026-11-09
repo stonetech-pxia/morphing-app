@@ -96,8 +96,9 @@ export function PeriodBar({ block, env }: { block: BlockOf<'period'>; env: Rende
   return (
     <View style={styles.wrap}>
       <View style={styles.row}>
+        {/* 正在选自定义日期时只亮「自定义」，不然两个一起亮。 */}
         {block.show.options.map((p) =>
-          chip(p, t(locale, LABELS[p]), 'period' in choice && choice.period === p, () =>
+          chip(p, t(locale, LABELS[p]), !editing && 'period' in choice && choice.period === p, () =>
             state?.set({ period: p }),
           ),
         )}
