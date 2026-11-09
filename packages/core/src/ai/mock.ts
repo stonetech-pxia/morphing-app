@@ -1966,7 +1966,7 @@ export function createMockAIProvider(): AIProvider {
       // 「我想要记录收据 / 我想要存名片」两个标签填进输入框的句子：直接套整套样板，不看别的规则、不问模型。
       const wanted = WANT_SAMPLES.find(([key]) => input.trim() === t(uiLocale, key));
       if (wanted) {
-        const result = sampleOps(wanted[1], ctx.config, uiLocale);
+        const result = sampleOps(wanted[1], ctx.config, uiLocale, ctx.scope?.appId);
         if (result.ok) return { kind: 'ops', ops: result.ops };
         return { kind: 'reject', reason: 'unknown', message: result.message, examples: [] };
       }

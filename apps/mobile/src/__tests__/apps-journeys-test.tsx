@@ -1,4 +1,4 @@
-import { applyOps, type AIProvider, type Op } from '@morph/core';
+import { THEME_PRESETS, applyOps, type AIProvider, type Op } from '@morph/core';
 import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
@@ -179,24 +179,93 @@ describe('apps (UI)', () => {
   it('inside an app Tink cannot change the home; the same change from the home works', async () => {
     const { store } = await start();
     await screen.findByTestId('nav-settings');
+    // 没写 app 的风格在 app 里是这个 app 的风格（opsForApp）；主页的页面在 app 里改不了。
     const homeChange = planning([
       { op: 'addData', table } as never,
-      { op: 'setTheme', primaryColor: '#ff0000' },
+      {
+        op: 'addContainer',
+        page: 'home',
+        block: { id: 'hi', look: 'text', show: { text: 'hi' } } as never,
+      },
     ]);
+    const hasHi = () =>
+      store
+        .getState()
+        .config!.containers.pages.find((p) => p.id === 'home')!
+        .blocks.some((b) => b.id === 'hi');
     await act(async () => store.getState().enterApp('fit'));
     let result;
     await act(async () => {
-      result = await store.getState().change('红色', homeChange);
+      result = await store.getState().change('首页加一句话', homeChange);
     });
     expect(result).toMatchObject({ kind: 'invalid' });
     expect(store.getState().config!.data.tables.some((t) => t.id === 'logs')).toBe(false);
-    expect(store.getState().config!.theme.primaryColor).not.toBe('#ff0000');
+    expect(hasHi()).toBe(false);
     await act(async () => store.getState().leaveApp());
     await act(async () => {
-      result = await store.getState().change('红色', homeChange);
+      result = await store.getState().change('首页加一句话', homeChange);
     });
     expect(result).not.toMatchObject({ kind: 'invalid' });
     expect(store.getState().config!.data.tables.some((t) => t.id === 'logs')).toBe(true);
+  });
+
+  // 创始人 2026-11-08 在手机上：子 App 的 Tink 页「选风格」和两个预设句子都被「超出范围」拦下。
+  it('inside an app, Pick a style changes the app style, not the home style', async () => {
+    const { store } = await start();
+    await screen.findByTestId('nav-settings');
+    const homeTheme = store.getState().config!.theme;
+    await act(async () => store.getState().enterApp('fit'));
+    await fireEvent.press(await screen.findByTestId('nav-ai'));
+    await fireEvent.press(await screen.findByTestId('change-pick-style'));
+    await fireEvent.press(await screen.findByTestId('style-material'));
+    await fireEvent.press(await screen.findByTestId('draft-apply'));
+    await waitFor(() =>
+      expect(store.getState().config!.nav.apps!.find((a) => a.id === 'fit')!.theme).toEqual(
+        THEME_PRESETS.material.theme,
+      ),
+    );
+    expect(store.getState().config!.theme).toEqual(homeTheme);
+    // 草稿和应用以后都还在这个 app 里（风格的修改不带页面，不能回落到主页）。
+    expect(store.getState().appId).toBe('fit');
+    // 再打开选风格：标出的是这个 app 现在的风格。
+    await fireEvent.press(await screen.findByTestId('nav-ai'));
+    await fireEvent.press(await screen.findByTestId('change-pick-style'));
+    expect((await screen.findByTestId('style-material')).props.accessibilityState.selected).toBe(
+      true,
+    );
+  });
+
+  it.each([
+    ['change-want-receipts', 'receipts'],
+    ['change-want-cards', 'contacts'],
+  ])('inside an app, %s builds the sample inside the app', async (id, tableId) => {
+    const { store } = await start();
+    await screen.findByTestId('nav-settings');
+    const before = store.getState().config!;
+    await act(async () => store.getState().enterApp('fit'));
+    await fireEvent.press(await screen.findByTestId('nav-ai'));
+    await fireEvent.press(await screen.findByTestId(id));
+    await fireEvent.press(screen.getByTestId('change-submit'));
+    await waitFor(() =>
+      expect(store.getState().config!.data.tables.find((t) => t.id === tableId)?.app).toBe('fit'),
+    );
+    expect(screen.queryByTestId('change-feedback')).toBeNull();
+    // 页面在草稿里：应用草稿后都属于这个 app，主页面进了 app 的底栏，主页没动。
+    await fireEvent.press(await screen.findByTestId('draft-apply'));
+    await waitFor(() => expect(store.getState().draft).toBeNull());
+    const after = store.getState().config!;
+    const added = after.containers.pages.filter(
+      (p) => !before.containers.pages.some((o) => o.id === p.id),
+    );
+    expect(added.length).toBeGreaterThan(0);
+    for (const page of added) expect(page.app).toBe('fit');
+    for (const tool of after.tools.filter((x) => !before.tools.some((o) => o.id === x.id)))
+      expect(tool.app).toBe('fit');
+    expect(after.nav.apps!.find((a) => a.id === 'fit')!.bar).toHaveLength(4);
+    expect(after.nav.bar).toEqual(before.nav.bar);
+    expect(after.containers.pages.find((p) => p.id === 'home')).toEqual(
+      before.containers.pages.find((p) => p.id === 'home'),
+    );
   });
 
   // 桌面菜单里的 App 和深链接（D-485）。

@@ -1,7 +1,10 @@
 import {
   addedToHomeScreen,
   allComponents,
+  appViewOf,
+  firstTarget,
   isKnownComponent,
+  pageIdOf,
   prepareSnapshot,
   quickActionsOf,
   type Locale,
@@ -50,6 +53,11 @@ export interface Kernel {
 
 export function focusPage(ops: readonly Op[], config: WorkspaceConfig): string {
   for (const op of ops) {
+    // 改一个 app 的风格、底栏（D-485）：看这个 app 的第一页，不回主页。
+    const app =
+      op.op === 'setTheme' ? op.app : op.op === 'updateContainer' ? op.app?.id : undefined;
+    const first = app === undefined ? null : pageIdOf(firstTarget(appViewOf(config, app)));
+    if (first !== null) return first;
     if ('page' in op && typeof op.page === 'string') return op.page;
     if ('page' in op && op.page && typeof op.page === 'object') return op.page.id;
     if ('tool' in op) {

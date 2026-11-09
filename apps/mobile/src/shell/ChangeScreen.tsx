@@ -100,13 +100,12 @@ export function ChangeScreen() {
   const openDraft = useWorkspace((s) => s.openDraft);
   const deleteDraft = useWorkspace((s) => s.deleteDraft);
   const showInShell = useWorkspace((s) => s.showInShell);
-  // 在 App 里打开 Tink 页就用这个 App 的风格（D-485）。
-  const palette = usePalette(
-    appViewOf(
-      config,
-      useWorkspace((s) => s.appId),
-    ).theme,
-  );
+  // 在 App 里打开 Tink 页就用这个 App 的风格（D-485）；风格选择器也标这个 App 现在的风格。
+  const theme = appViewOf(
+    config,
+    useWorkspace((s) => s.appId),
+  ).theme;
+  const palette = usePalette(theme);
   const aiMode = useAISettings((s) => s.mode);
   // 从一个快捷操作（「让 AI 改这个」）或收件页面打开时带上的上下文（D-124）。
   const params = useLocalSearchParams<{
@@ -728,7 +727,7 @@ export function ChangeScreen() {
           </Text>
           <StylePicker
             locale={locale}
-            current={presetOfTheme(config.theme)}
+            current={presetOfTheme(theme)}
             palette={palette}
             onPick={pickStyle}
           />

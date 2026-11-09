@@ -1,3 +1,4 @@
+import type { Op } from './ops-schema';
 import type { Registry } from './registry';
 import { referenceProblems } from './reference-checks';
 import type { WorkspaceConfig } from './schema';
@@ -29,6 +30,29 @@ export function tagNewForApp(before: WorkspaceConfig, after: WorkspaceConfig, ap
       !tool.package
     )
       tool.app = appId;
+}
+
+/**
+ * 在这个 app 里说的话（D-485）：没写 app 的风格改这个 app 的风格（主页风格在 app 里本来就不能改），
+ * 新加的页面、表、快捷操作没写 app 的属于这个 app。写进操作里，而不只是改结果：草稿重新套用时不带范围。
+ */
+export function opsForApp(ops: readonly Op[], appId: string): Op[] {
+  return ops.map((op): Op => {
+    if (op.op === 'setTheme' && op.app === undefined) return { ...op, app: appId };
+    // 操作里新加的页面、快捷操作不会是工具包的（ops-schema 去掉了 package）。
+    if (op.op === 'addContainer' && typeof op.page === 'object' && op.page.app === undefined)
+      return { ...op, page: { ...op.page, app: appId } };
+    if (op.op === 'addData' && typeof op.table === 'object' && op.table.app === undefined)
+      return { ...op, table: { ...op.table, app: appId } };
+    if (
+      op.op === 'addTool' &&
+      typeof op.tool === 'object' &&
+      op.tool.kind === 'quickAction' &&
+      op.tool.app === undefined
+    )
+      return { ...op, tool: { ...op.tool, app: appId } };
+    return op;
+  });
 }
 
 /** 剔掉这个 app 的东西。 */

@@ -4,6 +4,7 @@ import {
   fixRequest,
   functionFirst,
   homeEntryOps,
+  opsForApp,
   planSession,
   prepareOps,
   splitDraftOnlyOps,
@@ -213,7 +214,11 @@ export function createAIChange(
         await notDone('the reply was not valid', msg('sessionInvalid'));
         return { kind: 'invalid', issues: parsed.error.issues.map((i) => i.message) };
       }
-      const plan = parsed.data;
+      // 在 app 里（D-485）：没写 app 的风格、新页面、表、快捷操作都是这个 app 的，写进操作里（草稿重新套用不带范围）。
+      const plan =
+        appId && parsed.data.kind === 'ops'
+          ? { ...parsed.data, ops: opsForApp(parsed.data.ops, appId) }
+          : parsed.data;
       if (plan.kind === 'build') {
         // 已经在做计划的一步了：不能再出一份（规划器已经发回去过一次，别的 AI 也可能这样）。
         if (stepTurn) {

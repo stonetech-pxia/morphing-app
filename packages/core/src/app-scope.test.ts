@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
+import { opsForApp } from './app-scope';
 import { prepareOps, type ChangeContext } from './change';
 import type { Op } from './ops';
 import { applyOps } from './ops';
+import { THEME_PRESETS } from './presets';
+import { sampleOps } from './samples';
 import type { WorkspaceConfig } from './schema';
 import { createStarterWorkspace } from './starter';
 import { registry } from './test-helpers';
@@ -191,4 +194,79 @@ describe('app 范围（D-485）', () => {
     if (result.ok)
       expect(result.after.nav.apps!.find((a) => a.id === 'fit')!.bar).toContain('page:fit-log');
   });
+
+  // 创始人 2026-11-08 在子 App 里点「选风格」、两个预设句子都被拦下：内置规则写的风格没写 app（成了主页风格），
+  // 样板往主页底栏加入口。
+  it('inside an app, a style without "app" is this app\'s style', () => {
+    const config = world();
+    const ops = opsForApp([{ op: 'setTheme', preset: 'material' }], 'fit');
+    const result = prepareOps(config, ops, ctx('fit'));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.after.nav.apps!.find((a) => a.id === 'fit')!.theme).toEqual(
+      THEME_PRESETS.material.theme,
+    );
+    expect(result.after.theme).toEqual(config.theme);
+    // 写了别的 app 的照样拒绝。
+    expect(
+      issuesOf(
+        config,
+        opsForApp([{ op: 'setTheme', app: 'cook', preset: 'material' }], 'fit'),
+        'fit',
+      ),
+    ).not.toEqual([]);
+  });
+
+  it('writes the app into new pages, tables and quick actions, so replaying them without the scope keeps them in the app', () => {
+    const config = world();
+    const ops = opsForApp(
+      [
+        { op: 'addData', table: table('plans') } as never,
+        { op: 'addContainer', page: { id: 'fit-plan', title: 'Plan', blocks: [] } },
+      ],
+      'fit',
+    );
+    // 草稿重新套用时不带范围（draft.ts rebaseDraft）。
+    const replayed = prepareOps(config, ops, ctx());
+    expect(replayed.ok).toBe(true);
+    if (!replayed.ok) return;
+    expect(replayed.after.data.tables.find((t) => t.id === 'plans')!.app).toBe('fit');
+    expect(replayed.after.containers.pages.find((p) => p.id === 'fit-plan')!.app).toBe('fit');
+    expect(replayed.after.containers.pages.find((p) => p.id === 'home')).toEqual(
+      config.containers.pages.find((p) => p.id === 'home'),
+    );
+  });
+
+  it.each(['receipts', 'business-cards'] as const)(
+    'the %s sample made inside an app belongs to the app and leaves the home alone',
+    (sample) => {
+      const config = world();
+      const made = sampleOps(sample, config, 'en', 'fit');
+      expect(made.ok).toBe(true);
+      if (!made.ok) return;
+      const result = prepareOps(config, opsForApp(made.ops, 'fit'), ctx('fit'));
+      expect(result.ok ? [] : result.issues).toEqual([]);
+      if (!result.ok) return;
+      const after = result.after;
+      const isNew = <T extends { id: string }>(list: readonly T[], old: readonly T[]) =>
+        list.filter((x) => !old.some((o) => o.id === x.id));
+      const pages = isNew(after.containers.pages, config.containers.pages);
+      const tables = isNew(after.data.tables, config.data.tables);
+      const tools = isNew(after.tools, config.tools);
+      expect(pages.length).toBeGreaterThan(0);
+      expect(tables.length).toBeGreaterThan(0);
+      expect(tools.length).toBeGreaterThan(0);
+      for (const thing of [...pages, ...tables, ...tools]) expect(thing.app).toBe('fit');
+      // 主页面进了这个 app 的底栏（Tink 之前）；主页底栏、首页都没动。
+      expect(after.nav.apps!.find((a) => a.id === 'fit')!.bar).toEqual([
+        'page:fit-home',
+        `page:${made.mainPageId}`,
+        'ai',
+      ]);
+      expect(after.nav.bar).toEqual(config.nav.bar);
+      expect(after.containers.pages.find((p) => p.id === 'home')).toEqual(
+        config.containers.pages.find((p) => p.id === 'home'),
+      );
+    },
+  );
 });

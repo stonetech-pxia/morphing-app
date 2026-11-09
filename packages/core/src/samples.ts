@@ -150,17 +150,21 @@ function uniqueId(base: string, taken: Set<string>): string {
 /**
  * 把一个样板换成一组修改操作：按当前配置换成不重复的 ID、引用跟着换、给主页面一个入口。
  * 表、页面、快捷操作、提醒或首页放不下时不套用，返回原因（给用户看的一句话）。
+ * appId：在这个 app 里做（D-485）：不碰主页的底栏和首页，主页面由 prepareOps 放进这个 app 的底栏
+ * （addMissingPageEntries）；页面、表、快捷操作归这个 app 由调用的地方写（opsForApp）。
  */
 export function sampleOps(
   sample: SampleApp,
   config: WorkspaceConfig,
   locale: Locale,
+  appId?: string,
 ): SampleResult {
   const json = SAMPLES[sample];
   const name = localize(json.name, locale);
   const pages = config.containers.pages;
-  const home = pages.find((p) => p.id === HOME_PAGE_ID);
-  const homeCount = (json.home?.length ?? 0) + (config.nav.bar.length < 5 ? 0 : 1);
+  const home = appId === undefined ? pages.find((p) => p.id === HOME_PAGE_ID) : undefined;
+  const homeCount =
+    appId === undefined ? (json.home?.length ?? 0) + (config.nav.bar.length < 5 ? 0 : 1) : 0;
   const sampleReminders = json.tools.filter(isReminderJson) as unknown as Reminder[];
   const byEntry = (list: readonly Reminder[]) => list.filter((r) => 'each' in r.when).length;
   const reminders = remindersOf(config);
@@ -240,7 +244,8 @@ export function sampleOps(
   const main = ops.find(
     (op): op is AddPage => op.op === 'addContainer' && isNewPage(op) && op.page.id === mainPageId,
   )!;
-  ops.push(...entryOps(config, mainPageId, main.page.title, main.page.icon));
+  if (appId === undefined)
+    ops.push(...entryOps(config, mainPageId, main.page.title, main.page.icon));
 
   if (json.home?.length && home) {
     const used = new Set([
