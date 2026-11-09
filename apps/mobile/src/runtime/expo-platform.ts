@@ -40,11 +40,10 @@ import type { FilePlatform, ImageFormat, PickedFile } from './platform';
 import { composeOnSurface, enhanceJpeg, pixelsOf, renderTextPng } from './skia';
 import { createSpeech } from './speech';
 import { createSpeaker } from './expo-tts';
-import { expoPackFs, expoSha256 } from '../packs/expo-pack-fs';
-import { PackStore } from '../packs/store';
+import { expoPackFs, expoPackStore } from '../packs/expo-pack-fs';
 
-/** 只用来找语音模型的文件（下载由 App 根布局的 PackStore 负责，D-064）。 */
-const speechPacks = new PackStore(expoPackFs, expoSha256);
+/** 只用来找语音模型的文件（下载由 App 根布局负责，D-064）；和根布局是同一个（D-510）。 */
+const speechPacks = expoPackStore;
 
 // FilePlatform 的 Expo 实现。用户文件存放在 App 文档目录的 assets/<id>/<文件名>，
 // 数据库只保存相对路径，与配置版本完全分开（§7G）。

@@ -1,9 +1,11 @@
 import {
   BUILTIN_TOOLS,
+  PREFILL_MODEL_PACK,
   allComponents,
   createMockAIProvider,
   createRegistry,
   createStarterWorkspace,
+  packDownloadSize,
 } from '@morph/core';
 import { act, fireEvent, waitFor, within } from '@testing-library/react-native';
 import { screen } from 'expo-router/testing-library';
@@ -67,6 +69,38 @@ describe('first-run guide', () => {
     await fireEvent.press(screen.getByTestId('welcome-next'));
     expect(await screen.findByTestId('guide-look')).toHaveTextContent(/空荡荡/);
     expect(await repo.getMeta('guide')).toBe('look');
+  });
+
+  // D-510：说「只在手机上处理」的第一页同时说清楚以后还会下载什么、什么时候下载，官网照这句写。
+  it.each([
+    [
+      'en',
+      'File tools are built in and work offline. Extras, such as the on-device model that helps fill in forms (about 1.2 GB), download only when you first use them. Wi-Fi recommended.',
+    ],
+    [
+      'zh',
+      '文件工具已经内置，不联网也能用。帮你填表的本机模型（约 1.2 GB）等额外内容，第一次用到时才下载，建议连 Wi-Fi。',
+    ],
+    [
+      'fr',
+      'Les outils pour les fichiers sont intégrés et fonctionnent hors connexion. Les extras, comme le modèle sur l’appareil qui aide à remplir les formulaires (environ 1,2\u202fGo), ne se téléchargent qu’à la première utilisation. Wi-Fi conseillé.',
+    ],
+  ] as const)(
+    'the first intro page says what still downloads later (%s, D-510)',
+    async (locale, note) => {
+      const repo = new MemoryWorkspaceRepo();
+      await act(() => useGuide.getState().load(repo));
+      await renderToolsApp(repo, new FakeFiles(), { locale });
+      expect(await screen.findByTestId('welcome-note-0')).toHaveTextContent(note);
+      // 只说一次：别的页面没有。
+      expect(screen.queryByTestId('welcome-note-1')).toBeNull();
+      expect(screen.queryByTestId('welcome-note-2')).toBeNull();
+    },
+  );
+
+  it('the model size in the intro matches the download (D-510)', () => {
+    const gb = Math.round((packDownloadSize(PREFILL_MODEL_PACK) / 1024 ** 3) * 10) / 10;
+    expect(gb).toBe(1.2);
   });
 
   const filePicks = (store: Awaited<ReturnType<typeof startGuide>>['store']) =>

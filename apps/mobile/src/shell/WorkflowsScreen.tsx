@@ -18,6 +18,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
+import { usePacks } from '../packs/PackHost';
 import { UiIcon, type UiIconName } from '../renderer/Icon';
 import { mimeOf } from '../runtime/actions/helpers';
 import { useIncoming, releaseShare } from '../share/incoming';
@@ -72,6 +73,20 @@ export function WorkflowsScreen({
     [files, shared],
   );
   const [usage, setUsage] = useState<SucceededRuns>(new Map());
+  // 已经装好的扩展包，包括随 App 打包的（D-510）：用到它们的内设不再写「首次使用需要下载」。读出来之前先不写。
+  const packs = usePacks();
+  const [havePacks, setHavePacks] = useState<ReadonlySet<string> | null>(packs ? null : new Set());
+  useEffect(() => {
+    if (!packs) return;
+    let alive = true;
+    void packs.store
+      .installed()
+      .then((list) => alive && setHavePacks(new Set(list.map((p) => p.id))))
+      .catch(() => alive && setHavePacks(new Set()));
+    return () => {
+      alive = false;
+    };
+  }, [packs]);
   useFocusEffect(
     useCallback(() => {
       handed.current = false;
@@ -144,7 +159,10 @@ export function WorkflowsScreen({
     // 内设的有一句说明，就不再列步骤（说明里已经讲了这几步）。
     const description = preset && localize(preset.description, locale);
     // iOS 用系统的识别和扫描，不需要扫描包和文字识别包（D-084）。
-    const needsDownload = preset && packsNeeded(preset.packs ?? [], files).length > 0;
+    const needsDownload =
+      preset &&
+      havePacks !== null &&
+      packsNeeded(preset.packs ?? [], files).some((id) => !havePacks.has(id));
     return (
       <Card key={wf.id} palette={palette} testID={`workflow-${wf.id}`}>
         <View style={styles.cardRow}>

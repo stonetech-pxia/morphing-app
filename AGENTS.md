@@ -104,7 +104,8 @@ The original product handoff document was deleted on 2026-11-08; the parts that 
 - **Building a release build** (it does not depend on Metro; the JS is fixed at build time):
 
   ```bash
-  cd apps/mobile && npx expo prebuild --platform android --no-install
+  cd apps/mobile && EXPO_PUBLIC_MORPH_PACKS_URL=https://morph-tools.stonetech.dev/packs \
+    npx expo prebuild --platform android --no-install
   cd android && EXPO_PUBLIC_MORPH_API_URL=https://morph-api.stonetech.dev \
     EXPO_PUBLIC_MORPH_TOOLS_URL=https://morph-tools.stonetech.dev \
     EXPO_PUBLIC_MORPH_PACKS_URL=https://morph-tools.stonetech.dev/packs \
@@ -113,7 +114,7 @@ The original product handoff document was deleted on 2026-11-08; the parts that 
   adb -s <serial> install -r app/build/outputs/apk/release/app-release.apk
   ```
 
-  All four environment variables are baked into the app. If one is missing, AI, tool downloads or scan flattening (D-274; when `PACKS_URL` is missing, scanning does not offer to download the flattening model, and pages still scan but are not flattened) will not work on the phone, and neither the simulator nor unit tests will notice. The token is not a secret (D-132), but do not print it into logs.
+  All four environment variables are baked into the app. If one is missing, AI, tool downloads or scan flattening (D-274; when `PACKS_URL` is missing, scanning does not offer to download the flattening model, and pages still scan but are not flattened) will not work on the phone, and neither the simulator nor unit tests will notice. The token is not a secret (D-132), but do not print it into logs. Prebuild also puts the bundled file packs into the app (D-510, `plugins/with-bundled-packs.js`, cached in `node_modules/.cache/morph-bundled-packs`); without `PACKS_URL` at prebuild it leaves out flattening and layout, and the app offers them as a download again.
 
 - adb quirks: inside the command sandbox the adb server crashes, so run `adb nodaemon server` in the background outside the sandbox. When other sessions also use adb, switch to another port (`ANDROID_ADB_SERVER_PORT=5038`). Give every command `-s <serial>`, and retry on failure. When `adb devices` shows offline (usb_read e00002eb), the only fixes are to replug the cable, or to turn USB debugging off and on again on the phone.
 - After installing, open the app once and confirm it starts and AI changes work. Then write down in the report and in the project memory which branch and which commit is on the phone now, and where the backup is.

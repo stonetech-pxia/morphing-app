@@ -316,7 +316,7 @@ export const zh: MessageTable = {
   packsTitle: '已下载内容',
   packsRowHint: '下载过的内容和占用空间',
   packsHint:
-    '有些功能（拉正照片、更多语言的文字识别、PDF 预览）第一次用时要下载一些内容，之后不联网也能用。',
+    '文字识别、PDF 预览、页面展平和版面分析已经内置在 App 里。其他功能（本机模型、语音转文字、更多语言的文字识别）第一次用时要下载一些内容，之后不联网也能用。',
   packsEmpty: '还没有下载过内容。',
   packsTotal: '共占用 {size}',
   packDelete: '删除',
@@ -787,6 +787,8 @@ export const zh: MessageTable = {
   // 划屏介绍：每页一张图配一句话。
   guideIntro1: '拍下纸质文件，变成清晰的 PDF、Word 或 Excel',
   guideIntro1Sub: '免费，无广告。文件只在你的手机上处理。',
+  guideIntro1Offline:
+    '文件工具已经内置，不联网也能用。帮你填表的本机模型（约 1.2 GB）等额外内容，第一次用到时才下载，建议连 Wi-Fi。',
   guideIntro2: '扫描或打开的文件，存进不同记录',
   guideIntro3: '对 Tink 说一句话，就能改变风格和界面',
   guideIntroSourceScan: '扫描',
@@ -1254,11 +1256,11 @@ export const zh: MessageTable = {
   scan_Scan_5b295: '扫描-{date}',
   scan_Scanner_08f22: '扫描',
   scan_Everything_runs_on_this_device_nothing_09e42:
-    '全部在本机处理，不会上传。扫描用系统自带的文档扫描；拉正已有照片时，有的设备第一次要下载一些内容（之后不联网也能用）。',
+    '全部在本机处理，不联网也能用，不会上传。扫描用系统自带的文档扫描。',
   scan_Scans_7ac9d: '扫描件',
   ocr_Text_recognition_fe569: '文字识别',
   ocr_Runs_on_this_device_the_text_is_never__38fca:
-    '在本机识别，文字不会上传。第一次用时下载文字识别模型（约 30 MB）；韩文、俄文、越南文用手机自带的识别或单独的语言包。',
+    '在本机识别，文字不会上传。文字识别模型已经内置，不联网也能用；韩文、俄文、越南文用手机自带的识别或单独的语言包。',
   html_Created_1626a: '创建时间',
   html_Updated_74f0c: '修改时间',
   html_records_3f794: '{v0} 条',

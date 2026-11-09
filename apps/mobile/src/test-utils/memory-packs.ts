@@ -2,7 +2,8 @@ import type { PackManifest } from '@morph/core';
 
 import type { PackFs } from '../packs/store';
 
-// 测试用：内存里的扩展包目录、假的网络和两个小清单（文字识别包 + 英文语言包）。哈希用真实的 SHA-256（Node 的 WebCrypto）。
+// 测试用：内存里的扩展包目录、假的网络、App 里带的扩展包（D-510）和两个小清单（文字识别包 + 英文语言包）。
+// 哈希用真实的 SHA-256（Node 的 WebCrypto）。
 
 export const sha256 = async (bytes: Uint8Array) => {
   const digest = await (globalThis as { crypto: Crypto }).crypto.subtle.digest(
@@ -14,11 +15,24 @@ export const sha256 = async (bytes: Uint8Array) => {
 
 export const text = (s: string) => Uint8Array.from(s, (c) => c.charCodeAt(0));
 
-/** 内存里的 packs 目录和一个假的网络。 */
+const dirsUnder = (keys: Iterable<string>, path: string) => {
+  const prefix = path ? `${path}/` : '';
+  return [
+    ...new Set(
+      [...keys]
+        .filter((k) => k.startsWith(prefix))
+        .map((k) => k.slice(prefix.length).split('/')[0]!),
+    ),
+  ];
+};
+
+/** 内存里的 packs 目录、一个假的网络和 App 里带的 packs 目录（bundle，路径一样：<id>/<version>/<文件>）。 */
 export class MemoryPackFs implements PackFs {
   files = new Map<string, Uint8Array>();
   net = new Map<string, Uint8Array>();
+  bundle = new Map<string, Uint8Array>();
   downloads: string[] = [];
+  copies: string[] = [];
   async download(url: string, path: string) {
     const bytes = this.net.get(url);
     if (!bytes) throw new Error('offline');
@@ -44,18 +58,31 @@ export class MemoryPackFs implements PackFs {
     }
   }
   async listDirs(path: string) {
-    const prefix = path ? `${path}/` : '';
-    return [
-      ...new Set(
-        [...this.files.keys()]
-          .filter((k) => k.startsWith(prefix))
-          .map((k) => k.slice(prefix.length).split('/')[0]!),
-      ),
-    ];
+    return dirsUnder(this.files.keys(), path);
   }
   uri(path: string) {
     return `file:///packs/${path}`;
   }
+  async bundledDirs(path: string) {
+    return dirsUnder(this.bundle.keys(), path);
+  }
+  async copyBundled(path: string) {
+    const bytes = this.bundle.get(path);
+    if (!bytes) throw new Error(`not in the app: ${path}`);
+    this.copies.push(path);
+    this.files.set(path, bytes);
+    return { size: bytes.length, sha256: await sha256(bytes) };
+  }
+}
+
+/** 把一个扩展包按清单放进 App 里（D-510）：每个文件的内容由 body 给出。 */
+export function bundlePack(
+  fs: MemoryPackFs,
+  pack: PackManifest,
+  body: (path: string) => Uint8Array,
+) {
+  for (const file of pack.files)
+    fs.bundle.set(`${pack.id}/${pack.version}/${file.path}`, body(file.path));
 }
 
 export async function manifests(fs: MemoryPackFs) {

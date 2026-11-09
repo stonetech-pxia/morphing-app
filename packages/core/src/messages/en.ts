@@ -331,7 +331,7 @@ export const en = {
   packsTitle: 'Downloads',
   packsRowHint: 'What was downloaded and the space it uses',
   packsHint:
-    'Some features (straightening photos, text recognition in more languages, PDF preview) download what they need the first time you use them. They work offline afterwards.',
+    'Text recognition, PDF preview, page flattening and layout come with the app. Other features (the on-device model, speech to text, text recognition in more languages) download what they need the first time you use them. They work offline afterwards.',
   packsEmpty: 'Nothing downloaded yet.',
   packsTotal: 'Using {size}',
   packDelete: 'Delete',
@@ -839,6 +839,8 @@ export const en = {
   // 划屏介绍：每页一张图配一句话。
   guideIntro1: 'Turn paper documents into clean PDF, Word or Excel files.',
   guideIntro1Sub: 'Free, no ads. Files are processed only on your phone.',
+  guideIntro1Offline:
+    'File tools are built in and work offline. Extras, such as the on-device model that helps fill in forms (about 1.2 GB), download only when you first use them. Wi-Fi recommended.',
   guideIntro2: 'Scan or open a file, then save it to the record it belongs in.',
   guideIntro3: 'Tell Tink in one sentence, and the style and layout change.',
   guideIntroSourceScan: 'Scan',
@@ -1324,11 +1326,11 @@ export const en = {
   scan_Scan_5b295: 'Scan {date}',
   scan_Scanner_08f22: 'Scanner',
   scan_Everything_runs_on_this_device_nothing_09e42:
-    'Everything runs on this device; nothing is uploaded. Scanning uses the built-in document scanner; straightening photos may download what it needs the first time (it works offline after that).',
+    'Everything runs on this device and works offline; nothing is uploaded. Scanning uses the built-in document scanner.',
   scan_Scans_7ac9d: 'Scans',
   ocr_Text_recognition_fe569: 'Text recognition',
   ocr_Runs_on_this_device_the_text_is_never__38fca:
-    'Runs on this device; the text is never uploaded. The text recognition model (about 30 MB) is downloaded the first time you use it; Korean, Russian and Vietnamese use the phone’s built-in recognition or a separate language download.',
+    'Runs on this device; the text is never uploaded. The text recognition model comes with the app and works offline; Korean, Russian and Vietnamese use the phone’s built-in recognition or a separate language download.',
   html_Created_1626a: 'Created',
   html_Updated_74f0c: 'Updated',
   html_records_3f794: '{v0} entries',

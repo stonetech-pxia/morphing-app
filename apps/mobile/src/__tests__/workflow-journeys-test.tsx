@@ -1,10 +1,16 @@
-import { quickActionsOf } from '@morph/core';
-import { fireEvent, waitFor } from '@testing-library/react-native';
+import { packById, quickActionsOf } from '@morph/core';
+import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { screen, testRouter } from 'expo-router/testing-library';
 
+import type { PackBridge } from '../packs/bridge';
+import type { Packs } from '../packs/PackHost';
+import { PackStore } from '../packs/store';
+import { MemoryPackFs, bundlePack, sha256, text } from '../test-utils/memory-packs';
 import { acceptNextAlert, renderToolsApp } from '../test-utils/render-app';
 
 // 工作流的界面旅程（T7）：设置 → 快捷操作 → 内设的直接运行；编辑参数、每次运行时问、加步骤 → 保存（一个版本）→ 撤销。
+
+const NO_PAGES: string[] = [];
 
 async function openWorkflows() {
   const app = await renderToolsApp();
@@ -20,6 +26,51 @@ const visa = (store: Awaited<ReturnType<typeof renderToolsApp>>['store']) =>
 
 describe('workflow journeys (UI)', () => {
   afterEach(() => jest.restoreAllMocks());
+
+  // D-510：PDF 预览随 App 打包，用到它的内设不再写「首次使用需要下载一些内容」；没带时照旧写。
+  it.each([
+    [false, true],
+    [true, false],
+  ])(
+    'says the first run downloads only when the pack is not in the app (bundled %s)',
+    async (inApp, says) => {
+      const fs = new MemoryPackFs();
+      const body = text('pdf.js');
+      const pdfview = {
+        ...packById('pdfview')!,
+        files: [
+          {
+            path: 'pdf.js',
+            url: 'https://cdn/pdf.js',
+            size: body.length,
+            sha256: await sha256(body),
+          },
+        ],
+      };
+      if (inApp) bundlePack(fs, pdfview, () => body);
+      const store = new PackStore(fs, sha256, (id) => (id === 'pdfview' ? pdfview : packById(id)));
+      // activePages 要每次返回同一个数组（useSyncExternalStore）。
+      const bridge = {
+        subscribe: () => () => undefined,
+        activePages: () => NO_PAGES,
+      } as unknown as PackBridge;
+      await renderToolsApp(undefined, undefined, { packs: { store, bridge } as Packs });
+      await testRouter.push('/workflows');
+      await fireEvent.press(await screen.findByTestId('category-document'));
+      const card = await screen.findByTestId('workflow-sign-return');
+      const note = /首次使用需要下载一些内容/;
+      if (says) {
+        await waitFor(() => expect(card).toHaveTextContent(note));
+      } else {
+        // 读完已装的扩展包（这时从 App 里复制了一份）以后也不写。
+        await waitFor(() => expect(fs.files.has('pdfview/6.4.299/ready.json')).toBe(true));
+        // renderRouter 用假的计时器：只把排着的 Promise 走完。
+        for (let i = 0; i < 3; i++) await act(async () => undefined);
+        expect(card).not.toHaveTextContent(note);
+      }
+      expect(fs.downloads).toEqual([]);
+    },
+  );
 
   it('lists built-in quick actions without anything to add (D-236)', async () => {
     const { store } = await openWorkflows();

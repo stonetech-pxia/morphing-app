@@ -20,8 +20,9 @@ import { useWorkspaceContext, useAppTheme } from '../workspace/context';
 import { useGuide } from './store';
 import { WelcomeArt, type WelcomeArtKind } from './WelcomeArt';
 
-const PAGES: { art: WelcomeArtKind; text: StringKey; sub?: StringKey }[] = [
-  { art: 'scan', text: 'guideIntro1', sub: 'guideIntro1Sub' },
+const PAGES: { art: WelcomeArtKind; text: StringKey; sub?: StringKey; note?: StringKey }[] = [
+  // 说「只在手机上处理」的这一页同时说清楚以后还会下载什么、什么时候下载（D-510）。
+  { art: 'scan', text: 'guideIntro1', sub: 'guideIntro1Sub', note: 'guideIntro1Offline' },
   { art: 'records', text: 'guideIntro2' },
   { art: 'style', text: 'guideIntro3' },
 ];
@@ -29,6 +30,7 @@ const PAGES: { art: WelcomeArtKind; text: StringKey; sub?: StringKey }[] = [
 /**
  * 划屏介绍（D-149）：三页，每页一张图配一句话（扫描纸质文件变成 PDF、Word、Excel，免费、只在本机处理；文件存进各自的记录、
  * 一句话让 Tink 改风格和界面）；可以跳过。看完或跳过都进入首页的第 1 步，惊喜留给用户自己动手。
+ * 第一页另有一句小字：文件工具已经内置、不联网也能用，本机模型这类额外内容第一次用到时才下载（D-510）。
  */
 export function WelcomeScreen() {
   const { locale } = useWorkspaceContext();
@@ -98,6 +100,17 @@ export function WelcomeScreen() {
                   { color: palette.muted, marginTop: -20, lineHeight: 22 },
                 ]}>
                 {t(locale, page.sub)}
+              </Text>
+            ) : null}
+            {page.note ? (
+              <Text
+                testID={`welcome-note-${i}`}
+                style={[
+                  palette.font('body', 13),
+                  styles.center,
+                  { color: palette.muted, marginTop: -24, lineHeight: 19 },
+                ]}>
+                {t(locale, page.note)}
               </Text>
             ) : null}
           </View>
