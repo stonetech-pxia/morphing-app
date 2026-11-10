@@ -257,11 +257,11 @@ describe('Excel 在桌上就是表格编辑器', () => {
     await fireEvent.press(screen.getByTestId('desk-image-delete'));
     expect(screen.queryByTestId('table-image-3-0')).toBeNull();
     await fireEvent.press(screen.getByTestId('desk-done'));
-    await waitFor(async () => {
-      const file = currentFiles(await deskNow(files))[0]!;
-      const zip = unzipSync(files.disk.get(`desk/editdesk/${file.path}`)!);
-      expect(Object.keys(zip).some((n) => n.includes('media'))).toBe(false);
-    });
+    const file = currentFiles(await deskNow(files))[0]!;
+    const zip = unzipSync(files.disk.get(`desk/editdesk/${file.path}`)!);
+    expect(Object.keys(zip).some((n) => n.includes('media'))).toBe(false);
+    // 「完成」的面板合上：不留着打开的面板给下一个测试。
+    await fireEvent.press(screen.getByTestId('desk-sheet-backdrop'));
   });
 
   it('点一下选中（工具栏换成编辑层、显示原图），再点一下编辑；编辑中撤销一步步退；「完成」时合成一个版本', async () => {
