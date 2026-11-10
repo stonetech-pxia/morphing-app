@@ -882,12 +882,17 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   const size = { width: image.width, height: image.height };
   const regions = cleanRegions(input.regions ?? [], free, size, image).filter(
     // 和表格重叠一大半的区域（表格的标题行、表格里认成正文的）不要。
-    (r) =>
-      !tables.some(({ box }) => {
+    (r) => {
+      const overlaps = tables.map(({ box }) => {
         const ix = Math.min(box.x + box.width, r.box.x + r.box.width) - Math.max(box.x, r.box.x);
         const iy = Math.min(box.y + box.height, r.box.y + r.box.height) - Math.max(box.y, r.box.y);
-        return ix > 0 && iy > 0 && ix * iy > 0.5 * r.box.width * r.box.height;
-      }),
+        return ix > 0 && iy > 0 ? ix * iy : 0;
+      });
+      const half = 0.5 * r.box.width * r.box.height;
+      // 图片区域几张表格合起来盖住一大半也算（表单里一格一张的小表，D-524）。
+      const covered = r.kind === 'image' ? overlaps.reduce((a, b) => a + b, 0) : 0;
+      return covered <= half && overlaps.every((o) => o <= half);
+    },
   );
   const merged = mergeTextRegions(regions, lineHeight);
   regions.splice(0, regions.length, ...merged);

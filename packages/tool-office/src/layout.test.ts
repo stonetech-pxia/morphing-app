@@ -109,6 +109,46 @@ describe('parseLayout', () => {
   });
 });
 
+describe('parseLayout: 一张图的分数被拆给几个类别 (D-524)', () => {
+  const size = { width: 960, height: 960 };
+  // 模型输出（480 输入）：类别、分数、框。
+  const det = (name: (typeof LAYOUT_LABELS)[number], score: number, box: number[]) => [
+    label(name),
+    score,
+    ...box,
+  ];
+  const slide = [100, 150, 300, 270];
+
+  it('keeps a figure whose score is split over image / chart / header_image on the same box', () => {
+    // 真实输出（s-slides-en）：chart 0.40、image 0.35、header_image 0.16 都在同一个框上，单看都不到 0.45。
+    const out = [
+      ...det('chart', 0.4, slide),
+      ...det('image', 0.35, slide),
+      ...det('header_image', 0.16, slide),
+    ];
+    const regions = parseLayout(out, size);
+    expect(regions).toHaveLength(1);
+    expect(regions[0]!.kind).toBe('image');
+    expect(regions[0]!.score).toBeGreaterThanOrEqual(0.45);
+    expect(regions[0]!.box).toEqual({ x: 200, y: 300, width: 400, height: 240 });
+  });
+
+  it('still drops a single weak class, and the same class repeated on one box does not add up', () => {
+    expect(parseLayout(det('image', 0.35, slide), size)).toEqual([]);
+    expect(parseLayout([...det('image', 0.3, slide), ...det('image', 0.3, slide)], size)).toEqual(
+      [],
+    );
+  });
+
+  it('does not add up scores of different boxes', () => {
+    const out = [
+      ...det('image', 0.3, [20, 20, 120, 100]),
+      ...det('chart', 0.3, [300, 300, 450, 450]),
+    ];
+    expect(parseLayout(out, size)).toEqual([]);
+  });
+});
+
 describe('cleanRegions', () => {
   const size = { width: 1000, height: 1400 };
 
@@ -140,6 +180,26 @@ describe('cleanRegions', () => {
     expect(cleanRegions([seal], lines, size)).toEqual([seal]);
     // 同样多的字在普通的图片区域里：是认错了的正文。
     expect(cleanRegions([logo], lines, size)).toEqual([]);
+  });
+
+  it('a page-sized "image" does not swallow the real figure inside it as a duplicate (D-524)', () => {
+    // 手机拍的 PPT（s-slides-en-photo）：整张照片被认成图片，里面的图表也认出来了。
+    const whole = region('image', 40, 50, 940, 1300, 0.61);
+    const chart = region('image', 300, 300, 400, 190, 0.5);
+    expect(cleanRegions([whole, chart], [], size)).toEqual([chart]);
+  });
+
+  it('a figure kept only by adding up classes is dropped when any text sits inside it (D-524)', () => {
+    // 表单里一格一格的字段：短字加框线，像示意图，但分数是几个类别凑出来的，不信。
+    const lines = Array.from({ length: 6 }, (_, i) => line(`Field ${i}`, 120, 300 + i * 40, 150));
+    const strong = region('image', 100, 280, 500, 300, 0.6);
+    const fused = { ...region('image', 100, 280, 500, 300, 0.5), fused: true };
+    const ink = { width: 1000, height: 1400, data: new Uint8Array(1000 * 1400 * 4).fill(0) };
+    expect(cleanRegions([strong], lines, size, ink)).toEqual([strong]);
+    expect(cleanRegions([fused], lines, size, ink)).toEqual([]);
+    // 一个短标志字也不行（字会被吞进图里）；没有字的留下。
+    expect(cleanRegions([fused], [line('Form 9465', 120, 300, 150)], size)).toEqual([]);
+    expect(cleanRegions([fused], [], size)).toEqual([fused]);
   });
 
   it('drops table regions (tables come from ruled lines) and duplicate image regions', () => {
