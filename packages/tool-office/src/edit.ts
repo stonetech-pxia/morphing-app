@@ -1,4 +1,4 @@
-import type { TableBlock, TableCell, TableDoc, TablePage, TableScope } from './types';
+import type { Block, TableBlock, TableCell, TableDoc, TablePage, TableScope } from './types';
 
 // 编辑页对 TableDoc 的修改（D-272）：改格子、插入和删除行列（合并区域跟着动）、切换识别范围。
 // 一页的列是各张表共用的，所以插入和删除列是对整页的：这一列经过的每张表都跟着变。
@@ -133,8 +133,15 @@ function updatePage(doc: TableDoc, page: number, next: TablePage): TableDoc {
 export function insertColumn(doc: TableDoc, page: number, col: number): TableDoc {
   const p = doc.pages[page];
   if (!p || col < 0 || col > p.colWidths.length) return doc;
-  const blocks = p.blocks.map((b) => {
-    if (b.kind !== 'table') return b;
+  const blocks = p.blocks.map((b): Block => {
+    // 文字、图片有列范围时（D-520、D-522）：从这个位置起的右移，只有横跨这个位置的变宽一列
+    // （并排的两块交界处插入一列，不让两块都变宽、盖住同一列）。
+    if (b.kind !== 'table') {
+      if (b.col === undefined) return b;
+      if (col <= b.col) return { ...b, col: b.col + 1 };
+      if (col < b.col + (b.cols ?? 0)) return { ...b, cols: (b.cols ?? 0) + 1 };
+      return b;
+    }
     if (col < b.col) return { ...b, col: b.col + 1 };
     if (col <= b.col + b.cols) return insertTableColumn(b, col - b.col);
     return b;
@@ -147,17 +154,24 @@ export function insertColumn(doc: TableDoc, page: number, col: number): TableDoc
 /** 能不能删这一页的第 col 列：至少留一列，经过它的表也都至少留一列（表格不能整张删）。 */
 export function canDeleteColumn(page: TablePage, col: number): boolean {
   if (page.colWidths.length <= 1 || col < 0 || col >= page.colWidths.length) return false;
-  return page.blocks.every(
-    (b) => b.kind !== 'table' || b.cols > 1 || col < b.col || col >= b.col + b.cols,
-  );
+  return page.blocks.every((b) => {
+    if (b.kind !== 'table' && b.col === undefined) return true;
+    const cols = b.kind === 'table' || b.kind === 'image' ? b.cols : (b.cols ?? 1);
+    return cols > 1 || col < b.col! || col >= b.col! + cols;
+  });
 }
 
 /** 删除这一页的第 col 列。 */
 export function deleteColumn(doc: TableDoc, page: number, col: number): TableDoc {
   const p = doc.pages[page];
   if (!p || !canDeleteColumn(p, col)) return doc;
-  const blocks = p.blocks.map((b) => {
-    if (b.kind !== 'table') return b;
+  const blocks = p.blocks.map((b): Block => {
+    if (b.kind !== 'table') {
+      if (b.col === undefined) return b;
+      if (col < b.col) return { ...b, col: b.col - 1 };
+      if (col < b.col + (b.cols ?? 0)) return { ...b, cols: (b.cols ?? 1) - 1 };
+      return b;
+    }
     if (col < b.col) return { ...b, col: b.col - 1 };
     if (col < b.col + b.cols) return deleteTableColumn(b, col - b.col);
     return b;
@@ -181,6 +195,17 @@ export function setTextBlock(doc: TableDoc, page: number, block: number, text: s
 /** 删掉一段表外的文字（认进来的页眉、页码这类）。表格不能整张删。 */
 export function deleteTextBlock(doc: TableDoc, page: number, block: number): TableDoc {
   if (doc.pages[page]?.blocks[block]?.kind !== 'text') return doc;
+  return {
+    ...doc,
+    pages: doc.pages.map((p, i) =>
+      i === page ? { ...p, blocks: p.blocks.filter((_, j) => j !== block) } : p,
+    ),
+  };
+}
+
+/** 删掉一张图片（D-520）。 */
+export function deleteImageBlock(doc: TableDoc, page: number, block: number): TableDoc {
+  if (doc.pages[page]?.blocks[block]?.kind !== 'image') return doc;
   return {
     ...doc,
     pages: doc.pages.map((p, i) =>
@@ -240,13 +265,17 @@ export const pageCellCount = (doc: TableDoc, page: number) =>
 
 export const EDITABLE_CELLS = 2000;
 
-/** TableDoc 的 JSON 读回来时检查一下大概的形状（文件是自己写的，只防坏文件）。 */
+/**
+ * TableDoc 的 JSON 读回来时检查一下大概的形状（文件是自己写的，只防坏文件）。
+ * 版本 2 的文件（还没有图片块、文字的列范围、字号，D-520–D-522）升成 3：新字段都是可有可无的，
+ * 老文件里一个字段都不用改，所以升级就是改版本号（不变量 12）。
+ */
 export function parseTableDoc(json: string): TableDoc | null {
   try {
-    const doc = JSON.parse(json) as TableDoc;
-    if (doc?.version !== 2 || !Array.isArray(doc.pages)) return null;
+    const doc = JSON.parse(json) as { version?: number; scope?: string; pages?: unknown };
+    if ((doc?.version !== 2 && doc?.version !== 3) || !Array.isArray(doc.pages)) return null;
     if (doc.scope !== 'all' && doc.scope !== 'tables') return null;
-    return doc;
+    return { ...doc, version: 3 } as TableDoc;
   } catch {
     return null;
   }

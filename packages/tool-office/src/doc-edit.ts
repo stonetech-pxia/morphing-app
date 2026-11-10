@@ -188,7 +188,7 @@ export function tableDocOf(doc: DocDoc, at: DocRef, name: string): TableDoc | nu
   const block = blockAt(doc, at);
   if (!page || block?.kind !== 'table') return null;
   return {
-    version: 2,
+    version: 3,
     scope: 'tables',
     pages: [
       {

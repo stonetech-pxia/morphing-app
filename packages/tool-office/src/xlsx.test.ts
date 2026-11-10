@@ -69,7 +69,7 @@ function unpack(doc: TableDoc) {
 describe('xlsx writer (D-272)', () => {
   it('writes the parts Excel, Numbers and WPS need', () => {
     const { files, text } = unpack({
-      version: 2,
+      version: 3,
       scope: 'all',
       pages: [page('Page 1', [table(100, [['a']])])],
     });
@@ -88,7 +88,7 @@ describe('xlsx writer (D-272)', () => {
 
   it('writes one sheet per page with cleaned, unique names', () => {
     const { text } = unpack({
-      version: 2,
+      version: 3,
       scope: 'all',
       pages: [
         page('第 1 页', []),
@@ -104,7 +104,7 @@ describe('xlsx writer (D-272)', () => {
 
   it('stores numbers as numbers and keeps codes, long numbers and dates as text', () => {
     const { text } = unpack({
-      version: 2,
+      version: 3,
       scope: 'all',
       pages: [
         page('P', [
@@ -155,7 +155,7 @@ describe('xlsx writer (D-272)', () => {
         { row: 1, col: 0, rowSpan: 2, colSpan: 1 },
       ],
     );
-    const { text } = unpack({ version: 2, scope: 'all', pages: [page('P', [t])] });
+    const { text } = unpack({ version: 3, scope: 'all', pages: [page('P', [t])] });
     const sheet = text('xl/worksheets/sheet1.xml');
     expect(sheet).toContain(
       '<mergeCells count="2"><mergeCell ref="A1:B1"/><mergeCell ref="A2:A3"/></mergeCells>',
@@ -166,7 +166,7 @@ describe('xlsx writer (D-272)', () => {
 
   it('escapes XML and drops control characters', () => {
     const t = table(100, [['a & b < c > "d"', 'bad\u0001\u0008char￾', 'lone\uD800 surrogate']]);
-    const { text } = unpack({ version: 2, scope: 'all', pages: [page('P&Q', [t])] });
+    const { text } = unpack({ version: 3, scope: 'all', pages: [page('P&Q', [t])] });
     const strings = text('xl/sharedStrings.xml');
     expect(strings).toContain('<t>a &amp; b &lt; c &gt; &quot;d&quot;</t>');
     expect(strings).toContain('<t>badchar</t>');
@@ -177,7 +177,7 @@ describe('xlsx writer (D-272)', () => {
 
   it('keeps line breaks inside a cell', () => {
     const { text } = unpack({
-      version: 2,
+      version: 3,
       scope: 'all',
       pages: [page('P', [table(100, [['one\ntwo']])])],
     });
@@ -188,7 +188,7 @@ describe('xlsx writer (D-272)', () => {
 
   it('writes text outside tables as merged rows, with a blank row for big gaps', () => {
     const doc: TableDoc = {
-      version: 2,
+      version: 3,
       scope: 'all',
       pages: [
         page('P', [
@@ -210,7 +210,7 @@ describe('xlsx writer (D-272)', () => {
 
   it('leaves out text outside tables for “tables only”, except on pages without a table', () => {
     const doc: TableDoc = {
-      version: 2,
+      version: 3,
       scope: 'tables',
       pages: [
         page('P1', [{ kind: 'text', text: 'Title', box: box(20) }, table(200, [['a']])]),
@@ -227,7 +227,7 @@ describe('xlsx writer (D-272)', () => {
   it('sets column widths from the shared page columns and spreads text-only pages over A–D', () => {
     const p = { ...page('P', [table(100, [['a', 'b']])]), colWidths: [100, 500] };
     const { text } = unpack({
-      version: 2,
+      version: 3,
       scope: 'all',
       pages: [p, page('Q', [{ kind: 'text', text: 'x', box: box(0) }])],
     });
@@ -244,7 +244,7 @@ describe('xlsx writer (D-272)', () => {
     t.cells[0]!.align = 'center';
     t.cells[1]!.align = 'right';
     const { text } = unpack({
-      version: 2,
+      version: 3,
       scope: 'all',
       pages: [page('P', [{ kind: 'text', text: 'Head', align: 'center', box: box(20) }, t])],
     });
@@ -270,7 +270,7 @@ describe('xlsx writer (D-272)', () => {
     expect(layout.colWidths).toHaveLength(4);
     expect(layout.cells.find((c) => c.text === 'Title')).toMatchObject({ col: 0, colSpan: 4 });
     expect(layout.cells.find((c) => c.text === 'd')).toMatchObject({ col: 3, cell: 1 });
-    const sheet = unpack({ version: 2, scope: 'all', pages: [p] }).text('xl/worksheets/sheet1.xml');
+    const sheet = unpack({ version: 3, scope: 'all', pages: [p] }).text('xl/worksheets/sheet1.xml');
     expect(sheet).toMatch(/<c r="C3" s="\d+" t="s">/);
     expect(sheet).not.toMatch(/<c r="A3"/);
   });

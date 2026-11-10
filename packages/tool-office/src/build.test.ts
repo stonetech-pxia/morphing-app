@@ -860,7 +860,7 @@ describe('tables without lines in Excel (D-506)', () => {
 
   it('the text outside the table stays, and no line is written twice', () => {
     const texts = page.blocks.flatMap((b) =>
-      b.kind === 'text' ? [b.text] : b.cells.map((c) => c.text),
+      b.kind === 'text' ? [b.text] : b.kind === 'table' ? b.cells.map((c) => c.text) : [],
     );
     for (const l of INVOICE.lines) {
       expect(texts.filter((t) => t.includes(l.text)).length, l.text).toBeGreaterThan(0);

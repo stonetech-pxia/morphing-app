@@ -7,6 +7,9 @@ import {
   type RuleLine,
   type TableLines,
 } from './lines';
+import { BOLD_RATIO, CHOP_MIN, CHOP_SHARE, isRuleGrid, strokeRatio } from './doc';
+import { lineShareIn, type LayoutRegion } from './layout';
+import { bodySizeOf, layoutRegions, planRest, tableSizeOf } from './sheet-arrange';
 import { findTextTables, levelLines } from './text-table';
 import type {
   Block,
@@ -35,6 +38,11 @@ export interface BuildOptions {
    * 转 Word 自己在去掉竖排、零星的字以后再认，不在这里认。
    */
   textTables?: boolean;
+  /**
+   * 转 Excel（D-520–D-522）：用版面分析的区域（图片区域剪成图片块、不当表格的网格里的字排成文字）、
+   * 表外的字按转 Word 的并排规则分栏、估每块字和每张表的字号和粗体。不给时表外的字照旧每段一行（转 Word 自己排）。
+   */
+  arrange?: boolean;
 }
 
 export interface PageInput {
@@ -44,6 +52,8 @@ export interface PageInput {
   lines: readonly OcrBox[];
   name: string;
   source: string;
+  /** 版面分析的区域（arrange 时用；没有时只按位置排）。 */
+  regions?: readonly LayoutRegion[];
   /** 已知的倾斜角（度）；增强过的图已经拉正，给 0。不给时估一个。 */
   skew?: number;
 }
@@ -363,6 +373,50 @@ function buildGrid(
   return { xs, ys, owner, cells: order.map((o) => o.cell) };
 }
 
+/** 表格最上面至少这么多行、每行最多一格有字，才算表单的框（不是表的标题）。 */
+const FORM_MIN_ROWS = 4;
+/** 去掉那几行以后，剩下的至少要有这么多行有两格以上有字，才是真的表。 */
+const FORM_BODY_ROWS = 2;
+
+/**
+ * 表单的框和下面的表格连成了一张网格（D-520，F4）：最上面连着好几行，每一行最多一格有字
+ * （一个框里标签一行、值一行，框和框之间空着），下面才是每行好几格都有字的表格。上面那几行不是表的行
+ * （表的标题只有一两行），去掉它们，里面的字照表外的文字排；没有这样的几行（或者去掉以后剩下的不像表）时 null。
+ * 合并格子跨着切口的位置不能切。
+ */
+function dropLeadingRows(
+  grid: Grid,
+  lines: readonly OcrBox[],
+): { grid: Grid; lines: OcrBox[] } | null {
+  const rows = grid.ys.length - 1;
+  const cols = grid.xs.length - 1;
+  const filled = grid.cells.map(() => false);
+  for (const line of lines) for (const { cell } of piecesOf(line, grid)) filled[cell] = true;
+  const perRow = new Array<number>(rows).fill(0);
+  grid.cells.forEach((c, i) => {
+    if (filled[i]) perRow[c.row]!++;
+  });
+  let cut = 0;
+  for (let r = 1; r < rows && perRow[r - 1]! <= 1; r++) {
+    if (!grid.cells.some((c) => c.row < r && c.row + c.rowSpan > r)) cut = r;
+  }
+  if (cut < FORM_MIN_ROWS || rows - cut < 2) return null;
+  if (perRow.slice(cut).filter((n) => n >= 2).length < FORM_BODY_ROWS) return null;
+  const y = grid.ys[cut]!.pos;
+  const kept = lines.filter((l) => centerY(l) >= y);
+  const cells = grid.cells.filter((c) => c.row >= cut).map((c) => ({ ...c, row: c.row - cut }));
+  // 位置到格子的对应：行往上移，格子的下标按新的顺序。
+  const index = new Map<TableCell, number>(cells.map((c, i) => [c, i]));
+  const old = grid.cells.filter((c) => c.row >= cut);
+  const remap = new Map(old.map((c, i) => [grid.cells.indexOf(c), index.get(cells[i]!)!]));
+  const owner = new Int32Array((rows - cut) * cols);
+  for (let r = cut; r < rows; r++) {
+    for (let c = 0; c < cols; c++)
+      owner[(r - cut) * cols + c] = remap.get(grid.owner[r * cols + c]!)!;
+  }
+  return { grid: { xs: grid.xs, ys: grid.ys.slice(cut), owner, cells }, lines: kept };
+}
+
 /**
  * 这一行被有线的列线从一个词中间切开（D-502）：列线两边不是同一格，而且切口两边的字挨着
  * （不是空格、字距也不比平常大）。PP-OCR 把相邻两格认成一行时，列线落在两段字之间的空隙里，不算。
@@ -544,8 +598,18 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
   const page = findLines(image, input.skew !== undefined ? { skew: input.skew } : {});
   const t = Math.tan((page.skew * Math.PI) / 180);
   const tol = Math.max(4, Math.max(image.width, image.height) * 0.008);
+  const arrange = options.arrange === true;
   // 识别框换到拉正后的坐标（只移动中心，大小不变）。
-  const source = input.lines.filter((l) => l.text.trim());
+  let source = input.lines.filter((l) => l.text.trim());
+  // 图片区域（转 Excel，D-520）：里面的字是图的一部分，不参加组表、也不排成文字。
+  const found =
+    arrange && input.regions?.length
+      ? layoutRegions(input.regions, source, image, median(source.map((l) => l.height)) || 20)
+      : { figures: [], text: [] };
+  const { figures } = found;
+  if (figures.length) {
+    source = source.filter((l) => !figures.some((f) => lineShareIn(l, f) >= 0.5));
+  }
   const flat = source.map((l): OcrBox => {
     const cx = centerX(l);
     const cy = centerY(l);
@@ -567,7 +631,30 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     const y = Math.min(...ys);
     return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
   };
+  // 原图里的框 → 拉正后的位置（只移动中心，和识别框一样）。
+  const flatBox = (b: Box): Box => {
+    const cx = centerX(b);
+    const cy = centerY(b);
+    return {
+      x: cx + cy * t - b.width / 2,
+      y: cy - cx * t - b.height / 2,
+      width: b.width,
+      height: b.height,
+    };
+  };
   const lineHeight = median(flat.map((l) => l.height)) || 20;
+  // 估字号用的行高（D-521）：拍歪的页，长行的识别框比字高出 宽 × 斜率 一截，扣掉。
+  const tilt = Math.abs(t);
+  const sizeHeight = (l: Box) => Math.max(0.6 * l.height, l.height - tilt * l.width);
+  const baseHeight = median(flat.map(sizeHeight)) || lineHeight;
+  const bodySize = bodySizeOf(baseHeight, image.width);
+  // 字的笔画粗细（粗体，D-521）：按原图里的位置量；只在转 Excel 时用。
+  const strokes = new Map<OcrBox, number>();
+  const strokeOf = (l: OcrBox) => {
+    if (!strokes.has(l)) strokes.set(l, strokeRatio(image, sourceOf.get(l) ?? back(l)));
+    return strokes.get(l)!;
+  };
+  const pageStroke = arrange ? median(flat.map(strokeOf).filter((v) => v > 0)) : 0;
   const placed = new Set<OcrBox>();
   const tables: {
     block: TableBlock;
@@ -578,6 +665,15 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
   }[] = [];
   for (const table of findTables(dropTextStrokes(page, flat))) {
     const { box } = table;
+    // 大半在图片区域里的「表」是图里的线（示意图、图表的网格）。
+    if (
+      figures.some((f) => {
+        const ix = Math.min(box.x + box.width, f.x + f.width) - Math.max(box.x, f.x);
+        const iy = Math.min(box.y + box.height, f.y + f.height) - Math.max(box.y, f.y);
+        return ix > 0 && iy > 0 && ix * iy > 0.5 * box.width * box.height;
+      })
+    )
+      continue;
     const members = flat.filter(
       (l) =>
         !placed.has(l) &&
@@ -588,13 +684,14 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     );
     // 里面没有字的不算表（例如表单里几条对齐的填空横线）。
     if (!members.length) continue;
-    const grid = buildGrid(table, members, tol, lineHeight);
-    if (!grid) continue;
+    const built = buildGrid(table, members, tol, lineHeight);
+    if (!built) continue;
+    let grid: Grid = built;
     // 中心在最外一条横线外面、又横跨了列线的字不是表里的（D-501：照片里弯的一行页脚压着表格的底线，
     // 放进表里会在列线处切碎）。只落在一列里的照旧放进表（表格底线下面的合计行）。
     const top = grid.ys[0]!;
     const bottom = grid.ys.at(-1)!;
-    const inside = members.filter((l) => {
+    let inside = members.filter((l) => {
       const out = (top.lined && centerY(l) < top.pos) || (bottom.lined && centerY(l) > bottom.pos);
       const across = grid.xs.some(
         (x, c) =>
@@ -607,6 +704,13 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
       return !(out && across);
     });
     if (!inside.length) continue;
+    // 表单的框连着好几行（D-520）：上面的几行不是表的行，字留给表外的文字。
+    const trimmed = arrange ? dropLeadingRows(grid, inside) : null;
+    if (trimmed) {
+      grid = trimmed.grid;
+      inside = trimmed.lines;
+      if (!inside.length) continue;
+    }
     const texts = grid.cells.map(() => [] as OcrBox[]);
     for (const line of inside) {
       for (const { cell, piece } of piecesOf(line, grid)) texts[cell]!.push(piece);
@@ -615,15 +719,41 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     // 只有横线的表：至少两行有字、按文字空隙至少分出两列才算表（几条分隔线中间的正文分不出列）。
     const rowsWithText = new Set(grid.cells.filter((_, i) => texts[i]!.length).map((c) => c.row));
     if (!table.vs.length && (rowsWithText.size < 2 || grid.xs.length < 3)) continue;
-    for (const line of inside) placed.add(line);
+    // 表里文字的字号（磅）：和正文差不多就不单独写。
+    const tableSize = arrange
+      ? tableSizeOf(median(inside.map(sizeHeight)), image.width, bodySize)
+      : bodySize;
     const cells = grid.cells.map((cell, i) => {
       const text = texts[i]!.length ? join(texts[i]!).trim() : '';
       const flatCell = cell.box!;
       const align = text
         ? alignOf(texts[i]!, flatCell.x, flatCell.x + flatCell.width, lineHeight, text)
         : undefined;
-      return { ...cell, text, ...(align ? { align } : {}), box: back(flatCell) };
+      const bold =
+        arrange &&
+        text !== '' &&
+        pageStroke > 0 &&
+        median(texts[i]!.map(strokeOf)) > BOLD_RATIO * pageStroke;
+      return {
+        ...cell,
+        text,
+        ...(align ? { align } : {}),
+        ...(arrange && tableSize !== bodySize ? { size: tableSize } : {}),
+        ...(bold ? { bold: true } : {}),
+        box: back(flatCell),
+      };
     });
+    // 表单的下划线、方框连成的大网格、列线把字从词中间切开的网格（D-502）：不当表，里面的字按位置排成文字（F4）。
+    if (
+      arrange &&
+      (isRuleGrid(
+        { kind: 'table', rows: grid.ys.length - 1, col: 0, cols: grid.xs.length - 1, cells, box },
+        inside.length,
+      ) ||
+        (chopped >= CHOP_MIN && chopped >= CHOP_SHARE * inside.length))
+    )
+      continue;
+    for (const line of inside) placed.add(line);
     const flatBox: Box = {
       x: grid.xs[0]!.pos,
       y: grid.ys[0]!.pos,
@@ -655,6 +785,7 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     for (const found of findTextTables(leveled, lineHeight, toFlat)) {
       const members = found.lines.map(toFlat);
       for (const line of members) placed.add(line);
+      const textSize = tableSizeOf(median(members.map(sizeHeight)), image.width, bodySize);
       let x = found.box.x;
       const xs = [x, ...found.colWidths.map((w) => (x += w))];
       // 整页共用一套列（D-272）：没有线的表的列线可以放在两列之间的空白里任何地方，最外两条可以往外挪
@@ -678,15 +809,49 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
         chopped: 0,
         block: {
           ...found.table,
-          cells: found.table.cells.map((c) => (c.box ? { ...c, box: back(c.box) } : c)),
+          cells: found.table.cells.map((c) => ({
+            ...(c.box ? { ...c, box: back(c.box) } : c),
+            ...(arrange && textSize !== bodySize ? { size: textSize } : {}),
+          })),
           box: back(found.box),
         },
       });
     }
   }
+  // 转 Excel：表外的字和图片怎么排（D-520–D-522）。有左右范围的（分栏的文字、图片）也参加整页共用的列：
+  // 栏和栏之间的分界、图片的左右边都是列线；没有表时再加上所有内容的左右边，这样整页有宽度。
+  const plan = arrange
+    ? planRest({
+        lines: flat.filter((l) => !placed.has(l)),
+        figures: figures.map(flatBox),
+        regions: found.text,
+        tables: tables.map((tb) => tb.flatBox),
+        lineHeight,
+        sizeHeight,
+        baseHeight,
+        bodySize,
+        join,
+        strokeOf,
+        pageStroke,
+      })
+    : null;
+  const ranged = (plan?.groups.flatMap((g) => g.drafts) ?? []).filter((d) => d.range);
+  const extra = ranged.map((d) => [...d.range!]);
+  if (!tables.length && ranged.length) {
+    const all = (plan?.groups ?? []).flatMap((g) => g.drafts);
+    // 离已有的列线不到两个行高的那一边不加：标题比栏的边靠外一点，不为它多出一条很窄的列（文字横跨合并，照样放得下）。
+    const edges = extra.flat();
+    const far = (x: number) => edges.every((e) => Math.abs(e - x) >= 2 * lineHeight);
+    extra.push(
+      [
+        Math.min(...all.map((d) => d.box.x)),
+        Math.max(...all.map((d) => d.box.x + d.box.width)),
+      ].filter(far),
+    );
+  }
   // 整页共用的列：每张表的格子换成共用列上的位置，原来一格跨过几条共用列线就是 colSpan 几。
   const shared = sharedColumns(
-    tables.map((tb) => tb.xs),
+    [...tables.map((tb) => tb.xs), ...extra],
     Math.max(tol, Math.max(image.width, image.height) * SHARED_COLUMN_SHARE),
   );
   tables.forEach((tb, k) => {
@@ -701,9 +866,68 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     }));
   });
   for (const tb of tables) options.onTable?.(tb.block, tb.lines, { chopped: tb.chopped });
-  const colWidths = tables.length
-    ? shared.pos.slice(1).map((x, c) => Math.round(x - shared.pos[c]!))
-    : Array.from({ length: TEXT_ONLY_COLS }, () => Math.round(image.width / TEXT_ONLY_COLS));
+  const colWidths =
+    tables.length || ranged.length
+      ? shared.pos.slice(1).map((x, c) => Math.round(x - shared.pos[c]!))
+      : Array.from({ length: TEXT_ONLY_COLS }, () => Math.round(image.width / TEXT_ONLY_COLS));
+  if (plan) {
+    // 每一块占哪几列：它的左右范围在共用列里的位置。
+    const spans = new Map(
+      ranged.map((d, k) => {
+        const map = shared.maps[tables.length + k]!;
+        return [d, { col: map[0]!, cols: map[1]! - map[0]! }] as const;
+      }),
+    );
+    // 没有表时看不出整页的左右，只有分栏、图片时才有（居中的标题）。
+    const aligned = tables.length > 0 || ranged.length > 0;
+    const entries: { y: number; blocks: Block[] }[] = [
+      ...plan.groups.map((g) => ({
+        y: g.y,
+        blocks: g.drafts.map((d): Block => {
+          if (d.kind === 'table') {
+            const block = tables[d.index]!.block;
+            if (d.band !== undefined) block.band = d.band;
+            return block;
+          }
+          const span = spans.get(d);
+          const at = span ? { col: span.col, cols: span.cols } : {};
+          const band = d.band !== undefined ? { band: d.band } : {};
+          if (d.kind === 'image') {
+            return {
+              kind: 'image',
+              ...at,
+              ...band,
+              col: span!.col,
+              cols: span!.cols,
+              box: back(d.box),
+            };
+          }
+          const [left, right] = d.range ?? [shared.pos[0]!, shared.pos.at(-1)!];
+          const align = aligned ? alignOf(d.lines, left, right, lineHeight, d.text) : undefined;
+          return {
+            kind: 'text',
+            text: d.text,
+            ...(align ? { align } : {}),
+            ...at,
+            ...band,
+            ...(d.size !== undefined ? { size: d.size } : {}),
+            ...(d.bold ? { bold: true } : {}),
+            box: back(d.box),
+          };
+        }),
+      })),
+    ];
+    return {
+      name: input.name,
+      source: input.source,
+      width: image.width,
+      height: image.height,
+      lineHeight: Math.round(lineHeight),
+      colWidths,
+      bodySize,
+      blocks: entries.sort((a, b) => a.y - b.y).flatMap((e) => e.blocks),
+    };
+  }
   // 表外的文字：按排从上到下，间距超过 1.2 倍行高、或者中间隔着一张表的地方分段。
   const rest = textRows(flat.filter((l) => !placed.has(l)));
   const paragraphs: OcrBox[][] = [];
@@ -749,8 +973,12 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     lineHeight: Math.round(lineHeight),
     colWidths,
     blocks: blocks
-      .filter((b) => b.block.kind === 'table' || b.block.text)
+      .filter((b) => b.block.kind !== 'text' || b.block.text)
       .sort((a, b) => a.y - b.y)
       .map((b) => b.block),
   };
 }
+
+/** 转 Excel 的一页（D-520–D-522）：和 buildTablePage 一样，加上图片区域、分栏的文字、字号（见 BuildOptions.arrange）。 */
+export const buildSheetPage = (input: PageInput, options: BuildOptions = {}): TablePage =>
+  buildTablePage(input, { ...options, arrange: true });
