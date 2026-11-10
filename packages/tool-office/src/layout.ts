@@ -43,6 +43,8 @@ export interface LayoutRegion {
   label: string;
   score: number;
   box: Box;
+  /** 单个类别都不够图片线，靠几个类别同框加起来才留下的图片（D-524）：里面一个字都不能有。 */
+  fused?: boolean;
 }
 
 const KIND_OF: Record<string, RegionKind> = {
@@ -60,6 +62,14 @@ const KIND_OF: Record<string, RegionKind> = {
 /** 分数线：实验（word-exp）里 0.5 漏掉很多正文块，0.3 漏得少；图片和表格误报多，要求高一点。 */
 const MIN_SCORE = 0.3;
 const MIN_SCORE_IMAGE = 0.45;
+/**
+ * 模型常把一张图的分数拆给几个类别（image / chart / header_image / footer_image），在差不多同一个框上各得 0.2–0.4，
+ * 单看都过不了图片线（D-524）：这样的同框检测按类别（每个类别取最高分）加起来再和图片线比。
+ * 低于 FIGURE_PART_MIN 的零星检测不参与；同一个类别重复不叠加；印章不参与（有自己的规则）。
+ */
+const FIGURE_PART_MIN = 0.15;
+/** 两个框交并比达到这么多才算「同一个框」。 */
+const FIGURE_SAME_BOX_IOU = 0.7;
 
 const MEAN = [0.485, 0.456, 0.406] as const;
 const STD = [0.229, 0.224, 0.225] as const;
@@ -105,26 +115,54 @@ export function parseLayout(
   const kx = size.width / side;
   const ky = size.height / side;
   const regions: LayoutRegion[] = [];
+  const parts: LayoutRegion[] = [];
   for (let i = 0; i + 5 < output.length; i += 6) {
     const label = LAYOUT_LABELS[Math.round(output[i]!)];
     const score = output[i + 1]!;
     if (!label) continue;
     const kind = KIND_OF[label] ?? 'text';
-    if (score < (kind === 'image' || kind === 'table' ? MIN_SCORE_IMAGE : MIN_SCORE)) continue;
+    const figurePart = kind === 'image' && label !== 'seal' && score >= FIGURE_PART_MIN;
+    if (score < (kind === 'image' || kind === 'table' ? MIN_SCORE_IMAGE : MIN_SCORE) && !figurePart)
+      continue;
     const x1 = Math.max(0, output[i + 2]! * kx);
     const y1 = Math.max(0, output[i + 3]! * ky);
     const x2 = Math.min(size.width, output[i + 4]! * kx);
     const y2 = Math.min(size.height, output[i + 5]! * ky);
     if (x2 - x1 < 2 || y2 - y1 < 2) continue;
-    regions.push({ kind, label, score, box: { x: x1, y: y1, width: x2 - x1, height: y2 - y1 } });
+    const region = { kind, label, score, box: { x: x1, y: y1, width: x2 - x1, height: y2 - y1 } };
+    (figurePart ? parts : regions).push(region);
   }
-  return regions;
+  return [...regions, ...fuseFigures(parts)];
+}
+
+/** 图片类检测按同框合并：分数从高到低，和某一组领头的框交并比够高的并进去；组分 = 每个类别最高分之和，不够图片线的丢掉。 */
+function fuseFigures(parts: readonly LayoutRegion[]): LayoutRegion[] {
+  const groups: LayoutRegion[][] = [];
+  for (const p of [...parts].sort((a, b) => b.score - a.score)) {
+    const g = groups.find((m) => iou(m[0]!.box, p.box) >= FIGURE_SAME_BOX_IOU);
+    if (g) g.push(p);
+    else groups.push([p]);
+  }
+  return groups.flatMap((g) => {
+    const best = new Map<string, number>();
+    for (const p of g) best.set(p.label, Math.max(best.get(p.label) ?? 0, p.score));
+    const score = [...best.values()].reduce((a, b) => a + b, 0);
+    if (score < MIN_SCORE_IMAGE) return [];
+    return [
+      g[0]!.score >= MIN_SCORE_IMAGE ? { ...g[0]!, score } : { ...g[0]!, score, fused: true },
+    ];
+  });
 }
 
 const area = (b: Box) => b.width * b.height;
 const overlap = (a: Box, b: Box) =>
   Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) *
   Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+
+const iou = (a: Box, b: Box) => {
+  const inter = overlap(a, b);
+  return inter / (area(a) + area(b) - inter || 1);
+};
 
 /** 一行文字有多少在这个区域里（按行的面积算）。 */
 export const lineShareIn = (line: Box, region: Box) => overlap(line, region) / (area(line) || 1);
@@ -155,7 +193,10 @@ export function cleanRegions(
 ): LayoutRegion[] {
   const pageArea = size.width * size.height;
   // 同一张图常被认成两个区域（image 和 header_image）：和更高分的图片重叠一半以上的不要。
-  const images = regions.filter((r) => r.kind === 'image').sort((a, b) => b.score - a.score);
+  // 占了半页以上的「图片」不参与：它本来就要丢，不能让它把里面真正的小图当成重复一起带走（D-524）。
+  const images = regions
+    .filter((r) => r.kind === 'image' && area(r.box) <= IMAGE_MAX_PAGE_SHARE * pageArea)
+    .sort((a, b) => b.score - a.score);
   const duplicate = new Set(
     images.filter((r, i) =>
       images
@@ -171,6 +212,8 @@ export function cleanRegions(
     const inside = lines.filter((l) => lineShareIn(l, r.box) >= 0.5);
     const chars = inside.reduce((n, l) => n + [...l.text.trim()].length, 0);
     if (r.label === 'seal') return inside.length <= SEAL_MAX_LINES && chars <= SEAL_MAX_CHARS;
+    // 靠同框加分才留下的图片证据弱：里面有字就不信（字会被吞进图里；表单里的格子也是短字加框线），也不走示意图那条路（D-524）。
+    if (r.fused) return inside.length === 0;
     if (inside.length <= IMAGE_MAX_LINES && chars <= IMAGE_MAX_CHARS) return true;
     return image !== undefined && isDiagram(image, r.box, inside);
   });
