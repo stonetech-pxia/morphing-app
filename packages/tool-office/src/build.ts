@@ -723,17 +723,27 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     const tableSize = arrange
       ? tableSizeOf(median(inside.map(sizeHeight)), image.width, bodySize)
       : bodySize;
+    // 粗体按整行定：一格一格看笔画，短的数字常被误认成粗体、表头里也会漏一格；
+    // 一行里有字的格子过半看着粗，整行粗，否则整行都不粗（D-521）。
+    const thickCell = grid.cells.map(
+      (_, i) =>
+        arrange &&
+        texts[i]!.length > 0 &&
+        pageStroke > 0 &&
+        median(texts[i]!.map(strokeOf)) > BOLD_RATIO * pageStroke,
+    );
+    const boldRows = new Set<number>();
+    for (const row of new Set(grid.cells.map((c) => c.row))) {
+      const filled = grid.cells.flatMap((c, i) => (c.row === row && texts[i]!.length ? [i] : []));
+      if (filled.filter((i) => thickCell[i]).length * 2 > filled.length) boldRows.add(row);
+    }
     const cells = grid.cells.map((cell, i) => {
       const text = texts[i]!.length ? join(texts[i]!).trim() : '';
       const flatCell = cell.box!;
       const align = text
         ? alignOf(texts[i]!, flatCell.x, flatCell.x + flatCell.width, lineHeight, text)
         : undefined;
-      const bold =
-        arrange &&
-        text !== '' &&
-        pageStroke > 0 &&
-        median(texts[i]!.map(strokeOf)) > BOLD_RATIO * pageStroke;
+      const bold = text !== '' && boldRows.has(cell.row);
       return {
         ...cell,
         text,

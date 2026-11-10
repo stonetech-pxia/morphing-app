@@ -333,6 +333,48 @@ describe('font sizes and bold (D-521)', () => {
     expect(perLine(big.row)).toBeGreaterThan(perLine(small.row));
   });
 
+  it('bolds a table row as a whole, not a stray cell (D-521)', () => {
+    // 带线的表 3 行 3 列：表头两格笔画粗、一格细（认得不准）；第二行只有一个数字笔画粗（噪声）；第三行都细。
+    const xs = [100, 350, 600, 850];
+    const ys = [100, 160, 220, 280];
+    const strokes = (x: number, y: number, stroke: number): Rect[] => {
+      const out: Rect[] = [];
+      for (let s = 0; s + stroke <= 200; s += stroke * 3) {
+        out.push({ x: x + s, y: y + 5, width: stroke, height: 14 });
+      }
+      return out;
+    };
+    const thick = [
+      [true, true, false],
+      [false, true, false],
+      [false, false, false],
+    ];
+    const rows = thick.flatMap((row, r) =>
+      row.map((_, c) => ({ text: `r${r}c${c}`, x: xs[c]! + 20, y: ys[r]! + 18, width: 200 })),
+    );
+    const body = [0, 1, 2, 3, 4].map((i) => ({
+      text: `body line ${i}`,
+      x: 100,
+      y: 400 + 40 * i,
+      width: 300,
+    }));
+    const { ocr } = lines([...rows, ...body]);
+    const marks = [
+      ...gridRects(xs, ys, { thickness: 2 }),
+      ...thick.flatMap((row, r) =>
+        row.flatMap((t, c) => strokes(xs[c]! + 20, ys[r]! + 18, t ? 6 : 2)),
+      ),
+      ...body.flatMap((b) => strokes(b.x, b.y, 2)),
+    ];
+    const page = build(marks, ocr);
+    const [table] = tableBlocks(page);
+    const boldOf = (row: number) =>
+      table!.cells.filter((c) => c.row === row).map((c) => c.bold === true);
+    expect(boldOf(0)).toEqual([true, true, true]);
+    expect(boldOf(1)).toEqual([false, false, false]);
+    expect(boldOf(2)).toEqual([false, false, false]);
+  });
+
   it('an old page without sizes still writes the one 11 pt font', () => {
     const old: TablePage = {
       name: 'P',
