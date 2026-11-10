@@ -112,6 +112,21 @@ private final class DocRenderer: NSObject, WKNavigationDelegate {
         Object.assign(page.style, { minHeight: '0', height: 'auto', width: 'auto', maxWidth: 'none', padding: '0', margin: '0' });
       })()
       """)
+    // Excel（D-513）：系统把表格排成网页时列与列之间没有留白，右对齐的数字会贴着右边一列的文字
+    // （"433.2Open"），转成 PDF 后再识别（转 Word）就连成一个词。每个单元格左右各留一点空隙；
+    // 加了空隙后表格比页面宽时整体缩小到页宽，不切掉最后一列。
+    if ["xls", "xlsx"].contains(uri.pathExtension.lowercased()) {
+      _ = try? await view.evaluateJavaScript(
+        """
+        (() => {
+          const style = document.createElement('style');
+          style.textContent = 'td,th{padding-left:4pt !important;padding-right:4pt !important;box-sizing:border-box}';
+          document.head.appendChild(style);
+          const wide = document.documentElement.scrollWidth, shown = document.documentElement.clientWidth;
+          if (wide > shown && shown > 0) document.body.style.zoom = String(shown / wide);
+        })()
+        """)
+    }
     let paper = CGRect(x: 0, y: 0, width: width, height: height)
     let renderer = UIPrintPageRenderer()
     renderer.addPrintFormatter(view.viewPrintFormatter(), startingAtPageAt: 0)
