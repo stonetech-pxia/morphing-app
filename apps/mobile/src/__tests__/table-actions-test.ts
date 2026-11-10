@@ -235,6 +235,78 @@ describe('ocr.toExcel (D-272)', () => {
     }
   });
 
+  describe('figures from the layout model (D-520)', () => {
+    // 表格下面有一个图表区域（原图是找线那张的 2 倍大）。
+    const figure = {
+      kind: 'image' as const,
+      label: 'chart',
+      score: 0.8,
+      box: { x: 100, y: 350, width: 400, height: 200 },
+    };
+    const onePage = (vision: FakeVision) => {
+      vision.tableImages = [renderPage(1000, 700, gridRects(XS, YS))];
+      vision.layers = [{ width: 2000, height: 1400, lines: cellLines(2) }];
+    };
+
+    it('crops the figure from the picture, puts it in the xlsx and remembers it in the TableDoc', async () => {
+      const { files, vision, run } = setup([pick, excel()]);
+      vision.enableLayout();
+      vision.layoutRegions = [[figure]];
+      files.nextPhotos = [files.offerImage('报告.jpg', 2000, 1400)];
+      onePage(vision);
+      const item = resultItem(await run());
+      expect(vision.calls.filter((c) => c.method === 'detectLayout')).toHaveLength(1);
+      const zip = unzipSync(await files.readUri(item.uri));
+      expect(Object.keys(zip)).toEqual(
+        expect.arrayContaining(['xl/drawings/drawing1.xml', 'xl/media/image1.jpg']),
+      );
+      // 剪的是原图上的位置（2 倍），四周多留一点边。
+      const encoded = files.encodes.at(-1)!;
+      expect(encoded.format).toBe('jpeg');
+      const crop = (
+        encoded.ops as { crop: { x: number; y: number; width: number; height: number } }
+      ).crop;
+      expect(crop.x).toBeLessThanOrEqual(200);
+      expect(crop.y).toBeLessThanOrEqual(700);
+      expect(crop.x + crop.width).toBeGreaterThanOrEqual(1000);
+      expect(crop.y + crop.height).toBeGreaterThanOrEqual(1100);
+      const doc = parseTableDoc(decodeUtf8(await files.readUri(item.tableDoc!.uri)))!;
+      const image = doc.pages[0]!.blocks.find((b) => b.kind === 'image')!;
+      expect(image.kind === 'image' && image.src?.startsWith('runs/')).toBe(true);
+      expect(doc.version).toBe(3);
+    });
+
+    it('still converts without the layout model or when it fails: no pictures', async () => {
+      for (const mode of ['missing', 'not installed', 'fails'] as const) {
+        const { files, vision, run } = setup([pick, excel()]);
+        if (mode !== 'missing') vision.enableLayout();
+        if (mode === 'fails') vision.layoutFails = true;
+        files.nextPhotos = [files.offerImage('a.jpg', 2000, 1400)];
+        onePage(vision);
+        const item = resultItem(await run());
+        const zip = unzipSync(await files.readUri(item.uri));
+        expect(Object.keys(zip).some((n) => n.includes('media') || n.includes('drawing'))).toBe(
+          false,
+        );
+        expect(strFromU8(zip['xl/sharedStrings.xml']!)).toContain('<t>列1</t>');
+      }
+    });
+
+    it('keeps the picture block but writes no picture when the crop fails', async () => {
+      const { files, vision, run } = setup([pick, excel()]);
+      vision.enableLayout();
+      vision.layoutRegions = [[figure]];
+      files.nextPhotos = [files.offerImage('a.jpg', 2000, 1400)];
+      onePage(vision);
+      jest.spyOn(files, 'transformImage').mockRejectedValue(new Error('no memory'));
+      const item = resultItem(await run());
+      const zip = unzipSync(await files.readUri(item.uri));
+      expect(Object.keys(zip).some((n) => n.includes('media'))).toBe(false);
+      const doc = parseTableDoc(decodeUtf8(await files.readUri(item.tableDoc!.uri)))!;
+      expect(doc.pages[0]!.blocks.some((b) => b.kind === 'image')).toBe(true);
+    });
+  });
+
   it('fails with “nothing found” when no page has any text', async () => {
     const { files, run } = setup([pick, excel()]);
     files.nextPhotos = [files.offerImage('blank.jpg', 1000, 700)];

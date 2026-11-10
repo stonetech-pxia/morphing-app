@@ -29,6 +29,7 @@ import {
   parseTableDoc,
   writeDocx,
   writeXlsx,
+  type Box,
   type DocDoc,
   type DocxImage,
   type TableDoc,
@@ -307,6 +308,14 @@ async function adoptSource(
   for (const page of doc.pages) {
     if (page.source) page.source = await asset(page.source);
   }
+  if (kind === 'table') {
+    // 转 Excel 剪下来的图片（D-520）。
+    for (const page of (doc as TableDoc).pages) {
+      for (const block of page.blocks) {
+        if (block.kind === 'image' && block.src) block.src = await asset(block.src);
+      }
+    }
+  }
   if (kind === 'doc') {
     for (const page of (doc as DocDoc).pages) {
       for (const block of leafBlocks(page)) {
@@ -410,7 +419,12 @@ export async function loadDeskSource(
   if (file.source.kind === 'table') {
     const doc = parseTableDoc(text);
     if (!doc) return null;
-    for (const page of doc.pages) page.source = uri(page.source);
+    for (const page of doc.pages) {
+      page.source = uri(page.source);
+      for (const block of page.blocks) {
+        if (block.kind === 'image' && block.src) block.src = uri(block.src);
+      }
+    }
     return { kind: 'table', doc };
   }
   const doc = parseDocDoc(text);
@@ -507,7 +521,15 @@ export function mapSourcePaths(source: DeskSourceDoc, fn: (path: string) => stri
   if (source.kind === 'table') {
     return {
       kind: 'table',
-      doc: { ...source.doc, pages: source.doc.pages.map((p) => ({ ...p, source: fn(p.source) })) },
+      doc: {
+        ...source.doc,
+        pages: source.doc.pages.map((p) => ({
+          ...p,
+          source: fn(p.source),
+          // 转 Excel 剪下来的图片（D-520）。
+          blocks: p.blocks.map((b) => (b.kind === 'image' && b.src ? { ...b, src: fn(b.src) } : b)),
+        })),
+      },
     };
   }
   const doc = JSON.parse(JSON.stringify(source.doc)) as DocDoc;
@@ -537,27 +559,43 @@ const relativeSource = (files: Files, desk: Desk, source: DeskSourceDoc) =>
     return own?.startsWith(`${desk.id}/`) ? own.slice(desk.id.length + 1) : path;
   });
 
-/** docx 里嵌的图片（剪下来的那些）：按中间格式里写的路径读。 */
-async function docxImages(files: Files, desk: Desk, doc: DocDoc) {
+/** docx、xlsx 里嵌的图片（剪下来的那些）：按中间格式里写的路径读。 */
+async function embeddedImages(
+  files: Files,
+  desk: Desk,
+  pictures: Iterable<{ src?: string; box: Box }>,
+) {
   const out = new Map<string, DocxImage>();
-  for (const page of doc.pages) {
-    for (const block of leafBlocks(page)) {
-      if (block.kind !== 'image' || !block.src || out.has(block.src)) continue;
-      try {
-        const uri = deskFileUri(files, desk, block.src);
-        const bytes = await files.readUri(uri);
-        // 量不出大小（外来的 docx 里的 GIF、BMP，D-509）时按它在文档里的大小定长宽比，图片照样写进去。
-        const size = await files
-          .imageSize(uri)
-          .catch(() => ({ width: block.box.width, height: block.box.height }));
-        out.set(block.src, { bytes, ...size });
-      } catch {
-        // 读不了的图片不写进文件。
-      }
+  for (const block of pictures) {
+    if (!block.src || out.has(block.src)) continue;
+    try {
+      const uri = deskFileUri(files, desk, block.src);
+      const bytes = await files.readUri(uri);
+      // 量不出大小（外来的 docx 里的 GIF、BMP，D-509）时按它在文档里的大小定长宽比，图片照样写进去。
+      const size = await files
+        .imageSize(uri)
+        .catch(() => ({ width: block.box.width, height: block.box.height }));
+      out.set(block.src, { bytes, ...size });
+    } catch {
+      // 读不了的图片不写进文件。
     }
   }
   return out;
 }
+
+const docxImages = (files: Files, desk: Desk, doc: DocDoc) =>
+  embeddedImages(
+    files,
+    desk,
+    doc.pages.flatMap((page) => leafBlocks(page).filter((b) => b.kind === 'image')),
+  );
+
+const xlsxImages = (files: Files, desk: Desk, doc: TableDoc) =>
+  embeddedImages(
+    files,
+    desk,
+    doc.pages.flatMap((page) => page.blocks.filter((b) => b.kind === 'image')),
+  );
 
 /**
  * 合上一段编辑（file-room §11.2，D-366）：改过的中间格式写成这一版的 JSON，按它生成一次 xlsx / docx，
@@ -598,7 +636,7 @@ export async function commitEdit(
   const json = `v${n}-0.json`;
   const bytes =
     source.kind === 'table'
-      ? writeXlsx(source.doc)
+      ? writeXlsx(source.doc, await xlsxImages(files, desk, source.doc))
       : writeDocx(source.doc, await docxImages(files, desk, source.doc));
   const size = await files.desk.writeBytes(inDesk(desk, path), bytes);
   const jsonSize = await files.desk.writeText(inDesk(desk, json), JSON.stringify(source.doc));

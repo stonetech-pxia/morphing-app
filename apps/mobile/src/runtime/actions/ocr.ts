@@ -13,7 +13,7 @@ import {
 import { boxesToEnhanced } from '@morph/tool-image';
 import {
   buildDocPage,
-  buildTablePage,
+  buildSheetPage,
   leafBlocks,
   pagesWithoutTables,
   writeDocx,
@@ -21,6 +21,7 @@ import {
   type DocDoc,
   type DocPage,
   type DocxImage,
+  type Box,
   type LayoutRegion,
   type OcrBox,
   type TableDoc,
@@ -119,6 +120,56 @@ async function tableLines(
   return { lines: scaleLines(layer.lines, layer, pixels), enhanced: source !== null };
 }
 
+/**
+ * 图片区域从原图剪下来（转 Word、转 Excel 共用，D-328、D-520）：框按比例换到原图上，剪成 JPG（本次运行的文件），
+ * 路径记进图片块的 src，字节放进 images。剪不出来的图片不写进文件（块留着，编辑页能看到原图里的位置）。
+ * page 是框所在的那张图（找线那张）的大小。
+ */
+async function cropPictures(
+  services: RunServices,
+  item: RunItem,
+  page: { width: number; height: number },
+  pictures: readonly { box: Box; src?: string }[],
+  images: Map<string, DocxImage>,
+  name: (k: number) => string,
+): Promise<void> {
+  if (!pictures.length) return;
+  const { files } = services;
+  const size =
+    item.width && item.height
+      ? { width: item.width, height: item.height }
+      : await files.imageSize(item.uri);
+  const kx = size.width / page.width;
+  const ky = size.height / page.height;
+  for (const [k, block] of pictures.entries()) {
+    const x = Math.max(0, Math.round(block.box.x * kx));
+    const y = Math.max(0, Math.round(block.box.y * ky));
+    const crop = {
+      x,
+      y,
+      width: Math.max(1, Math.min(size.width - x, Math.round(block.box.width * kx))),
+      height: Math.max(1, Math.min(size.height - y, Math.round(block.box.height * ky))),
+    };
+    try {
+      const out = await files.transformImage(
+        item.uri,
+        { crop },
+        { format: 'jpeg', quality: 0.85 },
+        services.runId,
+        name(k),
+      );
+      block.src = out.uri;
+      images.set(out.uri, {
+        bytes: await files.readUri(out.uri),
+        width: out.width,
+        height: out.height,
+      });
+    } catch {
+      // 剪不出来的图片不写进文件。
+    }
+  }
+}
+
 /** 机器起的名字：UUID 或一长串十六进制。 */
 const MACHINE_NAME = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16}/i;
 
@@ -137,6 +188,7 @@ export const OCR_IMPLS: Record<string, Impl> = {
       throw new RunError('tableUnsupported');
     }
     const pages: TablePage[] = [];
+    const images = new Map<string, DocxImage>();
     for (const [i, item] of items.entries()) {
       ctx.throwIfCancelled();
       let pixels: Pixels;
@@ -152,32 +204,48 @@ export const OCR_IMPLS: Record<string, Impl> = {
         throw new RunError('unexpected', { detail: String(e instanceof Error ? e.message : e) });
       }
       ctx.throwIfCancelled();
-      pages.push(
-        buildTablePage(
-          {
-            image: pixels,
-            lines: found.lines,
-            name: t(ctx.locale, 'tableSheetName', { n: i + 1 }),
-            source: item.uri,
-            // 增强过的图已经按 findSkew 转正；没增强过的照片在这里估倾斜。
-            ...(found.enhanced ? { skew: 0 } : {}),
-          },
-          { joinLines: (lines) => polish(layoutOcrLines(lines), lang) },
-        ),
+      // 版面分析（D-520）：图片区域剪成图片，表单、文字区域的网格不当表格。出错时不让整个运行失败：照旧只认表格和文字。
+      let regions: LayoutRegion[] | null = null;
+      try {
+        regions = (await vision.detectLayout?.(pixels)) ?? null;
+      } catch {
+        regions = null;
+      }
+      ctx.throwIfCancelled();
+      const page = buildSheetPage(
+        {
+          image: pixels,
+          lines: found.lines,
+          ...(regions ? { regions } : {}),
+          name: t(ctx.locale, 'tableSheetName', { n: i + 1 }),
+          source: item.uri,
+          // 增强过的图已经按 findSkew 转正；没增强过的照片在这里估倾斜。
+          ...(found.enhanced ? { skew: 0 } : {}),
+        },
+        { joinLines: (lines) => polish(layoutOcrLines(lines), lang) },
       );
+      await cropPictures(
+        ctx.services,
+        item,
+        page,
+        page.blocks.filter((b) => b.kind === 'image'),
+        images,
+        (k) => `excel/${i + 1}-${k + 1}.jpg`,
+      );
+      pages.push(page);
       ctx.progress(i + 1, items.length);
     }
     if (pages.every((p) => p.blocks.length === 0)) {
       throw new RunError('notFound', { name: displayName(items[0]!) });
     }
-    const doc: TableDoc = { version: 2, scope, pages };
+    const doc: TableDoc = { version: 3, scope, pages };
     // 一张照片、名字是人起的就用它；名字是一串编号（分享进来的照片常这样）或几页合成一个文件时
     // 用「表格-日期」，和扫描的「扫描-日期」一样。
     const name =
       items.length === 1 && !MACHINE_NAME.test(items[0]!.name)
         ? items[0]!.name
         : renderNameTemplate(t(ctx.locale, 'tableFileName'), { now: ctx.now() });
-    const xlsx = await writeItem(ctx.services, writeXlsx(doc), {
+    const xlsx = await writeItem(ctx.services, writeXlsx(doc, images), {
       name,
       ext: 'xlsx',
       mimeType: OFFICE_MIME_BY_EXT.xlsx!,
@@ -253,44 +321,15 @@ export const OCR_IMPLS: Record<string, Impl> = {
         },
         { joinLines: (lines) => polish(layoutOcrLines(lines), lang) },
       );
-      // 图片区域：按比例换到原图上剪下来（JPG，本次运行的文件）。
-      // 并排行（D-331）里的图片也要剪。
-      const pictures = leafBlocks(page).filter((b) => b.kind === 'image');
-      if (pictures.length) {
-        const size =
-          item.width && item.height
-            ? { width: item.width, height: item.height }
-            : await files.imageSize(item.uri);
-        const kx = size.width / page.width;
-        const ky = size.height / page.height;
-        for (const [k, block] of pictures.entries()) {
-          const x = Math.max(0, Math.round(block.box.x * kx));
-          const y = Math.max(0, Math.round(block.box.y * ky));
-          const crop = {
-            x,
-            y,
-            width: Math.max(1, Math.min(size.width - x, Math.round(block.box.width * kx))),
-            height: Math.max(1, Math.min(size.height - y, Math.round(block.box.height * ky))),
-          };
-          try {
-            const out = await files.transformImage(
-              item.uri,
-              { crop },
-              { format: 'jpeg', quality: 0.85 },
-              ctx.services.runId,
-              `word/${i + 1}-${k + 1}.jpg`,
-            );
-            block.src = out.uri;
-            images.set(out.uri, {
-              bytes: await files.readUri(out.uri),
-              width: out.width,
-              height: out.height,
-            });
-          } catch {
-            // 剪不出来的图片不写进文件（块留着，编辑页能看到原图里的位置）。
-          }
-        }
-      }
+      // 图片区域：按比例换到原图上剪下来（JPG，本次运行的文件）。并排行（D-331）里的图片也要剪。
+      await cropPictures(
+        ctx.services,
+        item,
+        page,
+        leafBlocks(page).filter((b) => b.kind === 'image'),
+        images,
+        (k) => `word/${i + 1}-${k + 1}.jpg`,
+      );
       pages.push(page);
       ctx.progress(i + 1, items.length);
     }

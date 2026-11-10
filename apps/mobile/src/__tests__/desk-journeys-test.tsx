@@ -206,7 +206,7 @@ describe('有数据：转 Excel 的结果在桌上', () => {
       'sheetdesk',
     );
     const doc: TableDoc = {
-      version: 2,
+      version: 3,
       scope: 'all',
       pages: [
         {

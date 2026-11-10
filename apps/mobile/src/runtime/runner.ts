@@ -206,24 +206,25 @@ export function devicePack(
       : undefined;
   }
   const model = files.vision?.ocrModel;
-  // 转 Word（D-328）：和转 Excel 一样要认字的模型，另外可选版面分析模型（不下载也照样转）。
-  if (actionId === 'ocr.toWord') {
-    const ocr = devicePack(files, 'ocr.toExcel', params, locale) as DevicePack | undefined;
+  // 转 Word（D-328）、转 Excel（D-272）要每行的位置，只用本机的识别（PP-OCRv6 或系统的），不用文字识别包；
+  // 另外可选版面分析模型（不下载也照样转：Word 不分标题和图片，Excel 不放图片，D-520）。
+  if (actionId === 'ocr.toWord' || actionId === 'ocr.toExcel') {
+    const lang = resolveOcrLanguage(params.lang, locale);
+    const code = VISION_LANGUAGES[lang]?.[0];
+    const ocr =
+      model && code && model.languages.includes(code.split('-')[0]!)
+        ? ({ pack: model.pack } as DevicePack)
+        : undefined;
     const layout = files.vision?.layoutModel;
     const extra = layout ? [{ pack: layout.pack, optional: true, extra: true }] : [];
     return ocr || extra.length ? [...(ocr ? [ocr] : []), ...extra] : undefined;
   }
-  // 转 Excel（D-272）要每行的位置，只用本机的识别（PP-OCRv6 或系统的），不用文字识别包。
-  if (actionId === 'ocr.recognize' || actionId === 'ocr.toExcel') {
+  if (actionId === 'ocr.recognize') {
     const lang = resolveOcrLanguage(params.lang, locale);
     const code = VISION_LANGUAGES[lang]?.[0];
     if (model && code && model.languages.includes(code.split('-')[0]!)) return { pack: model.pack };
     // 自动（D-278）选到系统也认不了的语言（Android 的俄文、越南文）：要那种语言的识别包。
-    if (
-      actionId === 'ocr.recognize' &&
-      params.lang === 'auto' &&
-      !(code && files.vision?.supportsLanguage(code))
-    ) {
+    if (params.lang === 'auto' && !(code && files.vision?.supportsLanguage(code))) {
       return { pack: ocrPackId(lang) };
     }
     return undefined;

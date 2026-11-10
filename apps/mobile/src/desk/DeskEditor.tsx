@@ -3,6 +3,7 @@ import {
   EDITABLE_CELLS,
   canDeleteColumn,
   deleteColumn,
+  deleteImageBlock,
   deleteRow,
   deleteTextBlock,
   insertColumn,
@@ -93,6 +94,7 @@ export function DeskEditor({
   function sheetText(sel: { block: number; cell?: number }): string {
     const block = page!.blocks[sel.block]!;
     if (block.kind === 'text') return block.text;
+    if (block.kind === 'image') return '';
     return block.cells[sel.cell!]?.text ?? '';
   }
 
@@ -103,7 +105,8 @@ export function DeskEditor({
       selected.block === cell.block &&
       selected.cell === cell.cell
     ) {
-      setEditing({ text: sheetText(sel) });
+      // 图片没有字可改：再点一下也只是选着。
+      if (!cell.image) setEditing({ text: sheetText(sel) });
       return;
     }
     setEditing(null);
@@ -114,6 +117,16 @@ export function DeskEditor({
     if (!table || !page || !sheetCell || !layout) return [];
     const block = page.blocks[sheetCell.block]!;
     const edit = { id: 'desk-edit-text', label: 'tableEditCell' as const, run: startEdit };
+    if (block.kind === 'image') {
+      return [
+        {
+          id: 'desk-image-delete',
+          label: 'tableDeleteImage',
+          danger: true,
+          run: () => apply(deleteImageBlock(table, pageIndex, sheetCell.block)),
+        },
+      ];
+    }
     if (block.kind === 'text') {
       return [
         { ...edit, label: 'tableEditText' },
@@ -126,7 +139,7 @@ export function DeskEditor({
       ];
     }
     const at = { page: pageIndex, block: sheetCell.block };
-    const tr = layout.rows[sheetCell.row]?.tableRow ?? 0;
+    const tr = sheetCell.tableRow ?? layout.rows[sheetCell.row]?.tableRow ?? 0;
     const col = sheetCell.col;
     return [
       edit,

@@ -1596,6 +1596,7 @@ export const en = {
   tableInsertColumnRight: 'Insert a column to the right',
   tableDeleteColumn: 'Delete this column',
   tableDeleteText: 'Delete this text',
+  tableDeleteImage: 'Delete this picture',
   tableEmpty: 'Nothing was recognized on this page.',
   tableReadOnly:
     'This page has more than {max} cells, so it can only be viewed here. To edit it, open the file in another app.',

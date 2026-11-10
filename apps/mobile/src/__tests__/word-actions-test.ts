@@ -209,4 +209,21 @@ describe('ocr.toWord (D-328)', () => {
     vision.layoutModel = undefined;
     expect(devicePack(files, 'ocr.toWord', { lang: 'chi_sim' })).toEqual([{ pack: 'ppocr' }]);
   });
+
+  it('asks Excel conversion for the optional layout model too, because it crops figures (D-520)', () => {
+    const files = new FakeFiles();
+    const vision = new FakeVision(files);
+    files.vision = vision;
+    vision.ocrModel = { pack: 'ppocr', languages: ['zh', 'en'] };
+    vision.enableLayout();
+    expect(devicePack(files, 'ocr.toExcel', { lang: 'chi_sim' })).toEqual([
+      { pack: 'ppocr' },
+      { pack: 'layout', optional: true, extra: true },
+    ]);
+    expect(devicePack(files, 'ocr.toExcel', { lang: 'kor' })).toEqual([
+      { pack: 'layout', optional: true, extra: true },
+    ]);
+    vision.layoutModel = undefined;
+    expect(devicePack(files, 'ocr.toExcel', { lang: 'chi_sim' })).toEqual([{ pack: 'ppocr' }]);
+  });
 });

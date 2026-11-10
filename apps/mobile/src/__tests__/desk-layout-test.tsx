@@ -26,7 +26,7 @@ const box = (x: number, y: number, width = 100, height = 20) => ({ x, y, width, 
 
 /** 一页：一行表外的文字（所以有识别范围的切换），下面一张 2×2 的表。 */
 const tableDoc = (): TableDoc => ({
-  version: 2,
+  version: 3,
   scope: 'all',
   pages: [
     {
