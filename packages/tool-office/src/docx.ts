@@ -2,6 +2,7 @@ import { strToU8, zipSync, type Zippable } from 'fflate';
 
 import {
   leafBlocks,
+  textEm,
   type DocBlock,
   type DocDoc,
   type DocLeaf,
@@ -227,7 +228,13 @@ function longestWordEm(text: string): number {
  * 原图像素 → twip：整页宽度按 A4 宽算，放不下时按内容区等比缩小。表里的字号（D-335）按表自己的字号跟着一起缩小，
  * 哪一格最长的词放不下时整张表再一起缩小，最小 5 磅（取到半磅）。
  */
-function tableXml(block: DocTable, page: DocPage, bodySize: number, maxWidth = CONTENT_W): string {
+function tableXml(
+  block: DocTable,
+  page: DocPage,
+  bodySize: number,
+  maxWidth = CONTENT_W,
+  left = 0,
+): string {
   const { table, colWidths } = block;
   const raw = colWidths.map((w) => (w / page.width) * PAGE_W);
   const total = raw.reduce((a, b) => a + b, 0) || 1;
@@ -287,7 +294,9 @@ function tableXml(block: DocTable, page: DocPage, bodySize: number, maxWidth = C
       ? `<w:${side} w:val="nil"/>`
       : `<w:${side} w:val="single" w:sz="4" w:space="0" w:color="000000"/>`;
   return (
-    '<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblLayout w:type="fixed"/><w:tblBorders>' +
+    '<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/>' +
+    (left ? `<w:tblInd w:w="${left}" w:type="dxa"/>` : '') +
+    '<w:tblLayout w:type="fixed"/><w:tblBorders>' +
     ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(border).join('') +
     '</w:tblBorders></w:tblPr><w:tblGrid>' +
     widths.map((w) => `<w:gridCol w:w="${w}"/>`).join('') +
@@ -468,9 +477,10 @@ export function writeDocx(
     };
     // 左缩进（twip）：居中、靠右的段落没有；一行的段落放得下才缩进（不让它折到下一行）。
     const leftOf = (block: DocLeaf, from: number, maxWidth: number): number => {
-      if (block.kind === 'table' || (block.kind === 'paragraph' && block.tab)) return 0;
-      if (block.kind !== 'image' && block.align && block.align !== 'left') return 0;
-      const room = maxWidth - twip(block.box.width) * WIDTH_SLACK;
+      if (block.kind === 'paragraph' && block.tab) return 0;
+      if (block.kind !== 'image' && block.kind !== 'table' && block.align && block.align !== 'left')
+        return 0;
+      const room = maxWidth - twip(block.box.width) * (block.kind === 'table' ? 1 : WIDTH_SLACK);
       const v = Math.min(twip((snap.get(block.box.x) ?? block.box.x) - from), Math.max(0, room));
       return v >= MIN_INDENT ? Math.round(v / 10) * 10 : 0;
     };
@@ -536,7 +546,7 @@ export function writeDocx(
           return [
             ...(pageBreak() ? [paragraphXml('', {}, bodySize, { pageBreak: true })] : []),
             spacerXml(before),
-            tableXml(block, page, bodySize, maxWidth),
+            tableXml(block, page, bodySize, maxWidth - left, left),
             // 两张表紧挨着时 Word 会把它们并成一张：后面补一个空段落。
             blankXml(bodySize),
           ];
@@ -599,6 +609,37 @@ export function writeDocx(
         block.cells.map((c) => twip(c.width)),
         CONTENT_W,
       );
+      // 最后一栏的原图宽只到文字的右边，不一定是可用空间的右边。
+      // 原图单行的左对齐段落按导出字号量字宽、加内边距，借用右侧空白；前面的栏和多行正文不动。
+      const last = block.cells.at(-1)!;
+      const from = Math.min(...last.blocks.map((b) => b.box.x));
+      let needed = widths.at(-1)!;
+      for (const b of last.blocks) {
+        if (
+          b.kind !== 'paragraph' ||
+          b.tab ||
+          (b.align && b.align !== 'left') ||
+          /[\n\t]/.test(b.text)
+        )
+          continue;
+        const size =
+          b.size ?? (b.heading ? bodySize * HEADING_SCALE[`Heading${b.heading}`]! : bodySize);
+        if (twip(b.box.height) > 1.5 * LINE_HEIGHT * size * 20) continue;
+        const runs = b.runs ?? [{ text: b.text }];
+        const textWidth = runs.reduce(
+          // textEm 默认去首尾空白；run 之间的空格也占宽，用两端的字保住它们。
+          (sum, r) => sum + (textEm(`|${r.text}|`) - 2 * textEm('|')) * (r.size ?? size) * 20,
+          0,
+        );
+        needed = Math.max(
+          needed,
+          Math.ceil(
+            textWidth * WIDTH_SLACK + 2 * CELL_PAD + twip(b.box.x - from + (b.indent ?? 0)),
+          ),
+        );
+      }
+      const spare = Math.max(0, CONTENT_W - widths.reduce((a, b) => a + b, 0));
+      widths[widths.length - 1]! += Math.min(spare, needed - widths.at(-1)!);
       // 格子里留一点边距，里面的表格、图片按格子的宽缩小；格子里的位置从这一格的左上角算。
       const cells = block.cells.map((cell, i) => {
         const inner: Flow = { top: block.box.y, bottom: block.box.y, height: 0 };

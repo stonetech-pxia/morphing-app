@@ -20,6 +20,99 @@ const unzip = (bytes: Uint8Array) => {
 };
 
 describe('writeDocx', () => {
+  it('uses spare row width for a single line at its exported font size, including cell padding', () => {
+    const doc: DocDoc = {
+      version: 1,
+      pages: [
+        {
+          ...page([], 12),
+          width: 1408,
+          height: 2016,
+          blocks: [
+            {
+              kind: 'row',
+              box: { x: 105, y: 269, width: 844, height: 29 },
+              cells: [
+                {
+                  width: 616,
+                  blocks: [
+                    {
+                      kind: 'paragraph',
+                      text: 'From: Northfield Studio',
+                      box: { x: 105, y: 270, width: 270, height: 27 },
+                    },
+                  ],
+                },
+                {
+                  width: 228,
+                  blocks: [
+                    {
+                      kind: 'paragraph',
+                      text: 'Bill to: Elena Martin',
+                      box: { x: 721, y: 269, width: 228, height: 29 },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const xml = unzip(writeDocx(doc)).text('word/document.xml');
+    const widths = [...xml.matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].map((m) => Number(m[1]));
+    expect(widths[0]).toBe(Math.round((616 / 1408) * 11906));
+    // Arial 12 磅整行约 103.3 磅，再加两边各 4 磅；不能拿文字的识别框当可用栏宽。
+    expect(widths[1]! - 160).toBeGreaterThanOrEqual(103.3 * 20);
+    expect(widths.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(9638);
+    expect(xml).toContain('>Bill to: Elena Martin</w:t>');
+  });
+
+  it('preserves a table’s horizontal position and keeps its width inside the page', () => {
+    const at = { x: 435, y: 279, width: 487, height: 200 };
+    const xml = unzip(
+      writeDocx({
+        version: 1,
+        pages: [
+          {
+            ...page([]),
+            width: 1408,
+            height: 2016,
+            blocks: [
+              {
+                kind: 'table',
+                box: at,
+                colWidths: [143, 106, 135, 104],
+                table: {
+                  kind: 'table',
+                  box: at,
+                  rows: 1,
+                  cols: 4,
+                  col: 0,
+                  cells: ['项目名称', '数量', '单价', '金额'].map((text, col) => ({
+                    row: 0,
+                    col,
+                    rowSpan: 1,
+                    colSpan: 1,
+                    text,
+                  })),
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    ).text('word/document.xml');
+    const indent = Number(xml.match(/<w:tblInd w:w="(\d+)" w:type="dxa"\/>/)?.[1] ?? 0);
+    expect(indent).toBeGreaterThan(2500);
+    expect(indent).toBeLessThan(2600);
+    const width = [...xml.matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].reduce(
+      (sum, m) => sum + Number(m[1]),
+      0,
+    );
+    expect(indent + width).toBeLessThanOrEqual(9638);
+  });
+
   it('writes a valid package with document, styles and numbering parts', () => {
     const zip = unzip(writeDocx({ version: 1, pages: [page([])] }));
     expect(zip.names).toEqual([

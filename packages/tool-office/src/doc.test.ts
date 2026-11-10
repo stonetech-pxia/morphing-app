@@ -224,6 +224,31 @@ describe('buildDocPage', () => {
   const regions = (list: [LayoutRegion['kind'], string, Rect][]): LayoutRegion[] =>
     list.map(([kind, label, box]) => ({ kind, label, score: 0.9, box }));
 
+  it('preserves independent header rows after the layout regions have been merged', () => {
+    const { image, lines } = textPage([
+      { text: '陈晓明 | ID: DOC-101-3 | 2026-10-15', x: 105, y: 223, width: 432, h: 31 },
+      { text: '开票方：北方工作室', x: 105, y: 279, width: 243, h: 31 },
+      { text: '收件人：陈晓明', x: 721, y: 279, width: 189, h: 31 },
+    ]);
+    const doc = buildDocPage({
+      image,
+      lines,
+      source: 's',
+      skew: 0,
+      regions: regions([
+        ['text', 'text', { x: 100, y: 220, width: 440, height: 35 }],
+        ['text', 'text', { x: 100, y: 276, width: 250, height: 35 }],
+        ['text', 'text', { x: 715, y: 276, width: 200, height: 35 }],
+      ]),
+    });
+    const paragraphs = leafBlocks(doc)
+      .filter((b) => b.kind === 'paragraph')
+      .map((b) => b.text);
+    expect(paragraphs).toContain('开票方：北方工作室');
+    expect(paragraphs).toContain('收件人：陈晓明');
+    expect(paragraphs).toContain(lines[0]!.text);
+  });
+
   it('makes headings, paragraphs, lists, a ruled table and an image in reading order', () => {
     const xs = [100, 400, 700];
     const ys = [700, 740, 780];
@@ -651,6 +676,28 @@ describe('buildDocPage', () => {
 });
 
 describe('ragged-right wrapping (D-473)', () => {
+  it('keeps an aligned pair of header fields separate from the preceding line', () => {
+    const date = line('姓名 | ID: DOC-101-3 | 2026-10-15', 105, 223, 432, 31);
+    const issuer = line('开票方：北方工作室', 105, 279, 243, 31);
+    const recipient = line('收件人：陈晓明', 721, 279, 189, 31);
+    expect(paragraphsOf([date, issuer], [recipient]).map((p) => p.rows.map((r) => r.text))).toEqual(
+      [[date.text], [issuer.text]],
+    );
+  });
+
+  it('still joins prose beside a column and wrapped values below a header field', () => {
+    const prose = [
+      line('This is a long paragraph that reaches the edge of its own text column', 100, 100, 430),
+      line('and continues on the following line.', 100, 125, 330),
+    ];
+    expect(paragraphsOf(prose, [line('Another column', 721, 125, 190)])).toHaveLength(1);
+    const value = [
+      line('Address: Northfield Studio', 100, 100, 430),
+      line('Second floor', 100, 125, 240),
+    ];
+    expect(paragraphsOf(value, [line('Account: 123', 721, 100, 190)])).toHaveLength(1);
+  });
+
   it('joins a line that stopped short because the next word would not fit', () => {
     // 左对齐的正文右边参差不齐：第二行没写到头（离右边 30），因为下一行的第一个词放不下。
     const lines = [

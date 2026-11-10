@@ -400,6 +400,7 @@ function fitsOnPrev(prev: Row, row: Row, right: number, typical: number): boolea
 /** 一块里的行分成段落：空隙大、是列表项、上一行没写到右边（不是折行）、或者有缩进的地方开始新的一段。 */
 export function paragraphsOf(
   lines: readonly OcrBox[],
+  peers: readonly OcrBox[] = [],
 ): { rows: Row[]; spaced: boolean; list: boolean }[] {
   const rows = rowsOf(lines);
   if (!rows.length) return [];
@@ -421,9 +422,25 @@ export function paragraphsOf(
       Math.abs(prev.box.x + prev.box.width / 2 - (row.box.x + row.box.width / 2)) <=
         CENTER_PAIR * typical &&
       Math.abs(prev.box.x - row.box.x) > 0.5 * typical;
+    // 同一排左右各有「标签：值」是独立的信息行，不是上一段正文的折行。
+    // 只看组外、隔开一栏的字段；正文两栏恰好对齐、字段值自己的续行都不因此拆段。
+    const field = (text: string) => /^[^:：.!?。！？\n]{1,30}[:：]\s*\S/u.test(text.trim());
+    const fieldRow =
+      field(row.text) &&
+      peers.some((p) => {
+        const gap = Math.max(p.x - (row.box.x + row.box.width), row.box.x - (p.x + p.width));
+        const overlap =
+          Math.min(p.y + p.height, row.box.y + row.box.height) - Math.max(p.y, row.box.y);
+        return (
+          gap > ROW_SPLIT * typical &&
+          overlap > 0.7 * Math.min(p.height, row.box.height) &&
+          field(p.text)
+        );
+      });
     const wrapped =
       prev !== undefined &&
       !centeredPair &&
+      !fieldRow &&
       gap <= PARAGRAPH_GAP * typical &&
       (prev.box.x + prev.box.width >= right - 1.2 * typical ||
         !fitsOnPrev(prev, row, right, typical)) &&
@@ -437,6 +454,7 @@ export function paragraphsOf(
     const hanging =
       last?.list === true &&
       prev !== undefined &&
+      !fieldRow &&
       gap <= PARAGRAPH_GAP * typical &&
       !list &&
       row.box.x > last.rows[0]!.box.x + 0.3 * typical &&
@@ -1023,7 +1041,11 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
       });
       continue;
     }
-    const paragraphs = paragraphsOf(group.lines);
+    const members = new Set(group.lines);
+    const paragraphs = paragraphsOf(
+      group.lines,
+      free.filter((l) => !members.has(l)),
+    );
     // 一块的第一段和前面的块之间原来就空着。
     if (paragraphs[0]) paragraphs[0].spaced = true;
     let list: DocList | null = null;
