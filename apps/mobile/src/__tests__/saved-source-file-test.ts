@@ -1,4 +1,4 @@
-import type { DocDoc } from '@morph/tool-office';
+import type { DocDoc, TableDoc } from '@morph/tool-office';
 
 import { SOURCE_NAME, writeSavedSource } from '../desk/saved-source-file';
 import { FakeFiles } from '../test-utils/fake-files';
@@ -43,5 +43,42 @@ describe('writeSavedSource', () => {
     expect(body.doc.pages[0].blocks[0].text).toBe('Bonjour');
     expect(body.doc.pages[0].blocks[1].src).toBe('');
     expect(Object.keys(written).sort()).toEqual(['morph-source-0.jpg', SOURCE_NAME]);
+  });
+
+  it('keeps an Excel picture beside the saved file and points the sidecar at it (D-520)', async () => {
+    const files = new FakeFiles();
+    files.disk.set('desk/d1/assets/page.jpg', new Uint8Array([1, 2, 3]));
+    files.disk.set('desk/d1/assets/fig.jpg', new Uint8Array([4, 5]));
+    const box = { x: 0, y: 0, width: 10, height: 10 };
+    const doc: TableDoc = {
+      version: 3,
+      scope: 'all',
+      pages: [
+        {
+          name: 'P',
+          source: 'desk/d1/assets/page.jpg',
+          width: 100,
+          height: 100,
+          lineHeight: 10,
+          colWidths: [50, 50],
+          blocks: [{ kind: 'image', col: 0, cols: 2, box, src: 'desk/d1/assets/fig.jpg' }],
+        },
+      ],
+    };
+    const written: Record<string, Uint8Array> = {};
+    await writeSavedSource(
+      {
+        readUri: (uri) => files.readUri(uri),
+        writeBytes: async (_id, name, bytes) => {
+          written[name] = bytes;
+          return { path: name, size: bytes.length };
+        },
+      },
+      'a1',
+      { kind: 'table', doc },
+    );
+    const body = JSON.parse(new TextDecoder().decode(written[SOURCE_NAME]!));
+    expect(body.doc.pages[0].blocks[0].src).toBe('morph-source-1.jpg');
+    expect(Array.from(written['morph-source-1.jpg']!)).toEqual([4, 5]);
   });
 });

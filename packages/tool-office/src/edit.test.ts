@@ -42,7 +42,7 @@ const TABLE: TableBlock = {
 };
 
 const DOC: TableDoc = {
-  version: 2,
+  version: 3,
   scope: 'all',
   pages: [
     {

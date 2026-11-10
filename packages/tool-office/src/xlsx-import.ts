@@ -141,7 +141,7 @@ export function importXlsx(data: Uint8Array): XlsxImport {
     pages.push(sheetPage(sheet.attrs.name ?? '', root, values, merges, rows, cols));
   }
   if (!pages.length) pages.push(sheetPage('Sheet1', undefined, new Map(), [], 1, 1));
-  return { doc: { version: 2, scope: 'all', pages }, formulas };
+  return { doc: { version: 3, scope: 'all', pages }, formulas };
 }
 
 function readCell(

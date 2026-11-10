@@ -192,7 +192,7 @@ const INDENT_MIN = 0.8;
 const INDENT_MAX = 0.5;
 const INDENT_LINES = 4;
 /** 笔画比这一页的中位数粗这么多倍算粗体。 */
-const BOLD_RATIO = 1.35;
+export const BOLD_RATIO = 1.35;
 /** 文字像素的色度（最大、最小通道之差）超过这么多算有颜色。 */
 const COLOR_CHROMA = 60;
 /** 段落：上下间距不超过 1.2 倍行高的算同一段（和 D-268 一样）。 */
@@ -529,7 +529,7 @@ export function textColor(image: RgbaImage, box: Box): string | undefined {
 }
 
 /** 图片区域剪下来时外面留的边（行高的倍数）：不能超过图和旁边文字的空隙（0.3 个行高），不然并排的图和字变成上下排。 */
-const IMAGE_PAD = 0.15;
+export const IMAGE_PAD = 0.15;
 
 /** 行数 × 列数到这么多，格子数又很少，才可能是版面网格。 */
 const LAYOUT_MIN_POSITIONS = 40;
@@ -564,8 +564,8 @@ export function isRuleGrid(table: TableBlock, lineCount = 0): boolean {
 }
 
 /** 至少这么多行、这么多比例的字被列线从词中间切开，就是网格认错了（D-502）。 */
-const CHOP_MIN = 2;
-const CHOP_SHARE = 0.3;
+export const CHOP_MIN = 2;
+export const CHOP_SHARE = 0.3;
 
 /** 框的高是宽的这么多倍以上、至少两个字：竖排或旋转了的字。 */
 const VERTICAL_RATIO = 2;

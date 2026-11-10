@@ -48,6 +48,10 @@ export interface TableCell {
    * 没有时（扫描件）按文字猜：纯数字写成数字。
    */
   write?: { kind: 'text' } | { kind: 'number'; value: number; format: string };
+  /** 字号（磅，D-521）：按这一格字的行高估的；没有时用这一页的 bodySize（再没有是 11）。 */
+  size?: number;
+  /** 粗体（D-521）：笔画比整页的字粗得多；没有时不加粗。 */
+  bold?: boolean;
 }
 
 export interface TableBlock {
@@ -60,19 +64,45 @@ export interface TableBlock {
   /** 按行、列排好。 */
   cells: TableCell[];
   box: Box;
+  /** 并排的一带（D-522），同 TextBlock.band。 */
+  band?: number;
   /** 写 xlsx 时格子不画边框（外来的 xlsx 读进来的表，D-509：原来的边框读不出来，也不给每一格加上）。 */
   borderless?: boolean;
 }
 
-/** 表格外的一段文字（识别范围是「全部内容」时写进 xlsx，每段一行，横跨合并）。 */
+/**
+ * 表格外的一段文字（识别范围是「全部内容」时写进 xlsx，每段一行）。
+ * 没有 col 时从第一列合并到最后一列；左右两栏的页（D-522）每一栏有自己的列范围，两栏的段落排在同一批行上。
+ */
 export interface TextBlock {
   kind: 'text';
   text: string;
   align?: CellAlign;
+  /** 从这一页共用的第几列开始、占几列（和 TableBlock.col / cols 一样）；两个都没有时横跨整页。 */
+  col?: number;
+  cols?: number;
+  /** 并排的一带（D-522）：同一个编号的块从同一行起，各排各的列（左栏、右栏、旁边的图片）。 */
+  band?: number;
+  /** 字号（磅）和粗体（D-521），同 TableCell。 */
+  size?: number;
+  bold?: boolean;
   box: Box;
 }
 
-export type Block = TableBlock | TextBlock;
+/**
+ * 从原图剪下来的图片（D-520）：写 xlsx 时放在 col 列起、占 cols 列的位置，高度按图的长宽比。
+ * src 是剪好的 JPG（本次运行的文件，放到桌上后是桌面里的文件）；剪不出来时没有，编辑页只显示位置。
+ */
+export interface ImageBlock {
+  kind: 'image';
+  col: number;
+  cols: number;
+  band?: number;
+  src?: string;
+  box: Box;
+}
+
+export type Block = TableBlock | TextBlock | ImageBlock;
 
 export interface TablePage {
   /** 工作表名（写 xlsx 时再清理）。 */
@@ -89,6 +119,8 @@ export interface TablePage {
    * 表外的文字从第一列合并到最后一列。没有表时是平分页宽的 4 列。
    */
   colWidths: number[];
+  /** 这一页正文的字号（磅，D-521）：格子和文字没有自己的字号时用它；没有时是 11（老文件）。 */
+  bodySize?: number;
   /** 按阅读顺序（从上到下）。 */
   blocks: Block[];
 }
@@ -96,7 +128,8 @@ export interface TablePage {
 export type TableScope = 'all' | 'tables';
 
 export interface TableDoc {
-  version: 2;
+  /** 3：加了图片块、文字的列范围、字号（D-520–D-522）；2 的文件读进来时升成 3（parseTableDoc），一个字段都不丢。 */
+  version: 3;
   /** 识别范围：只决定写 xlsx 时要不要写表外的文字，所以切换不会丢掉改过的内容。 */
   scope: TableScope;
   pages: TablePage[];

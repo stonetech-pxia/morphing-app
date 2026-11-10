@@ -1,8 +1,10 @@
 import { DESK_MAX_VERSIONS, currentFiles, type RunValue } from '@morph/core';
 import type { DocDoc, TableDoc } from '@morph/tool-office';
+import { strFromU8, unzipSync } from 'fflate';
 
 import {
   clearDesk,
+  commitEdit,
   commitRun,
   deskPicked,
   listDesks,
@@ -177,7 +179,7 @@ describe('工具的结果放回桌上', () => {
 
 describe('版本里的中间格式（§11.1）', () => {
   const tableDoc = (source: string): TableDoc => ({
-    version: 2,
+    version: 3,
     scope: 'all',
     pages: [
       {
@@ -293,6 +295,83 @@ describe('版本里的中间格式（§11.1）', () => {
       'desk/d1/assets/v2-0-1.jpg',
       'desk/d1/assets/v2-0-1.jpg',
     ]);
+  });
+
+  it('转 Excel：剪下来的图片也进 assets/，编辑合上时重新写进 xlsx（D-520）', async () => {
+    const files = setup();
+    let desk = await placeOnDesk(files, original.slice(0, 1), 1000, 'd1');
+    const page = runFile(files, 'r1', 'input-0.jpg', 300);
+    const crop = runFile(files, 'r1', 'excel/1-1.jpg', 40);
+    const xlsx = runFile(files, 'r1', '表格.xlsx', 50);
+    const doc: TableDoc = {
+      ...tableDoc(page),
+      pages: [
+        {
+          ...tableDoc(page).pages[0]!,
+          blocks: [
+            { kind: 'text', text: '标题', box: { x: 0, y: 0, width: 10, height: 10 } },
+            {
+              kind: 'image',
+              col: 0,
+              cols: 2,
+              src: crop,
+              box: { x: 0, y: 20, width: 40, height: 20 },
+            },
+          ],
+        },
+      ],
+    };
+    files.disk.set('runs/r1/表格.json', new TextEncoder().encode(JSON.stringify(doc)));
+    ({ desk } = await commitRun(
+      files,
+      desk,
+      ['f1-0'],
+      {
+        type: 'files',
+        items: [
+          {
+            uri: xlsx,
+            name: '表格',
+            ext: 'xlsx',
+            mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            size: 50,
+            tableDoc: { uri: 'runs/r1/表格.json', for: xlsx },
+          },
+        ],
+      },
+      { kind: 'action', action: 'ocr.toExcel' },
+      2000,
+    ));
+    const [sheet] = currentFiles(desk);
+    expect(sheet!.source?.assets.map((a) => a.path)).toEqual([
+      'assets/v2-0-0.jpg',
+      'assets/v2-0-1.jpg',
+    ]);
+    expect(files.disk.has(crop)).toBe(false);
+    const stored = JSON.parse((await files.desk.readText('d1/v2-0.json'))!) as TableDoc;
+    const storedImage = stored.pages[0]!.blocks.find((b) => b.kind === 'image');
+    expect(storedImage?.kind === 'image' && storedImage.src).toBe('assets/v2-0-1.jpg');
+    const loaded = await loadDeskSource(files, desk, sheet!);
+    const shown = loaded?.kind === 'table' ? loaded.doc.pages[0]!.blocks : [];
+    expect(shown.map((b) => (b.kind === 'image' ? b.src : null))).toEqual([
+      null,
+      'desk/d1/assets/v2-0-1.jpg',
+    ]);
+    // 编辑合上：重新生成的 xlsx 里有这张图片，中间格式里的路径还是相对路径。
+    const edited = await commitEdit(
+      files,
+      desk,
+      sheet!.id,
+      { kind: 'table', doc: loaded!.doc as TableDoc },
+      3000,
+    );
+    const next = currentFiles(edited.desk)[0]!;
+    const zip = unzipSync(files.disk.get(`desk/d1/${next.path}`)!);
+    expect(Object.keys(zip)).toEqual(expect.arrayContaining(['xl/media/image1.jpg']));
+    expect(strFromU8(zip['xl/drawings/drawing1.xml']!)).toContain('<xdr:pic>');
+    const again = JSON.parse((await files.desk.readText(`d1/${next.source!.path}`))!) as TableDoc;
+    const againImage = again.pages[0]!.blocks.find((b) => b.kind === 'image');
+    expect(againImage?.kind === 'image' && againImage.src).toBe('assets/v2-0-1.jpg');
   });
 
   it('后面的步骤生成了新文件（中间格式不是为它存的）：这一版没有中间格式', async () => {

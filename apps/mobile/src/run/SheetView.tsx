@@ -1,10 +1,13 @@
 import {
+  DEFAULT_FONT_SIZE,
+  LINE_POINTS,
   cellNumber,
   columnName,
-  lineCount,
+  lineCountAt,
   type SheetCell,
   type SheetLayout,
 } from '@morph/tool-office';
+import { Image } from 'expo-image';
 import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
@@ -19,6 +22,11 @@ const CHAR_PX = 8;
 /** 和 xlsx 一样：没有判断出对齐时是「常规」，数字靠右、文字靠左。 */
 const textAlignOf = (cell: SheetCell) =>
   cell.align ?? (cell.cell !== undefined && cellNumber(cell.text) ? 'right' : 'left');
+/** 格子里的字号（点）：11 磅的字画 13，别的按比例，不小于 9、不大于 28。 */
+const screenFont = (cell: SheetCell) =>
+  Math.round(
+    Math.min(28, Math.max(9, (13 * (cell.size ?? DEFAULT_FONT_SIZE)) / DEFAULT_FONT_SIZE)),
+  );
 const MIN_COL = 56;
 const MAX_COL = 280;
 const LINE_PX = 20;
@@ -61,14 +69,19 @@ export function SheetView({
   // 这一行的行高按这个宽度折出来的行数算（按 Excel 列宽估的行数和这里对不上）。
   const textWidth = Math.max(MIN_COL, Math.min(colAt.at(-1) ?? 0, screenWidth - ROW_HEAD));
   const rowPx = useMemo(() => {
-    const out = layout.rows.map((r) => Math.max(MIN_ROW, r.lines * LINE_PX + 10));
+    // 行高按行里最高的格子（磅，按字号）：11 磅的一行是 LINE_PX 个点。
+    const out = layout.rows.map((r) => Math.max(MIN_ROW, (r.points / LINE_POINTS) * LINE_PX + 10));
     for (const cell of layout.cells) {
-      if (cell.cell !== undefined) continue;
-      const lines = lineCount(cell.text, (textWidth - 2 * CELL_PAD) / CHAR_PX);
-      out[cell.row] = Math.max(MIN_ROW, lines * LINE_PX + 10);
+      // 整行合并的文字按屏幕宽折行重算（按 Excel 列宽估的行数和这里对不上）；有列范围的文字、
+      // 并排一带里的文字（合并了几行）、图片不改行高。
+      if (cell.cell !== undefined || cell.image || cell.colSpan < colPx.length || cell.rowSpan > 1)
+        continue;
+      const size = cell.size ?? DEFAULT_FONT_SIZE;
+      const lines = lineCountAt(cell.text, (textWidth - 2 * CELL_PAD) / CHAR_PX, size);
+      out[cell.row] = Math.max(MIN_ROW, ((lines * size) / DEFAULT_FONT_SIZE) * LINE_PX + 10);
     }
     return out;
-  }, [layout, textWidth]);
+  }, [layout, textWidth, colPx.length]);
   const rowAt = useMemo(() => {
     const out = [0];
     for (const h of rowPx) out.push(out.at(-1)! + h);
@@ -141,9 +154,11 @@ export function SheetView({
             const left = ROW_HEAD + colAt[cell.col]!;
             const top = rowAt[cell.row]!;
             const table = cell.cell !== undefined;
-            const width = table
-              ? colAt[Math.min(cell.col + cell.colSpan, colPx.length)]! - colAt[cell.col]!
-              : textWidth;
+            // 横跨整页的文字不比屏幕宽；有列范围的文字、图片按它占的列。
+            const width =
+              table || cell.image || cell.colSpan < colPx.length
+                ? colAt[Math.min(cell.col + cell.colSpan, colPx.length)]! - colAt[cell.col]!
+                : textWidth;
             const height = rowAt[Math.min(cell.row + cell.rowSpan, rowPx.length)]! - top;
             const on = selected === cell;
             return (
@@ -165,16 +180,31 @@ export function SheetView({
                     backgroundColor: on ? palette.primaryTint : palette.surface,
                   },
                 ]}>
-                <Text
-                  {...(table
-                    ? { numberOfLines: Math.max(1, Math.floor((height - 8) / LINE_PX)) }
-                    : {})}
-                  style={[
-                    palette.font(on ? 'bodyMedium' : 'body', 13),
-                    { color: palette.text, textAlign: textAlignOf(cell) },
-                  ]}>
-                  {cell.text}
-                </Text>
+                {cell.image ? (
+                  // 从原图剪下来的图片（D-520）；还没有剪出来时只留一个框。
+                  cell.image.src ? (
+                    <Image
+                      testID={`table-image-${cell.row}-${cell.col}`}
+                      source={{ uri: cell.image.src }}
+                      style={{ width: width - 2 * CELL_PAD, height: height - 2 * CELL_PAD }}
+                      contentFit="contain"
+                    />
+                  ) : null
+                ) : (
+                  <Text
+                    {...(table
+                      ? { numberOfLines: Math.max(1, Math.floor((height - 8) / LINE_PX)) }
+                      : {})}
+                    style={[
+                      palette.font(
+                        cell.bold ? 'bodyBold' : on ? 'bodyMedium' : 'body',
+                        screenFont(cell),
+                      ),
+                      { color: palette.text, textAlign: textAlignOf(cell) },
+                    ]}>
+                    {cell.text}
+                  </Text>
+                )}
               </Pressable>
             );
           })}
