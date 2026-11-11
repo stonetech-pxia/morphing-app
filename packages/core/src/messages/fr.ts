@@ -790,7 +790,6 @@ export const fr: MessageTable = {
   draftApply: 'Appliquer',
   draftLeave: 'Quitter',
   draftLocked: 'Ceci est un brouillon. Appliquez-le pour l’utiliser.',
-  draftReplyTitle: 'Aperçu : touchez « Appliquer » pour le garder',
   draftReplyHide: 'Masquer',
   draftReplyShow: 'Voir les modifications',
   draftChatTitle: 'Modifier le brouillon',

@@ -701,7 +701,6 @@ export const zh: MessageTable = {
   draftApply: '应用',
   draftLeave: '离开',
   draftLocked: '这是草稿，应用之后才能用。',
-  draftReplyTitle: '预览：点「应用」才会生效',
   draftReplyHide: '收起',
   draftReplyShow: '看修改内容',
   draftChatTitle: '修改草稿',

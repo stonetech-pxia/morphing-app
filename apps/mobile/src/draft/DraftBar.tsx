@@ -22,6 +22,7 @@ import { UiIcon, type UiIconName } from '../renderer/Icon';
 import { usePalette, type Palette } from '../renderer/theme';
 import { aboutPlace } from '../shell/ai-entry';
 import { NeedButton } from '../shell/NeedButton';
+import { TinkBubble } from '../shell/TinkBubble';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { shownConfig, type Draft, type DraftChatReply, type DraftStep } from '../workspace/store';
 import { useDraftUi } from './ui';
@@ -29,9 +30,21 @@ import { useAfterApply, useApplyDraft } from './useApplyDraft';
 
 /**
  * 草稿模式（D-190）底部连在一起的四个按钮：修改（聊天框里接着说）、退一步、应用、离开（草稿保留）。
- * 外壳和推入的页面都显示它；AI 改不掉它（不在配置里）。上面是最新一步的回复。
+ * 外壳和推入的页面都显示它；AI 改不掉它（不在配置里）。
+ * 最新一步的回复是右上角 Tink 的气泡（D-526）：`top` 是气泡顶边、`tinkRight` 是 Tink 的中心离右边多远
+ * （各个页面的标题栏不一样，由页面传）。点「我知道了」缩成三个点，点三个点再展开；退出草稿气泡就没了。
  */
-export function DraftBar({ palette, bottom }: { palette: Palette; bottom: number }) {
+export function DraftBar({
+  palette,
+  bottom,
+  top,
+  tinkRight,
+}: {
+  palette: Palette;
+  bottom: number;
+  top: number;
+  tinkRight: number;
+}) {
   const { locale } = useWorkspaceContext();
   const draft = useWorkspace((s) => s.draft);
   const busy = useWorkspace((s) => s.busy);
@@ -86,25 +99,22 @@ export function DraftBar({ palette, bottom }: { palette: Palette; bottom: number
           onPress={() => markSeen(last.changeRequestId)}
         />
       ) : null}
-      <View pointerEvents="box-none" style={[styles.wrap, { bottom }]}>
-        {replyShown ? (
+      {chatOpen ? null : (
+        <TinkBubble
+          // 新的一步回复内容变了，重新量大小。
+          key={last.changeRequestId}
+          palette={palette}
+          top={top}
+          tinkRight={tinkRight}
+          collapsed={!replyShown}
+          gotIt={t(locale, 'guideGotIt')}
+          expandLabel={t(locale, 'draftReplyShow')}
+          onGotIt={() => markSeen(last.changeRequestId)}
+          onExpand={() => markSeen(null)}>
           <DraftReply draft={draft} palette={palette} />
-        ) : chatOpen ? null : (
-          <Pressable
-            testID="draft-reply-show"
-            accessibilityRole="button"
-            onPress={() => markSeen(null)}
-            style={({ pressed }) => [
-              styles.show,
-              palette.cardStyle(palette.surface),
-              { borderColor: palette.border, borderRadius: 999 },
-              pressed && { opacity: 0.7 },
-            ]}>
-            <Text style={[palette.font('bodyBold', 13), { color: palette.primaryText }]}>
-              {t(locale, 'draftReplyShow')}
-            </Text>
-          </Pressable>
-        )}
+        </TinkBubble>
+      )}
+      <View pointerEvents="box-none" style={[styles.wrap, { bottom }]}>
         <View
           testID="draft-bar"
           style={[
@@ -161,36 +171,9 @@ function addedWorkflow(draft: Draft, index: number): Workflow | undefined {
   return id ? quickActionsOf(step.config).find((w) => w.id === id) : undefined;
 }
 
-/** 最新一步的回复：改了什么（新做的快捷操作列出步骤，一条一条长出来）和 AI 的说明。可以收起、再打开。 */
+/** 最新一步的回复：改了什么（新做的快捷操作列出步骤，一条一条长出来）和 AI 的说明。放在 Tink 的气泡里。 */
 function DraftReply({ draft, palette }: { draft: Draft; palette: Palette }) {
-  const { locale } = useWorkspaceContext();
-  const markSeen = useDraftUi((s) => s.markSeen);
-  const last = draft.steps.at(-1)!;
-  return (
-    <View
-      testID="draft-reply"
-      style={[
-        styles.reply,
-        palette.cardStyle(palette.surface),
-        { borderRadius: palette.controlRadius, padding: palette.pad - 4 },
-      ]}>
-      <View style={styles.replyHead}>
-        <Text style={[palette.font('title', 15), styles.flex, { color: palette.text }]}>
-          {t(locale, 'draftReplyTitle')}
-        </Text>
-        <Pressable
-          testID="draft-reply-hide"
-          accessibilityRole="button"
-          hitSlop={10}
-          onPress={() => markSeen(last.changeRequestId)}>
-          <Text style={[palette.font('bodyBold', 14), { color: palette.primaryText }]}>
-            {t(locale, 'draftReplyHide')}
-          </Text>
-        </Pressable>
-      </View>
-      <StepReply draft={draft} index={draft.steps.length - 1} palette={palette} />
-    </View>
-  );
+  return <StepReply draft={draft} index={draft.steps.length - 1} palette={palette} onBubble />;
 }
 
 /** 一步的回复内容（聊天框和最新一步的回复共用）。 */
@@ -199,19 +182,23 @@ function StepReply({
   index,
   palette,
   animate = true,
+  onBubble = false,
 }: {
   draft: Draft;
   index: number;
   palette: Palette;
   animate?: boolean;
+  /** 放在 Tink 的气泡里（主色底）：文字用气泡上的字色。 */
+  onBubble?: boolean;
 }) {
   const step = draft.steps[index]!;
   const workflow = addedWorkflow(draft, index);
-  const body = [palette.font('body', 14), { color: palette.text }];
+  const ink = onBubble ? palette.onPrimary : palette.text;
+  const body = [palette.font('body', 14), { color: ink }];
   return (
     <View style={styles.stepReply}>
       {workflow ? (
-        <GrowingSteps workflow={workflow} palette={palette} animate={animate} />
+        <GrowingSteps workflow={workflow} palette={palette} animate={animate} onBubble={onBubble} />
       ) : (
         step.lines.slice(0, 4).map((line, i) => (
           <Text key={i} style={body}>
@@ -223,7 +210,10 @@ function StepReply({
         <Text
           key={`n${i}`}
           testID={`draft-note-${i}`}
-          style={[palette.font('body', 13), { color: palette.muted }]}>
+          style={[
+            palette.font('body', 13),
+            onBubble ? { color: palette.onPrimary, opacity: 0.85 } : { color: palette.muted },
+          ]}>
           {note}
         </Text>
       ))}
@@ -236,11 +226,14 @@ function GrowingSteps({
   workflow,
   palette,
   animate,
+  onBubble,
 }: {
   workflow: Workflow;
   palette: Palette;
   animate: boolean;
+  onBubble: boolean;
 }) {
+  const ink = onBubble ? palette.onPrimary : palette.text;
   const { locale, registry } = useWorkspaceContext();
   const [shown] = useState(() => workflow.steps.map(() => new Animated.Value(animate ? 0 : 1)));
   useEffect(() => {
@@ -252,7 +245,7 @@ function GrowingSteps({
   }, [animate, shown]);
   return (
     <View testID="draft-steps" style={styles.stepReply}>
-      <Text style={[palette.font('bodyBold', 14), { color: palette.text }]}>{workflow.name}</Text>
+      <Text style={[palette.font('bodyBold', 14), { color: ink }]}>{workflow.name}</Text>
       {workflow.steps.map((step, i) => (
         <Animated.View
           key={step.id}
@@ -266,12 +259,20 @@ function GrowingSteps({
               ],
             },
           ]}>
-          <View style={[styles.stepNo, { backgroundColor: palette.primaryTint }]}>
-            <Text style={[palette.font('bodyBold', 11), { color: palette.primaryText }]}>
+          <View
+            style={[
+              styles.stepNo,
+              { backgroundColor: onBubble ? 'rgba(255,255,255,0.25)' : palette.primaryTint },
+            ]}>
+            <Text
+              style={[
+                palette.font('bodyBold', 11),
+                { color: onBubble ? palette.onPrimary : palette.primaryText },
+              ]}>
               {i + 1}
             </Text>
           </View>
-          <Text style={[palette.font('body', 14), styles.flex, { color: palette.text }]}>
+          <Text style={[palette.font('body', 14), styles.flex, { color: ink }]}>
             {stepLabel(registry.actions.get(step.action), step.params, locale) ?? step.action}
           </Text>
         </Animated.View>
@@ -501,9 +502,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     minWidth: 68,
   },
-  reply: { alignSelf: 'stretch', gap: 6 },
   dim: { backgroundColor: 'rgba(0,0,0,0.35)' },
-  show: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingVertical: 7 },
   replyHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   stepReply: { gap: 5 },
   step: { flexDirection: 'row', alignItems: 'center', gap: 8 },

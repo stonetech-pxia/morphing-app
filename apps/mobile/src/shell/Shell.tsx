@@ -293,7 +293,7 @@ export function Shell() {
           </View>
         ) : null}
 
-        <DraftBar palette={palette} bottom={barSpace + 12} />
+        <DraftBar palette={palette} bottom={barSpace + 12} top={12} tinkRight={palette.pad + 12} />
         <Toast palette={palette} bottom={barSpace + (inDraft ? 84 : 12)} />
 
         <View

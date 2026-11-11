@@ -132,7 +132,7 @@ export default function PageRoute() {
           fallback={<View />}>
           <EditablePage page={page} env={env} bottomInset={insets.bottom + (inDraft ? 90 : 0)} />
         </ErrorBoundary>
-        <DraftBar palette={palette} bottom={insets.bottom + 16} />
+        <DraftBar palette={palette} bottom={insets.bottom + 16} top={6} tinkRight={39} />
         <Toast palette={palette} bottom={insets.bottom + (inDraft ? 90 : 16)} />
       </View>
     </>

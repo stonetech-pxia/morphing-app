@@ -954,7 +954,13 @@ export function DeskScreen({ deskId }: { deskId: string }) {
       ) : null}
       {inDraft ? (
         <>
-          <DraftBar palette={palette} bottom={insets.bottom + 12} />
+          {/* 顶栏高 56（和上面的 header 一样），Tink 在撤销、重做、完成三个按钮左边：约离右边 190。 */}
+          <DraftBar
+            palette={palette}
+            bottom={insets.bottom + 12}
+            top={insets.top + 56 + 8}
+            tinkRight={190}
+          />
           <Toast palette={palette} bottom={insets.bottom + DRAFT_BAR_SPACE} />
         </>
       ) : null}

@@ -746,7 +746,6 @@ export const en = {
   draftApply: 'Apply',
   draftLeave: 'Leave',
   draftLocked: 'This is a draft. Apply it to use this.',
-  draftReplyTitle: 'Preview. Tap Apply to keep it',
   draftReplyHide: 'Hide',
   draftReplyShow: 'Show changes',
   draftChatTitle: 'Change the draft',

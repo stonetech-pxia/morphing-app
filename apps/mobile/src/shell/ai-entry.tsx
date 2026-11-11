@@ -123,11 +123,18 @@ export function AIEntry({
   const router = useRouter();
   const inDraft = useWorkspace((s) => !!s.draft?.open);
   const setChatOpen = useDraftUi((s) => s.setChatOpen);
+  // 草稿预览里 Tink 的气泡展开着时（D-526）Tink 也会动、带光圈；缩成三个点、聊天框开着、退出草稿就不动了。
+  const lastStep = useWorkspace((s) =>
+    s.draft?.open ? s.draft.steps.at(-1)?.changeRequestId : undefined,
+  );
+  const seenStep = useDraftUi((s) => s.seenStep);
+  const chatOpen = useDraftUi((s) => s.chatOpen);
+  const draftLively = lastStep !== undefined && seenStep !== lastStep && !chatOpen;
   return (
     <AIEntryButton
       palette={palette}
       locale={locale}
-      lively={lively}
+      lively={lively || draftLively}
       onPress={() =>
         onPress
           ? onPress()

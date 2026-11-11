@@ -122,20 +122,31 @@ describe('user journeys (UI)', () => {
     expect(screen.getAllByText('文件工作台').length).toBeGreaterThan(0);
     expect(screen.queryByTestId('nav-ai')).toBeNull();
     expect(store.getState().config!.nav.bar).toHaveLength(5);
-    expect(screen.getByTestId('draft-reply')).toHaveTextContent(/点「应用」才会生效/);
-    // 修改内容显示时界面淡下去；收起后不再淡化，留一个小按钮能再打开。
+    expect(screen.getByTestId('draft-reply')).toHaveTextContent(/\S/);
+    expect(screen.getByTestId('draft-reply')).not.toHaveTextContent(/才会生效/);
+    // 修改内容是右上角 Tink 的气泡（D-526）：显示时界面淡下去，Tink 在动；点「我知道了」缩成三个点，
+    // 不再淡化，点三个点能再打开。
+    expect(screen.getByTestId('tink-lively')).toBeTruthy();
     expect(screen.getByTestId('draft-dim')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('draft-reply-hide'));
     expect(screen.queryByTestId('draft-reply')).toBeNull();
     expect(screen.queryByTestId('draft-dim')).toBeNull();
+    expect(screen.queryByTestId('tink-lively')).toBeNull();
     await fireEvent.press(screen.getByTestId('draft-reply-show'));
-    expect(screen.getByTestId('draft-reply')).toHaveTextContent(/点「应用」才会生效/);
+    expect(screen.getByTestId('draft-reply')).toHaveTextContent(/\S/);
+    expect(screen.getByTestId('draft-reply')).not.toHaveTextContent(/才会生效/);
+    expect(screen.getByTestId('tink-lively')).toBeTruthy();
     // 点淡下去的界面也是收起。
     await fireEvent.press(screen.getByTestId('draft-dim'));
     expect(screen.queryByTestId('draft-reply')).toBeNull();
-    expect(screen.getByTestId('draft-reply-show')).toHaveTextContent('看修改内容');
+    expect(screen.getByTestId('draft-reply-show')).toHaveProp('accessibilityLabel', '看修改内容');
+    // 再展开，然后应用草稿：退出草稿，气泡一起没了。
+    await fireEvent.press(screen.getByTestId('draft-reply-show'));
 
     await applyDraft();
+    expect(screen.queryByTestId('draft-reply')).toBeNull();
+    expect(screen.queryByTestId('draft-reply-show')).toBeNull();
+    expect(screen.queryByTestId('tink-lively')).toBeNull();
 
     // 同一个 App 的首页立即变化：页面标题与导航标签都已更新，AI 和历史不在导航栏里。
     expect(await screen.findAllByText('文件工作台')).toHaveLength(2);
