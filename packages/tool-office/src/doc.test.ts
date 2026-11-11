@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  arrangeUnits,
   buildDocPage,
   clusterLines,
   foldEmptyColumns,
@@ -922,6 +923,147 @@ describe('small layout fixes (D-473)', () => {
     const other = row(300, 'L2', 'R2');
     other.cells[1]!.blocks = [para('R2', 700, 300) as never];
     expect(mergeColumnRows([row(100, 'L1', 'R1'), other], 20)).toHaveLength(2);
+  });
+});
+
+describe('persistent prose columns', () => {
+  const unit = (text: string, x: number, y: number, width = 340, height = 80) => {
+    const box = { x, y, width, height };
+    return { box, blocks: [{ kind: 'paragraph' as const, text, box }] };
+  };
+  const body = () => [
+    unit('L1', 100, 200),
+    unit('R1', 520, 200),
+    unit('L2 isolated', 100, 310),
+    unit('L3', 100, 440),
+    unit('R2 shorter', 520, 440, 250),
+    unit('L4 tail', 100, 510, 300, 40),
+  ];
+
+  it('keeps isolated and trailing paragraphs in stable columns despite uneven ink widths', () => {
+    const blocks = arrangeUnits(body(), 20);
+    expect(blocks).toHaveLength(1);
+    const row = blocks[0] as DocRow;
+    expect(row.kind).toBe('row');
+    expect(row.cells.map((c) => c.blocks.map((b) => (b as DocParagraph).text))).toEqual([
+      ['L1', 'L2 isolated', 'L3', 'L4 tail'],
+      ['R1', 'R2 shorter'],
+    ]);
+    expect(row.cells.map((c) => c.width)).toEqual([420, 340]);
+  });
+
+  it('ends a column scope at full-width content and keeps headers and distant footers outside', () => {
+    const head = unit('Full width title', 100, 80, 760, 30);
+    const author = unit('Author metadata', 100, 125, 280, 20);
+    const across = unit('Spanning statement', 100, 400, 760, 25);
+    const footer = unit('Page footer', 100, 700, 160, 20);
+    const blocks = arrangeUnits([head, author, ...body(), across, footer], 20);
+    expect(blocks.map((b) => b.kind)).toEqual([
+      'paragraph',
+      'paragraph',
+      'row',
+      'paragraph',
+      'row',
+      'paragraph',
+    ]);
+    expect((blocks[2] as DocRow).cells[0]!.blocks.map((b) => (b as DocParagraph).text)).toEqual([
+      'L1',
+      'L2 isolated',
+    ]);
+    expect((blocks.at(-1) as DocParagraph).text).toBe('Page footer');
+  });
+
+  it('leaves sparse parallel fields and single-column prose on the existing path', () => {
+    const fields = [
+      unit('Seller', 100, 200, 140, 20),
+      unit('Buyer', 520, 200, 140, 20),
+      unit('Invoice note', 100, 300, 340, 20),
+    ];
+    expect(arrangeUnits(fields, 20).map((b) => b.kind)).toEqual(['row', 'paragraph']);
+    expect(arrangeUnits([unit('A', 100, 200), unit('B', 100, 310)], 20).map((b) => b.kind)).toEqual(
+      ['paragraph', 'paragraph'],
+    );
+  });
+
+  it('extends a proven scope back into a narrow heading row without absorbing author metadata', () => {
+    const blocks = arrangeUnits(
+      [
+        unit('Author metadata', 100, 160, 300, 20),
+        unit('Opening prose', 100, 200),
+        unit('Short title', 520, 200, 90, 20),
+        unit('Continuing prose', 100, 310),
+        unit('Right content', 520, 310),
+      ],
+      20,
+    );
+    expect(blocks.map((b) => b.kind)).toEqual(['paragraph', 'row']);
+    expect((blocks[1] as DocRow).cells[1]!.blocks.map((b) => (b as DocParagraph).text)).toEqual([
+      'Short title',
+      'Right content',
+    ]);
+    expect((blocks[0] as DocParagraph).text).toBe('Author metadata');
+  });
+
+  it('starts a separate scope when the next column boundary changes', () => {
+    const blocks = arrangeUnits(
+      [unit('L1', 100, 200), unit('R1', 520, 200), unit('L2', 100, 310), unit('R2', 650, 310)],
+      20,
+    );
+    expect(blocks).toHaveLength(2);
+    expect((blocks[0] as DocRow).cells[0]!.width).toBe(420);
+    expect((blocks[1] as DocRow).cells[0]!.width).toBe(550);
+  });
+
+  it('retains separate bands for dense pages rather than creating a large pagination container', () => {
+    const blocks = arrangeUnits(body(), 20, { dense: true });
+    expect(blocks.map((b) => b.kind)).toEqual(['row', 'paragraph', 'row', 'paragraph']);
+    expect(leafBlocks({ blocks }).map((b) => (b as DocParagraph).text)).toEqual([
+      'L1',
+      'R1',
+      'L2 isolated',
+      'L3',
+      'R2 shorter',
+      'L4 tail',
+    ]);
+  });
+
+  it('infers alignment against the proven column, retaining genuinely centered and right-aligned text', () => {
+    const rows = [
+      { text: 'Full width heading across the page', x: 100, y: 60, width: 800 },
+      ...[0, 1, 2, 3].map((i) => ({
+        text: 'A sufficiently long prose line wraps across this column',
+        x: 100,
+        y: 200 + i * 25,
+        width: 360,
+      })),
+      { text: 'Results', x: 520, y: 200, width: 80, h: 25 },
+      { text: 'Right column text establishes the far edge', x: 520, y: 250, width: 380 },
+      { text: 'Centered', x: 650, y: 300, width: 120 },
+      { text: 'End', x: 850, y: 350, width: 50 },
+      { text: 'Reference continuation', x: 520, y: 400, width: 375 },
+      { text: '18.', x: 520, y: 430, width: 30 },
+      ...[0, 1, 2, 3].map((i) => ({
+        text: 'More ordinary prose continues down the left column',
+        x: 100,
+        y: 370 + i * 25,
+        width: 360,
+      })),
+    ];
+    const { image, lines } = textPage(rows);
+    const regions: LayoutRegion[] = rows.map((r) => ({
+      kind: 'text',
+      label: 'text',
+      score: 0.9,
+      box: { x: r.x, y: r.y, width: r.width, height: r.h ?? 20 },
+    }));
+    const doc = buildDocPage({ image, lines, regions, source: 's', skew: 0 });
+    const paras = leafBlocks(doc).filter((b): b is DocParagraph => b.kind === 'paragraph');
+    const byText = (text: string) => paras.find((b) => b.text === text)!;
+    expect(byText('Results').align).toBeUndefined();
+    expect(byText('Reference continuation').align).toBeUndefined();
+    expect(byText('18.').align).toBeUndefined();
+    expect(byText('Centered').align).toBe('center');
+    expect(byText('End').align).toBe('right');
   });
 });
 
