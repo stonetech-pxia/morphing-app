@@ -144,6 +144,12 @@ describe('figures (D-520)', () => {
     expect(textBlocks(page).map((b) => b.text)).toEqual(['Title', 'after']);
   });
 
+  it('keeps worksheet geometry unchanged for a Word-only recovered figure', () => {
+    const outside = ocr.filter((l) => l.text !== 'legend');
+    const weak: LayoutRegion = { ...figure, score: 0.59, fused: true, wordOnly: true };
+    expect(build(marks, outside, [weak])).toEqual(build(marks, outside));
+  });
+
   it('does without a layout model', () => {
     const page = build(marks, ocr);
     expect(imageBlocks(page)).toHaveLength(0);
