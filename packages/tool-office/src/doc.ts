@@ -1,6 +1,8 @@
 import { buildTablePage, type BuildOptions } from './build';
-import { assignLines, cleanRegions, readingOrder, type LayoutRegion } from './layout';
+import { assignLines, cleanRegions, lineShareIn, readingOrder, type LayoutRegion } from './layout';
 import { findBarcodes, findTextTables, levelLines } from './text-table';
+import { findLines } from './lines';
+import { figureOwns, figureWorkingImage, planWordFigures } from './word-figures';
 import type { Box, OcrBox, RgbaImage, TableBlock, TableCell } from './types';
 
 // 扫描件转 Word（D-328）：一页的识别结果 + 版面分析的区域 → DocDoc（编辑页改它，docx 每次从它重新生成）。
@@ -828,21 +830,54 @@ function defaultJoin(lines: readonly OcrBox[]): string {
 
 /** 一页的 DocPage。 */
 export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {}): DocPage {
+  return buildPage(input, options, true);
+}
+
+function buildPage(
+  input: DocPageInput,
+  options: DocBuildOptions,
+  protectFigures: boolean,
+): DocPage {
   const join = options.joinLines ?? defaultJoin;
   const { image } = input;
   const lines = input.lines.filter((l) => l.text.trim());
   const joinParagraph = lines.length < DENSE_LINES ? (options.joinParagraph ?? join) : join;
   const lineHeight = median(lines.map((l) => l.height)) || 20;
+  const figures = protectFigures
+    ? planWordFigures(image, lines, input.regions ?? [], lineHeight)
+    : [];
+  const previous = figures.length ? buildPage(input, options, false) : undefined;
+  // 旧路径已经完整保图且没有输出图内文字/表格时，不重排原本正确的页。
+  if (
+    previous &&
+    figures.every(
+      (f) =>
+        leafBlocks(previous).some((b) => b.kind === 'image' && lineShareIn(f.box, b.box) >= 0.9) &&
+        !leafBlocks(previous).some((b) => b.kind !== 'image' && lineShareIn(b.box, f.box) >= 0.2),
+    )
+  )
+    return previous;
+  const available = figures.length ? lines.filter((l) => !figureOwns(l, figures)) : lines;
+  const working = figureWorkingImage(image, figures, lineHeight);
+  // 抹掉图形不能顺带改变图外网格的坐标系；倾斜仍按原图估计。
+  const tableSkew = input.skew ?? (figures.length ? findLines(image).skew : undefined);
+  const layout = figures.length
+    ? (input.regions ?? []).flatMap((r) => {
+        const owned = figures.find((f) => f.region === r);
+        if (owned) return [{ ...r, box: owned.box }];
+        return r.kind !== 'image' && figureOwns(r.box, figures) ? [] : [r];
+      })
+    : (input.regions ?? []);
   // 带线的表格（和转 Excel 一样）；放进表格的行不再参加分段。
   const placedIn = new Map<TableBlock, readonly OcrBox[]>();
   const choppedIn = new Map<TableBlock, number>();
   const sheet = buildTablePage(
     {
-      image,
-      lines,
+      image: working,
+      lines: available,
       name: '',
       source: input.source,
-      ...(input.skew !== undefined ? { skew: input.skew } : {}),
+      ...(tableSkew !== undefined ? { skew: tableSkew } : {}),
     },
     // 格子里的字按原图一排一行（D-333）：表单一格里的地址、日期各占一行，不接成一段（Word 里格子宽按原图，字号按比例）。
     // 没有线的表在下面去掉竖排、零星的字以后再认（D-471）。
@@ -897,7 +932,7 @@ export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {})
   const inTable = new Set(ruled.flatMap((t) => placedIn.get(t) ?? []));
   // 整页的倾斜（D-471）：照片拍歪、纸弯了时按斜线分行；拉平以后的行只用来分行、分段、排位置，
   // 量笔画、颜色、下划线还是看原图里原来的位置。
-  const outside = lines.filter((l) => !inTable.has(l) && !isStray(l, lines, lineHeight, image));
+  const outside = available.filter((l) => !inTable.has(l) && !isStray(l, lines, lineHeight, image));
   // 竖排、旋转的字（页边的竖排标志、侧边的说明、条码旁的编号）：认出来的字多半是乱的，
   // 放进正文又会把字号撑得很大。整块剪成图片，原样保留。
   const kept = outside.filter((l) => !isVertical(l));
@@ -925,7 +960,7 @@ export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {})
   }
   // 条形码（D-471）：剪成图片，里面认出来的零星的字不要。
   // 带线的表里一段没字的地方（几条平行的列线）不是条形码（D-501）。
-  const barcodes = findBarcodes(image, kept, lineHeight).filter(
+  const barcodes = findBarcodes(working, kept, lineHeight).filter(
     (b) => !tables.some((t) => !t.borderless && inBox(b, t.box)),
   );
   const inBarcode = (l: OcrBox) => {
@@ -937,7 +972,7 @@ export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {})
   };
   const free = leveled.filter((l) => !inTextTable.has(l) && !inBarcode(orig(l)));
   const size = { width: image.width, height: image.height };
-  const regions = cleanRegions(input.regions ?? [], free, size, image).filter(
+  const regions = cleanRegions(layout, free, size, image).filter(
     // 和表格重叠一大半的区域（表格的标题行、表格里认成正文的）不要。
     (r) => {
       const overlaps = tables.map(({ box }) => {
@@ -951,6 +986,9 @@ export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {})
       return covered <= half && overlaps.every((o) => o <= half);
     },
   );
+  // 接管是整页事务：后续去重或表格过滤若淘汰了任一整图，撤销 OCR/像素隔离，沿用原路径。
+  if (figures.some((f) => !regions.some((r) => r.kind === 'image' && r.box === f.box)))
+    return buildPage(input, options, false);
   const merged = mergeTextRegions(regions, lineHeight);
   regions.splice(0, regions.length, ...merged);
   const owner = assignLines(free, regions);
@@ -1011,13 +1049,16 @@ export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {})
   const prose =
     charsOf(lines.filter((l) => l.width >= PROSE_LINE * image.width)) >=
     PROSE_SHARE * charsOf(lines);
-  const bodySize = Math.min(
-    BODY_MAX,
-    Math.max(
-      prose && lines.length < DENSE_LINES ? BODY_MIN : FORM_MIN,
-      fontSizeOf(bodyH, image.width),
-    ),
-  );
+  // 只改图的归属，不让移除图内标签改变整页的默认字号。
+  const bodySize =
+    previous?.bodySize ??
+    Math.min(
+      BODY_MAX,
+      Math.max(
+        prose && lines.length < DENSE_LINES ? BODY_MIN : FORM_MIN,
+        fontSizeOf(bodyH, image.width),
+      ),
+    );
   // 按字宽估字号（D-463）：正文行的估计够一致时才用。
   const bodyWidths = groups
     .filter((g) => !g.title)
@@ -1190,7 +1231,7 @@ export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {})
       alignment.set(paragraph, { h, rows: para.rows.length });
     }
   }
-  return {
+  const page: DocPage = {
     source: input.source,
     width: image.width,
     height: image.height,
@@ -1214,6 +1255,44 @@ export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {})
       },
     }),
   };
+  if (previous) {
+    const outside = (b: DocLeaf) => figures.every((f) => lineShareIn(b.box, f.box) === 0);
+    const artifacts = (p: DocPage) =>
+      leafBlocks(p)
+        .filter((b) => (b.kind === 'table' || b.kind === 'image') && outside(b))
+        .map((b) => JSON.stringify(b))
+        .sort()
+        .join('\n');
+    const styles = new Map(
+      leafBlocks(previous)
+        .filter((b) => b.kind === 'paragraph' && outside(b))
+        .map((b) => [JSON.stringify(b.box), b]),
+    );
+    const styleOf = (b: DocLeaf) =>
+      JSON.stringify(
+        b.kind === 'paragraph'
+          ? [b.size, b.bold, b.underline, b.color, b.heading, b.align, b.indent, b.tab]
+          : [],
+      );
+    // 图外的网格、条码和字体也可能依赖整页统计；有任何连带变化就整页回退，不局部拼补。
+    if (
+      previous.bodySize !== page.bodySize ||
+      artifacts(previous) !== artifacts(page) ||
+      leafBlocks(page).some((b) => {
+        const old = styles.get(JSON.stringify(b.box));
+        return old && b.kind === 'paragraph' && outside(b) && styleOf(old) !== styleOf(b);
+      }) ||
+      leafBlocks(previous).some((old) => {
+        if (old.kind !== 'paragraph' || !outside(old)) return false;
+        const matching = leafBlocks(page).filter(
+          (b) => b.kind === 'paragraph' && b.text === old.text && outside(b),
+        );
+        return matching.length > 0 && matching.every((b) => styleOf(old) !== styleOf(b));
+      })
+    )
+      return previous;
+  }
+  return page;
 }
 
 /**
