@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   arrangeUnits,
@@ -58,6 +58,22 @@ function textPage(
 }
 
 describe('paragraphsOf', () => {
+  it('keeps a wrapped numeric page-range tail in its paragraph, but preserves a real numbered item and a bare label', () => {
+    const reference = line('[1] Martin, E. Document analysis. 2024. pp. 12-', 100, 100, 550, 30);
+    const tail = line('18.', 100, 135, 45, 30);
+    const paras = paragraphsOf([reference, tail]);
+    expect(paras).toHaveLength(1);
+    expect(paras[0]!.list).toBe(false);
+    expect(paras[0]!.rows.map((r) => r.text)).toEqual([reference.text, '18.']);
+    expect(paragraphsOf([reference, { ...tail, text: '18. A new entry' }])).toHaveLength(2);
+    const label = paragraphsOf([
+      { ...reference, text: 'A complete preceding sentence without a numeric range.' },
+      tail,
+    ]);
+    expect(label).toHaveLength(2);
+    expect(label[1]!.list).toBe(false);
+  });
+
   it('joins wrapped lines, starts a paragraph after a gap, an indent or a list marker', () => {
     const lines = [
       line('First paragraph runs to the right edge and', 100, 100, 800),
@@ -89,6 +105,113 @@ describe('paragraphsOf', () => {
       [false, true],
       [false, true],
     ]);
+  });
+});
+
+describe('OCR region paragraph fragments', () => {
+  it('keeps the legacy joining of an unrepaired paragraph, including a label and decimal value', () => {
+    const lines = [line('Total due', 100, 200, 180, 24), line('739.55', 100, 230, 170, 24)];
+    const joinLines = (ls: readonly OcrBox[]) => ls.map((l) => l.text).join('\n');
+    const joinParagraph = vi.fn((ls: readonly OcrBox[]) => ls.map((l) => l.text).join(' '));
+    const doc = buildDocPage(
+      { image: renderPage(W, H, []), lines, source: 's', skew: 0 },
+      { joinLines, joinParagraph },
+    );
+    expect(leafBlocks(doc)[0]).toMatchObject({ kind: 'paragraph', text: 'Total due\n739.55' });
+    expect(joinParagraph).not.toHaveBeenCalled();
+  });
+  it('retains the legacy joiner on dense pages as well as retaining their region groups', () => {
+    const lines = Array.from({ length: 90 }, (_, i) =>
+      line('A long line of ordinary text on a dense page.', 100, 30 + i * 12, 700, 10),
+    );
+    const joinLines = vi.fn((ls: readonly OcrBox[]) => ls.map((l) => l.text).join(' '));
+    const joinParagraph = vi.fn(() => 'A replacement that must not be used here');
+    const doc = buildDocPage(
+      { image: renderPage(W, H, []), lines, source: 's', skew: 0 },
+      { joinLines, joinParagraph },
+    );
+    expect(leafBlocks(doc).length).toBeGreaterThan(0);
+    expect(joinLines).toHaveBeenCalled();
+    expect(joinParagraph).not.toHaveBeenCalled();
+  });
+  const body = [
+    {
+      text: 'A complete opening line reaches the column edge before it wraps',
+      x: 100,
+      y: 200,
+      width: 700,
+    },
+    {
+      text: 'The following line continues the same paragraph across the region boundary',
+      x: 100,
+      y: 225,
+      width: 700,
+    },
+    {
+      text: 'More of the same paragraph reaches the column edge once again',
+      x: 100,
+      y: 250,
+      width: 700,
+    },
+    { text: 'ending here.', x: 100, y: 275, width: 160 },
+  ];
+  const region = (y: number, height: number): LayoutRegion => ({
+    kind: 'text',
+    label: 'text',
+    score: 0.9,
+    box: { x: 95, y, width: 715, height },
+  });
+  const paragraphs = (rows: typeof body, regions: LayoutRegion[]) => {
+    const { image, lines } = textPage(rows);
+    return leafBlocks(buildDocPage({ image, lines, regions, source: 's', skew: 0 })).filter(
+      (b): b is DocParagraph => b.kind === 'paragraph',
+    );
+  };
+  it.each([
+    ['unowned first line', [region(223, 80)]],
+    ['unowned final line', [region(195, 77)]],
+    ['nested model regions', [region(190, 120), region(223, 80)]],
+    [
+      'nested model regions with edge jitter',
+      [
+        region(190, 120),
+        {
+          ...region(223, 80),
+          box: { ...region(223, 80).box, x: 91 },
+        },
+      ],
+    ],
+  ])('reconciles %s from physical wrapping evidence without losing any line', (_, regions) => {
+    const paras = paragraphs(body, regions as LayoutRegion[]);
+    expect(paras).toHaveLength(1);
+    expect(paras[0]!.text).toBe(body.map((r) => r.text).join(' '));
+  });
+  it('keeps a genuine paragraph indent or large gap across an ownership boundary', () => {
+    const indented = [...body.slice(0, 3), { ...body[3]!, x: 150 }];
+    expect(paragraphs(indented, [region(195, 77)])).toHaveLength(2);
+    const spaced = [...body.slice(0, 3), { ...body[3]!, y: 340 }];
+    expect(paragraphs(spaced, [region(195, 77)])).toHaveLength(2);
+  });
+
+  it('does not absorb separate single-line metadata just because another paragraph shares its region', () => {
+    const rows = [
+      { text: 'Elena Martin | ID: DOC-106-1 | 2026-10-15', x: 100, y: 175, width: 700 },
+      { text: 'Northfield Municipal Office', x: 100, y: 200, width: 300 },
+      ...body.slice(0, 3).map((r, i) => ({ ...r, y: 250 + i * 25 })),
+    ];
+    const paras = paragraphs(rows, [region(195, 130)]);
+    expect(paras).toHaveLength(3);
+    expect(paras[0]!.text).toBe(rows[0]!.text);
+    expect(paras[1]!.text).toBe(rows[1]!.text);
+  });
+
+  it('preserves independently inferred font sizes when a region boundary separates different styles', () => {
+    const { image, lines } = textPage(body.map((r, i) => ({ ...r, h: i === 0 ? 27 : 20 })));
+    const doc = buildDocPage({ image, lines, regions: [region(223, 80)], source: 's', skew: 0 });
+    const paras = leafBlocks(doc).filter((b): b is DocParagraph => b.kind === 'paragraph');
+    expect(paras).toHaveLength(2);
+    expect(paras[0]!.text).toBe(body[0]!.text);
+    expect(paras[0]!.size).toBeGreaterThan(paras[1]!.size ?? doc.bodySize);
   });
 });
 

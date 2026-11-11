@@ -142,6 +142,11 @@ export interface DocPageInput {
   skew?: number;
 }
 
+export interface DocBuildOptions extends BuildOptions {
+  /** 接回的碎片或数字范围续行怎么接；其余段落、密集页保留 joinLines，避免扩大改动。 */
+  joinParagraph?: (lines: readonly OcrBox[]) => string;
+}
+
 /** A4 的宽（磅）：整页宽度按 A4 换算字号。 */
 export const A4_WIDTH_PT = 595;
 /** 识别框的高度 → 字号：PP-OCR 的框比字高出一截（word-exp 的信件里 10 磅的正文框高约 11 磅）。 */
@@ -438,7 +443,12 @@ export function paragraphsOf(
   const out: { rows: Row[]; spaced: boolean; list: boolean }[] = [];
   for (const [i, row] of rows.entries()) {
     const prev = rows[i - 1];
-    const list = LIST_ITEM.test(row.text);
+    const marker = LIST_ITEM.test(row.text);
+    const list = marker && /[\p{L}\p{N}]/u.test(stripMarker(row.text));
+    const rangeTail =
+      prev !== undefined && /\d[-–—]\s*$/.test(prev.text) && /^\s*\d+\.\s*$/.test(row.text);
+    // 裸编号仍保留为独立标签；只有紧接数字范围的尾数可按折行接回，不能当新列表。
+    const bareLabel = marker && !list && !rangeTail;
     const gap = prev ? row.box.y - (prev.box.y + prev.box.height) : 0;
     const h = median(row.lines.map((l) => l.height));
     const prevH = prev ? median(prev.lines.map((l) => l.height)) : h;
@@ -474,6 +484,7 @@ export function paragraphsOf(
       // 左边和块里最左的行差不多，或者和上一行左对齐（块并大了以后最左的行是别的段落的）。
       (row.box.x <= left + typical || Math.abs(row.box.x - prev.box.x) <= 0.5 * typical) &&
       !list &&
+      !bareLabel &&
       Math.abs(h - prevH) <= 0.3 * Math.max(h, prevH);
     // 列表项下面接着的、有缩进的行（悬挂缩进）是这一项的折行。
     const last = out.at(-1);
@@ -483,6 +494,7 @@ export function paragraphsOf(
       !fieldRow &&
       gap <= PARAGRAPH_GAP * typical &&
       !list &&
+      !bareLabel &&
       row.box.x > last.rows[0]!.box.x + 0.3 * typical &&
       prev.box.x + prev.box.width >= right - 2 * typical;
     if ((wrapped || hanging) && last) last.rows.push(row);
@@ -815,10 +827,11 @@ function defaultJoin(lines: readonly OcrBox[]): string {
 }
 
 /** 一页的 DocPage。 */
-export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): DocPage {
+export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {}): DocPage {
   const join = options.joinLines ?? defaultJoin;
   const { image } = input;
   const lines = input.lines.filter((l) => l.text.trim());
+  const joinParagraph = lines.length < DENSE_LINES ? (options.joinParagraph ?? join) : join;
   const lineHeight = median(lines.map((l) => l.height)) || 20;
   // 带线的表格（和转 Excel 一样）；放进表格的行不再参加分段。
   const placedIn = new Map<TableBlock, readonly OcrBox[]>();
@@ -970,7 +983,13 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     // 上面的店名和下面的号码不再连成一块、把整页的顺序打乱。
     const clusters = title ? [{ lines: members }] : clustersOf(members, lineHeight, labelSplit);
     for (const { lines: part, side } of clusters) {
-      groups.push({ lines: part, title, box: unionBox(part), ...(side ? { side } : {}) });
+      groups.push({
+        lines: part,
+        title,
+        box: unionBox(part),
+        region: region.box,
+        ...(side ? { side } : {}),
+      });
     }
   }
   const unowned = free.filter((_, k) => owner[k] === -1);
@@ -1048,6 +1067,14 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     };
     return { h, short, size, style };
   };
+  // 密集页保留原来的分组，避免改动已有的跨页排版；只拼接推断字号、粗体等一致的碎片。
+  const origin = new Map(groups.flatMap((group) => group.lines.map((l) => [l, group] as const)));
+  if (lines.length < DENSE_LINES)
+    groups = reconcileTextGroups(groups, free, lineHeight, (a, b) => {
+      const left = styleOf(a, join(a).trim(), 0);
+      const right = styleOf(b, join(b).trim(), 0);
+      return left.size === right.size && JSON.stringify(left.style) === JSON.stringify(right.style);
+    });
   for (const group of groups) {
     const blocks: DocLeaf[] = [];
     units.push({ box: group.box, blocks });
@@ -1081,7 +1108,13 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     for (const para of paragraphs) {
       const paraLines = para.rows.flatMap((r) => r.lines);
       const box = unionBox(paraLines);
-      const text = join(paraLines).trim();
+      const repaired =
+        new Set(paraLines.map((l) => origin.get(l))).size > 1 ||
+        para.rows.some(
+          (r, i) =>
+            i > 0 && /\d[-–—]\s*$/.test(para.rows[i - 1]!.text) && /^\s*\d+\.?\s*$/.test(r.text),
+        );
+      const text = (repaired ? joinParagraph : join)(paraLines).trim();
       if (!text) continue;
       const { h, short, size, style } = styleOf(paraLines, text, group.title);
       // 去掉编号以后没有字的（「(3).」）不当列表项。
@@ -1221,6 +1254,106 @@ interface Group {
   pairs?: [OcrBox[], OcrBox[]][];
   /** 分出来的标签列、内容列：标签列和内容列之间不再按冒号标签配对（两列的行不是一行对一行）。 */
   side?: 'label' | 'content';
+  /** 原来的模型区域；没有时是未归属的行。仅构建时使用，不写入文件。 */
+  region?: Box;
+}
+
+/**
+ * 模型区域是归属提示，不是段落边界。只接回未归属的碎片或嵌套区域切开的折行；
+ * 并列区域、标题、表单列和真正的段距/缩进仍保留，整行只会进入一个组。
+ */
+function reconcileTextGroups(
+  groups: readonly Group[],
+  lines: readonly OcrBox[],
+  h: number,
+  compatible: (a: readonly OcrBox[], b: readonly OcrBox[]) => boolean,
+): Group[] {
+  const contains = (a: Box, b: Box) =>
+    // 模型框的边有几像素抖动；只容许不到三分之一行高的近似嵌套，不放宽行归属门槛。
+    a.x <= b.x + 0.3 * h &&
+    a.y <= b.y + 0.3 * h &&
+    a.x + a.width >= b.x + b.width - 0.3 * h &&
+    a.y + a.height >= b.y + b.height - 0.3 * h;
+  let out = [...groups].sort((a, b) => a.box.y - b.box.y);
+  for (;;) {
+    let merged = false;
+    for (let i = 0; i < out.length && !merged; i++)
+      for (let j = i + 1; j < out.length; j++) {
+        const a = out[i]!,
+          b = out[j]!;
+        if (a.title || b.title || a.pairs || b.pairs || a.side || b.side) continue;
+        if ((!a.region && !b.region) || a.region === b.region) continue;
+        if (a.region && b.region && !contains(a.region, b.region) && !contains(b.region, a.region))
+          continue;
+        const gap = b.box.y - a.box.y - a.box.height;
+        if (gap < -0.5 * h || gap > PARAGRAPH_GAP * h || Math.abs(a.box.x - b.box.x) > h) continue;
+        const ar = rowsOf(a.lines),
+          br = rowsOf(b.lines),
+          last = ar.at(-1)!,
+          first = br[0]!;
+        const range = /\d[-–—]\s*$/.test(last.text) && /^\s*\d+\.?\s*$/.test(first.text);
+        const members = new Set([...a.lines, ...b.lines]),
+          peers = lines.filter((l) => !members.has(l));
+        const tail = paragraphsOf(
+          a.lines,
+          lines.filter((l) => !a.lines.includes(l)),
+        ).at(-1)!;
+        const head = paragraphsOf(
+          b.lines,
+          lines.filter((l) => !b.lines.includes(l)),
+        )[0]!;
+        // 看真正相邻的两个段落片段，不能借同一区域里别的长段落当作元数据的折行证据。
+        if (
+          !range &&
+          (tail.rows.length + head.rows.length < 3 || Math.max(a.box.width, b.box.width) < 8 * h)
+        )
+          continue;
+        if (
+          !compatible(
+            tail.rows.flatMap((r) => r.lines),
+            head.rows.flatMap((r) => r.lines),
+          )
+        )
+          continue;
+        // 同栏中间还有别的行，不能越过去接。
+        if (
+          peers.some(
+            (l) =>
+              l.y + l.height / 2 > last.box.y + last.box.height / 2 &&
+              l.y + l.height / 2 < first.box.y + first.box.height / 2 &&
+              l.x < Math.min(a.box.x + a.box.width, b.box.x + b.box.width) &&
+              l.x + l.width > Math.max(a.box.x, b.box.x),
+          )
+        )
+          continue;
+        const paras = paragraphsOf([...a.lines, ...b.lines], peers);
+        if (
+          !paras.some(
+            (p) =>
+              p.rows.some((r) => r.lines.some((l) => a.lines.includes(l))) &&
+              p.rows.some((r) => r.lines.some((l) => b.lines.includes(l))),
+          )
+        )
+          continue;
+        const region =
+          a.region && b.region
+            ? contains(a.region, b.region)
+              ? a.region
+              : b.region
+            : (a.region ?? b.region);
+        out.splice(j, 1);
+        out[i] = {
+          lines: [...a.lines, ...b.lines],
+          title: 0,
+          box: unionBox([a.box, b.box]),
+          ...(region ? { region } : {}),
+        };
+        merged = true;
+        break;
+      }
+    if (!merged) return out;
+    out.sort((a, b) => a.box.y - b.box.y);
+  }
 }
 
 /** 配对的几行里最高的行不超过最矮的这么多倍。 */

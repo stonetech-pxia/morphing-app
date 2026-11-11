@@ -94,6 +94,38 @@ function onePage(vision: FakeVision) {
 }
 
 describe('ocr.toWord (D-328)', () => {
+  it('exports a wrapped reference range as one editable paragraph without a forced line break', async () => {
+    const { files, vision, run } = setup([pick, word('eng')]);
+    files.nextPhotos = [files.offerImage('reference.jpg', W, H)];
+    vision.tableImages = [renderPage(W, H, [])];
+    vision.layers = [
+      {
+        width: W,
+        height: H,
+        lines: [
+          {
+            text: '[1] Martin, E. Document analysis. 2024. pp. 12-',
+            x: 100,
+            y: 200,
+            width: 700,
+            height: 24,
+          },
+          { text: '18.', x: 100, y: 230, width: 48, height: 24 },
+        ],
+      },
+    ];
+    const item = resultItem(await run());
+    const doc = parseDocDoc(decodeUtf8(await files.readUri(item.docDoc!.uri)))!;
+    expect(doc.pages[0]!.blocks).toHaveLength(1);
+    expect(doc.pages[0]!.blocks[0]).toMatchObject({
+      kind: 'paragraph',
+      text: '[1] Martin, E. Document analysis. 2024. pp. 12-18.',
+    });
+    const { xml } = await documentXml(files, item);
+    expect(xml).toContain('pp. 12-18.');
+    expect(xml).not.toContain('<w:br/>');
+  });
+
   it('makes one docx with a heading, a paragraph, a ruled table and a cropped picture', async () => {
     const { files, vision, run } = setup([pick, word()]);
     vision.enableLayout();
