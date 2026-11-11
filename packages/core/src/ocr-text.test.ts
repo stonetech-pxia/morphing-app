@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   cjkPunctuation,
+  joinOcrParagraph,
   layoutOcrLines,
   polishOcrText,
   toSimplifiedChinese,
@@ -15,6 +16,41 @@ const line = (text: string, row: number, left = 100, right = 1100): OcrLine => (
   y: 100 + row * 50,
   width: right - left,
   height: 40,
+});
+
+describe('joinOcrParagraph', () => {
+  it('joins an already established paragraph without reclassifying a numeric range tail as a list', () => {
+    const lines = [
+      line('[1] Martin, E. Document analysis. 2024. pp. 12-', 0),
+      line('18.', 1, 100, 160),
+    ];
+    expect(joinOcrParagraph(lines)).toBe('[1] Martin, E. Document analysis. 2024. pp. 12-18.');
+    // 普通 OCR 和 Excel 仍自行判断段落，不跟着 Word 的已定段落路径改变。
+    expect(layoutOcrLines(lines)).toContain('\n18.');
+  });
+
+  it('retains ordinary spaces and repairs only genuine line-end word hyphenation', () => {
+    expect(
+      joinOcrParagraph([
+        line('Written appro-', 0, 100, 350),
+        line('val is required.', 1, 100, 400),
+      ]),
+    ).toBe('Written approval is required.');
+    expect(joinOcrParagraph([line('Un accord écrit', 0), line('est nécessaire.', 1)])).toBe(
+      'Un accord écrit est nécessaire.',
+    );
+    expect(joinOcrParagraph([line('维持原始文', 0), line('件和参考编号。', 1)])).toBe(
+      '维持原始文件和参考编号。',
+    );
+  });
+
+  it('orders row fragments and leaves empty input empty', () => {
+    expect(joinOcrParagraph([line('12,50 €', 0, 700, 900), line('Total', 0, 100, 220)])).toBe(
+      'Total 12,50 €',
+    );
+    expect(joinOcrParagraph([])).toBe('');
+    expect(joinOcrParagraph([line('   ', 0)])).toBe('');
+  });
 });
 
 describe('layoutOcrLines (D-268)', () => {

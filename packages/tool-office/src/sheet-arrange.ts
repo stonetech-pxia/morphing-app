@@ -94,7 +94,13 @@ export function layoutRegions(
 ): { figures: Box[]; text: LayoutRegion[] } {
   const size = { width: image.width, height: image.height };
   const pad = IMAGE_PAD * lineHeight;
-  const cleaned = cleanRegions(regions, lines, size, image);
+  // D-530 的弱证据恢复先限定在 Word；新增框会重分工作表列线，不能顺带改变 Excel 的列宽和分页。
+  const cleaned = cleanRegions(
+    regions.filter((r) => !r.wordOnly),
+    lines,
+    size,
+    image,
+  );
   return {
     figures: cleaned
       .filter((r) => r.kind === 'image')

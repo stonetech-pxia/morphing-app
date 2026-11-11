@@ -1,6 +1,8 @@
 import { buildTablePage, type BuildOptions } from './build';
-import { assignLines, cleanRegions, readingOrder, type LayoutRegion } from './layout';
+import { assignLines, cleanRegions, lineShareIn, readingOrder, type LayoutRegion } from './layout';
 import { findBarcodes, findTextTables, levelLines } from './text-table';
+import { findLines } from './lines';
+import { figureOwns, figureWorkingImage, planWordFigures } from './word-figures';
 import type { Box, OcrBox, RgbaImage, TableBlock, TableCell } from './types';
 
 // 扫描件转 Word（D-328）：一页的识别结果 + 版面分析的区域 → DocDoc（编辑页改它，docx 每次从它重新生成）。
@@ -142,6 +144,11 @@ export interface DocPageInput {
   skew?: number;
 }
 
+export interface DocBuildOptions extends BuildOptions {
+  /** 接回的碎片或数字范围续行怎么接；其余段落、密集页保留 joinLines，避免扩大改动。 */
+  joinParagraph?: (lines: readonly OcrBox[]) => string;
+}
+
 /** A4 的宽（磅）：整页宽度按 A4 换算字号。 */
 export const A4_WIDTH_PT = 595;
 /** 识别框的高度 → 字号：PP-OCR 的框比字高出一截（word-exp 的信件里 10 磅的正文框高约 11 磅）。 */
@@ -200,6 +207,32 @@ const PARAGRAPH_GAP = 1.2;
 /** 一行字的中线离整页中线不到页宽的这么多、左右都至少空着页宽的 15%（D-463）算居中。 */
 const PAGE_CENTER = 0.06;
 const PAGE_CENTER_MARGIN = 0.15;
+
+/** 先确定容器，再判断对齐；页眉可额外按整页居中，栏内的字只看本栏。 */
+function alignmentIn(
+  box: Box,
+  h: number,
+  rows: number,
+  left: number,
+  right: number,
+  pageWidth?: number,
+): DocStyle['align'] {
+  const leftGap = box.x - left;
+  const rightGap = right - (box.x + box.width);
+  const centered =
+    (leftGap > 2 * h &&
+      rightGap > 2 * h &&
+      Math.abs(leftGap - rightGap) < 0.2 * (leftGap + rightGap)) ||
+    (pageWidth !== undefined &&
+      rows === 1 &&
+      Math.min(box.x, pageWidth - (box.x + box.width)) > PAGE_CENTER_MARGIN * pageWidth &&
+      Math.abs(box.x - (pageWidth - box.x - box.width)) < PAGE_CENTER * pageWidth);
+  return centered
+    ? 'center'
+    : leftGap > 6 * h && rightGap < 1.5 * h && rows <= 2
+      ? 'right'
+      : undefined;
+}
 /** 两行的中线相差不到这么多个行高（左边又不齐）算居中排的两行（D-463）。 */
 const CENTER_PAIR = 0.2;
 /**
@@ -412,7 +445,12 @@ export function paragraphsOf(
   const out: { rows: Row[]; spaced: boolean; list: boolean }[] = [];
   for (const [i, row] of rows.entries()) {
     const prev = rows[i - 1];
-    const list = LIST_ITEM.test(row.text);
+    const marker = LIST_ITEM.test(row.text);
+    const list = marker && /[\p{L}\p{N}]/u.test(stripMarker(row.text));
+    const rangeTail =
+      prev !== undefined && /\d[-–—]\s*$/.test(prev.text) && /^\s*\d+\.\s*$/.test(row.text);
+    // 裸编号仍保留为独立标签；只有紧接数字范围的尾数可按折行接回，不能当新列表。
+    const bareLabel = marker && !list && !rangeTail;
     const gap = prev ? row.box.y - (prev.box.y + prev.box.height) : 0;
     const h = median(row.lines.map((l) => l.height));
     const prevH = prev ? median(prev.lines.map((l) => l.height)) : h;
@@ -448,6 +486,7 @@ export function paragraphsOf(
       // 左边和块里最左的行差不多，或者和上一行左对齐（块并大了以后最左的行是别的段落的）。
       (row.box.x <= left + typical || Math.abs(row.box.x - prev.box.x) <= 0.5 * typical) &&
       !list &&
+      !bareLabel &&
       Math.abs(h - prevH) <= 0.3 * Math.max(h, prevH);
     // 列表项下面接着的、有缩进的行（悬挂缩进）是这一项的折行。
     const last = out.at(-1);
@@ -457,6 +496,7 @@ export function paragraphsOf(
       !fieldRow &&
       gap <= PARAGRAPH_GAP * typical &&
       !list &&
+      !bareLabel &&
       row.box.x > last.rows[0]!.box.x + 0.3 * typical &&
       prev.box.x + prev.box.width >= right - 2 * typical;
     if ((wrapped || hanging) && last) last.rows.push(row);
@@ -789,21 +829,55 @@ function defaultJoin(lines: readonly OcrBox[]): string {
 }
 
 /** 一页的 DocPage。 */
-export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): DocPage {
+export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {}): DocPage {
+  return buildPage(input, options, true);
+}
+
+function buildPage(
+  input: DocPageInput,
+  options: DocBuildOptions,
+  protectFigures: boolean,
+): DocPage {
   const join = options.joinLines ?? defaultJoin;
   const { image } = input;
   const lines = input.lines.filter((l) => l.text.trim());
+  const joinParagraph = lines.length < DENSE_LINES ? (options.joinParagraph ?? join) : join;
   const lineHeight = median(lines.map((l) => l.height)) || 20;
+  const figures = protectFigures
+    ? planWordFigures(image, lines, input.regions ?? [], lineHeight)
+    : [];
+  const previous = figures.length ? buildPage(input, options, false) : undefined;
+  // 旧路径已经完整保图且没有输出图内文字/表格时，不重排原本正确的页。
+  if (
+    previous &&
+    figures.every(
+      (f) =>
+        leafBlocks(previous).some((b) => b.kind === 'image' && lineShareIn(f.box, b.box) >= 0.9) &&
+        !leafBlocks(previous).some((b) => b.kind !== 'image' && lineShareIn(b.box, f.box) >= 0.2),
+    )
+  )
+    return previous;
+  const available = figures.length ? lines.filter((l) => !figureOwns(l, figures)) : lines;
+  const working = figureWorkingImage(image, figures, lineHeight);
+  // 抹掉图形不能顺带改变图外网格的坐标系；倾斜仍按原图估计。
+  const tableSkew = input.skew ?? (figures.length ? findLines(image).skew : undefined);
+  const layout = figures.length
+    ? (input.regions ?? []).flatMap((r) => {
+        const owned = figures.find((f) => f.region === r);
+        if (owned) return [{ ...r, box: owned.box }];
+        return r.kind !== 'image' && figureOwns(r.box, figures) ? [] : [r];
+      })
+    : (input.regions ?? []);
   // 带线的表格（和转 Excel 一样）；放进表格的行不再参加分段。
   const placedIn = new Map<TableBlock, readonly OcrBox[]>();
   const choppedIn = new Map<TableBlock, number>();
   const sheet = buildTablePage(
     {
-      image,
-      lines,
+      image: working,
+      lines: available,
       name: '',
       source: input.source,
-      ...(input.skew !== undefined ? { skew: input.skew } : {}),
+      ...(tableSkew !== undefined ? { skew: tableSkew } : {}),
     },
     // 格子里的字按原图一排一行（D-333）：表单一格里的地址、日期各占一行，不接成一段（Word 里格子宽按原图，字号按比例）。
     // 没有线的表在下面去掉竖排、零星的字以后再认（D-471）。
@@ -858,7 +932,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   const inTable = new Set(ruled.flatMap((t) => placedIn.get(t) ?? []));
   // 整页的倾斜（D-471）：照片拍歪、纸弯了时按斜线分行；拉平以后的行只用来分行、分段、排位置，
   // 量笔画、颜色、下划线还是看原图里原来的位置。
-  const outside = lines.filter((l) => !inTable.has(l) && !isStray(l, lines, lineHeight, image));
+  const outside = available.filter((l) => !inTable.has(l) && !isStray(l, lines, lineHeight, image));
   // 竖排、旋转的字（页边的竖排标志、侧边的说明、条码旁的编号）：认出来的字多半是乱的，
   // 放进正文又会把字号撑得很大。整块剪成图片，原样保留。
   const kept = outside.filter((l) => !isVertical(l));
@@ -886,7 +960,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   }
   // 条形码（D-471）：剪成图片，里面认出来的零星的字不要。
   // 带线的表里一段没字的地方（几条平行的列线）不是条形码（D-501）。
-  const barcodes = findBarcodes(image, kept, lineHeight).filter(
+  const barcodes = findBarcodes(working, kept, lineHeight).filter(
     (b) => !tables.some((t) => !t.borderless && inBox(b, t.box)),
   );
   const inBarcode = (l: OcrBox) => {
@@ -898,7 +972,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   };
   const free = leveled.filter((l) => !inTextTable.has(l) && !inBarcode(orig(l)));
   const size = { width: image.width, height: image.height };
-  const regions = cleanRegions(input.regions ?? [], free, size, image).filter(
+  const regions = cleanRegions(layout, free, size, image).filter(
     // 和表格重叠一大半的区域（表格的标题行、表格里认成正文的）不要。
     (r) => {
       const overlaps = tables.map(({ box }) => {
@@ -912,6 +986,9 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
       return covered <= half && overlaps.every((o) => o <= half);
     },
   );
+  // 接管是整页事务：后续去重或表格过滤若淘汰了任一整图，撤销 OCR/像素隔离，沿用原路径。
+  if (figures.some((f) => !regions.some((r) => r.kind === 'image' && r.box === f.box)))
+    return buildPage(input, options, false);
   const merged = mergeTextRegions(regions, lineHeight);
   regions.splice(0, regions.length, ...merged);
   const owner = assignLines(free, regions);
@@ -944,7 +1021,13 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     // 上面的店名和下面的号码不再连成一块、把整页的顺序打乱。
     const clusters = title ? [{ lines: members }] : clustersOf(members, lineHeight, labelSplit);
     for (const { lines: part, side } of clusters) {
-      groups.push({ lines: part, title, box: unionBox(part), ...(side ? { side } : {}) });
+      groups.push({
+        lines: part,
+        title,
+        box: unionBox(part),
+        region: region.box,
+        ...(side ? { side } : {}),
+      });
     }
   }
   const unowned = free.filter((_, k) => owner[k] === -1);
@@ -966,13 +1049,16 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   const prose =
     charsOf(lines.filter((l) => l.width >= PROSE_LINE * image.width)) >=
     PROSE_SHARE * charsOf(lines);
-  const bodySize = Math.min(
-    BODY_MAX,
-    Math.max(
-      prose && lines.length < DENSE_LINES ? BODY_MIN : FORM_MIN,
-      fontSizeOf(bodyH, image.width),
-    ),
-  );
+  // 只改图的归属，不让移除图内标签改变整页的默认字号。
+  const bodySize =
+    previous?.bodySize ??
+    Math.min(
+      BODY_MAX,
+      Math.max(
+        prose && lines.length < DENSE_LINES ? BODY_MIN : FORM_MIN,
+        fontSizeOf(bodyH, image.width),
+      ),
+    );
   // 按字宽估字号（D-463）：正文行的估计够一致时才用。
   const bodyWidths = groups
     .filter((g) => !g.title)
@@ -996,6 +1082,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     ...tables.map((t) => ({ box: t.box, blocks: [t] as DocLeaf[] })),
     ...images.map((im) => ({ box: im.box, blocks: [im] as DocLeaf[] })),
   ];
+  const alignment = new Map<DocParagraph, { h: number; rows: number }>();
   const styleOf = (paraLines: readonly OcrBox[], text: string, title: number) => {
     const h = median(paraLines.map((l) => l.height));
     const short = (text.match(/[\p{L}\p{N}]/gu)?.length ?? 0) < SHORT_TEXT && !title;
@@ -1021,6 +1108,14 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     };
     return { h, short, size, style };
   };
+  // 密集页保留原来的分组，避免改动已有的跨页排版；只拼接推断字号、粗体等一致的碎片。
+  const origin = new Map(groups.flatMap((group) => group.lines.map((l) => [l, group] as const)));
+  if (lines.length < DENSE_LINES)
+    groups = reconcileTextGroups(groups, free, lineHeight, (a, b) => {
+      const left = styleOf(a, join(a).trim(), 0);
+      const right = styleOf(b, join(b).trim(), 0);
+      return left.size === right.size && JSON.stringify(left.style) === JSON.stringify(right.style);
+    });
   for (const group of groups) {
     const blocks: DocLeaf[] = [];
     units.push({ box: group.box, blocks });
@@ -1054,7 +1149,13 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     for (const para of paragraphs) {
       const paraLines = para.rows.flatMap((r) => r.lines);
       const box = unionBox(paraLines);
-      const text = join(paraLines).trim();
+      const repaired =
+        new Set(paraLines.map((l) => origin.get(l))).size > 1 ||
+        para.rows.some(
+          (r, i) =>
+            i > 0 && /\d[-–—]\s*$/.test(para.rows[i - 1]!.text) && /^\s*\d+\.?\s*$/.test(r.text),
+        );
+      const text = (repaired ? joinParagraph : join)(paraLines).trim();
       if (!text) continue;
       const { h, short, size, style } = styleOf(paraLines, text, group.title);
       // 去掉编号以后没有字的（「(3).」）不当列表项。
@@ -1099,19 +1200,9 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
           ? 1
           : 2
         : 0;
-      const leftGap = box.x - textLeft;
-      const rightGap = textRight - (box.x + box.width);
-      // 居中：在整页文字的左右边之间居中，或者在整页里居中（D-463：处方的页眉，左右的块不对称）。
-      const pageLeftGap = box.x;
-      const pageRightGap = image.width - (box.x + box.width);
-      const centered =
-        (leftGap > 2 * h &&
-          rightGap > 2 * h &&
-          Math.abs(leftGap - rightGap) < 0.2 * (leftGap + rightGap)) ||
-        (para.rows.length === 1 &&
-          Math.min(pageLeftGap, pageRightGap) > PAGE_CENTER_MARGIN * image.width &&
-          Math.abs(pageLeftGap - pageRightGap) < PAGE_CENTER * image.width);
-      const right = !centered && leftGap > 6 * h && rightGap < 1.5 * h && para.rows.length <= 2;
+      const align = alignmentIn(box, h, para.rows.length, textLeft, textRight, image.width);
+      const centered = align === 'center';
+      const right = align === 'right';
       // 首行缩进：第一行的左边和其他行比，最多 4 个行高（D-330）。只有一行的段落不写首行缩进（D-463）：
       // docx 里每段的左缩进按它在原图里的左边写（书页里单独一行的对话也一样缩进），再加首行缩进就缩了两遍。
       const first = para.rows[0]!.box.x;
@@ -1124,7 +1215,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
         !right &&
         indent >= INDENT_MIN * h &&
         indent <= Math.min(INDENT_MAX * groupWidth, INDENT_LINES * h);
-      blocks.push({
+      const paragraph: DocParagraph = {
         kind: 'paragraph',
         text,
         ...(heading ? { heading } : {}),
@@ -1135,16 +1226,73 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
         ...(para.spaced ? { spaced: true } : {}),
         ...(indented ? { indent } : {}),
         box,
-      });
+      };
+      blocks.push(paragraph);
+      alignment.set(paragraph, { h, rows: para.rows.length });
     }
   }
-  return {
+  const page: DocPage = {
     source: input.source,
     width: image.width,
     height: image.height,
     bodySize,
-    blocks: arrangeUnits(units, lineHeight),
+    blocks: arrangeUnits(units, lineHeight, {
+      // 密集页沿用原来的局部并排行；长表格的标题 keepNext 会改变跨页行为，另行处理分页。
+      dense: lines.length >= DENSE_LINES,
+      onColumns: (row) => {
+        let left = row.box.x;
+        for (const cell of row.cells) {
+          for (const block of cell.blocks) {
+            if (block.kind !== 'paragraph') continue;
+            const source = alignment.get(block);
+            if (!source) continue;
+            const align = alignmentIn(block.box, source.h, source.rows, left, left + cell.width);
+            if (align) block.align = align;
+            else delete block.align;
+          }
+          left += cell.width;
+        }
+      },
+    }),
   };
+  if (previous) {
+    const outside = (b: DocLeaf) => figures.every((f) => lineShareIn(b.box, f.box) === 0);
+    const artifacts = (p: DocPage) =>
+      leafBlocks(p)
+        .filter((b) => (b.kind === 'table' || b.kind === 'image') && outside(b))
+        .map((b) => JSON.stringify(b))
+        .sort()
+        .join('\n');
+    const styles = new Map(
+      leafBlocks(previous)
+        .filter((b) => b.kind === 'paragraph' && outside(b))
+        .map((b) => [JSON.stringify(b.box), b]),
+    );
+    const styleOf = (b: DocLeaf) =>
+      JSON.stringify(
+        b.kind === 'paragraph'
+          ? [b.size, b.bold, b.underline, b.color, b.heading, b.align, b.indent, b.tab]
+          : [],
+      );
+    // 图外的网格、条码和字体也可能依赖整页统计；有任何连带变化就整页回退，不局部拼补。
+    if (
+      previous.bodySize !== page.bodySize ||
+      artifacts(previous) !== artifacts(page) ||
+      leafBlocks(page).some((b) => {
+        const old = styles.get(JSON.stringify(b.box));
+        return old && b.kind === 'paragraph' && outside(b) && styleOf(old) !== styleOf(b);
+      }) ||
+      leafBlocks(previous).some((old) => {
+        if (old.kind !== 'paragraph' || !outside(old)) return false;
+        const matching = leafBlocks(page).filter(
+          (b) => b.kind === 'paragraph' && b.text === old.text && outside(b),
+        );
+        return matching.length > 0 && matching.every((b) => styleOf(old) !== styleOf(b));
+      })
+    )
+      return previous;
+  }
+  return page;
 }
 
 /**
@@ -1185,6 +1333,106 @@ interface Group {
   pairs?: [OcrBox[], OcrBox[]][];
   /** 分出来的标签列、内容列：标签列和内容列之间不再按冒号标签配对（两列的行不是一行对一行）。 */
   side?: 'label' | 'content';
+  /** 原来的模型区域；没有时是未归属的行。仅构建时使用，不写入文件。 */
+  region?: Box;
+}
+
+/**
+ * 模型区域是归属提示，不是段落边界。只接回未归属的碎片或嵌套区域切开的折行；
+ * 并列区域、标题、表单列和真正的段距/缩进仍保留，整行只会进入一个组。
+ */
+function reconcileTextGroups(
+  groups: readonly Group[],
+  lines: readonly OcrBox[],
+  h: number,
+  compatible: (a: readonly OcrBox[], b: readonly OcrBox[]) => boolean,
+): Group[] {
+  const contains = (a: Box, b: Box) =>
+    // 模型框的边有几像素抖动；只容许不到三分之一行高的近似嵌套，不放宽行归属门槛。
+    a.x <= b.x + 0.3 * h &&
+    a.y <= b.y + 0.3 * h &&
+    a.x + a.width >= b.x + b.width - 0.3 * h &&
+    a.y + a.height >= b.y + b.height - 0.3 * h;
+  let out = [...groups].sort((a, b) => a.box.y - b.box.y);
+  for (;;) {
+    let merged = false;
+    for (let i = 0; i < out.length && !merged; i++)
+      for (let j = i + 1; j < out.length; j++) {
+        const a = out[i]!,
+          b = out[j]!;
+        if (a.title || b.title || a.pairs || b.pairs || a.side || b.side) continue;
+        if ((!a.region && !b.region) || a.region === b.region) continue;
+        if (a.region && b.region && !contains(a.region, b.region) && !contains(b.region, a.region))
+          continue;
+        const gap = b.box.y - a.box.y - a.box.height;
+        if (gap < -0.5 * h || gap > PARAGRAPH_GAP * h || Math.abs(a.box.x - b.box.x) > h) continue;
+        const ar = rowsOf(a.lines),
+          br = rowsOf(b.lines),
+          last = ar.at(-1)!,
+          first = br[0]!;
+        const range = /\d[-–—]\s*$/.test(last.text) && /^\s*\d+\.?\s*$/.test(first.text);
+        const members = new Set([...a.lines, ...b.lines]),
+          peers = lines.filter((l) => !members.has(l));
+        const tail = paragraphsOf(
+          a.lines,
+          lines.filter((l) => !a.lines.includes(l)),
+        ).at(-1)!;
+        const head = paragraphsOf(
+          b.lines,
+          lines.filter((l) => !b.lines.includes(l)),
+        )[0]!;
+        // 看真正相邻的两个段落片段，不能借同一区域里别的长段落当作元数据的折行证据。
+        if (
+          !range &&
+          (tail.rows.length + head.rows.length < 3 || Math.max(a.box.width, b.box.width) < 8 * h)
+        )
+          continue;
+        if (
+          !compatible(
+            tail.rows.flatMap((r) => r.lines),
+            head.rows.flatMap((r) => r.lines),
+          )
+        )
+          continue;
+        // 同栏中间还有别的行，不能越过去接。
+        if (
+          peers.some(
+            (l) =>
+              l.y + l.height / 2 > last.box.y + last.box.height / 2 &&
+              l.y + l.height / 2 < first.box.y + first.box.height / 2 &&
+              l.x < Math.min(a.box.x + a.box.width, b.box.x + b.box.width) &&
+              l.x + l.width > Math.max(a.box.x, b.box.x),
+          )
+        )
+          continue;
+        const paras = paragraphsOf([...a.lines, ...b.lines], peers);
+        if (
+          !paras.some(
+            (p) =>
+              p.rows.some((r) => r.lines.some((l) => a.lines.includes(l))) &&
+              p.rows.some((r) => r.lines.some((l) => b.lines.includes(l))),
+          )
+        )
+          continue;
+        const region =
+          a.region && b.region
+            ? contains(a.region, b.region)
+              ? a.region
+              : b.region
+            : (a.region ?? b.region);
+        out.splice(j, 1);
+        out[i] = {
+          lines: [...a.lines, ...b.lines],
+          title: 0,
+          box: unionBox([a.box, b.box]),
+          ...(region ? { region } : {}),
+        };
+        merged = true;
+        break;
+      }
+    if (!merged) return out;
+    out.sort((a, b) => a.box.y - b.box.y);
+  }
 }
 
 /** 配对的几行里最高的行不超过最矮的这么多倍。 */
@@ -1324,8 +1572,117 @@ export function mergeColumnRows(blocks: readonly DocBlock[], lineHeight: number)
   return out;
 }
 
-export function arrangeUnits(units: readonly Unit[], lineHeight: number): DocBlock[] {
-  return mergeColumnRows(arrangeBands(units, lineHeight), lineHeight);
+export function arrangeUnits(
+  units: readonly Unit[],
+  lineHeight: number,
+  options: { dense?: boolean; onColumns?: (row: DocRow) => void } = {},
+): DocBlock[] {
+  const bands = mergeColumnRows(arrangeBands(units, lineHeight), lineHeight);
+  return options.dense ? bands : retainProseColumns(bands, lineHeight, options.onColumns);
+}
+
+/**
+ * 有长正文作证的双栏保持到跨栏内容或明显空隙为止，不因某一带缺少另一栏而退回整页宽。
+ * 短标签、并排字段没有这个证据，仍走原来的局部并排行。只复用 DocRow，不增加文件格式。
+ */
+function retainProseColumns(
+  blocks: readonly DocBlock[],
+  h: number,
+  onColumns?: (row: DocRow) => void,
+): DocBlock[] {
+  const extent = (cell: DocRowCell) => unionBox(cell.blocks.map((b) => b.box));
+  const evidence = (row: DocRow) =>
+    row.cells.length === 2 &&
+    row.cells.every((c) => extent(c).width >= 6 * h) &&
+    row.cells.some((c) =>
+      c.blocks.some(
+        (b) =>
+          b.kind === 'paragraph' &&
+          !b.heading &&
+          !b.tab &&
+          b.box.height >= 3 * h &&
+          b.box.width >= 8 * h,
+      ),
+    );
+  const out: DocBlock[] = [];
+  for (let i = 0; i < blocks.length;) {
+    const seed = blocks[i]!;
+    if (seed.kind !== 'row' || !evidence(seed)) {
+      out.push(seed);
+      i++;
+      continue;
+    }
+    const edges = seed.cells.map(extent);
+    const columnOf = (b: DocLeaf) =>
+      edges.findIndex(
+        (e) => b.box.x >= e.x - COLUMN_SAME * h && b.box.x + b.box.width <= e.x + e.width + h * 0.3,
+      );
+    let end = i + 1;
+    let rowBottom = seed.box.y + seed.box.height;
+    let bottom = rowBottom;
+    for (let j = i + 1; j < blocks.length; j++) {
+      const b = blocks[j]!;
+      if (b.box.y - bottom > 4 * h) break;
+      if (b.kind === 'row') {
+        if (
+          b.cells.length !== 2 ||
+          !b.cells.every((c, k) => Math.abs(extent(c).x - edges[k]!.x) <= COLUMN_SAME * h)
+        )
+          break;
+        const next = b.cells.map(extent);
+        // 两栏之间必须仍有空白；真正横跨中缝的块结束这一段双栏。
+        if (next[0]!.x + next[0]!.width + h * 0.3 > next[1]!.x) break;
+        next.forEach((e, k) => {
+          edges[k] = unionBox([edges[k]!, e]);
+        });
+        rowBottom = Math.max(rowBottom, b.box.y + b.box.height);
+        end = j + 1;
+      } else {
+        if (columnOf(b) < 0) break;
+        // 孤立尾行只能紧跟已经证实的栏；更远的页脚不靠连续短行无限延长作用域。
+        if (b.box.y <= rowBottom + COLUMN_SAME * h) end = j + 1;
+      }
+      bottom = Math.max(bottom, b.box.y + b.box.height);
+    }
+    const leading: DocBlock[] = [];
+    let top = seed.box.y;
+    while (out.length) {
+      const before = out.at(-1)!;
+      if (before.kind === 'row') {
+        if (
+          top - before.box.y - before.box.height > COLUMN_SAME * h ||
+          before.cells.length !== 2 ||
+          !before.cells.every((c, k) => Math.abs(extent(c).x - edges[k]!.x) <= COLUMN_SAME * h)
+        )
+          break;
+        const previous = before.cells.map(extent);
+        if (previous[0]!.x + previous[0]!.width + h * 0.3 > previous[1]!.x) break;
+        previous.forEach((e, k) => {
+          edges[k] = unionBox([edges[k]!, e]);
+        });
+        top = before.box.y;
+      } else if (columnOf(before) < 0 || before.box.y + before.box.height < top - 0.5 * h) break;
+      leading.unshift(before);
+      out.pop();
+    }
+    const cells: DocRowCell[] = edges.map((e, k) => ({
+      width: (edges[k + 1]?.x ?? e.x + e.width) - e.x,
+      blocks: [],
+    }));
+    for (const b of [...leading, ...blocks.slice(i, end)]) {
+      if (b.kind === 'row') b.cells.forEach((c, k) => cells[k]!.blocks.push(...c.blocks));
+      else cells[columnOf(b)]!.blocks.push(b);
+    }
+    const row: DocRow = {
+      kind: 'row',
+      cells,
+      box: unionBox([...leading, ...blocks.slice(i, end)].map((b) => b.box)),
+    };
+    onColumns?.(row);
+    out.push(row);
+    i = end;
+  }
+  return out;
 }
 
 function arrangeBands(units: readonly Unit[], lineHeight: number): DocBlock[] {

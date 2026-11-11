@@ -45,6 +45,8 @@ export interface LayoutRegion {
   box: Box;
   /** 单个类别都不够图片线，靠几个类别同框加起来才留下的图片（D-524）：里面一个字都不能有。 */
   fused?: boolean;
+  /** 三类弱分恢复仅供 Word：加入工作表共用列线可能改变已有列宽和打印分页。 */
+  wordOnly?: true;
 }
 
 const KIND_OF: Record<string, RegionKind> = {
@@ -70,6 +72,10 @@ const MIN_SCORE_IMAGE = 0.45;
 const FIGURE_PART_MIN = 0.15;
 /** 两个框交并比达到这么多才算「同一个框」。 */
 const FIGURE_SAME_BOX_IOU = 0.7;
+/** 更弱的辅类只走独立恢复路径：主类 ≥ 0.3、至少三类各 ≥ 0.1、总分 ≥ 0.55、框几乎重合。 */
+const FIGURE_SUPPORT_MIN = 0.1;
+const FIGURE_SUPPORT_SUM = 0.55;
+const FIGURE_SUPPORT_IOU = 0.9;
 
 const MEAN = [0.485, 0.456, 0.406] as const;
 const STD = [0.229, 0.224, 0.225] as const;
@@ -121,7 +127,7 @@ export function parseLayout(
     const score = output[i + 1]!;
     if (!label) continue;
     const kind = KIND_OF[label] ?? 'text';
-    const figurePart = kind === 'image' && label !== 'seal' && score >= FIGURE_PART_MIN;
+    const figurePart = kind === 'image' && label !== 'seal' && score >= FIGURE_SUPPORT_MIN;
     if (score < (kind === 'image' || kind === 'table' ? MIN_SCORE_IMAGE : MIN_SCORE) && !figurePart)
       continue;
     const x1 = Math.max(0, output[i + 2]! * kx);
@@ -132,7 +138,36 @@ export function parseLayout(
     const region = { kind, label, score, box: { x: x1, y: y1, width: x2 - x1, height: y2 - y1 } };
     (figurePart ? parts : regions).push(region);
   }
-  return [...regions, ...fuseFigures(parts)];
+  // 已有图片仍用原来的输入和分数；辅类不能改变已通过的框、分数或去重顺序。
+  const figures = fuseFigures(parts.filter((p) => p.score >= FIGURE_PART_MIN));
+  const existing = [...regions.filter((r) => r.kind === 'image'), ...figures];
+  return [...regions, ...figures, ...corroboratedFigures(parts, existing)];
+}
+
+/** 三类几乎同框才补收；不替换任何旧图片，仍标为 fused，后续只准保留完全无字的框。 */
+function corroboratedFigures(
+  parts: readonly LayoutRegion[],
+  existing: readonly LayoutRegion[],
+): LayoutRegion[] {
+  const recovered: LayoutRegion[] = [];
+  for (const anchor of [...parts].sort((a, b) => b.score - a.score)) {
+    if (anchor.score < MIN_SCORE) break;
+    if (
+      [...existing, ...recovered].some(
+        (r) => overlap(r.box, anchor.box) > 0.5 * Math.min(area(r.box), area(anchor.box)),
+      )
+    )
+      continue;
+    const best = new Map<string, number>();
+    for (const p of parts) {
+      if (iou(anchor.box, p.box) >= FIGURE_SUPPORT_IOU)
+        best.set(p.label, Math.max(best.get(p.label) ?? 0, p.score));
+    }
+    const score = [...best.values()].reduce((a, b) => a + b, 0);
+    if (best.size >= 3 && score >= FIGURE_SUPPORT_SUM)
+      recovered.push({ ...anchor, score, fused: true, wordOnly: true });
+  }
+  return recovered;
 }
 
 /** 图片类检测按同框合并：分数从高到低，和某一组领头的框交并比够高的并进去；组分 = 每个类别最高分之和，不够图片线的丢掉。 */

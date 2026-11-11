@@ -149,6 +149,79 @@ describe('parseLayout: 一张图的分数被拆给几个类别 (D-524)', () => {
   });
 });
 
+describe('parseLayout: three-class figure corroboration', () => {
+  const size = { width: 960, height: 960 };
+  const box = [100, 150, 300, 270];
+  const det = (name: (typeof LAYOUT_LABELS)[number], score: number, bounds = box) => [
+    label(name),
+    score,
+    ...bounds,
+  ];
+  const evidence = (scores = [0.3371, 0.1318, 0.1212]) => [
+    ...det('image', scores[0]!),
+    ...det('chart', scores[1]!),
+    ...det('header_image', scores[2]!),
+  ];
+
+  it.each([
+    [0.3371, 0.1318, 0.1212],
+    [0.3743, 0.1427, 0.1119],
+    [0.341, 0.1103, 0.1252],
+  ])('recovers an unlettered figure supported by three coincident classes (%s)', (...scores) => {
+    const parsed = parseLayout(evidence(scores), size);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]).toMatchObject({
+      kind: 'image',
+      fused: true,
+      box: { x: 200, y: 300, width: 400, height: 240 },
+    });
+    expect(cleanRegions(parsed, [], size)).toEqual(parsed);
+    // 弱证据不能吞字；一个短字段也会拒收。
+    expect(cleanRegions(parsed, [line('Total', 250, 350, 120)], size)).toEqual([]);
+  });
+
+  it('does not count a repeated class, two classes, or sub-floor noise as corroboration', () => {
+    expect(parseLayout([...det('image', 0.34), ...det('chart', 0.13)], size)).toEqual([]);
+    expect(
+      parseLayout([...det('image', 0.34), ...det('chart', 0.13), ...det('chart', 0.13)], size),
+    ).toEqual([]);
+    expect(parseLayout(evidence([0.34, 0.13, 0.099]), size)).toEqual([]);
+    expect(parseLayout(evidence([0.29, 0.14, 0.14]), size)).toEqual([]);
+    expect(parseLayout(evidence([0.3, 0.11, 0.11]), size)).toEqual([]);
+    expect(
+      parseLayout([...det('image', 0.34), ...det('chart', 0.13), ...det('seal', 0.13)], size),
+    ).toEqual([]);
+  });
+
+  it('requires tighter geometry for low-score support than legacy fusion', () => {
+    // IoU 约 0.82：旧融合接受的邻框，不能用于这条更弱的恢复路径。
+    expect(
+      parseLayout(
+        [
+          ...det('image', 0.34),
+          ...det('chart', 0.13),
+          ...det('header_image', 0.12, [120, 150, 320, 270]),
+        ],
+        size,
+      ),
+    ).toEqual([]);
+  });
+
+  it('does not let recovered evidence replace an existing seal', () => {
+    const seal = det('seal', 0.5);
+    expect(parseLayout([...seal, ...evidence()], size)).toEqual(parseLayout(seal, size));
+  });
+
+  it('preserves an existing figure box and score even when weak extra classes are present', () => {
+    const strong = [...det('image', 0.6, [120, 150, 320, 270])];
+    const legacy = [...det('image', 0.34), ...det('chart', 0.2)];
+    expect(parseLayout([...strong, ...evidence()], size)).toEqual(parseLayout(strong, size));
+    expect(parseLayout([...legacy, ...det('header_image', 0.12)], size)).toEqual(
+      parseLayout(legacy, size),
+    );
+  });
+});
+
 describe('cleanRegions', () => {
   const size = { width: 1000, height: 1400 };
 

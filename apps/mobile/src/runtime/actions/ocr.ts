@@ -1,6 +1,7 @@
 import {
   OFFICE_MIME_BY_EXT,
   RunError,
+  joinOcrParagraph,
   layoutOcrLines,
   polishOcrText,
   renderNameTemplate,
@@ -319,7 +320,10 @@ export const OCR_IMPLS: Record<string, Impl> = {
           // 增强过的图已经按 findSkew 转正；没增强过的照片在这里估倾斜。
           ...(found.enhanced ? { skew: 0 } : {}),
         },
-        { joinLines: (lines) => polish(layoutOcrLines(lines), lang) },
+        {
+          joinLines: (lines) => polish(layoutOcrLines(lines), lang),
+          joinParagraph: (lines) => polish(joinOcrParagraph(lines), lang),
+        },
       );
       // 图片区域：按比例换到原图上剪下来（JPG，本次运行的文件）。并排行（D-331）里的图片也要剪。
       await cropPictures(

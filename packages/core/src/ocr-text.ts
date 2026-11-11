@@ -66,9 +66,9 @@ function wordFits(
   return prev.right + (first.length + 1) * char <= right + 0.3 * typical;
 }
 
-export function layoutOcrLines(lines: readonly OcrLine[]): string {
+function ocrRows(lines: readonly OcrLine[]): { rows: Row[]; typical: number } {
   const items = lines.filter((l) => l.text.trim());
-  if (items.length === 0) return '';
+  if (items.length === 0) return { rows: [], typical: 1 };
   const typical = median(items.map((l) => l.height)) || 1;
   const sorted = [...items].sort((a, b) => a.y + a.height / 2 - (b.y + b.height / 2));
   const groups: OcrLine[][] = [];
@@ -94,6 +94,31 @@ export function layoutOcrLines(lines: readonly OcrLine[]): string {
       bottom: Math.max(...ordered.map((l) => l.y + l.height)),
     };
   });
+  return { rows, typical };
+}
+
+/** Word 已经按位置确定了同一段，只接回折行，不再按列表符号或参差的行尾重新分段。 */
+export function joinOcrParagraph(lines: readonly OcrLine[]): string {
+  const { rows } = ocrRows(lines);
+  let text = '';
+  for (const row of rows) {
+    if (!text) {
+      text = row.text;
+      continue;
+    }
+    // 数字范围保留连字符；它和英文单词在行尾拆开的连字符不同。
+    const { prev, sep } =
+      /\d[-–—]$/.test(text) && /^\d/.test(row.text)
+        ? { prev: text, sep: '' }
+        : joiner(text, row.text);
+    text = prev + sep + row.text;
+  }
+  return text;
+}
+
+export function layoutOcrLines(lines: readonly OcrLine[]): string {
+  const { rows, typical } = ocrRows(lines);
+  if (!rows.length) return '';
   // 分段：上下间距超过一行半就是新的一段。
   const blocks: Row[][] = [];
   for (const row of rows) {
