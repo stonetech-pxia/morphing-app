@@ -1,7 +1,7 @@
 import { strFromU8, unzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 
-import type { DocDoc, DocPage } from './doc';
+import type { DocDoc, DocPage, DocTable } from './doc';
 import { writeDocx } from './docx';
 
 const box = { x: 100, y: 100, width: 400, height: 40 };
@@ -20,6 +20,169 @@ const unzip = (bytes: Uint8Array) => {
 };
 
 describe('writeDocx', () => {
+  it('writes explicit data-table cell margins consistent with its text-width budget, including nested tables', () => {
+    const table: DocTable = {
+      kind: 'table',
+      box,
+      colWidths: [200, 200],
+      table: {
+        kind: 'table',
+        rows: 1,
+        cols: 2,
+        col: 0,
+        box,
+        cells: ['Label', 'Amount'].map((text, col) => ({
+          row: 0,
+          col,
+          rowSpan: 1,
+          colSpan: 1,
+          text,
+        })),
+      },
+    };
+    const doc: DocDoc = {
+      version: 1,
+      pages: [page([table, { kind: 'row', box, cells: [{ width: 500, blocks: [table] }] }])],
+    };
+    const xml = unzip(writeDocx(doc)).text('word/document.xml');
+    const props = [...xml.matchAll(/<w:tblPr>(.*?)<\/w:tblPr>/g)].map((m) => m[1]!);
+    expect(props).toHaveLength(3);
+    // 不能只依赖默认表格样式：有的阅读器会替换成自己的默认内边距。
+    for (const p of props)
+      expect(p).toContain(
+        '<w:tblCellMar><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar>',
+      );
+  });
+
+  it.each([
+    ['2结果', 15.5, 103],
+    ['参考文献', 15, 139],
+    ['Résumé', 16, 90],
+  ])(
+    'keeps a single-line centered heading %s inside the last cell without splitting it',
+    (text, size, width) => {
+      const at = { x: 720, y: 300, width, height: 39 };
+      const doc: DocDoc = {
+        version: 1,
+        pages: [
+          {
+            ...page([], 10.5),
+            width: 1408,
+            height: 2016,
+            blocks: [
+              {
+                kind: 'row',
+                box: { x: 105, y: 300, width: 720 + width - 105, height: 39 },
+                cells: [
+                  {
+                    width: 615,
+                    blocks: [
+                      { kind: 'paragraph', text: 'Body', box: { ...at, x: 105, width: 560 } },
+                    ],
+                  },
+                  {
+                    width,
+                    blocks: [
+                      { kind: 'paragraph', heading: 2, text, size, align: 'center', box: at },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+      const xml = unzip(writeDocx(doc)).text('word/document.xml');
+      const widths = [...xml.matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].map((m) => Number(m[1]));
+      const minimum =
+        text === '2结果' ? (2 * size + 8.6) * 20 : text === '参考文献' ? 4 * size * 20 : 60 * 20;
+      expect(widths[1]! - 160).toBeGreaterThanOrEqual(minimum);
+      expect(widths[0]).toBe(Math.round((615 / 1408) * 11906));
+      expect(widths.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(9638);
+      expect(xml).toContain('<w:jc w:val="center"/>');
+      expect(xml).toContain(`>${text}</w:t>`);
+    },
+  );
+
+  it.each([
+    ['center', undefined, 39],
+    ['right', 2, 39],
+    ['center', 2, 100],
+  ] as const)(
+    'preserves the width for %s text with heading=%s and source height=%s',
+    (align, heading, height) => {
+      const doc: DocDoc = {
+        version: 1,
+        pages: [
+          {
+            ...page([], 11),
+            width: 1408,
+            height: 2016,
+            blocks: [
+              {
+                kind: 'row',
+                box,
+                cells: [
+                  { width: 615, blocks: [{ kind: 'paragraph', text: 'Body', box }] },
+                  {
+                    width: 139,
+                    blocks: [
+                      {
+                        kind: 'paragraph',
+                        text: '参考文献',
+                        size: 15,
+                        align,
+                        ...(heading ? { heading } : {}),
+                        box: { x: 720, y: 300, width: 139, height },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+      const xml = unzip(writeDocx(doc)).text('word/document.xml');
+      const widths = [...xml.matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].map((m) => Number(m[1]));
+      expect(widths).toEqual([Math.round((615 / 1408) * 11906), Math.round((139 / 1408) * 11906)]);
+    },
+  );
+
+  it('keeps a centered heading inside its column when no spare page width is available', () => {
+    const doc: DocDoc = {
+      version: 1,
+      pages: [
+        page([
+          {
+            kind: 'row',
+            box,
+            cells: [
+              { width: 500, blocks: [{ kind: 'paragraph', text: 'Body', box }] },
+              {
+                width: 500,
+                blocks: [
+                  {
+                    kind: 'paragraph',
+                    text: 'A heading which cannot fit',
+                    heading: 2,
+                    size: 45,
+                    align: 'center',
+                    box: { x: 500, y: 100, width: 500, height: 90 },
+                  },
+                ],
+              },
+            ],
+          },
+        ]),
+      ],
+    };
+    const xml = unzip(writeDocx(doc)).text('word/document.xml');
+    const widths = [...xml.matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].map((m) => Number(m[1]));
+    expect(widths).toEqual([4819, 4819]);
+    expect(xml).toContain('<w:sz w:val="90"/>');
+  });
+
   it('uses spare row width for a single line at its exported font size, including cell padding', () => {
     const doc: DocDoc = {
       version: 1,

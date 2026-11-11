@@ -34,8 +34,12 @@ const CONTENT_W = PAGE_W - 2 * MARGIN;
 const CONTENT_H = PAGE_H - 2 * MARGIN;
 /** 1 twip = 635 EMU。 */
 const EMU_PER_TWIP = 635;
-/** 并排行每格左右的边距（twip）。 */
+/** 所有表格每格左右的边距（twip）；文件里的实际值和量字预算共用。 */
 const CELL_PAD = 80;
+
+function cellMarginsXml(): string {
+  return `<w:tblCellMar><w:left w:w="${CELL_PAD}" w:type="dxa"/><w:right w:w="${CELL_PAD}" w:type="dxa"/></w:tblCellMar>`;
+}
 /** 分段的空隙写成段前间距（twip）：块没有可用的位置（文字转 Word 的占位框）时用。 */
 const SPACED_BEFORE = 160;
 /** 一行字在 Word 里的高度 ≈ 字号的这么多倍（D-463）：Arial 的上下伸出 1.117 × 默认行距 1.15。 */
@@ -186,8 +190,8 @@ function blankXml(size: number): string {
   return `<w:p><w:pPr><w:rPr>${sizeXml({}, size)}</w:rPr></w:pPr></w:p>`;
 }
 
-/** 表格格子左右的边距加起来（磅，默认表格样式每边 80 twip）。 */
-const TABLE_CELL_PAD_PT = 8;
+/** 表格格子左右的边距加起来（磅），和写入每张表的值一致。 */
+const TABLE_CELL_PAD_PT = (2 * CELL_PAD) / 20;
 /** 表里的字为了放下最长的词最多缩到这么小（磅，D-335）。 */
 const TABLE_MIN_SIZE = 5;
 
@@ -298,7 +302,7 @@ function tableXml(
     (left ? `<w:tblInd w:w="${left}" w:type="dxa"/>` : '') +
     '<w:tblLayout w:type="fixed"/><w:tblBorders>' +
     ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(border).join('') +
-    '</w:tblBorders></w:tblPr><w:tblGrid>' +
+    `</w:tblBorders>${cellMarginsXml()}</w:tblPr><w:tblGrid>` +
     widths.map((w) => `<w:gridCol w:w="${w}"/>`).join('') +
     `</w:tblGrid>${rows.join('')}</w:tbl>`
   );
@@ -330,8 +334,7 @@ function layoutTableXml(
     `<w:tbl><w:tblPr><w:tblW w:w="${widths.reduce((a, b) => a + b, 0)}" w:type="dxa"/>` +
     '<w:tblLayout w:type="fixed"/><w:tblBorders>' +
     ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(none).join('') +
-    `</w:tblBorders><w:tblCellMar><w:left w:w="${CELL_PAD}" w:type="dxa"/>` +
-    `<w:right w:w="${CELL_PAD}" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>` +
+    `</w:tblBorders>${cellMarginsXml()}</w:tblPr><w:tblGrid>` +
     widths.map((w) => `<w:gridCol w:w="${w}"/>`).join('') +
     `</w:tblGrid>${rows.map(tr).join('')}</w:tbl>`
   );
@@ -395,7 +398,7 @@ function stylesXml(bodySize: number): string {
     '<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/>' +
     '<w:basedOn w:val="Normal"/><w:qFormat/></w:style>' +
     '<w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/>' +
-    '<w:tblPr><w:tblCellMar><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>' +
+    `<w:tblPr>${cellMarginsXml()}</w:tblPr></w:style>` +
     '</w:styles>'
   );
 }
@@ -610,21 +613,18 @@ export function writeDocx(
         CONTENT_W,
       );
       // 最后一栏的原图宽只到文字的右边，不一定是可用空间的右边。
-      // 原图单行的左对齐段落按导出字号量字宽、加内边距，借用右侧空白；前面的栏和多行正文不动。
+      // 原图单行的左对齐段落、居中标题按导出字号量字宽、加内边距，借用右侧空白；前面的栏不动。
       const last = block.cells.at(-1)!;
       const from = Math.min(...last.blocks.map((b) => b.box.x));
       let needed = widths.at(-1)!;
       for (const b of last.blocks) {
-        if (
-          b.kind !== 'paragraph' ||
-          b.tab ||
-          (b.align && b.align !== 'left') ||
-          /[\n\t]/.test(b.text)
-        )
-          continue;
+        if (b.kind !== 'paragraph' || b.tab || /[\n\t]/.test(b.text)) continue;
+        const centeredHeading = b.heading !== undefined && b.align === 'center';
+        if (b.align && b.align !== 'left' && !centeredHeading) continue;
         const size =
           b.size ?? (b.heading ? bodySize * HEADING_SCALE[`Heading${b.heading}`]! : bodySize);
-        if (twip(b.box.height) > 1.5 * LINE_HEIGHT * size * 20) continue;
+        // 新增的居中标题只放宽可信的一行；不把原本多行的标题拉成一行，原有左对齐路径保持原样。
+        if (twip(b.box.height) > (centeredHeading ? 1 : 1.5) * LINE_HEIGHT * size * 20) continue;
         const runs = b.runs ?? [{ text: b.text }];
         const textWidth = runs.reduce(
           // textEm 默认去首尾空白；run 之间的空格也占宽，用两端的字保住它们。
