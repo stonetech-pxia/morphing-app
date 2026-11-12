@@ -640,6 +640,33 @@ export function writeDocx(
       }
       const spare = Math.max(0, CONTENT_W - widths.reduce((a, b) => a + b, 0));
       widths[widths.length - 1]! += Math.min(spare, needed - widths.at(-1)!);
+      // 整行被缩小时，右侧一个不可断开的短标签也要留够字宽和内边距。
+      // 只从前一栏可折行的正文借最少的宽度，不扩大页面，也不压缩标题、表格或图片。
+      const labels = last.blocks.filter((b) => b.kind === 'paragraph');
+      const previousCell = block.cells.at(-2);
+      const prose = previousCell?.blocks.filter((b) => b.kind === 'paragraph') ?? [];
+      if (
+        labels.length > 0 &&
+        labels.length === last.blocks.length &&
+        labels.every((b) => b.align === 'right' && !b.heading && !b.tab && !/\s/.test(b.text)) &&
+        previousCell &&
+        prose.length === previousCell.blocks.length &&
+        prose.every((b) => !b.heading && !b.tab) &&
+        prose.some((b) => /\s/.test(b.text))
+      ) {
+        const minimum = (b: (typeof labels)[number]) =>
+          Math.ceil(longestWordEm(b.text) * (b.size ?? bodySize) * 20 * WIDTH_SLACK + 2 * CELL_PAD);
+        const labelWidth = Math.max(...labels.map(minimum));
+        const proseWidth = Math.max(...prose.map(minimum));
+        if (labelWidth <= CONTENT_W / 5) {
+          const borrowed = Math.max(
+            0,
+            Math.min(labelWidth - widths.at(-1)!, widths[widths.length - 2]! - proseWidth),
+          );
+          widths[widths.length - 1]! += borrowed;
+          widths[widths.length - 2]! -= borrowed;
+        }
+      }
       // 格子里留一点边距，里面的表格、图片按格子的宽缩小；格子里的位置从这一格的左上角算。
       const cells = block.cells.map((cell, i) => {
         const inner: Flow = { top: block.box.y, bottom: block.box.y, height: 0 };

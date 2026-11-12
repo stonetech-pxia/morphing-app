@@ -231,6 +231,56 @@ describe('writeDocx', () => {
     expect(xml).toContain('>Bill to: Elena Martin</w:t>');
   });
 
+  it('keeps a short right-aligned label unbroken when a prose row must shrink to the page', () => {
+    const doc: DocDoc = {
+      version: 1,
+      pages: [
+        {
+          source: 's',
+          width: 1408,
+          height: 2016,
+          bodySize: 12,
+          blocks: [
+            {
+              kind: 'row',
+              box: { x: 116, y: 847, width: 1177, height: 72 },
+              cells: [
+                {
+                  width: 1126,
+                  blocks: [
+                    {
+                      kind: 'paragraph',
+                      text: 'Calculate the height reached by the object and explain the answer.',
+                      box: { x: 116, y: 851, width: 1020, height: 30 },
+                    },
+                  ],
+                },
+                {
+                  width: 51,
+                  blocks: [
+                    {
+                      kind: 'paragraph',
+                      text: '[6]',
+                      align: 'right',
+                      box: { x: 1242, y: 847, width: 51, height: 42 },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const zip = unzipSync(writeDocx(doc));
+    const xml = strFromU8(zip['word/document.xml']!);
+    const widths = [...xml.matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].map((m) => Number(m[1]));
+    // Arial 12 pt 的 [6] 约 13.35 pt，加左右各 4 pt 的格内边距。
+    expect(widths[1]! - 160).toBeGreaterThanOrEqual(13.35 * 20);
+    expect(widths.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(9638);
+    expect(xml).toContain('[6]');
+  });
+
   it('preserves a table’s horizontal position and keeps its width inside the page', () => {
     const at = { x: 435, y: 279, width: 487, height: 200 };
     const xml = unzip(
