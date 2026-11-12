@@ -102,7 +102,18 @@ describe('ocr.toWord (D-328)', () => {
     const photo = files.offerImage('edited.jpg', W, H);
     input = {
       type: 'images',
-      items: [{ ...photo, pageSize: { for: 'file:///previous.jpg', width: 595, height: 255 } }],
+      items: [
+        {
+          uri: photo.uri,
+          name: photo.name,
+          width: W,
+          height: H,
+          ext: 'jpg',
+          mimeType: 'image/jpeg',
+          size: photo.size ?? 0,
+          pageSize: { for: 'file:///previous.jpg', width: 595, height: 255 },
+        },
+      ],
     };
     onePage(vision);
     const item = resultItem(await run());
@@ -116,7 +127,18 @@ describe('ocr.toWord (D-328)', () => {
     const photo = files.offerImage('ticket.jpg', W, H);
     input = {
       type: 'images',
-      items: [{ ...photo, pageSize: { for: photo.uri, width: 595.28, height: 255.12 } }],
+      items: [
+        {
+          uri: photo.uri,
+          name: photo.name,
+          width: W,
+          height: H,
+          ext: 'jpg',
+          mimeType: 'image/jpeg',
+          size: photo.size ?? 0,
+          pageSize: { for: photo.uri, width: 595.28, height: 255.12 },
+        },
+      ],
     };
     onePage(vision);
     const item = resultItem(await run());
