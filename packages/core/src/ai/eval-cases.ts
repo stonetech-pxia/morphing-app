@@ -3237,6 +3237,15 @@ const SPEAK_EVAL_CASES: readonly EvalCase[] = [
     expect: { kind: 'ops', check: hasWorkflow(['in.photos', 'ocr.toWord']) },
   },
   {
+    id: 'PDOC3-en',
+    input:
+      'Create a quick action to turn a digital PDF into an editable Word document, retaining its graphics and paper size',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['in.files', 'pdf.toImages', 'ocr.toWord']) },
+  },
+  {
     id: 'PTTS1',
     input: '做一个把 PDF 变成音频的快捷操作',
     locale: 'zh',

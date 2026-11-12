@@ -89,10 +89,18 @@ export interface DocImage {
   kind: 'image';
   box: Box;
   src?: string;
+  /** 原 PDF 中除正文外的整页绘图；放在正文后面，不占文档流。 */
+  background?: true;
+}
+
+/** 已转到底图的图片原来占据的空白；不是透明图片，也不含正文。 */
+export interface DocSpace {
+  kind: 'space';
+  box: Box;
 }
 
 /** 能单独放的块；并排行的格子里只放这些（不再套并排行）。 */
-export type DocLeaf = DocParagraph | DocList | DocTable | DocImage;
+export type DocLeaf = DocParagraph | DocList | DocTable | DocImage | DocSpace;
 
 /** 并排行的一格：width 是它在原图里的宽（像素，到下一格的左边为止），blocks 按阅读顺序。 */
 export interface DocRowCell {
@@ -135,7 +143,7 @@ export interface DocPage {
 }
 
 export interface DocDoc {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   pages: DocPage[];
 }
 

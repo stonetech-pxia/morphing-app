@@ -25,7 +25,7 @@ export type EditedLeaf =
     }
   | { kind: 'list'; ref?: string; items: EditedRun[][] }
   | { kind: 'table'; ref: string; cells: { i: number; text: string }[] }
-  | { kind: 'image'; ref: string };
+  | { kind: 'image' | 'space'; ref: string };
 
 export type EditedBlock = EditedLeaf | { kind: 'row'; ref: string; cells: EditedLeaf[][] };
 
@@ -165,7 +165,7 @@ export function mergeEdited(
           ? orig
           : { ...orig, table: { ...orig.table, cells } };
       }
-      if (orig?.kind !== 'image') return null;
+      if (orig?.kind !== e.kind) return null;
       previous = orig;
       return orig;
     };

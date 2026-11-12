@@ -244,6 +244,7 @@ export async function renderPages(
       width: page.width,
       height: page.height,
     });
+    image.pdfSource = { for: image.uri, uri: item.uri, page: page.index };
     if (page.paper) image.pageSize = { for: image.uri, ...page.paper };
     out.push(image);
   }

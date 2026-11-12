@@ -149,6 +149,12 @@ describe('PDF actions that need the preview pack or a local screen', () => {
     if (result.status !== 'succeeded' || result.value?.type !== 'images') throw new Error();
     expect(result.value.items.map((i) => i.name)).toEqual(['report-1', 'report-2', 'report-3']);
     expect(result.value.items[0]).toMatchObject({ ext: 'jpg', width: 60, height: 40 });
+    for (const [index, image] of result.value.items.entries())
+      expect(image.pdfSource).toEqual({
+        for: image.uri,
+        uri: packs.calls[0]!.files[0],
+        page: index,
+      });
     expect(files.disk.get(result.value.items[0]!.uri)).toEqual(TINY_JPEG);
     expect(packs.calls).toHaveLength(1);
     expect(packs.calls[0]).toMatchObject({ page: 'pdfview', method: 'render' });

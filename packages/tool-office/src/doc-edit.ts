@@ -129,7 +129,7 @@ export function originalArea(doc: DocDoc, page: number, boxes: readonly Box[]): 
   const pg = doc.pages[page];
   if (!pg || !boxes.length) return null;
   let area = boxes.map((b) => originalBox(b, pg)).reduce(union);
-  const images = leafBlocks(pg).filter((b) => b.kind === 'image');
+  const images = leafBlocks(pg).filter((b) => b.kind === 'image' && !b.background);
   for (let grew = true; grew;) {
     grew = false;
     for (const image of images) {
@@ -160,7 +160,7 @@ export function swapToOriginal(
   const goes = (leaf: DocLeaf) =>
     ((leaf.kind === 'paragraph' || leaf.kind === 'list') &&
       boxes.some((b) => sameBox(b, leaf.box))) ||
-    (leaf.kind === 'image' && overlaps(leaf.box, image.box));
+    (leaf.kind === 'image' && !leaf.background && overlaps(leaf.box, image.box));
   const keep = (leaves: readonly DocLeaf[]): DocLeaf[] =>
     leaves.flatMap((leaf) => {
       if (!goes(leaf)) return [leaf];
@@ -234,7 +234,11 @@ export function editDocTable(doc: DocDoc, at: DocRef, fn: (table: TableDoc) => T
 export function parseDocDoc(json: string): DocDoc | null {
   try {
     const doc = JSON.parse(json) as DocDoc;
-    if ((doc?.version !== 1 && doc?.version !== 2) || !Array.isArray(doc.pages)) return null;
+    if (
+      (doc?.version !== 1 && doc?.version !== 2 && doc?.version !== 3) ||
+      !Array.isArray(doc.pages)
+    )
+      return null;
     if (!doc.pages.every((p) => Array.isArray(p?.blocks))) return null;
     if (
       !doc.pages.every(
@@ -255,10 +259,10 @@ export function parseDocDoc(json: string): DocDoc | null {
       )
     )
       return null;
-    return doc.version === 1
+    return doc.version !== 3
       ? {
           ...doc,
-          version: 2,
+          version: 3,
           pages: doc.pages.map((p) => ({
             ...p,
             paper: p.paper ?? { width: 595.3, height: 841.9 },

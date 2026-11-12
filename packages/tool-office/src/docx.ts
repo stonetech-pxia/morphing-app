@@ -373,10 +373,22 @@ function layoutTableXml(
   );
 }
 
-function imageXml(rid: string, id: number, cx: number, cy: number, pPr = ''): string {
+function imageXml(
+  rid: string,
+  id: number,
+  cx: number,
+  cy: number,
+  pPr = '',
+  background = false,
+): string {
   return (
-    `<w:p>${pPr ? `<w:pPr>${pPr}</w:pPr>` : ''}<w:r><w:drawing>` +
-    `<wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/>` +
+    `<w:p>${pPr ? `<w:pPr>${pPr}</w:pPr>` : ''}<w:r>${background ? '<w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr>' : ''}<w:drawing>` +
+    (background
+      ? '<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="0" behindDoc="1" locked="0" layoutInCell="0" allowOverlap="1">' +
+        '<wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionH>' +
+        '<wp:positionV relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionV>' +
+        `<wp:extent cx="${cx}" cy="${cy}"/><wp:wrapNone/>`
+      : `<wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/>`) +
     `<wp:docPr id="${id}" name="Picture ${id}"/>` +
     '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
     '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
@@ -385,7 +397,9 @@ function imageXml(rid: string, id: number, cx: number, cy: number, pPr = ''): st
     `<pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
     `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>` +
     '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>' +
-    '</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>'
+    '</a:graphicData></a:graphic>' +
+    (background ? '</wp:anchor>' : '</wp:inline>') +
+    '</w:drawing></w:r></w:p>'
   );
 }
 
@@ -486,6 +500,7 @@ export function writeDocx(
       body.push(
         `<w:p><w:pPr>${sectionXml(doc.pages[p - 1], true)}<w:spacing w:line="1" w:lineRule="exact"/></w:pPr></w:p>`,
       );
+    const pageStart = body.length;
     // 每页的字按这一页的正文字号写（D-335：表单页和正文页的正文字号可能差很多）。
     const bodySize = page.bodySize ?? docSize;
     let first = p > 0 && !sections;
@@ -499,7 +514,8 @@ export function writeDocx(
     // 段前距是原图里和上一块之间空着的高度；字和空白加起来在 Word 里比 A4 的内容区还高、只靠字又放得下一页时，
     // 段前距按比例缩小，原件一页还是一页（字本身就超过一页的正文页不缩，段落之间照样空开）。
     const marginPx = (margins.top / PAGE_W) * page.width;
-    const leaves = leafBlocks(page);
+    const foreground = page.blocks.filter((b) => !(b.kind === 'image' && b.background));
+    const leaves = leafBlocks({ blocks: foreground });
     const base = Math.min((margins.left / PAGE_W) * page.width, ...leaves.map((b) => b.box.x));
     // 左边对齐的块左边只差一点（认字框的左边总有几个像素的抖动）时对齐到同一个位置：
     // 不然每段的缩进都差几磅，Word 里左边是锯齿。差不到 0.7 个字宽的归为一组，取这一组最左的。
@@ -567,6 +583,7 @@ export function writeDocx(
         });
         return Math.max(h, ...measured) + LINE_HEIGHT * 20;
       }
+      if (block.kind === 'space') return h;
       return block.kind === 'image' ? h + (page.paper ? bodySize * 6 : 0) : h + LINE_HEIGHT * 20;
     };
     // 段前距（twip）；在上一块上面、和它重叠（位置用不了，例如文字转 Word 的占位框）时没有，按 spaced 写。
@@ -585,7 +602,13 @@ export function writeDocx(
     // 左缩进（twip）：居中、靠右的段落没有；一行的段落放得下才缩进（不让它折到下一行）。
     const leftOf = (block: DocLeaf, from: number, maxWidth: number): number => {
       if (block.kind === 'paragraph' && block.tab) return 0;
-      if (block.kind !== 'image' && block.kind !== 'table' && block.align && block.align !== 'left')
+      if (
+        block.kind !== 'image' &&
+        block.kind !== 'table' &&
+        block.kind !== 'space' &&
+        block.align &&
+        block.align !== 'left'
+      )
         return 0;
       const room = maxWidth - twip(block.box.width) * (block.kind === 'table' ? 1 : WIDTH_SLACK);
       const v = Math.min(twip((snap.get(block.box.x) ?? block.box.x) - from), Math.max(0, room));
@@ -669,15 +692,30 @@ export function writeDocx(
             // 两张表紧挨着时 Word 会把它们并成一张：后面补一个空段落。
             blankXml(1),
           ];
+        case 'space':
+          return [
+            `<w:p><w:pPr><w:spacing w:before="${before ?? 0}" w:after="0" w:line="${Math.max(1, twip(block.box.height))}" w:lineRule="exact"/><w:rPr><w:sz w:val="2"/></w:rPr></w:pPr></w:p>`,
+          ];
         case 'image': {
           const image = block.src ? images.get(block.src) : undefined;
           if (!image) return [];
-          const out = pageBreak() ? [paragraphXml('', {}, bodySize, { pageBreak: true })] : [];
           const n = media.length + 1;
           const rid = `rIdImg${n}`;
           // 剪下来的是 JPG；外来的 docx 读进来的图片（D-509）也可能是 PNG、GIF、BMP，按文件开头认。
           const ext = imageExt(image.bytes) ?? 'jpg';
           media.push({ name: `image${n}.${ext}`, rid, bytes: image.bytes });
+          if (block.background)
+            return [
+              imageXml(
+                rid,
+                n,
+                Math.round(PAGE_W * EMU_PER_TWIP),
+                Math.round(PAGE_H * EMU_PER_TWIP),
+                '<w:spacing w:before="0" w:after="0" w:line="1" w:lineRule="exact"/><w:rPr><w:sz w:val="2"/></w:rPr>',
+                true,
+              ),
+            ];
+          const out = pageBreak() ? [paragraphXml('', {}, bodySize, { pageBreak: true })] : [];
           // 大小按它在原图里占的宽度，放不下时等比缩小。
           let w = (block.box.width / page.width) * PAGE_W;
           let h = (w * image.height) / Math.max(1, image.width);
@@ -699,7 +737,7 @@ export function writeDocx(
       const dry: Flow = { top: marginPx, bottom: marginPx, height: 0 };
       let gaps = 0;
       let heights = 0;
-      for (const block of page.blocks) {
+      for (const block of foreground) {
         const before = beforeOf(block, dry);
         gaps += before ?? 0;
         heights += heightOf(block);
@@ -709,7 +747,7 @@ export function writeDocx(
         fit = Math.max(0, (CONTENT_H - heights) / gaps);
     }
     const flow: Flow = { top: marginPx, bottom: marginPx, height: 0 };
-    for (const block of page.blocks) {
+    for (const block of foreground) {
       const before = beforeOf(block, flow);
       advance(flow, block);
       if (block.kind !== 'row') {
@@ -815,6 +853,24 @@ export function writeDocx(
           .join('');
       });
       body.push(layoutTableXml(widths, [cells], bodySize), blankXml(1));
+    }
+    // 锚点寄存在已有正文段落里，不能多添一行把刚好放满的页挤出一个空白尾页。
+    const drawings = page.blocks
+      .filter((b) => b.kind === 'image' && b.background)
+      .flatMap((b) => {
+        if (b.kind !== 'image') return [];
+        return leafXml(b, CONTENT_W, { left: 0 }).map((xml) =>
+          xml.slice(xml.indexOf('<w:r>'), xml.lastIndexOf('</w:p>')),
+        );
+      })
+      .join('');
+    if (drawings) {
+      const at = body.findIndex((xml, i) => i >= pageStart && xml.includes('</w:p>'));
+      if (at >= 0) body[at] = body[at]!.replace('</w:p>', drawings + '</w:p>');
+      else
+        body.push(
+          `<w:p><w:pPr>${pageBreak() ? '<w:pageBreakBefore/>' : ''}<w:spacing w:line="1" w:lineRule="exact"/></w:pPr>${drawings}</w:p>`,
+        );
     }
   });
   const documentXml =

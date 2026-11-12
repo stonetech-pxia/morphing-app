@@ -108,6 +108,30 @@ function open(d: DocDoc = doc) {
 }
 
 describe('Word page layout like the original (D-464, D-465)', () => {
+  it('keeps source graphics and figure spaces when editing body text', () => {
+    const d: DocDoc = {
+      version: 3,
+      pages: [
+        {
+          ...doc.pages[0]!,
+          blocks: [
+            { kind: 'image', background: true, src: 'graphics.png', box: box(0, 0, 1000, 1400) },
+            { kind: 'space', box: box(100, 100, 400, 120) },
+            { kind: 'paragraph', text: 'Editable body', box: box(100, 300, 400, 30) },
+          ],
+        },
+      ],
+    };
+    const { q, merge } = open(d);
+    expect(q('[data-kind="image"]').style.position).toBe('absolute');
+    expect(q('[data-kind="space"]').getAttribute('contenteditable')).toBe('false');
+    q('p[data-ref="0-2"]').textContent = 'Revised body';
+    const next = merge();
+    expect(next.pages[0]!.blocks[0]).toEqual(d.pages[0]!.blocks[0]);
+    expect(next.pages[0]!.blocks[1]).toEqual(d.pages[0]!.blocks[1]);
+    expect(next.pages[0]!.blocks[2]).toMatchObject({ text: 'Revised body' });
+  });
+
   it('shows the source direction of a rotated editable table', () => {
     const table = doc.pages[0]!.blocks.find((b) => b.kind === 'table')!;
     const d: DocDoc = {

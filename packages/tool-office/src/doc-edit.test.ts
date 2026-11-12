@@ -110,10 +110,10 @@ describe('DocDoc edits', () => {
   it('reads back its own JSON and rejects anything else', () => {
     expect(parseDocDoc(JSON.stringify(doc))).toEqual({
       ...doc,
-      version: 2,
+      version: 3,
       pages: doc.pages.map((p) => ({ ...p, paper: { width: 595.3, height: 841.9 } })),
     });
-    expect(parseDocDoc('{"version":3,"pages":[]}')).toBeNull();
+    expect(parseDocDoc('{"version":4,"pages":[]}')).toBeNull();
     expect(parseDocDoc('{"version":1,"pages":[{}]}')).toBeNull();
     expect(parseDocDoc('not json')).toBeNull();
   });
@@ -124,7 +124,7 @@ describe('DocDoc edits', () => {
       version: 2,
       pages: doc.pages.map((p) => ({ ...p, paper: { width: 595.28, height: 255.12 } })),
     };
-    expect(parseDocDoc(JSON.stringify(next))).toEqual(next);
+    expect(parseDocDoc(JSON.stringify(next))).toEqual({ ...next, version: 3 });
     expect(
       parseDocDoc(
         JSON.stringify({

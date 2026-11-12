@@ -189,6 +189,8 @@ function leafHtml(
       const cols = colWidths.map((w) => `<col style="width:${((w / total) * 100).toFixed(2)}%">`);
       return `<table data-ref="${ref}"${cls} style="margin-top:${place.top}${u};font-size:${px}${u}"><colgroup>${cols.join('')}</colgroup><tbody>${rows}</tbody></table>`;
     }
+    case 'space':
+      return `<div data-ref="${ref}" data-kind="space" contenteditable="false" style="${margin};height:${block.box.height * k}${u}"></div>`;
     case 'image': {
       // 按原来占页宽的比例。图片不能在页面上改，只能连同它所在的地方一起删掉（打印的版面用 pt，不用标）。
       const width = Math.min(100, (block.box.width / page.width) * 100);
@@ -196,6 +198,8 @@ function leafHtml(
       const inner = src
         ? `<img src="${src}" style="width:100%">`
         : `<div class="noimg" style="aspect-ratio:${block.box.width}/${Math.max(1, block.box.height)}"></div>`;
+      if (block.background)
+        return `<div data-ref="${ref}" data-kind="image" contenteditable="false" style="position:absolute;inset:0;pointer-events:none;z-index:-1">${inner}</div>`;
       return `<div data-ref="${ref}" data-kind="image"${u === 'px' ? ' contenteditable="false"' : ''} style="${margin};width:${width.toFixed(2)}%">${inner}</div>`;
     }
   }
@@ -212,7 +216,7 @@ function previewBoxes(doc: DocDoc): Record<string, [number, number, number, numb
     out[key] = [p, b.x, b.y, b.width, b.height];
   };
   const leaf = (block: DocLeaf, ref: string, p: number) => {
-    if (block.kind === 'image') return;
+    if (block.kind === 'image' || block.kind === 'space') return;
     add(ref, p, block.box);
     if (block.kind === 'table') {
       block.table.cells.forEach((c, i) => c.box && add(`${ref}#${i}`, p, c.box));
@@ -279,10 +283,11 @@ export function wordPageHtml(
   const pages = doc.pages
     .map((page, p) => {
       const k = pageWidth / Math.max(1, page.width);
-      const leaves = leafBlocks(page);
+      const foreground = page.blocks.filter((b) => !(b.kind === 'image' && b.background));
+      const leaves = leafBlocks({ blocks: foreground });
       const minX = Math.min(...leaves.map((b) => b.box.x), page.width);
       const side = Math.max(SIDE_MIN, Math.round(minX * k));
-      const top = Math.min(...page.blocks.map((b) => b.box.y), page.height);
+      const top = Math.min(...foreground.map((b) => b.box.y), page.height);
       const inner = pageWidth - 2 * side;
       const place = (block: DocLeaf, gap: number) => ({
         top: gap,
@@ -294,7 +299,8 @@ export function wordPageHtml(
       });
       const blocks = page.blocks
         .map((block, b) => {
-          const gap = gapOf(block, page.blocks[b - 1], k, top);
+          const i = foreground.indexOf(block);
+          const gap = gapOf(block, i >= 0 ? foreground[i - 1] : undefined, k, top);
           if (block.kind !== 'row') {
             return leafHtml(
               block,
@@ -336,7 +342,7 @@ export function wordPageHtml(
       const sheet = page.paper
         ? `;min-height:${(pageWidth * page.paper.height) / page.paper.width}${u}`
         : '';
-      return `<div class="paper"${editable} data-page="${p}" style="padding:16${u} ${side}${u} 24${u}${sheet}">${blocks || '<p><br></p>'}</div>`;
+      return `<div class="paper"${editable} data-page="${p}" style="position:relative;isolation:isolate;padding:16${u} ${side}${u} 24${u}${sheet}">${blocks || '<p><br></p>'}</div>`;
     })
     .join('');
   // 光标上方的原图小窗（D-468）：每一块（表格是每一格）在原图里的位置，和每页的原图。
@@ -494,7 +500,7 @@ export const WORD_PAGE_SCRIPT = String.raw`
   function leaf(el) {
     var ref = el.getAttribute && el.getAttribute('data-ref');
     var kind = el.getAttribute && el.getAttribute('data-kind');
-    if (kind === 'image') return { kind: 'image', ref: ref };
+    if (kind === 'image' || kind === 'space') return { kind: kind, ref: ref };
     if (el.tagName === 'TABLE') {
       var cells = [];
       var tds = el.querySelectorAll('td[data-i]');
