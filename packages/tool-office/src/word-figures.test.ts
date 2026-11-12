@@ -54,6 +54,189 @@ function fixture() {
 }
 
 describe('Word figure ownership', () => {
+  it('retains existing vertical-text crops while adapting the writing direction of a landscape page', () => {
+    const image = renderPage(1400, 1000, gridRects([700, 850, 1000, 1150], [100, 500, 900]));
+    const lines = [700, 850, 1000].flatMap((x, c) =>
+      [100, 500].map((y, r) => ({
+        text: `Vertical ${r}-${c}`,
+        x: x + 35,
+        y: y + 30,
+        width: 24,
+        height: 180,
+      })),
+    );
+    lines.push(
+      ...[180, 230, 280, 1300].map((x, i) => ({
+        text: `Long header number ${i}`,
+        x,
+        y: 100,
+        width: 24,
+        height: 280,
+      })),
+    );
+    const before = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const after = buildDocPage({
+      image,
+      lines,
+      paper: { width: 840, height: 600 },
+      source: 's',
+      skew: 0,
+    });
+    const pictures = (page: typeof before) =>
+      leafBlocks(page)
+        .filter((b) => b.kind === 'image')
+        .map((b) => b.box);
+    expect(pictures(before).length).toBeGreaterThan(0);
+    expect(pictures(after)).toEqual(pictures(before));
+  });
+
+  it('keeps predominantly rotated table text editable in its source direction', () => {
+    const image = renderPage(1400, 1000, gridRects([100, 240, 380, 520], [100, 360, 620, 880]));
+    const lines = [100, 240, 380].flatMap((x, c) =>
+      [100, 360, 620].map((y, r) => ({
+        text: `Vertical ${r + 1}-${c + 1}`,
+        x: x + 40,
+        y: y + 30,
+        width: 24,
+        height: 180,
+      })),
+    );
+    const page = buildDocPage({
+      image,
+      lines,
+      paper: { width: 840, height: 600 },
+      source: 's',
+      skew: 0,
+    });
+    const table = leafBlocks(page).find((b) => b.kind === 'table');
+    expect(table && 'direction' in table && table.direction).toBe('tbRl');
+    expect(text(page)).toContain('Vertical 3-3');
+  });
+
+  it('centers a symmetric source heading over two lines on known paper', () => {
+    const heading = [
+      line('A source title', 200, 100, 600, 80),
+      line('Over two lines', 200, 180, 600, 80),
+    ];
+    const body = Array.from({ length: 5 }, (_, i) =>
+      line('Editable body text.', 100, 400 + i * 30, 600, 20),
+    );
+    const page = buildDocPage({
+      image: renderPage(size.width, size.height, []),
+      lines: [...heading, ...body],
+      regions: [hint('title', 'doc_title', 200, 100, 600, 160)],
+      paper: { width: 600, height: 840 },
+      source: 's',
+      skew: 0,
+    });
+    const title = leafBlocks(page).find((b) => b.kind === 'paragraph' && b.heading === 1);
+    expect(title && 'align' in title && title.align).toBe('center');
+  });
+
+  it('separates a chart from a false ruled grid while retaining the real data below it', () => {
+    const picture = hint('image', 'chart', 100, 100, 700, 240);
+    const rows = [460, 510, 560].flatMap((y, i) => [
+      line(`Service ${i + 1}`, 120, y, 150),
+      line(`${20 + i}`, 350, y, 80),
+      line(`${40 + i}.50`, 600, y, 90),
+    ]);
+    const image = renderPage(size.width, size.height, [
+      ...gridRects([100, 300, 550, 800], [80, 350, 450, 500, 550, 600]),
+      ...[150, 300, 450, 600].map((x) => ({ x, y: 120, width: 100, height: 180 })),
+    ]);
+    const page = buildDocPage({
+      image,
+      lines: rows,
+      regions: [picture, hint('table', 'table', 100, 450, 700, 150)],
+      source: 's',
+      skew: 0,
+    });
+    expect(leafBlocks(page).filter((b) => b.kind === 'image')).toHaveLength(1);
+    expect(text(page)).toContain('Service 1');
+    expect(text(page)).toContain('42.50');
+    const tables = leafBlocks(page).filter((b) => b.kind === 'table');
+    expect(tables).toHaveLength(1);
+    expect(tables[0]!.box.y).toBeGreaterThanOrEqual(picture.box.y + picture.box.height);
+  });
+
+  it('keeps many short fields editable on a colorful form with an uncaptioned image proposal', () => {
+    const box = { x: 50, y: 100, width: 900, height: 1000 };
+    const fields = Array.from({ length: 18 }, (_, i) =>
+      line(`Field ${i + 1}: ${100 + i}`, 100 + (i % 3) * 260, 150 + Math.floor(i / 3) * 100, 200),
+    );
+    const page = buildDocPage({
+      image: renderPage(size.width, size.height, [box]),
+      lines: fields,
+      regions: [{ kind: 'image', label: 'image', score: 0.95, box }],
+      source: 's',
+      skew: 0,
+    });
+    expect(text(page)).toContain('Field 1: 100');
+    expect(text(page)).toContain('Field 18: 117');
+    expect(leafBlocks(page).filter((b) => b.kind === 'image')).toHaveLength(0);
+  });
+
+  it('uses known paper geometry to keep a clamped body font from inflating a source heading', () => {
+    const page = buildDocPage({
+      image: renderPage(size.width, size.height, []),
+      lines: [
+        line('A large source heading', 100, 100, 700, 40),
+        ...Array.from({ length: 5 }, (_, i) =>
+          line('Ordinary body text on a short line.', 100, 250 + i * 20, 300, 10),
+        ),
+      ],
+      paper: { width: 600, height: 840 },
+      source: 's',
+      skew: 0,
+    });
+    const title = leafBlocks(page).find(
+      (b) => b.kind === 'paragraph' && b.text === 'A large source heading',
+    );
+    expect(title?.kind).toBe('paragraph');
+    expect(title && 'size' in title && title.size).toBeLessThanOrEqual(22);
+  });
+
+  it.each([false, true])('keeps an uncaptioned large illustration whole (fused=%s)', (fused) => {
+    const b = { x: 30, y: 350, width: 940, height: 850 };
+    const image = renderPage(size.width, size.height, [b]);
+    const page = buildDocPage({
+      image,
+      lines: [line('Editable report title', 100, 80, 500)],
+      regions: [{ kind: 'image', label: 'image', score: 0.9, box: b, ...(fused ? { fused } : {}) }],
+      source: 's',
+      skew: 0,
+    });
+    const pictures = leafBlocks(page).filter((b) => b.kind === 'image');
+    expect(pictures).toHaveLength(1);
+    expect(pictures[0]!.box.height).toBeGreaterThanOrEqual(850);
+    expect(text(page)).toContain('Editable report title');
+  });
+
+  it('keeps a confirmed diagram when its grid contributed shared columns to a separate table', () => {
+    const f = fixture();
+    const image = renderPage(size.width, size.height, [
+      ...gridRects([110, 300, 520, 790], [110, 180, 250, 330]),
+      ...gridRects([100, 450, 800], [600, 650, 700, 750]),
+    ]);
+    const data = [610, 660, 710].flatMap((y, i) => [
+      line(`Entry ${i + 1}`, 120, y, 120),
+      line(`${100 + i}`, 480, y, 80),
+    ]);
+    const page = buildDocPage({
+      image,
+      lines: [...f.lines, ...data],
+      regions: [f.picture, f.caption],
+      source: 's',
+      skew: 0,
+    });
+    expect(leafBlocks(page).filter((b) => b.kind === 'image')).toHaveLength(1);
+    expect(text(page)).not.toContain('Encoder');
+    expect(text(page)).toContain('Entry 1');
+    expect(text(page)).toContain('102');
+    const table = leafBlocks(page).find((b) => b.kind === 'table');
+    expect(table?.box.y).toBeGreaterThan(590);
+  });
+
   it('preserves a captioned sparse diagram with long labels before its grid becomes a table', () => {
     const f = fixture();
     const original = f.image.data.slice();

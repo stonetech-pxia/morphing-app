@@ -225,12 +225,17 @@ export function cleanRegions(
   lines: readonly OcrBox[],
   size: { width: number; height: number },
   image?: RgbaImage,
+  protectedImages: ReadonlySet<LayoutRegion> = new Set(),
 ): LayoutRegion[] {
   const pageArea = size.width * size.height;
   // 同一张图常被认成两个区域（image 和 header_image）：和更高分的图片重叠一半以上的不要。
   // 占了半页以上的「图片」不参与：它本来就要丢，不能让它把里面真正的小图当成重复一起带走（D-524）。
   const images = regions
-    .filter((r) => r.kind === 'image' && area(r.box) <= IMAGE_MAX_PAGE_SHARE * pageArea)
+    .filter(
+      (r) =>
+        r.kind === 'image' &&
+        (protectedImages.has(r) || area(r.box) <= IMAGE_MAX_PAGE_SHARE * pageArea),
+    )
     .sort((a, b) => b.score - a.score);
   const duplicate = new Set(
     images.filter((r, i) =>
@@ -243,6 +248,7 @@ export function cleanRegions(
     if (duplicate.has(r)) return false;
     if (r.kind === 'table') return false;
     if (r.kind !== 'image') return true;
+    if (protectedImages.has(r)) return true;
     if (area(r.box) > IMAGE_MAX_PAGE_SHARE * pageArea) return false;
     const inside = lines.filter((l) => lineShareIn(l, r.box) >= 0.5);
     const chars = inside.reduce((n, l) => n + [...l.text.trim()].length, 0);

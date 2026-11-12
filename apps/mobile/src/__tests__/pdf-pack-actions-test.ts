@@ -39,6 +39,7 @@ class FakePacks implements PackRuntime {
   calls: { page: PackPageId; method: string; args: Record<string, unknown>; files: string[] }[] =
     [];
   pageCount = 3;
+  paper: { width: number; height: number } | null = null;
   text: string[] = ['Hello', 'World', ''];
   async call<T>(
     page: PackPageId,
@@ -51,7 +52,13 @@ class FakePacks implements PackRuntime {
       const data = btoa(String.fromCharCode(...TINY_JPEG));
       const all = Array.from({ length: this.pageCount }, (_, index) => index);
       const wanted = (args.pages as number[] | undefined) ?? all;
-      return wanted.map((index) => ({ index, width: 60, height: 40, data })) as T;
+      return wanted.map((index) => ({
+        index,
+        width: 60,
+        height: 40,
+        data,
+        ...(this.paper ? { paper: this.paper } : {}),
+      })) as T;
     }
     if (method === 'text') return { pages: this.text } as T;
     throw new Error(`unknown method ${method}`);
@@ -122,6 +129,16 @@ const hasImage = (doc: PDFDocument, index: number) =>
   Boolean(doc.getPage(index).node.Resources()?.lookup(PDFName.of('XObject')));
 
 describe('PDF actions that need the preview pack or a local screen', () => {
+  it('keeps the physical PDF paper size tied to each rendered image', async () => {
+    const { files, packs, run } = setup(toolWorkflow('pdf-toimages'));
+    packs.paper = { width: 600, height: 255 };
+    files.nextPick = [files.offer('ticket.pdf', await makePdf(3))];
+    const result = await run();
+    if (result.status !== 'succeeded' || result.value?.type !== 'images') throw new Error();
+    for (const image of result.value.items)
+      expect(image.pageSize).toEqual({ for: image.uri, width: 600, height: 255 });
+  });
+
   it('turns every page into a JPG through the pack page, passing only the chosen file', async () => {
     const { files, packs, run, asked } = setup(toolWorkflow('pdf-toimages'));
     const picked = files.offer('report.pdf', await makePdf(3));

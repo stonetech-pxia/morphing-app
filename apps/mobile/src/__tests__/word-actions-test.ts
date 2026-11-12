@@ -4,6 +4,7 @@ import {
   decodeUtf8,
   type RunItem,
   type RunResult,
+  type RunValue,
   type Workflow,
 } from '@morph/core';
 import { parseDocDoc, type LayoutRegion } from '@morph/tool-office';
@@ -48,7 +49,7 @@ const regions: LayoutRegion[] = [
 ];
 
 let ids = 0;
-function setup(steps: Workflow['steps'], visionOn = true) {
+function setup(steps: Workflow['steps'], visionOn = true, input?: () => RunValue | null) {
   const files = new FakeFiles();
   const vision = new FakeVision(files);
   if (visionOn) files.vision = vision;
@@ -66,6 +67,7 @@ function setup(steps: Workflow['steps'], visionOn = true) {
         newId: () => `id${++ids}`,
         ui: { confirm: async () => false, choose: async () => null, open: async () => null },
         packs: null,
+        handed: input?.() ?? null,
         askParams: async (request) => request.params,
       })
     ).result;
@@ -94,6 +96,37 @@ function onePage(vision: FakeVision) {
 }
 
 describe('ocr.toWord (D-328)', () => {
+  it('does not reuse paper metadata belonging to an earlier image URI', async () => {
+    let input: RunValue | null = null;
+    const { files, vision, run } = setup([word()], true, () => input);
+    const photo = files.offerImage('edited.jpg', W, H);
+    input = {
+      type: 'images',
+      items: [{ ...photo, pageSize: { for: 'file:///previous.jpg', width: 595, height: 255 } }],
+    };
+    onePage(vision);
+    const item = resultItem(await run());
+    const doc = parseDocDoc(decodeUtf8(await files.readUri(item.docDoc!.uri)))!;
+    expect(doc.pages[0]!.paper).toEqual({ width: 595.3, height: 841.9 });
+  });
+
+  it('carries an authoritative source page size from the current image to its editable Word and export', async () => {
+    let input: RunValue | null = null;
+    const { files, vision, run } = setup([word()], true, () => input);
+    const photo = files.offerImage('ticket.jpg', W, H);
+    input = {
+      type: 'images',
+      items: [{ ...photo, pageSize: { for: photo.uri, width: 595.28, height: 255.12 } }],
+    };
+    onePage(vision);
+    const item = resultItem(await run());
+    const doc = parseDocDoc(decodeUtf8(await files.readUri(item.docDoc!.uri)))!;
+    expect(doc.version).toBe(2);
+    expect(doc.pages[0]!.paper).toEqual({ width: 595.28, height: 255.12 });
+    const { xml } = await documentXml(files, item);
+    expect(xml).toContain('w:h="5102" w:orient="landscape"');
+  });
+
   it('exports a wrapped reference range as one editable paragraph without a forced line break', async () => {
     const { files, vision, run } = setup([pick, word('eng')]);
     files.nextPhotos = [files.offerImage('reference.jpg', W, H)];
@@ -204,7 +237,8 @@ describe('ocr.toWord (D-328)', () => {
     const item = resultItem(await run());
     expect(item).toMatchObject({ name: '文档-2026-10-29', ext: 'docx' });
     const { xml } = await documentXml(files, item);
-    expect(xml.match(/<w:pageBreakBefore\/>/g)).toHaveLength(1);
+    expect(xml.match(/<w:sectPr>/g)).toHaveLength(2);
+    expect(xml.match(/<w:type w:val="nextPage"\/>/g)).toHaveLength(1);
   });
 
   it('says so when the device can’t read that language, and fails when nothing was read', async () => {

@@ -64,6 +64,7 @@ async function renderList(doc, list, maxSide, quality) {
       index,
       width: canvas.width,
       height: canvas.height,
+      paper: { width: base.width, height: base.height },
       data: canvas.toDataURL('image/jpeg', quality).split(',')[1],
     });
     page.cleanup();

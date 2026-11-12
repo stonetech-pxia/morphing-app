@@ -1,7 +1,7 @@
 import { lineShareIn, type LayoutRegion } from './layout';
 import type { Box, OcrBox, RgbaImage } from './types';
 
-// Word 的整图归属：先确认有图注、没有正文/数据表冲突的图框，再保护其中的文字和线条。
+// Word 的整图归属：图注或足够强的图形像素作证、没有正文/数据表冲突，再保护其中的文字和线条。
 // 这是构建时的临时计划；不改版面模型阈值，也不写进文档或工作表格式。
 const captionStart = /^(?:fig(?:ure)?\.?\s*\d+[\s:：.)]|[图圖]\s*\d+[\s:：.、])/iu;
 const captionLabels = new Set(['figure_title', 'chart_title']);
@@ -23,10 +23,10 @@ const union = (a: Box, b: Box): Box => {
 export interface WordFigure {
   region: LayoutRegion;
   box: Box;
-  caption: OcrBox;
+  caption?: OcrBox;
 }
 
-/** 原始模型已经给出单类可信图框；没有图注或有类别冲突的，留在原有路径。 */
+/** 原始模型图框加像素/文字证据；弱图框和正文、表格冲突仍留在原有路径。 */
 export function planWordFigures(
   image: RgbaImage,
   lines: readonly OcrBox[],
@@ -41,13 +41,7 @@ export function planWordFigures(
   const result: WordFigure[] = [];
   for (const r of regions) {
     const b = r.box;
-    if (
-      r.kind !== 'image' ||
-      r.label === 'seal' ||
-      r.fused ||
-      area(b) > 0.5 * image.width * image.height
-    )
-      continue;
+    if (r.kind !== 'image' || r.label === 'seal' || (r.fused && r.score < 0.6)) continue;
     const caption = captions
       .filter(
         (l) =>
@@ -59,7 +53,6 @@ export function planWordFigures(
             0.6 * Math.min(b.width, l.width) * l.height,
       )
       .sort((a, c) => a.y - c.y)[0];
-    if (!caption) continue;
     // 图片/表格冲突需要另行判定上下文；不能凭图注就把数据表截图。
     if (
       regions.some(
@@ -68,6 +61,12 @@ export function planWordFigures(
     )
       continue;
     const inside = lines.filter((l) => l !== caption && lineShareIn(l, b) >= 0.5);
+    // 无图注的大色块也可能是多格表单；不能把大量短字段当成示意图标签。
+    if (
+      !caption &&
+      (inside.length > 12 || inside.reduce((n, l) => n + [...l.text.trim()].length, 0) > 100)
+    )
+      continue;
     // 宽正文行是强冲突证据，即使模型声称是图片也不接管。
     if (inside.some((l) => l.width >= 0.6 * b.width && [...l.text.trim()].length >= 15)) continue;
     // 图形证据来自 OCR 框之外的原图像素；稀疏箭头可以很少，但只有文字的框仍不接管。
@@ -99,6 +98,9 @@ export function planWordFigures(
       }
     }
     if (!samples || ink / samples < 0.02) continue;
+    // 没有图注、弱类融合或大幅插图需要更强的像素证据；只有短字加细框线的表单不能接管。
+    if ((!caption || r.fused || area(b) > 0.5 * image.width * image.height) && ink / samples < 0.12)
+      continue;
     let box = { ...b };
     let conflict = false;
     for (const l of lines) {
@@ -118,11 +120,11 @@ export function planWordFigures(
     // 不扩进图注，也不允许两个图争同一块内容。
     if (
       conflict ||
-      box.y + box.height + 0.3 * h > caption.y ||
+      (caption && box.y + box.height + 0.3 * h > caption.y) ||
       result.some((f) => overlap(f.box, box) > 0)
     )
       continue;
-    result.push({ region: r, box, caption });
+    result.push({ region: r, box, ...(caption ? { caption } : {}) });
   }
   return result;
 }

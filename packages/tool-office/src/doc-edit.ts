@@ -234,9 +234,37 @@ export function editDocTable(doc: DocDoc, at: DocRef, fn: (table: TableDoc) => T
 export function parseDocDoc(json: string): DocDoc | null {
   try {
     const doc = JSON.parse(json) as DocDoc;
-    if (doc?.version !== 1 || !Array.isArray(doc.pages)) return null;
+    if ((doc?.version !== 1 && doc?.version !== 2) || !Array.isArray(doc.pages)) return null;
     if (!doc.pages.every((p) => Array.isArray(p?.blocks))) return null;
-    return doc;
+    if (
+      !doc.pages.every(
+        (p) =>
+          !p.paper || [p.paper.width, p.paper.height].every((v) => Number.isFinite(v) && v > 0),
+      )
+    )
+      return null;
+    if (
+      !doc.pages.every(
+        (p) =>
+          !p.margins ||
+          ([p.margins.top, p.margins.right, p.margins.bottom, p.margins.left].every(
+            (v) => Number.isFinite(v) && v >= 0,
+          ) &&
+            p.margins.left + p.margins.right < (p.paper?.width ?? 595.3) &&
+            p.margins.top + p.margins.bottom < (p.paper?.height ?? 841.9)),
+      )
+    )
+      return null;
+    return doc.version === 1
+      ? {
+          ...doc,
+          version: 2,
+          pages: doc.pages.map((p) => ({
+            ...p,
+            paper: p.paper ?? { width: 595.3, height: 841.9 },
+          })),
+        }
+      : doc;
   } catch {
     return null;
   }

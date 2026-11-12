@@ -22,6 +22,8 @@ export interface RunItem {
   width?: number;
   height?: number;
   pageCount?: number;
+  /** PDF 渲染成图时保留的纸张尺寸（磅），仅对 for 指向的当前图片有效。 */
+  pageSize?: { for: string; width: number; height: number };
   /** 视频、音频的时长（毫秒）。 */
   durationMs?: number;
   /** 照片的拍摄时间（毫秒）。 */

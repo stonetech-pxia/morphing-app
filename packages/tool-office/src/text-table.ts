@@ -527,6 +527,7 @@ export function findBarcodes(
   image: RgbaImage,
   lines: readonly OcrBox[],
   lineHeight: number,
+  localText = false,
 ): Box[] {
   const { width, height, data } = image;
   const step = Math.max(2, Math.round(lineHeight / 4));
@@ -538,7 +539,7 @@ export function findBarcodes(
   for (let y = 0; y < height; y += step) {
     if (covered(y)) {
       skipped.add(y);
-      continue;
+      if (!localText) continue;
     }
     // 这一行的亮度，用这一行的平均值分黑白。
     const lum = new Float32Array(width);
@@ -546,8 +547,16 @@ export function findBarcodes(
     for (let x = 0; x < width; x++) {
       const o = (y * width + x) * 4;
       lum[x] = 0.299 * data[o]! + 0.587 * data[o + 1]! + 0.114 * data[o + 2]!;
-      sum += lum[x]!;
     }
+    if (localText)
+      for (const l of lines)
+        if (y >= l.y - pad && y <= l.y + l.height + pad)
+          lum.fill(
+            255,
+            Math.max(0, Math.floor(l.x - pad)),
+            Math.min(width, Math.ceil(l.x + l.width + pad)),
+          );
+    for (const v of lum) sum += v;
     const mean = sum / width;
     let prev = lum[0]! < mean;
     let count = 0;
@@ -571,7 +580,21 @@ export function findBarcodes(
       min = Math.min(min, lum[x]!);
       max = Math.max(max, lum[x]!);
     }
-    if (count >= BAR_TRANSITIONS && max - min > 80) hits.push({ y, x0, x1, edges });
+    if (count >= BAR_TRANSITIONS && max - min > 80) {
+      if (!localText) hits.push({ y, x0, x1, edges });
+      else {
+        // 零星页框不能把裁图拉到旁边的字段；分开的两组竖条也各自保留。
+        const clusters: number[][] = [];
+        for (const x of edges) {
+          const last = clusters.at(-1);
+          if (last && x - last.at(-1)! <= Math.max(lineHeight, width / 100)) last.push(x);
+          else clusters.push([x]);
+        }
+        for (const group of clusters)
+          if (group.length >= BAR_TRANSITIONS)
+            hits.push({ y, x0: group[0]!, x1: group.at(-1)!, edges: group });
+      }
+    }
   }
   // 竖条上下是同一根：相邻两条横线上的黑白交替大多在同样的位置（字的笔画、照片的纹理不会）。
   const sameBars = (a: number[], b: number[]) => {
@@ -586,6 +609,29 @@ export function findBarcodes(
   };
   // 连着的几条横线合成一片。
   const out: Box[] = [];
+  if (localText) {
+    const groups: (typeof hits)[] = [];
+    for (const hit of hits) {
+      const group = groups.find((g) => {
+        const last = g.at(-1)!;
+        return hit.y > last.y && hit.y - last.y <= 2 * step && sameBars(last.edges, hit.edges);
+      });
+      if (group) group.push(hit);
+      else groups.push([hit]);
+    }
+    for (const group of groups) {
+      if (group.length < 2 || group.at(-1)!.y - group[0]!.y + step < lineHeight) continue;
+      const x0 = median(group.map((g) => g.x0)),
+        x1 = median(group.map((g) => g.x1));
+      out.push({
+        x: Math.round(x0),
+        y: group[0]!.y,
+        width: Math.round(x1 - x0),
+        height: Math.min(height, group.at(-1)!.y + step) - group[0]!.y,
+      });
+    }
+    return out;
+  }
   let group: typeof hits = [];
   const flush = () => {
     if (group.length >= 2 && group.at(-1)!.y - group[0]!.y + step >= lineHeight) {

@@ -217,7 +217,13 @@ export async function renderPages(
 ): Promise<RunItem[]> {
   const packs = ctx.services.packs;
   if (!packs) throw new RunError('packFailed', { detail: 'pdfview' });
-  let pages: { index: number; width: number; height: number; data: string }[];
+  let pages: {
+    index: number;
+    width: number;
+    height: number;
+    data: string;
+    paper?: { width: number; height: number };
+  }[];
   try {
     pages = await packs.runtime.call(
       'pdfview',
@@ -231,15 +237,15 @@ export async function renderPages(
   const out: RunItem[] = [];
   for (const page of pages) {
     const bytes = Uint8Array.from(atob(page.data), (c) => c.charCodeAt(0));
-    out.push(
-      await writeItem(ctx.services, bytes, {
-        name: `${item.name}-${page.index + 1}`,
-        ext: 'jpg',
-        mimeType: 'image/jpeg',
-        width: page.width,
-        height: page.height,
-      }),
-    );
+    const image = await writeItem(ctx.services, bytes, {
+      name: `${item.name}-${page.index + 1}`,
+      ext: 'jpg',
+      mimeType: 'image/jpeg',
+      width: page.width,
+      height: page.height,
+    });
+    if (page.paper) image.pageSize = { for: image.uri, ...page.paper };
+    out.push(image);
   }
   return out;
 }
