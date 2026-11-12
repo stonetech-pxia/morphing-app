@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildDocPage, leafBlocks } from './doc';
 import { gridRects, renderPage } from './test-helpers';
+import { recoverPictureCards } from './word-cards';
+import type { DocPage } from './doc';
 import type { OcrBox } from './types';
 
 function fixture(textOnFill = false, gray = false) {
@@ -36,6 +38,42 @@ function fixture(textOnFill = false, gray = false) {
 }
 
 describe('unlettered picture cards', () => {
+  it.each([-100, 0, Number.NaN])(
+    'does not infer pictures from uncertain shared-cell bounds (%s)',
+    (width) => {
+      const f = fixture();
+      const box = { x: 50, y: 100, width, height: 500 };
+      const page: DocPage = {
+        source: 's',
+        width: 1000,
+        height: 1400,
+        bodySize: 10,
+        blocks: [
+          {
+            kind: 'table',
+            box: { x: 50, y: 100, width: 900, height: 1000 },
+            colWidths: [300, 300, 300],
+            table: {
+              kind: 'table',
+              box,
+              col: 0,
+              cols: 3,
+              rows: 2,
+              cells: [0, 1, 2, 3].map((i) => ({
+                row: Math.floor(i / 2),
+                col: i % 2,
+                rowSpan: 1,
+                colSpan: 1,
+                text: `Entry ${i}`,
+                box,
+              })),
+            },
+          },
+        ],
+      };
+      expect(recoverPictureCards(page, f.image, f.lines, 20)).toBe(page);
+    },
+  );
   it('also keeps neutral pictures; grayscale is not evidence that an unlettered region is empty', () => {
     const page = buildDocPage({ ...fixture(false, true), source: 's', skew: 0 });
     expect(leafBlocks(page).filter((b) => b.kind === 'image')).toHaveLength(6);

@@ -10,6 +10,12 @@ function pictureInCell(
   lines: readonly OcrBox[],
   h: number,
 ): Box | null {
+  if (
+    ![cell.x, cell.y, cell.width, cell.height].every(Number.isFinite) ||
+    cell.width <= 0 ||
+    cell.height <= 0
+  )
+    return null;
   const step = Math.max(3, Math.ceil(Math.max(cell.width, cell.height) / 70));
   const cols = Math.ceil(cell.width / step),
     rows = Math.ceil(cell.height / step);
