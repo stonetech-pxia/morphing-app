@@ -227,6 +227,7 @@ function lockedRows(
   spans: readonly { s: Segment; span: [number, number] }[][],
   k: number,
   lineHeight: number,
+  textColumns = false,
 ): boolean {
   const mid = (seg: Segment) => median(seg.lines.map((l) => l.y + l.height / 2));
   const right = spans.filter((row) => row.some((x) => x.span[0] > k));
@@ -239,7 +240,7 @@ function lockedRows(
   return (
     both.length >= MIN_ROWS &&
     both.length >= LOCKED_SHARE * right.length &&
-    segs.filter(isNumber).length >= LOCKED_SHARE * segs.length
+    (textColumns || segs.filter(isNumber).length >= LOCKED_SHARE * segs.length)
   );
 }
 
@@ -284,11 +285,13 @@ export function findTextTables(
   lines: readonly OcrBox[],
   lineHeight: number,
   original: (l: OcrBox) => OcrBox = (l) => l,
+  /** 已被可信表格区域圈定：仍要求多排对齐，但隔得远的列也可以是姓名、状态等文字。 */
+  textColumns = false,
 ): TextTable[] {
   const rows = textRows(lines, lineHeight);
   // 先找三列以上的表，再在剩下的排里找两列的清单（D-503）：两列的「项目 → 金额」不能抢三列的表的排
   // （小票的合计把下面的 GST 汇总吞进一张两列的表、压成两列，或者先拿走汇总上面的几排、汇总凑不成表）。
-  const wide = runTables(rows, lineHeight, original, false);
+  const wide = runTables(rows, lineHeight, original, false, textColumns);
   const used = new Set(wide.flatMap(({ from, to }) => rows.slice(from, to + 1)));
   // 三列以上的表下面紧挨着的一两排、自己凑不成表（小票的 GST 汇总：表头一排、数一排）：
   // 能按这张表的列排（每段从不同的列开始），就接到这张表下面，列不重算（D-503）。
@@ -323,6 +326,7 @@ function runTables(
   lineHeight: number,
   original: (l: OcrBox) => OcrBox,
   twoColumns: boolean,
+  textColumns = false,
 ): { table: TextTable; bands: Band[]; from: number; to: number }[] {
   const out: { table: TextTable; bands: Band[]; from: number; to: number }[] = [];
   let i = 0;
@@ -363,7 +367,14 @@ function runTables(
         if (!close(rows[k]!.top - rows[k - 1]!.bottom)) break;
         near.push(rows[k]!);
       }
-      const hit = tableOf(rows.slice(i, end + 1), lineHeight, original, near, twoColumns);
+      const hit = tableOf(
+        rows.slice(i, end + 1),
+        lineHeight,
+        original,
+        near,
+        twoColumns,
+        textColumns,
+      );
       if (hit) found = { ...hit, end };
     }
     if (found) {
@@ -380,6 +391,7 @@ function tableOf(
   original: (l: OcrBox) => OcrBox,
   near: readonly TextRow[] = [],
   twoColumns = false,
+  textColumns = false,
 ): { table: TextTable; bands: Band[] } | null {
   const bands = columnBands(run);
   if (bands.length < 2) return null;
@@ -391,7 +403,7 @@ function tableOf(
     .slice(1)
     .map((b, k) => k)
     .filter((k) => bands[k + 1]!.x - bands[k]!.right > MAX_COL_GAP * lineHeight);
-  if (far.some((k) => !lockedRows(spans, k, lineHeight))) return null;
+  if (far.some((k) => !lockedRows(spans, k, lineHeight, textColumns))) return null;
   // 表上下紧挨着有只在远处那几列、左边没字的数：数列整体错开了几排（拍得很斜、没拉平的照片，
   // 碰巧对齐的是别的项目），按排配会配错，不成表（D-502）。
   const stray = (row: TextRow, k: number) =>

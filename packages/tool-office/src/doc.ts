@@ -621,6 +621,16 @@ export function isRuleGrid(table: TableBlock, lineCount = 0): boolean {
   return filled < GRID_MIN_FILLED * table.cells.length;
 }
 
+/** 小装饰网格不靠总格数放行：反复出现的两列数据才是表格证据，空列不能算。 */
+function isSparseColumnLayout(table: TableBlock): boolean {
+  if (table.rows < 3 || table.cols < 2) return false;
+  const filled = table.cells.filter((c) => c.text.trim());
+  if (filled.length * 3 > table.cells.length * 2) return false;
+  const counts = new Map<number, number>();
+  for (const cell of filled) counts.set(cell.row, (counts.get(cell.row) ?? 0) + 1);
+  return [...counts.values()].filter((n) => n >= 2).length < 2;
+}
+
 /** 至少这么多行、这么多比例的字被列线从词中间切开，就是网格认错了（D-502）。 */
 export const CHOP_MIN = 2;
 export const CHOP_SHARE = 0.3;
@@ -837,6 +847,7 @@ function buildPage(
   input: DocPageInput,
   options: DocBuildOptions,
   protectFigures: boolean,
+  repairTables = true,
 ): DocPage {
   const join = options.joinLines ?? defaultJoin;
   const { image } = input;
@@ -846,7 +857,7 @@ function buildPage(
   const figures = protectFigures
     ? planWordFigures(image, lines, input.regions ?? [], lineHeight)
     : [];
-  const previous = figures.length ? buildPage(input, options, false) : undefined;
+  const previous = figures.length ? buildPage(input, options, false, repairTables) : undefined;
   // 旧路径已经完整保图且没有输出图内文字/表格时，不重排原本正确的页。
   if (
     previous &&
@@ -911,12 +922,14 @@ function buildPage(
     const chopped = choppedIn.get(t) ?? 0;
     return chopped >= CHOP_MIN && chopped >= CHOP_SHARE * (placedIn.get(t)?.length ?? 0);
   };
-  const ruled = sheet.blocks.filter(
+  const ruledCandidates = sheet.blocks.filter(
     (b): b is TableBlock =>
       b.kind === 'table' &&
       !isRuleGrid(b, lines.filter((l) => inBox(l, b.box)).length) &&
       !chopsMuch(b),
   );
+  const rejected = repairTables ? ruledCandidates.filter(isSparseColumnLayout) : [];
+  const ruled = ruledCandidates.filter((t) => !rejected.includes(t));
   const tables: DocTable[] = ruled.map((table) => {
     // 表里的字号按表里文字的行高（D-335），和正文分开算。
     const h = median(lines.filter((l) => inBox(l, table.box)).map((l) => l.height));
@@ -945,7 +958,30 @@ function buildPage(
   leveled.forEach((flat, k) => originalOf.set(flat, kept[k]!));
   const orig = (l: OcrBox) => originalOf.get(l) ?? l;
   // 没有线的表（D-471）：几排按三列以上对齐的，排成没有边框的表，不接成一句话。
-  const textTables = findTextTables(leveled, lineHeight, orig);
+  // 模型只提供范围，不能凭模型直接造表。范围内仍要有三列、多排同时对齐；
+  // 已经被带线表接管的范围不重建，整页其余的字沿用原来的严格规则。
+  const boundedLines = new Set<OcrBox>();
+  const textTables = (repairTables ? (input.regions ?? []) : [])
+    .filter((r) => r.kind === 'table' && !ruled.some((t) => lineShareIn(r.box, t.box) >= 0.5))
+    .flatMap((r) => {
+      const members = leveled.filter(
+        (l) => !boundedLines.has(l) && lineShareIn(orig(l), r.box) >= 0.5,
+      );
+      const found = findTextTables(members, lineHeight, orig, true);
+      for (const t of found) for (const l of t.lines) boundedLines.add(l);
+      return found;
+    });
+  const repairBoxes = [...rejected.map((t) => t.box), ...textTables.map((t) => t.box)];
+  const repairBaseline = repairBoxes.length
+    ? buildPage(input, options, protectFigures, false)
+    : undefined;
+  textTables.push(
+    ...findTextTables(
+      leveled.filter((l) => !boundedLines.has(l)),
+      lineHeight,
+      orig,
+    ),
+  );
   const inTextTable = new Set(textTables.flatMap((t) => t.lines));
   for (const t of textTables) {
     const h = median(t.lines.map((l) => l.height));
@@ -988,7 +1024,7 @@ function buildPage(
   );
   // 接管是整页事务：后续去重或表格过滤若淘汰了任一整图，撤销 OCR/像素隔离，沿用原路径。
   if (figures.some((f) => !regions.some((r) => r.kind === 'image' && r.box === f.box)))
-    return buildPage(input, options, false);
+    return buildPage(input, options, false, repairTables);
   const merged = mergeTextRegions(regions, lineHeight);
   regions.splice(0, regions.length, ...merged);
   const owner = assignLines(free, regions);
@@ -1051,6 +1087,7 @@ function buildPage(
     PROSE_SHARE * charsOf(lines);
   // 只改图的归属，不让移除图内标签改变整页的默认字号。
   const bodySize =
+    repairBaseline?.bodySize ??
     previous?.bodySize ??
     Math.min(
       BODY_MAX,
@@ -1159,7 +1196,11 @@ function buildPage(
       if (!text) continue;
       const { h, short, size, style } = styleOf(paraLines, text, group.title);
       // 去掉编号以后没有字的（「(3).」）不当列表项。
-      if (para.list && /[\p{L}\p{N}]/u.test(stripMarker(text))) {
+      // 从误判网格释放的文字保留原有题号/标号，不再凭这几行另造自动编号。
+      const released = paraLines.some((l) =>
+        rejected.some((t) => placedIn.get(t)?.includes(orig(l))),
+      );
+      if (para.list && !released && /[\p{L}\p{N}]/u.test(stripMarker(text))) {
         const marker = listMarker(para.rows[0]!.text);
         // 同一种编号接着上一个列表；换了写法另起一个。
         if (
@@ -1255,6 +1296,15 @@ function buildPage(
       },
     }),
   };
+  if (repairBaseline) {
+    // 组表会改变整页字号、分组统计。只替换修复范围中的顶层块，范围外继续用原来的
+    // 段落和并排行（包括它们的顺序和样式），避免修一张表挪动上方的日期、署名。
+    const affected = (b: DocBlock) => repairBoxes.some((box) => lineShareIn(b.box, box) >= 0.2);
+    page.blocks = readingOrder(
+      [...repairBaseline.blocks.filter((b) => !affected(b)), ...page.blocks.filter(affected)],
+      lineHeight * 0.3,
+    );
+  }
   if (previous) {
     const outside = (b: DocLeaf) => figures.every((f) => lineShareIn(b.box, f.box) === 0);
     const artifacts = (p: DocPage) =>
