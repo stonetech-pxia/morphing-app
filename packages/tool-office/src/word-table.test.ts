@@ -57,6 +57,26 @@ describe('Word table evidence', () => {
     expect(text).toContain('5.');
   });
 
+  it('keeps separate agenda rows separate after rejecting their decorative grid', () => {
+    const lines = [
+      word('Approval of previous minutes', 120, 120, 350),
+      word('Roadmap status', 120, 150, 240),
+      word('Pricing experiment results', 120, 180, 330),
+    ];
+    const page = buildDocPage({
+      image: image(lines, gridRects([100, 600, 900], [100, 140, 170, 210])),
+      lines,
+      source: 'agenda',
+      skew: 0,
+    });
+    const paragraphs = leafBlocks(page)
+      .filter((b) => b.kind === 'paragraph')
+      .map((b) => b.text);
+    expect(paragraphs).toContain(lines[0]!.text);
+    expect(paragraphs).toContain(lines[1]!.text);
+    expect(paragraphs).toContain(lines[2]!.text);
+  });
+
   it('preserves sparse tables when the populated rows establish repeated column relationships', () => {
     const lines = [
       word('Name', 120, 120, 100),

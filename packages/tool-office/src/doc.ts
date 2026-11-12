@@ -957,6 +957,13 @@ function buildPage(
   const leveled = levelLines(kept, lineHeight, image.width / 2);
   leveled.forEach((flat, k) => originalOf.set(flat, kept[k]!));
   const orig = (l: OcrBox) => originalOf.get(l) ?? l;
+  const releasedCells = new Map<OcrBox, TableCell>();
+  for (const table of rejected) {
+    for (const l of placedIn.get(table) ?? []) {
+      const cell = table.cells.find((c) => c.box && lineShareIn(l, c.box) >= 0.5);
+      if (cell) releasedCells.set(l, cell);
+    }
+  }
   // 没有线的表（D-471）：几排按三列以上对齐的，排成没有边框的表，不接成一句话。
   // 模型只提供范围，不能凭模型直接造表。范围内仍要有三列、多排同时对齐；
   // 已经被带线表接管的范围不重建，整页其余的字沿用原来的严格规则。
@@ -1177,7 +1184,20 @@ function buildPage(
     const paragraphs = paragraphsOf(
       group.lines,
       free.filter((l) => !members.has(l)),
-    );
+    ).flatMap((para) => {
+      const chunks: (typeof para)[] = [];
+      let previousCell: TableCell | undefined;
+      for (const row of para.rows) {
+        const cells = new Set(row.lines.map((l) => releasedCells.get(orig(l))).filter(Boolean));
+        const cell = cells.size === 1 ? [...cells][0] : undefined;
+        const previous = chunks.at(-1);
+        // 误判网格的不同格子仍是独立信息行，不能因去掉边框就把两条议程接成一段。
+        if (previous && (!cell || !previousCell || cell === previousCell)) previous.rows.push(row);
+        else chunks.push({ ...para, rows: [row], spaced: chunks.length ? false : para.spaced });
+        previousCell = cell;
+      }
+      return chunks;
+    });
     // 一块的第一段和前面的块之间原来就空着。
     if (paragraphs[0]) paragraphs[0].spaced = true;
     let list: DocList | null = null;
