@@ -628,7 +628,13 @@ function isSparseColumnLayout(table: TableBlock): boolean {
   if (filled.length * 3 > table.cells.length * 2) return false;
   const counts = new Map<number, number>();
   for (const cell of filled) counts.set(cell.row, (counts.get(cell.row) ?? 0) + 1);
-  return [...counts.values()].filter((n) => n >= 2).length < 2;
+  const paired = [...counts.values()].filter((n) => n >= 2).length;
+  if (paired >= 2) return false;
+  // 整页共用的列会给一张合并表添上空格子。已有一排真实列关系时，先折掉这些
+  // 空列再看密度；不能把本来填得很满的合并表拆成散文，导致表单额外分页。
+  const folded = paired ? foldEmptyColumns(table) : table;
+  const occupied = folded.cells.filter((c) => c.text.trim()).length;
+  return occupied * 3 <= folded.cells.length * 2;
 }
 
 /** 至少这么多行、这么多比例的字被列线从词中间切开，就是网格认错了（D-502）。 */

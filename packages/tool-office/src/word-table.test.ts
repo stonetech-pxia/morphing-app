@@ -148,6 +148,36 @@ describe('Word table evidence', () => {
     expect(prose).toContain(footer.text);
   });
 
+  it('does not count a wholly empty shared column as sparse layout evidence in a merged data table', () => {
+    const lines = [
+      word('Item', 120, 120, 180),
+      word('Reference', 470, 120, 180),
+      word('A merged instruction row with its own content', 120, 180, 500),
+      word('Another merged instruction row', 120, 240, 500),
+      word('Final merged instruction row', 120, 300, 500),
+    ];
+    const page = buildDocPage({
+      image: image(
+        lines,
+        gridRects([100, 450, 700, 900], [100, 160, 220, 280, 340], {
+          skipV: [
+            [1, 1],
+            [1, 2],
+            [1, 3],
+          ],
+        }),
+      ),
+      lines,
+      source: 'merged-table',
+      skew: 0,
+    });
+    const tables = leafBlocks(page).filter((b) => b.kind === 'table');
+    expect(tables).toHaveLength(1);
+    expect(tables[0]!.table.cells.filter((c) => c.text).map((c) => c.text)).toEqual(
+      lines.map((l) => l.text),
+    );
+  });
+
   it('keeps a two-row signature table even when most cells are blank', () => {
     const lines = [word('Signature', 120, 120, 120), word('Date', 620, 120, 100)];
     const page = buildDocPage({
