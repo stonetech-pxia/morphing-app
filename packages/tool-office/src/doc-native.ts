@@ -1,4 +1,4 @@
-import { type DocLeaf, type DocPage } from './doc';
+import { leafBlocks, type DocLeaf, type DocPage } from './doc';
 import type { Box } from './types';
 
 export interface NativeGraphics {
@@ -6,6 +6,11 @@ export interface NativeGraphics {
   owned: Box[];
   colors: { box: Box; color: string }[];
 }
+/** 旋转表格仍用已有的文字方向/裁图路径；整页底图在这类嵌套单元格里尚不能可靠重排。 */
+export function canUseNativeGraphics(page: DocPage): boolean {
+  return !leafBlocks(page).some((b) => b.kind === 'table' && b.direction !== undefined);
+}
+
 const area = (b: Box) => Math.max(0, b.width) * Math.max(0, b.height);
 const overlap = (a: Box, b: Box) =>
   Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) *

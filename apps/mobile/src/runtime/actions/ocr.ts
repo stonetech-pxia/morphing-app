@@ -14,6 +14,7 @@ import {
 import { boxesToEnhanced } from '@morph/tool-image';
 import {
   applyNativeGraphics,
+  canUseNativeGraphics,
   buildDocPage,
   buildSheetPage,
   leafBlocks,
@@ -333,7 +334,7 @@ export const OCR_IMPLS: Record<string, Impl> = {
       // PDF 的原始绘图只读本次明确授权的源文件；改过图片后 for 不匹配，照旧走扫描路径。
       const pdf = item.pdfSource;
       const runtime = ctx.services.packs?.runtime;
-      if (pdf?.for === item.uri && runtime) {
+      if (pdf?.for === item.uri && runtime && canUseNativeGraphics(page)) {
         try {
           const paper = page.paper!;
           const toPoints = (box: Box) => ({

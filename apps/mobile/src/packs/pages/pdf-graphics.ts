@@ -9,6 +9,15 @@ const covered = (a, b) => overlap(a, b) / Math.max(1, area(a));
 function planNativeGraphics(records, input) {
   const texts = records.filter((r) => r.text && r.alpha > 0.01 && r.mode !== 3 && r.box);
   if (texts.length > 4000) return null;
+  const vertical = texts.filter((t) => t.text.trim().length >= 4 && t.box.height > 2 * t.box.width);
+  if (
+    input.width > input.height &&
+    vertical.length >= 4 &&
+    vertical.reduce((n, t) => n + t.text.length, 0) >=
+      texts.reduce((n, t) => n + t.text.length, 0) * 0.7
+  )
+    return null;
+
   if (records.some((r) => r.text && r.mode >= 4)) return null; // 字体裁剪必须完整执行，不能偷偷把裁剪变成普通字。
   const rowsOf = (ts) => {
     const rows = [];
@@ -36,6 +45,7 @@ function planNativeGraphics(records, input) {
     )
   )
     return null;
+  let nativeArtwork = false;
   const masks = new Map();
   for (const r of records)
     if (r.mask && r.image && r.box) {
@@ -72,8 +82,10 @@ function planNativeGraphics(records, input) {
       badge &&
       chars <= 48 &&
       inside.every((t) => t.text.length <= 24)
-    )
+    ) {
       owned.push(r.box);
+      nativeArtwork = true;
+    }
   }
   // 重复的小图卡：相同尺寸的填色矩形，跨两行两列，只有图内少量字母，标题在图外。
   const cards = records.filter(
@@ -104,7 +116,8 @@ function planNativeGraphics(records, input) {
         seed.box.width &&
       Math.max(...group.map((r) => r.box.y)) - Math.min(...group.map((r) => r.box.y)) >
         seed.box.height
-    )
+    ) {
+      nativeArtwork = true;
       owned.push(
         ...group
           .map((r) => r.box)
@@ -115,22 +128,25 @@ function planNativeGraphics(records, input) {
               ),
           ),
       );
+    }
   }
+  // 单色表格的灰底和边框已经由可编辑表格承载，不为它们再叠一张整页底图。
+  // 独立图章/图卡、实质性的原生图像和彩色绘图才需要此路径。
+  const chromatic = (c) =>
+    /^[0-9A-F]{6}$/i.test(c || '') &&
+    Math.max(...[0, 2, 4].map((i) => parseInt(c.slice(i, i + 2), 16))) -
+      Math.min(...[0, 2, 4].map((i) => parseInt(c.slice(i, i + 2), 16))) >=
+      24;
   const hasGraphic =
-    owned.length > 0 ||
+    nativeArtwork ||
     masks.size > 0 ||
     records.some(
       (r) =>
         r.box &&
         !r.mask &&
-        (r.image ||
-          r.ellipse ||
-          r.name === 'shadingFill' ||
-          (r.fill &&
-            r.color &&
-            r.color !== '000000' &&
-            r.color !== 'FFFFFF' &&
-            area(r.box) > area(full) * 0.0005)),
+        (r.safeBackdrop ||
+          (r.image && area(r.box) > area(full) * 0.015) ||
+          (r.fill && chromatic(r.color) && area(r.box) > area(full) * 0.0005)),
     );
   if (!hasGraphic) return null;
   const keep = (t) => owned.some((b) => covered(t.box, b) > 0.8);

@@ -187,7 +187,7 @@ function paragraphXml(
 
 /** 空段落（表格后面的分隔、空格子）：段落标记也写字号（D-335），不然按默认样式（苹果的预览按 12 磅）撑高。 */
 function blankXml(size: number): string {
-  return `<w:p><w:pPr><w:rPr>${sizeXml({}, size)}</w:rPr></w:pPr></w:p>`;
+  return `<w:p><w:pPr>${size <= 1 ? '<w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/>' : ''}<w:rPr>${sizeXml({}, size)}</w:rPr></w:pPr></w:p>`;
 }
 
 /** 表格格子左右的边距加起来（磅），和写入每张表的值一致。 */
@@ -308,7 +308,7 @@ function tableXml(
       cells.push(`<w:tc><w:tcPr>${tcPr}</w:tcPr>${body || blankXml(size)}</w:tc>`);
       c += span;
     }
-    const rowHeight = block.direction
+    let rowHeight = block.direction
       ? Math.round(
           (Math.max(
             0,
@@ -321,6 +321,8 @@ function tableXml(
             20,
         )
       : 0;
+    // trHeight 是格内的最小高度；外画的 0.5 磅行边框仍占高度，不能每行再加一次。
+    if (rowHeight && !block.borderless) rowHeight = Math.max(1, rowHeight - 10);
     rows.push(
       `<w:tr>${rowHeight ? `<w:trPr><w:trHeight w:val="${rowHeight}" w:hRule="atLeast"/></w:trPr>` : ''}${cells.join('')}</w:tr>`,
     );
@@ -481,6 +483,18 @@ export function writeDocx(
         ),
       ]),
     ) as Record<'top' | 'right' | 'bottom' | 'left', number>;
+    // Word 强制保留表后的段落；来源内容贴到下边界时，要把这点不可见的行高留在空白页边距里。
+    const last = page?.blocks.filter((b) => !(b.kind === 'image' && b.background)).at(-1);
+    const separators =
+      last?.kind === 'table'
+        ? 1
+        : last?.kind === 'row'
+          ? last.cells.some((c) => c.blocks.some((b) => b.kind === 'table'))
+            ? 2
+            : 1
+          : 0;
+    if (page?.paper)
+      margins.bottom = Math.max(0, margins.bottom - Math.ceil(separators * LINE_HEIGHT * 20));
     return { width, height, margins };
   };
   const sectionXml = (page?: DocPage, next = false) => {
@@ -854,7 +868,7 @@ export function writeDocx(
       });
       body.push(layoutTableXml(widths, [cells], bodySize), blankXml(1));
     }
-    // 锚点寄存在已有正文段落里，不能多添一行把刚好放满的页挤出一个空白尾页。
+    // 只把锚点放进表格外已有的段落；不增加正文行，也不让竖排单元格把底图参与测高。
     const drawings = page.blocks
       .filter((b) => b.kind === 'image' && b.background)
       .flatMap((b) => {
@@ -865,11 +879,13 @@ export function writeDocx(
       })
       .join('');
     if (drawings) {
-      const at = body.findIndex((xml, i) => i >= pageStart && xml.includes('</w:p>'));
+      const at = body.findIndex((xml, i) => i >= pageStart && xml.startsWith('<w:p>'));
       if (at >= 0) body[at] = body[at]!.replace('</w:p>', drawings + '</w:p>');
       else
-        body.push(
-          `<w:p><w:pPr>${pageBreak() ? '<w:pageBreakBefore/>' : ''}<w:spacing w:line="1" w:lineRule="exact"/></w:pPr>${drawings}</w:p>`,
+        body.splice(
+          pageStart,
+          0,
+          `<w:p><w:pPr>${pageBreak() ? '<w:pageBreakBefore/>' : ''}<w:spacing w:before="0" w:after="0" w:line="1" w:lineRule="exact"/><w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr></w:pPr>${drawings}</w:p>`,
         );
     }
   });

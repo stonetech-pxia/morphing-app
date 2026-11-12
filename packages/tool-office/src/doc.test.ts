@@ -686,6 +686,43 @@ describe('buildDocPage', () => {
     );
   });
 
+  it('calibrates fonts to a known narrow PDF before applying the readable body minimum', () => {
+    const { image, lines } = textPage([
+      {
+        text: 'An editable paragraph on the narrow source paper.',
+        x: 60,
+        y: 100,
+        width: 800,
+        h: 32,
+      },
+      {
+        text: 'The same source contains another complete body line.',
+        x: 60,
+        y: 150,
+        width: 800,
+        h: 32,
+      },
+      { text: 'This physical paper is about half the A4 width.', x: 60, y: 200, width: 800, h: 32 },
+    ]);
+    const old = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const narrow = buildDocPage({
+      image,
+      lines,
+      source: 's',
+      paper: { width: 300, height: 420 },
+      skew: 0,
+    });
+    const letter = buildDocPage({
+      image,
+      lines,
+      source: 's',
+      paper: { width: 612, height: 792 },
+      skew: 0,
+    });
+    expect(narrow.bodySize).toBe(9);
+    expect(narrow.bodySize).toBeLessThan(old.bodySize);
+    expect(letter.bodySize).toBe(old.bodySize);
+  });
   it('sizes lines by the width of their letters when the page is set in one font (D-463)', () => {
     // 识别框一样高（p、g 往下伸的字母让小字的框也一样高），字宽看得出大小：正文 17 像素，小字 13，大字 22。
     const px = (text: string, size: number) => Math.round(textEm(text) * size);

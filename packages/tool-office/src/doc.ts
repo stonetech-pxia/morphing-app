@@ -931,6 +931,9 @@ function buildPage(
     (image.width > image.height
       ? { width: 841.9, height: (841.9 * image.height) / image.width }
       : { width: 595.3, height: 841.9 });
+  // 确知的窄幅 PDF 按它的物理宽度估字，再做字号限制；照片仍沿用 A4 标定，也不因宽纸放大字。
+  const fontWidthPx =
+    (image.width * A4_WIDTH_PT) / Math.min(A4_WIDTH_PT, input.paper?.width ?? A4_WIDTH_PT);
   const lines = input.lines.filter((l) => l.text.trim());
   const joinParagraph = lines.length < DENSE_LINES ? (options.joinParagraph ?? join) : join;
   const rotatedLines = lines.filter((l) => l.text.trim().length >= 4 && l.height > 2 * l.width);
@@ -1030,7 +1033,7 @@ function buildPage(
       ...(rotated ? { direction: 'tbRl' as const } : {}),
       table: foldEmptyColumns({ ...table, col: 0 }),
       colWidths: sheet.colWidths.slice(table.col, table.col + table.cols),
-      ...(h ? { size: Math.min(BODY_MAX, Math.max(FORM_MIN, fontSizeOf(h, image.width))) } : {}),
+      ...(h ? { size: Math.min(BODY_MAX, Math.max(FORM_MIN, fontSizeOf(h, fontWidthPx))) } : {}),
       box: table.box,
     };
   });
@@ -1090,7 +1093,7 @@ function buildPage(
       table: t.table,
       colWidths: t.colWidths,
       borderless: true,
-      ...(h ? { size: Math.min(BODY_MAX, Math.max(FORM_MIN, fontSizeOf(h, image.width))) } : {}),
+      ...(h ? { size: Math.min(BODY_MAX, Math.max(FORM_MIN, fontSizeOf(h, fontWidthPx))) } : {}),
       box: t.box,
     });
   }
@@ -1201,7 +1204,7 @@ function buildPage(
       BODY_MAX,
       Math.max(
         prose && lines.length < DENSE_LINES ? BODY_MIN : FORM_MIN,
-        fontSizeOf(bodyH, image.width),
+        fontSizeOf(bodyH, fontWidthPx),
       ),
     );
   // 按字宽估字号（D-463）：正文行的估计够一致时才用。
@@ -1242,7 +1245,7 @@ function buildPage(
     if (short || Math.abs(size - bodySize) <= snap * bodySize) size = bodySize;
     // 已知纸张尺寸时，不能让正文的最小字号把大标题按比例再次放大。
     if (input.paper && !short && size >= HEADING_RATIO * bodySize)
-      size = Math.min(size, fontSizeOf(h, image.width));
+      size = Math.min(size, fontSizeOf(h, fontWidthPx));
     const bold =
       pageStroke > 0 && median(paraLines.map((l) => strokes.get(l) ?? 0)) > BOLD_RATIO * pageStroke;
     const color = textColor(image, orig(paraLines[0]!));

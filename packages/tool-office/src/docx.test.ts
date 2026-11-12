@@ -20,6 +20,23 @@ const unzip = (bytes: Uint8Array) => {
 };
 
 describe('writeDocx', () => {
+  it('gives required table separator paragraphs an explicit one-point line height', () => {
+    const table: DocTable = {
+      kind: 'table',
+      box,
+      colWidths: [400],
+      table: {
+        kind: 'table',
+        box,
+        col: 0,
+        cols: 1,
+        rows: 1,
+        cells: [{ row: 0, col: 0, rowSpan: 1, colSpan: 1, text: 'Editable value' }],
+      },
+    };
+    const xml = unzip(writeDocx({ version: 3, pages: [page([table])] })).text('word/document.xml');
+    expect(xml).toContain('<w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/>');
+  });
   it('preserves a blank source page between two populated pages', () => {
     const paper = { width: 595.3, height: 841.9 };
     const first = {
@@ -67,7 +84,7 @@ describe('writeDocx', () => {
       writeDocx({ version: 2, pages: [{ ...page([table]), paper: { width: 840, height: 600 } }] }),
     ).text('word/document.xml');
     expect(xml.match(/<w:textDirection w:val="tbRl"\/>/g)).toHaveLength(2);
-    expect(xml).toContain('<w:trHeight w:val="6720" w:hRule="atLeast"/>');
+    expect(xml).toContain('<w:trHeight w:val="6710" w:hRule="atLeast"/>');
   });
 
   it('does not enlarge recognized table fonts when source margins make more horizontal room', () => {
@@ -125,7 +142,9 @@ describe('writeDocx', () => {
     const xml = unzip(writeDocx({ version: 1, pages: [page([table])] })).text('word/document.xml');
     expect(xml).toMatch(/<w:sz w:val="18"\/>[^]*?>Label<\/w:t>/);
     expect(xml).toMatch(/<w:sz w:val="36"\/>[^]*?>118.40<\/w:t>/);
-    expect(xml).toMatch(/<\/w:tbl><w:p><w:pPr><w:rPr>[^]*?<w:sz w:val="2"\/>/);
+    expect(xml).toMatch(
+      /<\/w:tbl><w:p><w:pPr>(?:<w:spacing[^>]*\/>)?<w:rPr>[^]*?<w:sz w:val="2"\/>/,
+    );
   });
 
   it('writes per-page source paper sizes, including a small landscape ticket, without extra page breaks', () => {

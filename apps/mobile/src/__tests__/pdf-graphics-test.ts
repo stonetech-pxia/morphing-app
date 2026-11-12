@@ -83,8 +83,22 @@ describe('digital PDF graphics ownership', () => {
           text(3, box(315, 525, 70, 16), '2026'),
         ],
         input,
-      ).owned,
-    ).toEqual([]);
+      ),
+    ).toBeNull();
+  });
+  it('falls back for a landscape page whose native words are predominantly rotated', () => {
+    const words = Array.from({ length: 4 }, (_, i) =>
+      text(i, box(50 + i * 40, 40, 16, 160), 'Rotated body'),
+    );
+    const records = [...words, { i: 8, image: true, box: box(300, 100, 200, 150) }];
+    expect(
+      plan(records, {
+        width: 800,
+        height: 600,
+        figures: [],
+        lines: words.map((t) => ({ ...t.box, chars: t.text.length })),
+      }),
+    ).toBeNull();
   });
   it('does not turn repeated colored numeric data fields into pictures', () => {
     const records: any[] = [text(1, box(20, 40, 160, 20))];

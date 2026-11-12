@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyNativeGraphics } from './doc-native';
+import { applyNativeGraphics, canUseNativeGraphics } from './doc-native';
 import { originalArea, swapToOriginal, parseDocDoc } from './doc-edit';
 import { writeDocx } from './docx';
 import { unzipSync, strFromU8 } from 'fflate';
@@ -29,6 +29,27 @@ describe('local source PDF graphics', () => {
     expect(p.blocks.map((b) => b.kind)).toEqual(['image', 'space', 'paragraph']);
     expect(p.blocks[0]).toMatchObject({ background: true, src: 'graphics.png' });
     expect(p.blocks[2]).toMatchObject({ text: 'Editable body', color: 'FFFFFF' });
+  });
+  it('retains the established editable layout for a rotated table', () => {
+    const p = page();
+    p.blocks = [
+      {
+        kind: 'table',
+        direction: 'tbRl',
+        box,
+        colWidths: [100],
+        table: {
+          kind: 'table',
+          box,
+          col: 0,
+          cols: 1,
+          rows: 1,
+          cells: [{ row: 0, col: 0, rowSpan: 1, colSpan: 1, text: 'Rotated body' }],
+        },
+      },
+    ];
+    expect(canUseNativeGraphics(p)).toBe(false);
+    expect(canUseNativeGraphics(page())).toBe(true);
   });
   it('does not suppress a paragraph mixing figure labels with body text', () => {
     const p = page();
@@ -89,6 +110,27 @@ describe('local source PDF graphics', () => {
     expect(area.width).toBeLessThan(600);
     const next = swapToOriginal(doc, 0, [selected], { src: 'selection.jpg', box: area });
     expect(next.pages[0]!.blocks[0]).toEqual(p.blocks[0]);
+  });
+  it('anchors the background outside layout-table cells, including vertical text', () => {
+    const p = page();
+    p.blocks = [
+      {
+        kind: 'row',
+        box,
+        cells: [{ width: 200, blocks: [{ kind: 'paragraph', text: 'Editable body', box }] }],
+      },
+    ];
+    const next = applyNativeGraphics(p, { owned: [], colors: [] }, 'g.png');
+    const png = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    const zip = unzipSync(
+      writeDocx(
+        { version: 3, pages: [next] },
+        new Map([['g.png', { bytes: png, width: 600, height: 800 }]]),
+      ),
+    );
+    const xml = strFromU8(zip['word/document.xml']!);
+    const before = xml.slice(0, xml.indexOf('<wp:anchor'));
+    expect((before.match(/<w:tc>/g) || []).length).toBe((before.match(/<\/w:tc>/g) || []).length);
   });
   it('keeps page boundaries for background-only pages with legacy default paper', () => {
     const png = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]);
