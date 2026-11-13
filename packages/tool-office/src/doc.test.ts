@@ -477,6 +477,40 @@ describe('buildDocPage', () => {
     expect(doc.bodySize).toBeLessThanOrEqual(12);
   });
 
+  it('keeps short text the layout model calls a page number unless it reads like one', () => {
+    const { image, lines } = textPage([
+      {
+        text: 'Il Ministro decreta quanto segue per tutte le parti della legge',
+        x: 100,
+        y: 150,
+        width: 800,
+      },
+      { text: 'Decreta:', x: 440, y: 1150, width: 120 },
+      { text: 'Art. 1', x: 450, y: 1210, width: 100 },
+      { text: 'n.a.', x: 100, y: 1270, width: 45 },
+      { text: 'Pagina 2 di 3', x: 820, y: 1360, width: 140 },
+    ]);
+    const doc = buildDocPage({
+      image,
+      lines,
+      source: 's',
+      skew: 0,
+      regions: regions([
+        ['text', 'text', { x: 90, y: 140, width: 820, height: 40 }],
+        ['pageNumber', 'number', { x: 445, y: 1205, width: 110, height: 30 }],
+        ['pageNumber', 'number', { x: 95, y: 1265, width: 55, height: 30 }],
+        ['pageNumber', 'number', { x: 815, y: 1355, width: 150, height: 30 }],
+      ]),
+    });
+    const text = leafBlocks(doc)
+      .flatMap((b) => (b.kind === 'paragraph' ? [b.text] : []))
+      .join('\n');
+    expect(text).toContain('Art. 1');
+    expect(text).toContain('n.a.');
+    // 真的页码照旧不写（D-334）。
+    expect(text).not.toContain('Pagina 2');
+  });
+
   it('without layout regions still makes paragraphs and numbered lists from positions', () => {
     const { image, lines } = textPage([
       { text: 'Conditions', x: 100, y: 60, width: 300, h: 40 },

@@ -199,4 +199,19 @@ export const TEXT_FLOW: Case[] = [
       apart('Subletting is not permitted', 'Inventory checked'),
     ],
   },
+  {
+    id: 'short-lines-not-page-numbers',
+    suite: 'text-flow',
+    fix: 'EU sample 005, 010',
+    what: 'The layout model labels a centred "Art. 1" and a lone value "n.a." as page numbers, and page-number regions were dropped whole: the text was lost. Only text that reads like a page number ("1/3") may go.',
+    lang: 'ita',
+    checks: [
+      times('Art. 1', 1),
+      custom('"n.a." is kept', (c) =>
+        c.paras.some((p) => p.text.trim() === 'n.a.') ? null : 'missing',
+      ),
+      order('Decreta:', 'Art. 1'),
+      order('5.2 Accesso a ulteriori studi', 'n.a.', '5.3 Status professionale'),
+    ],
+  },
 ];

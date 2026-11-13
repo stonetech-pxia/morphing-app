@@ -801,6 +801,13 @@ export function verticalBoxes(
   });
 }
 
+/**
+ * 读起来像页码的字：「3」「- 3 -」「2/3」「Page 2 of 5」「Seite 2 von 3」「iv」「第 2 页」。
+ * 页码区域里只丢这样的字，别的照正文留下。
+ */
+const PAGE_NUMBER =
+  /^\s*[-–—]?\s*(?:(?:pages?|pg|p|seite|s|pagina|pag|página|pág|strona|str|sida|side|blz|bladzijde|folio|fol|стр|第)\.?\s*)?(?:\d{1,4}|(?=[ivxlc])c{0,3}(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3}))(?:\s*(?:\/|of|von|de|di|sur|su|z|av|van|из|共)\s*\d{1,4})?\s*页?\s*[-–—]?\s*$/i;
+
 /** 页边碎片（D-334）：不超过这么多个字（不算空格）。 */
 const STRAY_CHARS = 3;
 /** 离别的字至少这么多个行高才算孤立。 */
@@ -1490,11 +1497,14 @@ function buildPage(
       });
       continue;
     }
-    if (region.kind === 'pageNumber' || !members.length) continue;
+    // 页码区域只丢读起来像页码的字（D-334）：版面模型也把「Art. 1」「n.a.」这类短字认成页码，丢了就是丢字。
+    const kept =
+      region.kind === 'pageNumber' ? members.filter((l) => !PAGE_NUMBER.test(l.text)) : members;
+    if (!kept.length) continue;
     const title = region.kind === 'title' ? (region.label === 'doc_title' ? 1 : 2) : 0;
     // 一个很大的正文区域（整张小票被认成一块，D-471）里隔得远的几块照样分开：表格的行拿走以后，
     // 上面的店名和下面的号码不再连成一块、把整页的顺序打乱。
-    const clusters = title ? [{ lines: members }] : clustersOf(members, lineHeight, labelSplit);
+    const clusters = title ? [{ lines: kept }] : clustersOf(kept, lineHeight, labelSplit);
     for (const { lines: part, side } of clusters) {
       groups.push({
         lines: part,
