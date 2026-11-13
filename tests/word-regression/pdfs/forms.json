@@ -1,0 +1,32 @@
+[
+  {
+    "page": 1,
+    "id": "label-value-pairs",
+    "source": "01-label-value-pairs.html",
+    "sha256": "122d07988e1379f0e23f19538d6591211f6160d69984d343b8d14b23e1452714"
+  },
+  {
+    "page": 2,
+    "id": "irs-w4-label-column",
+    "source": "02-irs-w4-label-column.pdf",
+    "sha256": "86aa1f62ee2090e857f3e818d72a870678eccd5c2ee72f4580b4fc0eb532b13c"
+  },
+  {
+    "page": 3,
+    "id": "invoice-zh-header-rows",
+    "source": "03-invoice-zh-header-rows.pdf",
+    "sha256": "08e0aacdb066411b1c86117436f3001f9cf4abeffed620e7f8393b2cda2d4d13"
+  },
+  {
+    "page": 4,
+    "id": "form-field-labels",
+    "source": "04-form-field-labels.html",
+    "sha256": "424e52624af2018a63ccec1f8fdae193201b94da10b6767651364528d8660173"
+  },
+  {
+    "page": 5,
+    "id": "irs-w9-header",
+    "source": "05-irs-w9-header.pdf",
+    "sha256": "95e6acea0c251e23b7a7a25379ab4439748c1720ff408cedc71a8eaa5a463d61"
+  }
+]

@@ -1,0 +1,85 @@
+<!doctype html><meta charset="utf-8" /><style>
+  @page {
+    size: A4;
+    margin: 20mm;
+  }
+  body {
+    font:
+      10.5pt/1.45 Helvetica,
+      Arial,
+      sans-serif;
+    margin: 0;
+  }
+  h1 {
+    font-size: 18pt;
+    margin: 0 0 4pt;
+  }
+  .by {
+    margin: 0 0 14pt;
+    color: #444;
+  }
+  .cols {
+    display: flex;
+    gap: 9mm;
+  }
+  .col {
+    flex: 1;
+  }
+  h3 {
+    font-size: 12pt;
+    margin: 0 0 4pt;
+  }
+  p {
+    margin: 0 0 8pt;
+  }
+  figure {
+    margin: 4pt 0 8pt;
+  }
+  figcaption {
+    font-size: 9.5pt;
+    margin-top: 3pt;
+  }
+</style>
+<!-- 双栏论文页，右栏里有一张矢量画的图（原始 PDF 里的图）：阅读顺序先左栏再右栏，图只剪一张。 -->
+<h1>Seasonal Demand at Rural Libraries</h1>
+<div class="by">Clara Weiss | Working paper 12 | 2026</div>
+<div class="cols">
+  <div class="col">
+    <h3>1 Background</h3>
+    <p>
+      Rural libraries open fewer hours than city branches, yet they often serve as the only public
+      indoor space in a village. This paper looks at how their use changes over the year and which
+      services are borrowed most in each season.
+    </p>
+    <p>
+      We collected loan records from eleven branches between January and December. Visits were
+      counted at the door, and the staff noted which rooms were used for meetings or homework clubs
+      during the afternoon.
+    </p>
+    <p>
+      Winter brings the most visitors, mainly because the reading rooms are heated and the evenings
+      are long. The left column ends with this sentence.
+    </p>
+  </div>
+  <div class="col">
+    <h3>2 Findings</h3>
+    <p>The right column begins with the quarterly totals shown below.</p>
+    <figure>
+      <svg width="100%" viewBox="0 0 300 140" xmlns="http://www.w3.org/2000/svg">
+        <rect x="0" y="0" width="300" height="140" fill="#eef2f7" />
+        <line x1="30" y1="120" x2="290" y2="120" stroke="#333" stroke-width="1.5" />
+        <line x1="30" y1="15" x2="30" y2="120" stroke="#333" stroke-width="1.5" />
+        <rect x="50" y="40" width="34" height="80" fill="#3c6e91" />
+        <rect x="110" y="70" width="34" height="50" fill="#3c6e91" />
+        <rect x="170" y="88" width="34" height="32" fill="#3c6e91" />
+        <rect x="230" y="55" width="34" height="65" fill="#3c6e91" />
+      </svg>
+      <figcaption>Figure 1. Visits per quarter</figcaption>
+    </figure>
+    <p>
+      Summer is the quietest season, except for the children's reading challenge in July, which
+      fills the branches on weekday mornings. Autumn recovers slowly as school starts again.
+    </p>
+    <p>The right column ends with this sentence.</p>
+  </div>
+</div>

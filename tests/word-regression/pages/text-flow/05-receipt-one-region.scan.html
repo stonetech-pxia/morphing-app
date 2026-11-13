@@ -1,0 +1,59 @@
+<!doctype html><meta charset="utf-8" /><style>
+  @page {
+    size: 90mm 230mm;
+    margin: 0;
+  }
+  body {
+    font:
+      9.5pt/1.5 'Courier New',
+      monospace;
+    margin: 0;
+    padding: 8mm 7mm;
+    width: 76mm;
+  }
+  .c {
+    text-align: center;
+  }
+  .r {
+    display: flex;
+    justify-content: space-between;
+  }
+  .bar {
+    height: 11mm;
+    margin: 3mm 6mm 1mm;
+    background: repeating-linear-gradient(
+      90deg,
+      #000 0 0.5mm,
+      #fff 0.5mm 1mm,
+      #000 1mm 1.8mm,
+      #fff 1.8mm 2.2mm,
+      #000 2.2mm 2.5mm,
+      #fff 2.5mm 3.3mm
+    );
+  }
+  hr {
+    border: 0;
+    border-top: 0.3mm dashed #000;
+    margin: 2mm 0;
+  }
+</style>
+<!-- 整张小票：店名在上、货品、合计、条码下面的金额、页脚。 -->
+<div class="c"><b>EPICERIE DU PORT</b></div>
+<div class="c">12 quai des Pêcheurs</div>
+<div class="c">17000 La Rochelle</div>
+<hr />
+<div class="r"><span>Pain de campagne</span><span>3.20</span></div>
+<div class="r"><span>Beurre demi-sel</span><span>2.85</span></div>
+<div class="r"><span>Sardines x2</span><span>5.40</span></div>
+<div class="r"><span>Pommes 1kg</span><span>2.95</span></div>
+<div class="r"><span>Cidre brut</span><span>4.10</span></div>
+<hr />
+<div class="r"><b>TOTAL EUR</b><b>18.50</b></div>
+<div class="r"><span>Carte bancaire</span><span>18.50</span></div>
+<br />
+<div class="bar"></div>
+<div>7.29</div>
+<div>-7.29</div>
+<br />
+<div class="c">Merci de votre visite</div>
+<div class="c">Ouvert tous les jours 8h-20h</div>

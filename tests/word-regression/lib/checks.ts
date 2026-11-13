@@ -354,6 +354,79 @@ export const listItem = (text: string): Check => ({
   },
 });
 
+/**
+ * 标签和值一对一行：每一对 [标签, 值] 在 docx 同一张表的同一行、不同格里，而且每一对各占一行
+ * （整列标签挤在一格、整列值挤在另一格的并排行不算）。
+ */
+export const pairedRows = (...pairs: [string, string][]): Check => ({
+  name: `one row per pair ${pairs.map(([a, b]) => `${JSON.stringify(a)}|${JSON.stringify(b)}`).join(', ')}`,
+  run(c) {
+    const cell = (t: string) => c.paras.find((p) => norm(p.text).includes(norm(t)))?.table;
+    const rows = new Set<string>();
+    for (const [a, b] of pairs) {
+      const x = cell(a);
+      const y = cell(b);
+      if (!x || !y) return `"${x ? b : a}" is missing or not in a table`;
+      if (x.index !== y.index || x.row !== y.row || x.col === y.col) {
+        return `"${a}" and "${b}" are not in different cells of one row`;
+      }
+      rows.add(`${x.index}:${x.row}`);
+    }
+    return rows.size === pairs.length ? null : 'several pairs share one row';
+  },
+});
+
+/** 有一段（w:p）的字正好是这些（不多不少）。 */
+export const exactParagraph = (text: string): Check => ({
+  name: `a paragraph is exactly ${JSON.stringify(text)}`,
+  run(c) {
+    if (c.paras.some((p) => norm(p.text) === norm(text))) return null;
+    const p = c.paras[paraIndex(c, text)];
+    return p ? `inside "${p.text.slice(0, 120)}"` : 'missing';
+  },
+});
+
+/** 这处文字不在并排行里（是从上到下排的一块，不是左右分栏的某一格）。 */
+export const notInRow = (text: string): Check => ({
+  name: `${JSON.stringify(text)} is not in a side-by-side row`,
+  run(c) {
+    const l = leaves(c.doc).find((l) => norm(leafText(l.leaf)).includes(norm(text)));
+    if (!l) return 'missing';
+    return l.row ? `in cell ${l.row.cell} of a row` : null;
+  },
+});
+
+/** docx 里含这处文字的那一段（w:p）的原始 XML。 */
+const paraXml = (c: Converted, text: string) =>
+  (c.xml.match(/<w:p[ >][\s\S]*?<\/w:p>/g) ?? []).find((p) =>
+    norm(
+      decodeXml([...p.matchAll(/<w:t(?: [^>]*)?>([^<]*)<\/w:t>/g)].map((m) => m[1] ?? '').join('')),
+    ).includes(norm(text)),
+  );
+
+/** 含这处文字的段落有首行缩进（w:ind w:firstLine > 0）。 */
+export const firstLineIndent = (text: string): Check => ({
+  name: `${JSON.stringify(text)} has a first-line indent`,
+  run(c) {
+    const p = paraXml(c, text);
+    if (!p) return 'missing';
+    const v = /<w:ind\b[^>]*\bw:firstLine="(\d+)"/.exec(p);
+    return v && Number(v[1]) > 0 ? null : 'no w:firstLine';
+  },
+});
+
+/** 含这处文字的段落里没有强制换行（w:br），也不是编号列表（w:numPr）。 */
+export const flowing = (text: string): Check => ({
+  name: `${JSON.stringify(text)} flows without line breaks or numbering`,
+  run(c) {
+    const p = paraXml(c, text);
+    if (!p) return 'missing';
+    if (/<w:br\b/.test(p)) return 'has w:br';
+    if (/<w:numPr\b/.test(p)) return 'has w:numPr';
+    return null;
+  },
+});
+
 /** 原样写的检查。 */
 export const custom = (name: string, run: (c: Converted) => string | null): Check => ({
   name,
