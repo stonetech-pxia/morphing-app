@@ -1,0 +1,140 @@
+[
+  {
+    "page": 1,
+    "id": "tbl-separate-grids-not-chained",
+    "source": "01-tbl-separate-grids-not-chained.html",
+    "sha256": "1f3c2b0ace2cf5aef46506e286236132c6e7b960d3ea4be29121e61091ed7439"
+  },
+  {
+    "page": 2,
+    "id": "tbl-bold-strokes-and-short-rows",
+    "source": "02-tbl-bold-strokes-and-short-rows.scan.html",
+    "sha256": "e7940e267b6c0012164cf79dae97aec19d992d959e211e61fe5f36af6e4b319f"
+  },
+  {
+    "page": 3,
+    "id": "tbl-frame-and-header-column-lines",
+    "source": "03-tbl-frame-and-header-column-lines.html",
+    "sha256": "4b2fb182d3caf3701256d8847a2c254c32f43c77560d77e785be504386233d4e"
+  },
+  {
+    "page": 4,
+    "id": "tbl-multiline-form-cell",
+    "source": "04-tbl-multiline-form-cell.html",
+    "sha256": "33ac578a6d0f6d5c795c3c90f507e4a09e6848bee2f1e10d8512017a5b70b3a0"
+  },
+  {
+    "page": 5,
+    "id": "tbl-underlined-bold-title-not-table",
+    "source": "05-tbl-underlined-bold-title-not-table.jpg",
+    "sha256": "74fd56c939f289c88d42ddcc27f623c6f910f4d664fffa3ce23c780dc40af47a"
+  },
+  {
+    "page": 6,
+    "id": "tbl-large-layout-grid-rejected",
+    "source": "06-tbl-large-layout-grid-rejected.pdf",
+    "sha256": "4cdcffdd5023d67d0a699b4b185bff32631deab6c5b45335b75b4455eb51b4aa"
+  },
+  {
+    "page": 7,
+    "id": "tbl-small-sparse-decorative-grid",
+    "source": "07-tbl-small-sparse-decorative-grid.pdf",
+    "sha256": "a72df9b23c7991b91d22650687942f1acdbb7fade992cae5e00fc8cc24b630e5"
+  },
+  {
+    "page": 8,
+    "id": "tbl-bounded-text-table-recovery",
+    "source": "08-tbl-bounded-text-table-recovery.pdf",
+    "sha256": "1bf9a66e37f1275115b8c77ee65ec26ff4923fc9444d804029d5f19bb1db78c0"
+  },
+  {
+    "page": 9,
+    "id": "tbl-merged-table-empty-shared-columns",
+    "source": "09-tbl-merged-table-empty-shared-columns.pdf",
+    "sha256": "0ed1873a724f915843ec09dc4a88b2a0ed4eedbc8d2b828bd42953fa8aa69858"
+  },
+  {
+    "page": 10,
+    "id": "tbl-dark-header-band",
+    "source": "10-tbl-dark-header-band.scan.html",
+    "sha256": "bca51b992d6e3430acdc147b7f25308ef5a51fef2c6523da4c577113ad6bed44"
+  },
+  {
+    "page": 11,
+    "id": "tbl-footer-over-bottom-line",
+    "source": "11-tbl-footer-over-bottom-line.scan.html",
+    "sha256": "d00e72e1f2d09087a671d32a2cf3306ff43f2901a3335b7b8b71bb3f72d38aea"
+  },
+  {
+    "page": 12,
+    "id": "tbl-totals-row-under-last-line",
+    "source": "12-tbl-totals-row-under-last-line.html",
+    "sha256": "f3cd2a2a2e6d05da639b1ab8c92506fdd81bbf456c08a4dd3083cd00c6d341dc"
+  },
+  {
+    "page": 13,
+    "id": "tbl-empty-ruled-part-not-barcode",
+    "source": "13-tbl-empty-ruled-part-not-barcode.scan.html",
+    "sha256": "dcd96fa7ef01078e1ed07248d6a5976adccda142eb9e011889c59df4cc26e5bd"
+  },
+  {
+    "page": 14,
+    "id": "tbl-chopped-word-grid-rejected",
+    "source": "14-tbl-chopped-word-grid-rejected.html",
+    "sha256": "8aa5fffa58e27d902e1ed03cea0d1b7cb441c6cc346b2bc65359e258c1482be8"
+  },
+  {
+    "page": 15,
+    "id": "tbl-horizontal-position",
+    "source": "15-tbl-horizontal-position.html",
+    "sha256": "34024d165296f428df56ffbcf93211d5bc86c67b6af57d1b6dfcbcdd576e46f3"
+  },
+  {
+    "page": 16,
+    "id": "tbl-explicit-cell-margins",
+    "source": "16-tbl-explicit-cell-margins.html",
+    "sha256": "d8beb0070f5b208ea12523da5428d28bfb5b826ff92c73b78bbb4bd94b1188f9"
+  },
+  {
+    "page": 17,
+    "id": "tbl-rotated-table-direction",
+    "source": "17-tbl-rotated-table-direction.pdf",
+    "sha256": "e5d310154c4f751832d0d599d3dfe6f2279b1bd44dae8aa7707071b7ac5179d7"
+  },
+  {
+    "page": 18,
+    "id": "tbl-full-cell-fill",
+    "source": "18-tbl-full-cell-fill.pdf",
+    "sha256": "7de960f3d5a14f16ff0e28e1dcb3d2349ba415b2d6a5abab3619c70e55af89e0"
+  },
+  {
+    "page": 19,
+    "id": "tbl-receipt-local-tilt",
+    "source": "19-tbl-receipt-local-tilt.jpg",
+    "sha256": "e6b29b4f4926bc4251b6a438abce96e244ce0a3d0bc1592ee9aff7176f4b92f7"
+  },
+  {
+    "page": 20,
+    "id": "tbl-far-numeric-columns",
+    "source": "20-tbl-far-numeric-columns.html",
+    "sha256": "bcec30ec98635d4f23c63b7e8891439486d7d81890ef17c487c5c8d59c639dd9"
+  },
+  {
+    "page": 21,
+    "id": "tbl-shifted-amounts-guard",
+    "source": "21-tbl-shifted-amounts-guard.html",
+    "sha256": "2c3c30109fb4b65ebc8cf5456319dfc2203f29e9da9be878faf835814134921e"
+  },
+  {
+    "page": 22,
+    "id": "tbl-two-column-list-two-pass",
+    "source": "22-tbl-two-column-list-two-pass.html",
+    "sha256": "f1ea2af04c72224cc80b096eb515026a6ae526f25d65704c02f3ec1a25595e18"
+  },
+  {
+    "page": 23,
+    "id": "tbl-summary-joins-table",
+    "source": "23-tbl-summary-joins-table.html",
+    "sha256": "de716fb6000d6e0c3b83fc732cc3d2c1b454d7af79c07c4193da35009c8ec5c2"
+  }
+]

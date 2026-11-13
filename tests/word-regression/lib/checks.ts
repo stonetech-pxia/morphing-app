@@ -236,6 +236,44 @@ export const table = (want: TableShape): Check => ({
   },
 });
 
+/** 有一张表的某一排从左到右依次有这几处文字，每处在不同的格里（一项的名称和金额在同一排）。 */
+export const inRow = (...texts: string[]): Check => ({
+  name: `one table row ${texts.map((t) => JSON.stringify(t)).join(' | ')}`,
+  run(c) {
+    for (const t of tablesOf(c)) {
+      for (let r = 0; r < t.table.rows; r++) {
+        const cells = t.table.cells
+          .filter((x) => x.row === r)
+          .sort((a, b) => a.col - b.col)
+          .map((x) => norm(x.text));
+        let at = 0;
+        const ok = texts.every((want) => {
+          const i = cells.findIndex((x, k) => k >= at && x.includes(norm(want)));
+          if (i < 0) return false;
+          at = i + 1;
+          return true;
+        });
+        if (ok) return null;
+      }
+    }
+    const t = tablesOf(c).find((t) => norm(tableText(t)).includes(norm(texts[0]!)));
+    return t ? `not in one row of ${describeTable(t)}` : `"${texts[0]}" is in no table`;
+  },
+});
+
+/** a、b 各在一张表里，但不是同一张（两张原本分开的表没有被接成一张）。 */
+export const differentTables = (a: string, b: string): Check => ({
+  name: `different tables ${JSON.stringify(a)} / ${JSON.stringify(b)}`,
+  run(c) {
+    const all = tablesOf(c);
+    const x = all.findIndex((t) => norm(tableText(t)).includes(norm(a)));
+    const y = all.findIndex((t) => norm(tableText(t)).includes(norm(b)));
+    if (x < 0) return `"${a}" is in no table`;
+    if (y < 0) return `"${b}" is in no table`;
+    return x === y ? `both in ${describeTable(all[x]!)}` : null;
+  },
+});
+
 /** 这处文字不在任何表格里（是正文段落）。 */
 export const notInTable = (text: string): Check => ({
   name: `${JSON.stringify(text)} is not in a table`,

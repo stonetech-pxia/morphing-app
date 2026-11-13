@@ -1,6 +1,6 @@
 // 把任意 PDF / 图片用 App 的转 Word 动作转一遍（现场识别，不用记录），画出来和原页并排看。
 // 用法：npx tsx tests/word-regression/convert.ts --out <目录> [--lang eng] [--pages 1,2] <文件…>
-// 文件名后面可以带 #页码（从 1 起，逗号分开）只转这几页，例如 invoice.pdf#1,3。
+// 文件名后面可以带 #页码（从 1 起，逗号分开）只转这几页、@语言 指定这个文件的识别语言，例如 invoice.pdf#1,3@deu。
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 
@@ -28,7 +28,8 @@ const summary: Record<string, unknown>[] = [];
 const client = await pdfClient();
 try {
   for (const spec of args) {
-    const [file, pageSpec] = spec.split('#') as [string, string | undefined];
+    const [path, fileLang] = spec.split('@') as [string, string | undefined];
+    const [file, pageSpec] = path.split('#') as [string, string | undefined];
     const name = basename(file).replace(/\.[^.]+$/, '');
     const wanted = (pageSpec ?? defaultPages)?.split(',').map(Number);
     const isPdf = /\.pdf$/i.test(file);
@@ -51,7 +52,7 @@ try {
           image: page ? Buffer.from(page.data, 'base64') : new Uint8Array(readFileSync(file)),
           ...(page ? { pdf: { path: resolve(file), page } } : {}),
           ocr: liveOcr,
-          lang,
+          lang: fileLang ?? lang,
           locale: 'en',
           name: id,
         });

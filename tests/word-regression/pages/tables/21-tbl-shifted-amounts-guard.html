@@ -1,0 +1,124 @@
+<!doctype html><meta charset="utf-8" /><style>
+  @page {
+    size: A4;
+    margin: 16mm;
+  }
+  body {
+    font:
+      11pt/1.35 Helvetica,
+      Arial,
+      sans-serif;
+    margin: 0;
+  }
+  .top {
+    display: flex;
+    justify-content: space-between;
+    margin: 0 0 6mm;
+  }
+  .co {
+    font-size: 18pt;
+    font-weight: bold;
+  }
+  .inv {
+    font-size: 17pt;
+    font-weight: bold;
+  }
+  .meta {
+    text-align: left;
+  }
+  /* 发票的商品表：没有竖线，每排下面一条很浅的细线；合计在右边两列下面（D-506）。 */
+  table.items {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 14mm;
+  }
+  .items th,
+  .items td {
+    padding: 2.2mm 1mm;
+    text-align: left;
+    border-bottom: 0.5px solid #e6e6e6;
+  }
+  .items th {
+    font-weight: bold;
+  }
+  .items td.n,
+  .items th.n {
+    text-align: left;
+  }
+  table.tot {
+    margin: 4mm 0 0 auto;
+    border-collapse: collapse;
+    width: 37%;
+  }
+  .tot td {
+    padding: 1.2mm 1mm;
+  }
+  .tot tr:last-child td {
+    font-weight: bold;
+  }
+  .pay {
+    margin-top: 120mm;
+    font-size: 9.5pt;
+  }
+</style>
+<div class="top">
+  <div>
+    <div class="co">Northgate Office Supplies Ltd</div>
+    14 Harbour Road, Bristol BS1 4QA · VAT GB 2841193 55
+  </div>
+  <div class="inv">INVOICE</div>
+</div>
+<div class="top">
+  <div>Bill to:<br />Brightwell Logistics<br />Unit 7, Avon Trade Park<br />Bristol BS2 0QT</div>
+  <div class="meta">Invoice no: INV-2041<br />Date: 28 Oct 2026<br />Due: 27 Nov 2026</div>
+</div>
+<table class="items">
+  <tr>
+    <th style="width: 52%">Item</th>
+    <th style="width: 12%">Qty</th>
+    <th style="width: 15%">Unit price</th>
+    <th>Amount</th>
+  </tr>
+  <tr>
+    <td>A4 copy paper, 5 reams</td>
+    <td>4</td>
+    <td>£21.50</td>
+    <td>£86.00</td>
+  </tr>
+  <tr>
+    <td>Toner cartridge HP 59A</td>
+    <td>2</td>
+    <td>£64.90</td>
+    <td>£129.80</td>
+  </tr>
+  <tr>
+    <td>Lever arch files (10)</td>
+    <td>3</td>
+    <td>£12.40</td>
+    <td>£37.20</td>
+  </tr>
+  <tr>
+    <td>Desk organiser</td>
+    <td>1</td>
+    <td>£18.75</td>
+    <td>£18.75</td>
+  </tr>
+</table>
+<table class="tot">
+  <tr>
+    <td style="width: 47%">Subtotal</td>
+    <td>£271.75</td>
+  </tr>
+  <tr>
+    <td>VAT 20%</td>
+    <td>£54.35</td>
+  </tr>
+  <tr>
+    <td>Total due</td>
+    <td>£326.10</td>
+  </tr>
+</table>
+<div class="pay">
+  Payment: bank transfer to Northgate Office Supplies, sort code 20-45-77, account 41873390<br /><br />Thank
+  you for your business.
+</div>
