@@ -158,6 +158,23 @@ describe('barcodes (D-471)', () => {
     expect(found[0]!.x + found[0]!.width).toBeGreaterThanOrEqual(690);
   });
 
+  it('does not take a dashed connector on textured paper for a barcode next to text (D-533)', () => {
+    // 斜的虚线（流程图的回流线）每行只有几段；纸面纹理在整行平均亮度上下跳，上下几行一样。
+    const dashes: Rect[] = [];
+    for (let x = 600; x < 1100; x += 14)
+      dashes.push({ x, y: 140 + Math.round((x - 600) * 0.07), width: 8, height: 4 });
+    const paper = renderPage(1400, 300, dashes);
+    for (let y = 0; y < paper.height; y++)
+      for (let x = 0; x < paper.width; x++)
+        for (let c = 0; c < 3; c++) {
+          const o = (y * paper.width + x) * 4 + c;
+          if (paper.data[o] === 255) paper.data[o] = (x * 7919) % 13 < 6 ? 238 : 254;
+        }
+    expect(findBarcodes(paper, [], 35, true)).toEqual([]);
+    // 真的条形码在这条路径上照样找到。
+    expect(findBarcodes(image, lines.slice(0, 1), 20, true)).toHaveLength(1);
+  });
+
   it('keeps a Word barcode beside text without swallowing that text', () => {
     const beside = Array.from({ length: 5 }, (_, i) => ({
       text: `Address ${i + 1}`,

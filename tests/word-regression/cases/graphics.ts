@@ -78,8 +78,6 @@ export const GRAPHICS: Case[] = [
     fix: '5f61ae5e D-473 ⑤',
     what: 'A flowchart with many short labels, arrows and coloured boxes: its labels used to become text and tables and the drawing was lost; it must be cropped whole as one picture.',
     recall: 0.96,
-    knownFailure:
-      'three thin strip pictures are cut out of the dashed return line (4 images instead of 1) since 261a67d4 (D-533 stripe clusters); at 5f61ae5e there was one picture. The labels are also repeated as tables under the picture, already so at 5f61ae5e',
     checks: [
       images({ min: 1, max: 1 }),
       imageCovers({ x: 0.125, y: 0.285, width: 0.735, height: 0.22 }),
