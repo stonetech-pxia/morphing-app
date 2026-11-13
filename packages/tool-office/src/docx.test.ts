@@ -594,6 +594,51 @@ describe('writeDocx', () => {
     expect(xml).toContain('>Bill to: Elena Martin</w:t>');
   });
 
+  it('keeps a short right-aligned page label on one line even when it contains a space', () => {
+    const p: DocPage = {
+      ...page(
+        [
+          {
+            kind: 'row',
+            box: { x: 80, y: 90, width: 1370, height: 34 },
+            cells: [
+              {
+                width: 1295,
+                blocks: [
+                  {
+                    kind: 'paragraph',
+                    text: 'Form title',
+                    size: 7.5,
+                    box: { x: 80, y: 90, width: 140, height: 27 },
+                  },
+                ],
+              },
+              {
+                width: 73,
+                blocks: [
+                  {
+                    kind: 'paragraph',
+                    text: 'Page 5',
+                    align: 'right',
+                    box: { x: 1377, y: 90, width: 73, height: 34 },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        12,
+      ),
+      width: 1536,
+      height: 2016,
+      paper: { width: 612, height: 792 },
+      margins: { left: 33, right: 33, top: 34, bottom: 20 },
+    };
+    const xml = unzip(writeDocx({ version: 4, pages: [p] })).text('word/document.xml');
+    const widths = [...xml.matchAll(/<w:gridCol w:w="(\d+)"/g)].map((m) => Number(m[1]));
+    expect(widths.at(-1)).toBeGreaterThanOrEqual(Math.ceil(textEm('Page 5') * 12 * 20 + 160));
+    expect(widths.reduce((n, w) => n + w, 0)).toBeLessThanOrEqual((612 - 66) * 20);
+  });
   it('keeps a short right-aligned label unbroken when a prose row must shrink to the page', () => {
     const doc: DocDoc = {
       version: 1,

@@ -1115,7 +1115,15 @@ export function writeDocx(
       if (
         labels.length > 0 &&
         labels.length === last.blocks.length &&
-        labels.every((b) => b.align === 'right' && !b.heading && !b.tab && !/\s/.test(b.text)) &&
+        labels.every(
+          (b) =>
+            b.align === 'right' &&
+            !b.heading &&
+            !b.tab &&
+            !/[\n\t]/.test(b.text) &&
+            b.text.trim().split(/\s+/).length <= 3 &&
+            b.text.length <= 32,
+        ) &&
         previousCell &&
         prose.length === previousCell.blocks.length &&
         prose.every((b) => !b.heading && !b.tab) &&
@@ -1123,7 +1131,11 @@ export function writeDocx(
       ) {
         const minimum = (b: (typeof labels)[number]) =>
           Math.ceil(longestWordEm(b.text) * (b.size ?? bodySize) * 20 * WIDTH_SLACK + 2 * CELL_PAD);
-        const labelWidth = Math.max(...labels.map(minimum));
+        const labelWidth = Math.max(
+          ...labels.map((b) =>
+            Math.ceil(textEm(b.text) * (b.size ?? bodySize) * 20 * WIDTH_SLACK + 2 * CELL_PAD),
+          ),
+        );
         const proseWidth = Math.max(...prose.map(minimum));
         if (labelWidth <= CONTENT_W / 5) {
           const borrowed = Math.max(
