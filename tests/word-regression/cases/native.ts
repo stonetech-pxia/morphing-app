@@ -35,8 +35,6 @@ export const NATIVE: Case[] = [
     suite: 'native',
     fix: '202a26be, 18b816a7 D-534; 5796eb7f D-535',
     what: 'Digital flyer with full-page artwork, a text-shadowed white headline, yellow info cards and a QR code: the artwork used to be lost (only the QR kept) and the headline shadow left a blurred copy; only the verified decoration may sit behind the reflowed, editable, white text.',
-    knownFailure:
-      'since 5796eb7f the yellow DATE / DOORS / LIVE MUSIC cards come out as dark text (1B2A49) on dark paragraph shading (1B2A49): the words are there but invisible, and the yellow card fill is lost (18b816a7 still had them in the background picture)',
     checks: [
       backgrounds({ min: 1, max: 1 }),
       anchoredDrawings(1),

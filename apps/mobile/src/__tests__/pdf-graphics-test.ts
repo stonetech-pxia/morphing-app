@@ -180,6 +180,52 @@ describe('digital PDF graphics ownership', () => {
     expect(result.owned).toHaveLength(4);
     expect([...result.keep]).toEqual([20, 21, 22, 23]);
   });
+  it('reads a rounded card as a fill under its text, but not a circle or a slanted shape', () => {
+    const shape = new Function('handlers', PDF_GRAPHICS_SCRIPT + ';return pathShape;')({});
+    // 浏览器把每个圆角拆成好几段曲线；四条边横平竖直。
+    const corner = (x: number, y: number) => [2, x, y, x, y, x, y, 2, x, y, x, y, x, y];
+    const card = [
+      ...[0, 68, 909, 1, 68, 874],
+      ...corner(76, 866),
+      ...[1, 190, 866],
+      ...corner(198, 874),
+      ...[1, 198, 909],
+      ...corner(190, 917),
+      ...[1, 76, 917],
+      ...corner(68, 909),
+      4,
+    ];
+    expect(shape(card, [68, 866, 198, 917])).toMatchObject({ rounded: true, rectangle: false });
+    const circle = [0, 100, 50, ...corner(150, 100), ...corner(100, 150), ...corner(50, 100), 4];
+    expect(shape(circle, [50, 50, 150, 150]).rounded).toBe(false);
+    const slanted = [0, 0, 0, 1, 100, 10, ...corner(100, 60), 1, 0, 50, 4];
+    expect(shape(slanted, [0, 0, 100, 60]).rounded).toBe(false);
+    const result = plan(
+      [
+        text(1, box(20, 40, 160, 20)),
+        {
+          i: 2,
+          name: 'constructPath',
+          fill: true,
+          rounded: true,
+          alpha: 1,
+          color: 'FFC857',
+          box: box(20, 35, 170, 30),
+        },
+        {
+          i: 3,
+          name: 'constructPath',
+          fill: true,
+          rectangle: true,
+          alpha: 1,
+          color: '1B2A49',
+          box: box(0, 0, 600, 800),
+        },
+      ],
+      input,
+    );
+    expect(result.fills).toContainEqual({ box: box(20, 35, 170, 30), color: 'FFC857' });
+  });
   it('treats glyph runs without Unicode as text, never as drawing in the background or crops', () => {
     const script = (name: string) =>
       new Function('handlers', PDF_GRAPHICS_SCRIPT + `;return ${name};`)({});

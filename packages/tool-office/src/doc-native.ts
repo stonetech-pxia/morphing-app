@@ -50,10 +50,18 @@ export function applyNativeGraphics(
       ? entries[0][0]
       : undefined;
   };
-  const fillOf = (box: Box) =>
-    fills
-      .filter((f) => overlap(box, f.box) >= area(box) * 0.8)
-      .sort((a, b) => area(a.box) - area(b.box))[0]?.color;
+  // 从小到大累计每种颜色盖住的面积：先盖满八成的颜色在最上面。一段字横跨同色的几张卡片时，
+  // 合起来算（不然会落到卡片下面整页的深色底上，深色字写在深色底上看不见）。
+  const bySize = [...fills].sort((a, b) => area(a.box) - area(b.box));
+  const fillOf = (box: Box) => {
+    const covered = new Map<string, number>();
+    for (const f of bySize) {
+      const n = (covered.get(f.color) ?? 0) + overlap(box, f.box);
+      if (n >= area(box) * 0.8) return f.color;
+      covered.set(f.color, n);
+    }
+    return undefined;
+  };
   const convert = (block: DocLeaf): DocLeaf => {
     if (block.kind === 'image') {
       const i = owned.findIndex(

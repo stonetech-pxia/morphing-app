@@ -6,6 +6,59 @@ const overlap = (a, b) =>
   Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) *
   Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
 const covered = (a, b) => overlap(a, b) / Math.max(1, area(a));
+// PDF.js 记录的路径（0 移动、1 直线、2/3 曲线、4 闭合）是什么形状：矩形、圆角矩形（四条边是横平竖直的直线、
+// 四个角是曲线，例如信息卡片）、椭圆。
+function pathShape(path, bounds) {
+  let j = 0,
+    curves = 0,
+    lines = 0,
+    closed = 0,
+    bad = false,
+    x = 0,
+    y = 0,
+    longest = 0,
+    straight = 0,
+    slanted = 0;
+  while (j < path.length) {
+    const op = path[j++];
+    if (op === 0 || op === 1) {
+      const nx = path[j++],
+        ny = path[j++];
+      if (op === 1) {
+        lines++;
+        longest = Math.max(longest, Math.hypot(nx - x, ny - y));
+        if (Math.abs(nx - x) < 0.01 || Math.abs(ny - y) < 0.01) straight += Math.hypot(nx - x, ny - y);
+        else slanted++;
+      }
+      x = nx;
+      y = ny;
+    } else if (op === 2) {
+      j += 4;
+      x = path[j++];
+      y = path[j++];
+      curves++;
+    } else if (op === 3) {
+      j += 2;
+      x = path[j++];
+      y = path[j++];
+      curves++;
+    } else if (op === 4) closed++;
+    else {
+      bad = true;
+      break;
+    }
+  }
+  const w = bounds ? bounds[2] - bounds[0] : 0,
+    h = bounds ? bounds[3] - bounds[1] : 0;
+  return {
+    ellipse: !bad && curves >= 4 && closed > 0 && longest < Math.min(w, h) * 0.05,
+    rectangle: !bad && curves === 0 && lines >= 3 && lines <= 4 && closed > 0,
+    // 圆角只占边的一小段：四条横平竖直的边加起来至少是外框周长的一半（浏览器把每个圆角拆成好几段曲线）。
+    rounded:
+      !bad && curves > 0 && closed > 0 && lines >= 2 && lines <= 4 && !slanted &&
+      straight >= (w + h) * 2 * 0.5,
+  };
+}
 function mergeGraphicBoxes(boxes) {
   const result = [];
   for (const original of boxes) {
@@ -374,7 +427,8 @@ function planNativeGraphics(records, input) {
     ),
     shadows: new Set(masks.keys()),
     colors: texts.filter((t) => !keep(t)).map((t) => ({ box: t.box, color: t.color })),
-    fills: records.filter((r) => r.fill && r.rectangle && r.box && r.alpha > 0.9 && !r.mask)
+    // 圆角的信息卡片也是字下面的底色：不进页底（只画整页装饰），只能随段落、格子的底色保留。
+    fills: records.filter((r) => r.fill && (r.rectangle || r.rounded) && r.box && r.alpha > 0.9 && !r.mask)
       .map((r) => ({ box: r.box, color: r.color })),
   };
 }
@@ -453,47 +507,7 @@ handlers.graphics = async ({ file, index, maxSide, figures, candidates, lines })
             args[0],
           );
           const path = args[1]?.[0];
-          if (path && typeof path.length === 'number') {
-            let j = 0,
-              curves = 0,
-              lines = 0,
-              closed = 0,
-              bad = false,
-              x = 0,
-              y = 0,
-              longest = 0;
-            while (j < path.length) {
-              const op = path[j++];
-              if (op === 0 || op === 1) {
-                const nx = path[j++],
-                  ny = path[j++];
-                if (op === 1) {
-                  lines++;
-                  longest = Math.max(longest, Math.hypot(nx - x, ny - y));
-                }
-                x = nx;
-                y = ny;
-              } else if (op === 2) {
-                j += 4;
-                x = path[j++];
-                y = path[j++];
-                curves++;
-              } else if (op === 3) {
-                j += 2;
-                x = path[j++];
-                y = path[j++];
-                curves++;
-              } else if (op === 4) closed++;
-              else {
-                bad = true;
-                break;
-              }
-            }
-            const bounds = args[2],
-              shortSide = bounds ? Math.min(bounds[2] - bounds[0], bounds[3] - bounds[1]) : 0;
-            rec.ellipse = !bad && curves >= 4 && closed > 0 && longest < shortSide * 0.05;
-            rec.rectangle = !bad && curves === 0 && lines >= 3 && lines <= 4 && closed > 0;
-          }
+          if (path && typeof path.length === 'number') Object.assign(rec, pathShape(path, args[2]));
         }
         records.push(rec);
         return true;

@@ -95,6 +95,25 @@ describe('local source PDF graphics', () => {
         .blocks[1],
     ).toMatchObject({ color: '000000' });
   });
+  it('shades text that spans two cards of one colour with the cards, not with the page fill under them', () => {
+    // 深色整页底上两张黄色圆角卡片；「DATE	DOORS」一段横跨两张卡片（各自都盖不住这一段的八成）。
+    const text = { x: 60, y: 600, width: 170, height: 30 };
+    const p = applyNativeGraphics(
+      { ...page(), blocks: [{ kind: 'paragraph', box: text, text: 'DATE\tDOORS' }] },
+      {
+        owned: [],
+        colors: [{ box: text, color: '1B2A49' }],
+        fills: [
+          { box: { x: 0, y: 0, width: 600, height: 800 }, color: '1B2A49' },
+          { box: { x: 50, y: 590, width: 110, height: 50 }, color: 'FFC857' },
+          { box: { x: 165, y: 590, width: 70, height: 50 }, color: 'FFC857' },
+        ],
+      },
+      [],
+      'g.png',
+    );
+    expect(p.blocks[1]).toMatchObject({ color: '1B2A49', fill: 'FFC857' });
+  });
   it('retains the established editable layout for a rotated table', () => {
     const p = page();
     p.blocks = [
