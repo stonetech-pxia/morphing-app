@@ -82,5 +82,11 @@
     "id": "missing-list-markers",
     "source": "14-missing-list-markers.html",
     "sha256": "ec40be6beb3b3275a239afa0c3be970ea289ee5d08c46931a9da03334664b991"
+  },
+  {
+    "page": 15,
+    "id": "numbered-headings-after-list",
+    "source": "15-numbered-headings-after-list.html",
+    "sha256": "0a5655642531d16c98154f39ce8ddd3a71d815f8c71272fb70f3f2084c3eacb8"
   }
 ]

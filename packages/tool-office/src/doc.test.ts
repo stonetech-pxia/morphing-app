@@ -573,6 +573,27 @@ describe('buildDocPage', () => {
     ]);
   });
 
+  it('starts a new numbered list when the number does not continue the last item (EU sample 037)', () => {
+    const { image, lines } = textPage([
+      { text: '1. Opening of the meeting', x: 100, y: 150, width: 420 },
+      { text: '2. Reading of the rules', x: 100, y: 175, width: 400 },
+      { text: '3. Any other business', x: 100, y: 200, width: 380 },
+      { text: '1. Decisions:', x: 100, y: 225, width: 220 },
+      { text: '1. The meeting opened at ten o’clock.', x: 100, y: 250, width: 560 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const shown = leafBlocks(doc).flatMap((b) =>
+      b.kind === 'list' ? b.items.map((t, i) => `${(b.start ?? 1) + i} ${t}`) : [],
+    );
+    expect(shown).toEqual([
+      '1 Opening of the meeting',
+      '2 Reading of the rules',
+      '3 Any other business',
+      '1 Decisions:',
+      '1 The meeting opened at ten o’clock.',
+    ]);
+  });
+
   it('treats a picture region full of body text as text, not as a picture', () => {
     const rows = Array.from({ length: 5 }, (_, i) => ({
       text: `Line ${i + 1} of a long paragraph that fills the page width`,

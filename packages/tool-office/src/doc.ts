@@ -1861,11 +1861,13 @@ function buildPage(
       );
       if (para.list && !released && /[\p{L}\p{N}]/u.test(stripMarker(text))) {
         const marker = listMarker(para.rows[0]!.text);
-        // 同一种编号接着上一个列表；换了写法另起一个。
+        // 同一种编号接着上一个列表；换了写法另起一个。编号不是接着上一项的（议程 1–6 后面的「1. Délibérations」）
+        // 也另起：列表只记第一项的编号，接进去就把后面的编号改成了 7、8（EU 样本 037）。
         if (
           list &&
           list.ordered === marker.ordered &&
           list.format === marker.format &&
+          (!marker.ordered || marker.start === (list.start ?? 1) + list.items.length) &&
           !para.spaced
         ) {
           list.items.push(stripMarker(text));

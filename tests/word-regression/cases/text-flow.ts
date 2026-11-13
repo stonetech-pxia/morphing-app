@@ -10,6 +10,7 @@ import {
   listItem,
   norm,
   notInRow,
+  numbered,
   order,
   sideBySide,
   table,
@@ -279,6 +280,22 @@ export const TEXT_FLOW: Case[] = [
       together('Utilizzate frasi brevi', 'la vostra esperienza professionale'),
       together('Aggiornate costantemente', 'le informazioni ormai superate'),
       apart('des locations de logement', 'des logements de fonction'),
+    ],
+  },
+  {
+    id: 'numbered-headings-after-list',
+    suite: 'text-flow',
+    fix: 'EU sample 037',
+    what: 'Agenda list 1–6 followed by the numbered headings "1. Délibérations" and "1. A l’unanimité": they were joined into the list and renumbered 7 and 8, which changes what the minutes say; a number that does not continue the list starts a new one.',
+    lang: 'fra',
+    // Word 的自动编号不在正文里：九个编号数字算「丢了」。
+    recall: 0.9,
+    checks: [
+      numbered('Ouverture de la séance', 1),
+      numbered('(éventuellement) Questions diverses', 6),
+      numbered('Délibérations', 1),
+      numbered('A l’unanimité des membres présents', 1),
+      numbered('Vote du règlement', 2),
     ],
   },
 ];

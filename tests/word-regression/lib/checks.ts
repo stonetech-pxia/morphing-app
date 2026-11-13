@@ -380,6 +380,25 @@ export const listItem = (text: string): Check => ({
   },
 });
 
+/** 这处文字显示出来的编号是 n：列表项按列表的起始编号和位置算，普通段落看开头写的「n.」。 */
+export const numbered = (text: string, n: number): Check => ({
+  name: `${JSON.stringify(text)} is numbered ${n}`,
+  run(c) {
+    const l = leaves(c.doc).find((l) => norm(leafText(l.leaf)).includes(norm(text)));
+    if (!l) return 'missing';
+    const leaf = l.leaf;
+    const shown =
+      leaf.kind === 'list'
+        ? leaf.ordered
+          ? (leaf.start ?? 1) + leaf.items.findIndex((t) => norm(t).includes(norm(text)))
+          : undefined
+        : leaf.kind === 'paragraph'
+          ? Number(/^\s*(\d+)[.)]/.exec(leaf.text)?.[1] ?? NaN)
+          : undefined;
+    return shown === n ? null : `is numbered ${shown}`;
+  },
+});
+
 /**
  * 标签和值一对一行：每一对 [标签, 值] 在 docx 同一张表的同一行、不同格里，而且每一对各占一行
  * （整列标签挤在一格、整列值挤在另一格的并排行不算）。
