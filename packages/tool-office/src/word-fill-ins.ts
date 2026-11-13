@@ -32,8 +32,9 @@ const BLANK_ABOVE = 0.8;
 const BLANK_SHARE = 0.9;
 /** 横线两头连着这么长（行高）以上的竖线，是框的边。 */
 const FRAME_SIDE = 1.5;
-/** 横线上至少这么多是深色的墨。 */
+/** 横线上至少这么多的地方比线的上下两边深 LINE_CONTRAST 以上（0–255）。 */
 const RULE_INK_SHARE = 0.6;
+const LINE_CONTRAST = 30;
 /** 横线上有墨的部分至少占这么多（实线）。 */
 const RULE_SOLID = 0.9;
 /** 横线左边的标签最远隔这么多个行高（表单的标签一列、填写处一列，短的标签离得远）。 */
@@ -140,22 +141,27 @@ export function leaderDots(
   return found;
 }
 
-/** 每一列里最深的点够深（墨）的列占多少（线的粗细里取最深的一点，线画得歪一点也量得到）。 */
-function darkShare(image: RgbaImage, box: Box): number {
+/**
+ * 一条细线（不是色块的边）：线上的每一列比线上面、下面隔开一点的地方都深一截的列占多少。
+ * 浅灰的填写线（EU 样本 001）两边都是白纸；浅色底纹的边只有一边浅。
+ */
+function lineShare(image: RgbaImage, box: Box): number {
+  const ink = (x: number, y: number) => {
+    const o = (Math.max(0, Math.min(image.height - 1, y)) * image.width + x) * 4;
+    return Math.min(image.data[o]!, image.data[o + 1]!, image.data[o + 2]!);
+  };
   const x0 = Math.max(0, Math.round(box.x));
   const x1 = Math.min(image.width, Math.round(box.x + box.width));
-  const y0 = Math.max(0, Math.round(box.y) - 1);
-  const y1 = Math.min(image.height, Math.round(box.y + box.height) + 1);
-  let dark = 0;
+  const top = Math.round(box.y) - 1;
+  const bottom = Math.round(box.y + box.height) + 1;
+  let thin = 0;
   for (let x = x0; x < x1; x++) {
-    let min = 255;
-    for (let y = y0; y < y1; y++) {
-      const o = (y * image.width + x) * 4;
-      min = Math.min(min, image.data[o]!, image.data[o + 1]!, image.data[o + 2]!);
-    }
-    if (min < 150) dark++;
+    let line = 255;
+    for (let y = top; y <= bottom; y++) line = Math.min(line, ink(x, y));
+    if (ink(x, top - 3) - line >= LINE_CONTRAST && ink(x, bottom + 3) - line >= LINE_CONTRAST)
+      thin++;
   }
-  return x1 > x0 ? dark / (x1 - x0) : 0;
+  return x1 > x0 ? thin / (x1 - x0) : 0;
 }
 
 /** 框里浅色（三个通道都亮）的点占多少。 */
@@ -340,10 +346,10 @@ export function findFillIns(
       width: f.width,
       height: 0.8 * BLANK_ABOVE * lineHeight,
     }) >= BLANK_SHARE;
-  // 横线要是真的墨线（深色）：浅色底纹的边、底纹之间的白缝找线时也会当成很浅的线（EU 样本 025 的账单表）。
+  // 横线要是一条细线：浅色底纹的边找线时也会当成很浅的线（EU 样本 025 的账单表）。
   const inked = (f: FillIn) =>
     f.kind === 'dots' ||
-    darkShare(image, { x: f.x, y: f.y, width: f.width, height: Math.max(1, f.height) }) >=
+    lineShare(image, { x: f.x, y: f.y, width: f.width, height: Math.max(1, f.height) }) >=
       RULE_INK_SHARE;
   return [...dots, ...lone].filter((f) => !inside(f) && blank(f) && inked(f));
 }

@@ -89,6 +89,25 @@ describe('fill-in lines of forms (EU sample 021, 030)', () => {
     expect(out[0]!.text).toMatch(/^Street _{10,}$/);
   });
 
+  it('takes a light grey answer line, but not the edge of a shaded row (EU sample 001, 025)', () => {
+    const rects: Rect[] = [
+      // 浅灰（#bbb）的填写线，左边是标签。
+      ...glyphs(100, 200, 120, 18),
+      { x: 300, y: 219, width: 300, height: 2, shade: 187 },
+      // 浅色底纹的一排（绿底接着灰底），左边也有字：底纹的边不是填写线。
+      ...glyphs(100, 400, 120, 18),
+      { x: 300, y: 380, width: 600, height: 40, shade: 237 },
+      { x: 300, y: 420, width: 600, height: 40, shade: 187 },
+    ];
+    const image = renderPage(W, H, rects);
+    const lines = [
+      fakeLine('Subtotal', { x: 100, y: 198, width: 120, height: 22 }, page),
+      fakeLine('Total HT', { x: 100, y: 398, width: 120, height: 22 }, page),
+    ];
+    const fills = findFillIns(image, [], findLines(image, { light: true }), lines, 22, []);
+    expect(fills.map((f) => Math.round(f.y / 10) * 10)).toEqual([220]);
+  });
+
   it('keeps label lines with leaders as separate lines, before the captions under them', () => {
     // 两行「标签 + 点线」，第一行下面居中一行说明；点线不见了时两行标签会接成一段、说明排到后面。
     const rects: Rect[] = [
