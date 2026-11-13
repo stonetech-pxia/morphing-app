@@ -1,0 +1,89 @@
+<!doctype html>
+<meta charset="utf-8" />
+<style>
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    color: #1e1e22;
+  }
+  .page {
+    padding: 22mm 24mm;
+  }
+  .head {
+    text-align: center;
+    line-height: 1.5;
+  }
+  .head b {
+    font-size: 17pt;
+  }
+  .doc {
+    margin-top: 12mm;
+    font-size: 11.5pt;
+    line-height: 1.7;
+  }
+  h1 {
+    margin: 16mm 0 10mm;
+    text-align: center;
+    font-size: 17pt;
+    text-decoration: underline;
+  }
+  .rx {
+    margin-left: 40mm;
+    font-size: 13pt;
+    line-height: 2;
+  }
+  .stamp {
+    position: absolute;
+    left: 118mm;
+    top: 206mm;
+    width: 46mm;
+    height: 46mm;
+    transform: rotate(-8deg);
+    opacity: 0.85;
+  }
+  .sig {
+    position: absolute;
+    left: 120mm;
+    top: 258mm;
+    font-size: 10pt;
+  }
+</style>
+<div class="page">
+  <div class="head">
+    <b>CABINET MÉDICAL DES TILLEULS</b><br />
+    8 allée des Tilleuls, 71250 Bellerive-sur-Saône<br />
+    Tél. 03 00 00 00 00
+  </div>
+  <div class="doc">
+    Docteur Claire VALMONT<br />
+    Médecine générale<br />
+    <span style="margin-left: 95mm">Bellerive, le 12/10/2026</span><br />
+    <span style="margin-left: 95mm">Madame Inès MOREAU</span>
+  </div>
+  <h1>ORDONNANCE</h1>
+  <div class="rx">
+    Paracétamol 1 g — un comprimé trois fois par jour<br />
+    pendant cinq jours<br />
+    Sérum physiologique — lavage nasal matin et soir<br />
+    Renouvellement : non
+  </div>
+  <svg class="stamp" viewBox="0 0 200 200">
+    <defs><path id="ring" d="M100,100 m-74,0 a74,74 0 1,1 148,0 a74,74 0 1,1 -148,0" /></defs>
+    <circle cx="100" cy="100" r="95" fill="none" stroke="#c8281e" stroke-width="6" />
+    <circle cx="100" cy="100" r="62" fill="none" stroke="#c8281e" stroke-width="2" />
+    <text font-family="Arial" font-size="19" font-weight="bold" fill="#c8281e" letter-spacing="1">
+      <textPath href="#ring">CABINET MÉDICAL DES TILLEULS · BELLERIVE ·</textPath>
+    </text>
+    <g font-family="Arial" font-size="15" font-weight="bold" fill="#c8281e" text-anchor="middle">
+      <text x="100" y="76">Dr C. VALMONT</text>
+      <text x="100" y="98">Médecine</text>
+      <text x="100" y="118">générale</text>
+      <text x="100" y="140">71250 BELLERIVE</text>
+    </g>
+  </svg>
+  <div class="sig">Signature du médecin</div>
+</div>

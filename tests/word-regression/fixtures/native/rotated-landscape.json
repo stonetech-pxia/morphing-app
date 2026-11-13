@@ -1,0 +1,141 @@
+{
+  "sourceSha256": "6c56f394ef3f342ffc8cb13521a6d0a6466ac91f1696dec2f51f9434931a6f4a",
+  "recognize": [
+    {
+      "width": 2016,
+      "height": 1408,
+      "lines": [
+        { "text": "Total due", "x": 1210, "y": 101, "width": 46, "height": 157 },
+        { "text": "billing@example.test", "x": 1039, "y": 102, "width": 35, "height": 251 },
+        { "text": "739.55", "x": 1157, "y": 102, "width": 36, "height": 90 },
+        {
+          "text": "Elena Martin | ID: DOC-101-1 | 2026-10-15",
+          "x": 1771,
+          "y": 102,
+          "width": 37,
+          "height": 505
+        },
+        {
+          "text": "IBAN: FR76 3000 6000 0112 3456 7890 189",
+          "x": 1100,
+          "y": 103,
+          "width": 34,
+          "height": 521
+        },
+        { "text": "From: Northfield Studio", "x": 1714, "y": 103, "width": 35, "height": 275 },
+        { "text": "Invoice", "x": 1843, "y": 98, "width": 63, "height": 195 },
+        { "text": "Printer ink", "x": 1302, "y": 115, "width": 32, "height": 118 },
+        { "text": "Storage boxes", "x": 1354, "y": 115, "width": 32, "height": 164 },
+        { "text": "Delivery service", "x": 1515, "y": 115, "width": 35, "height": 178 },
+        { "text": "Office paper", "x": 1568, "y": 116, "width": 35, "height": 139 },
+        { "text": "Consultation", "x": 1409, "y": 117, "width": 31, "height": 139 },
+        { "text": "Maintenance kit", "x": 1462, "y": 117, "width": 33, "height": 174 },
+        { "text": "Description", "x": 1624, "y": 116, "width": 33, "height": 139 },
+        {
+          "text": "2",
+          "x": 1519,
+          "y": 565,
+          "width": 29,
+          "height": 26,
+          "chars": [{ "text": "2", "at": 0.5185185185185185 }]
+        },
+        {
+          "text": "3",
+          "x": 1465,
+          "y": 566,
+          "width": 29,
+          "height": 25,
+          "chars": [{ "text": "3", "at": 0.5 }]
+        },
+        {
+          "text": "4",
+          "x": 1413,
+          "y": 567,
+          "width": 26,
+          "height": 23,
+          "chars": [{ "text": "4", "at": 0.509090909090909 }]
+        },
+        {
+          "text": "9",
+          "x": 1305,
+          "y": 568,
+          "width": 27,
+          "height": 22,
+          "chars": [{ "text": "9", "at": 0.4745762711864407 }]
+        },
+        {
+          "text": "5",
+          "x": 1358,
+          "y": 568,
+          "width": 27,
+          "height": 22,
+          "chars": [{ "text": "5", "at": 0.4745762711864407 }]
+        },
+        {
+          "text": "7",
+          "x": 1576,
+          "y": 569,
+          "width": 24,
+          "height": 21,
+          "chars": [{ "text": "7", "at": 0.4666666666666667 }]
+        },
+        { "text": "25.15", "x": 1355, "y": 720, "width": 33, "height": 72 },
+        { "text": "21.95", "x": 1408, "y": 719, "width": 36, "height": 74 },
+        { "text": "28.35", "x": 1303, "y": 721, "width": 30, "height": 70 },
+        { "text": "Unit price", "x": 1624, "y": 721, "width": 34, "height": 121 },
+        { "text": "18.75", "x": 1463, "y": 722, "width": 33, "height": 70 },
+        { "text": "12.35", "x": 1571, "y": 722, "width": 33, "height": 70 },
+        { "text": "15.55", "x": 1519, "y": 723, "width": 30, "height": 68 },
+        { "text": "Bill to: Elena Martin", "x": 1715, "y": 719, "width": 34, "height": 232 },
+        { "text": "87.80", "x": 1409, "y": 1037, "width": 34, "height": 71 },
+        { "text": "56.25", "x": 1463, "y": 1037, "width": 33, "height": 71 },
+        { "text": "170.10", "x": 1300, "y": 1038, "width": 36, "height": 83 },
+        { "text": "31.10", "x": 1517, "y": 1036, "width": 33, "height": 72 },
+        { "text": "12.35", "x": 1571, "y": 1039, "width": 33, "height": 69 },
+        { "text": "125.75", "x": 1355, "y": 1040, "width": 33, "height": 81 },
+        { "text": "Amount", "x": 1625, "y": 1038, "width": 32, "height": 100 }
+      ]
+    }
+  ],
+  "layout": [
+    {
+      "width": 2016,
+      "height": 1408,
+      "regions": [
+        {
+          "kind": "table",
+          "label": "table",
+          "score": 0.5644818544387817,
+          "box": {
+            "x": 1257.6344238281251,
+            "y": 120.12737630208332,
+            "width": 539.996337890625,
+            "height": 1176.4992350260416
+          }
+        },
+        {
+          "kind": "text",
+          "label": "reference",
+          "score": 0.4309738576412201,
+          "box": {
+            "x": 1073.8986511230469,
+            "y": 100.218701171875,
+            "width": 761.6474670410157,
+            "height": 1216.1755940755208
+          }
+        },
+        {
+          "kind": "text",
+          "label": "algorithm",
+          "score": 0.38828811049461365,
+          "box": {
+            "x": 1257.6344238281251,
+            "y": 120.12737630208332,
+            "width": 539.996337890625,
+            "height": 1176.4992350260416
+          }
+        }
+      ]
+    }
+  ]
+}

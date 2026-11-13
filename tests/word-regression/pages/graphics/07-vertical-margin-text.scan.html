@@ -1,0 +1,82 @@
+<!doctype html>
+<meta charset="utf-8" />
+<style>
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  body {
+    margin: 0;
+    font-family: 'Times New Roman', serif;
+    color: #111;
+  }
+  .page {
+    padding: 22mm 26mm 20mm 30mm;
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+  h1 {
+    font-size: 17pt;
+    text-align: center;
+    margin: 0 0 3mm;
+  }
+  .au {
+    text-align: center;
+    margin-bottom: 8mm;
+  }
+  h3 {
+    font-size: 12pt;
+    margin: 5mm 0 2mm;
+  }
+  p {
+    margin: 0 0 3mm;
+    text-align: justify;
+  }
+  .side {
+    position: absolute;
+    left: 8mm;
+    top: 70mm;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: 19pt;
+    color: #777;
+    letter-spacing: 0.5px;
+  }
+</style>
+<div class="side">preprint:2610.04417v2 [stat.ME] 9 Oct 2026</div>
+<div class="page">
+  <h1>Seasonal Patterns in Small-River Discharge</h1>
+  <div class="au">Lea Marchetti · Jonas Feld · Ana Ribeiro</div>
+  <h3>Abstract</h3>
+  <p>
+    We describe the seasonal behaviour of discharge in eleven small rivers over twenty years of
+    daily records. A simple two-component model explains most of the variation: a slow annual cycle
+    driven by snow melt and a fast response to individual rain events. The model is easy to fit and
+    gives useful forecasts a few days ahead.
+  </p>
+  <h3>1 Introduction</h3>
+  <p>
+    Small rivers react quickly to rain, and their discharge is harder to forecast than that of large
+    basins. Local authorities nevertheless need such forecasts to plan flood defences and water
+    abstraction. Previous studies focused on large catchments where gauges are dense and records
+    long.
+  </p>
+  <p>
+    In this paper we use the records of eleven gauges that have been operated by volunteers since
+    2006. The data are noisy but complete, and they cover catchments between twelve and ninety
+    square kilometres. We show that a model with only four parameters per river reproduces the
+    seasonal pattern and most of the short-term peaks.
+  </p>
+  <h3>2 Data</h3>
+  <p>
+    Each gauge reports the water level every fifteen minutes. Levels are converted to discharge with
+    rating curves that are checked twice a year. We average the readings to daily values and remove
+    days on which the gauge was frozen or under maintenance, which affects less than one percent of
+    all days.
+  </p>
+  <p>
+    Rainfall comes from the nearest weather station, at most eight kilometres from the gauge. Snow
+    depth is available for six of the eleven catchments; for the others we estimate it from
+    temperature and precipitation with a standard degree-day method.
+  </p>
+</div>

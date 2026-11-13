@@ -1,0 +1,92 @@
+[
+  {
+    "page": 1,
+    "id": "seal-stamp",
+    "source": "01-seal-stamp.scan.html",
+    "sha256": "12e214a6621b8207e1f5b23052bfaa3dda1d5f2128824760b807673223492816"
+  },
+  {
+    "page": 2,
+    "id": "receipt-barcode",
+    "source": "02-receipt-barcode.scan.html",
+    "sha256": "ef16178cea2e85dfbfcab3f5db24c4867b0f247cc9c9741003a953e98d957fff"
+  },
+  {
+    "page": 3,
+    "id": "utility-bill-barcode-chart",
+    "source": "03-utility-bill-barcode-chart.pdf",
+    "sha256": "c5781e1e7459f150689f6160be95071d3bf939a9570c60cc0c497bcc10b6be2d"
+  },
+  {
+    "page": 4,
+    "id": "boarding-pass-barcode",
+    "source": "04-boarding-pass-barcode.pdf",
+    "sha256": "7ff3a278583cef5158dfc46081dbe8ae4e14fb783ad04b2c1b7f9a4a72fe8776"
+  },
+  {
+    "page": 5,
+    "id": "labelled-diagram",
+    "source": "05-labelled-diagram.scan.html",
+    "sha256": "4fa68d2d83ca60142ae0a01f8b75a6b5d489f1a12351ade40fa45cecdcba1ad7"
+  },
+  {
+    "page": 6,
+    "id": "split-score-figure",
+    "source": "06-split-score-figure.pdf",
+    "sha256": "e23eb4f18eda3e8d0a7066fffd13477db8950b79144575bce5d24225ee2c7f98"
+  },
+  {
+    "page": 7,
+    "id": "vertical-margin-text",
+    "source": "07-vertical-margin-text.scan.html",
+    "sha256": "c8d48dca6c555ea9697f66ff50daf04df177a65c3cbd1d0c9fbe6297a28a354c"
+  },
+  {
+    "page": 8,
+    "id": "corroborated-figure",
+    "source": "08-corroborated-figure.pdf",
+    "sha256": "0585d0a7d16e5fd4b23e08ce13931f204152f3fb2bf94899edfda9a60355833f"
+  },
+  {
+    "page": 9,
+    "id": "captioned-figure-labels",
+    "source": "09-captioned-figure-labels.pdf",
+    "sha256": "8f9baf9a916329cf5d2525a59e3156d990beb0b748f053c0c2278b6d862db308"
+  },
+  {
+    "page": 10,
+    "id": "side-by-side-figures",
+    "source": "10-side-by-side-figures.pdf",
+    "sha256": "478c6314ef6a0a214b27d04bd13db307d908bae286ea405f5a7d21bba314d643"
+  },
+  {
+    "page": 11,
+    "id": "uncaptioned-cover-art",
+    "source": "12-uncaptioned-cover-art.pdf",
+    "sha256": "e6c7d84ddd15e2f9709f403ed69e0be914fac0dd90461b3a8dac9ad404535ba8"
+  },
+  {
+    "page": 12,
+    "id": "diagram-beside-callout",
+    "source": "13-diagram-beside-callout.pdf",
+    "sha256": "1688ff38af7f6b7f105b56d86f1a73acd58dd54f126cfe14b52654fc753ea4ee"
+  },
+  {
+    "page": 13,
+    "id": "picture-cards",
+    "source": "15-picture-cards.pdf",
+    "sha256": "012eef73e74e0e392b717758924ec51139004d1f9ae6bab58703366b91f53aa0"
+  },
+  {
+    "page": 14,
+    "id": "colored-fields-text",
+    "source": "16-colored-fields-text.pdf",
+    "sha256": "f34f8eaaf0e16480e2dd94a3a3076c876680e2fa1167018eae3f2f0e38ad5428"
+  },
+  {
+    "page": 15,
+    "id": "figure-before-caption",
+    "source": "17-figure-before-caption.pdf",
+    "sha256": "4aa8e7204808472e4d601a66049fe876c1499c965faded61da6d6fd4738aae7e"
+  }
+]

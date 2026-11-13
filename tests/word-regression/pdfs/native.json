@@ -1,0 +1,44 @@
+[
+  {
+    "page": 1,
+    "id": "flyer-background",
+    "source": "01-flyer-background.pdf",
+    "sha256": "66186f949c0ce3a09fd7daa522a8d7b3f310e94720146fc89b90a006b089cd31"
+  },
+  {
+    "page": 2,
+    "id": "figures-inline",
+    "source": "02-figures-inline.pdf",
+    "sha256": "b10772025d8f06051a707c62182e816a6c02c3c35f65921c9bc518b5d95d8b5c"
+  },
+  {
+    "page": 3,
+    "id": "dark-header-table",
+    "source": "03-dark-header-table.html",
+    "sha256": "a7a9aecf3aa95c7727486cc4fe794f19f3cadfc885ca57a5251064206bfe1c43"
+  },
+  {
+    "page": 4,
+    "id": "stamp-lettering",
+    "source": "04-stamp-lettering.pdf",
+    "sha256": "cd41b7d81fab78a22b21bd0e4132b4a14abd5870874a1a459a8953c032d12ee2"
+  },
+  {
+    "page": 5,
+    "id": "invisible-ocr-scan",
+    "source": "05-invisible-ocr-scan.pdf",
+    "sha256": "9246475d467be566d34d23797853b9f850bce627cb1413afd202c069e52dfe31"
+  },
+  {
+    "page": 6,
+    "id": "rotated-landscape",
+    "source": "06-rotated-landscape.pdf",
+    "sha256": "6c56f394ef3f342ffc8cb13521a6d0a6466ac91f1696dec2f51f9434931a6f4a"
+  },
+  {
+    "page": 7,
+    "id": "chart-label-run",
+    "source": "07-chart-label-run.pdf",
+    "sha256": "3ec0169cd56aed077644abeb5ae63d538c20b54d9d81c27e4f7da7a89c38e4ef"
+  }
+]
