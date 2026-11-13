@@ -222,7 +222,7 @@ export const FORMS: Case[] = [
   {
     id: 'fill-in-lines',
     suite: 'forms',
-    fix: 'EU sample 021, 030',
+    fix: '43ffdafc, 8580c2a2; EU sample 021, 030',
     what: 'A form whose fields are dotted leaders (inside and after labels, and stand-alone dotted lines) and L-bracket answer lines and a comb: OCR does not read them, so every field was lost, labels ran together, and the emptied space made the centred captions a second column that came out before the labels.',
     checks: [
       order(

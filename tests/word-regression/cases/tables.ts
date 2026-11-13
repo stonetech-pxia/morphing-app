@@ -441,7 +441,7 @@ export const TABLES: Case[] = [
   {
     id: 'tbl-header-bar-top-edge',
     suite: 'tables',
-    fix: 'EU sample 024',
+    fix: '07a2f1f8; EU sample 024',
     what: "Three timetables whose blue header bar sits right on the first row with no ink rule between them, and only one vertical (the hour column rule): the bar was not taken as the table top, so the 5 o'clock row fell outside the table and its minutes merged into the 6 o'clock cell (wrong data).",
     lang: 'deu',
     checks: [

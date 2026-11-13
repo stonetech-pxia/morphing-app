@@ -248,7 +248,7 @@ export const TEXT_FLOW: Case[] = [
   {
     id: 'short-stacked-lines',
     suite: 'text-flow',
-    fix: 'EU sample 023, 025',
+    fix: 'de98e119; EU sample 023, 025',
     what: 'Stacked short lines (an address window, a delivery address, a right-hand address with nothing beside it): the widest line of the stack looked full, so the next line was taken for a wrap and addresses came out as one run-on line ("Erika Beispiel Ahornweg 7 04177 Leipzig").',
     lang: 'deu',
     checks: [
@@ -266,7 +266,7 @@ export const TEXT_FLOW: Case[] = [
   {
     id: 'missing-list-markers',
     suite: 'text-flow',
-    fix: 'EU sample 026, 027',
+    fix: '81714187; EU sample 026, 027',
     what: 'Bulleted ("•") and dashed ("-") lists whose small markers OCR does not return: the items became plain paragraphs, two short items were joined into one and a wrapped item lost its second line to the next block.',
     lang: 'ita',
     checks: [
