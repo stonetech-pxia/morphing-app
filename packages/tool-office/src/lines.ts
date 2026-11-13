@@ -74,6 +74,65 @@ const ALIGN_SHARE = 0.02;
 const RULED_GAP_SHARE = 0.4;
 const RULED_MIN = 3;
 
+/**
+ * 很浅的表格线（转 Word 用，findLines 的 light）：电子版的发票模板、表单常用浅灰的线（最暗的通道 0.75–0.86），
+ * Sauvola 在白纸上的阈值只有 0.7 左右，找不到。纸很白（整页一半以上的点至少 LIGHT_PAPER：电子版、干净的扫描件）时，
+ * 比纸暗 LIGHT_CONTRAST 的点也算，但只算细的：横着找线时上下连着不超过 LIGHT_THICKNESS（竖线反过来）。
+ * 浅色底纹的格子、色块又宽又高，不算（不然底纹的格子会被当成横条、把表切开）。照片的纸不够白，不受影响。
+ */
+const LIGHT_PAPER = 0.95;
+const LIGHT_CONTRAST = 0.1;
+const LIGHT_THICKNESS_SHARE = 0.004;
+
+/** 整页纸的亮度：墨水深浅的中位数（按 1/256 分档）。 */
+function paperOf(ink: Float32Array): number {
+  const counts = new Uint32Array(257);
+  for (let p = 0; p < ink.length; p++) counts[Math.round(ink[p]! * 256)]!++;
+  let seen = 0;
+  for (let v = 0; v <= 256; v++) {
+    seen += counts[v]!;
+    if (seen * 2 >= ink.length) return v / 256;
+  }
+  return 1;
+}
+
+/**
+ * 在 mask 上加上浅的细线：比纸暗 LIGHT_CONTRAST、沿 across 方向连着不超过 max 个点、两边是白纸的。
+ * vertical 为 true 时按列数连着的点（给横线用），否则按行数（给竖线用）。
+ */
+function addThinLight(
+  mask: Uint8Array,
+  ink: Float32Array,
+  width: number,
+  height: number,
+  paper: number,
+  max: number,
+  vertical: boolean,
+): Uint8Array {
+  const limit = paper - LIGHT_CONTRAST;
+  const bright = paper - LIGHT_CONTRAST / 2;
+  const out = mask.slice();
+  const outer = vertical ? width : height;
+  const inner = vertical ? height : width;
+  const at = (o: number, i: number) => (vertical ? i * width + o : o * width + i);
+  for (let o = 0; o < outer; o++) {
+    let start = -1;
+    for (let i = 0; i <= inner; i++) {
+      const dark = i < inner && ink[at(o, i)]! < limit;
+      if (dark && start < 0) start = i;
+      else if (!dark && start >= 0) {
+        // 两边隔一个点（线边上的灰边）还得是白纸：浅色底纹里的噪点、底纹夹在两行字中间的窄条不算。
+        const before = ink[at(o, Math.max(0, start - 2))]!;
+        const after = ink[at(o, Math.min(inner - 1, i + 1))]!;
+        if (i - start <= max && before >= bright && after >= bright)
+          for (let k = start; k < i; k++) out[at(o, k)] = 1;
+        start = -1;
+      }
+    }
+  }
+  return out;
+}
+
 /** 墨水深浅：三个通道里最暗的那个（0 黑 – 1 白），红字、蓝字的线也算。 */
 function inkOf(image: RgbaImage): Float32Array {
   const { width, height, data } = image;
@@ -391,7 +450,10 @@ function bandSides(band: Band, t: number): RuleLine[] {
  * 找一页里的横线和竖线。skew 不给时用 findSkew 估（增强过的图已经拉正，可以直接给 0）。
  * 图太大时先缩小，返回的坐标仍是这张图的像素。
  */
-export function findLines(image: RgbaImage, options: { skew?: number } = {}): PageLines {
+export function findLines(
+  image: RgbaImage,
+  options: { skew?: number; light?: boolean } = {},
+): PageLines {
   const k = Math.max(1, Math.ceil(Math.max(image.width, image.height) / (LINE_MAX_SIDE * 1.05)));
   const work = k > 1 ? shrink(image, k) : image;
   const { width, height } = work;
@@ -399,14 +461,23 @@ export function findLines(image: RgbaImage, options: { skew?: number } = {}): Pa
   const skew = options.skew ?? findSkew(ink, width, height);
   const t = Math.tan((skew * Math.PI) / 180);
   const mask = darkMask(ink, width, height);
+  // 横线、竖线各用一张图：浅的细线只加在找它那个方向的图上（light）。
+  let hMask = mask;
+  let vMask = mask;
+  const paper = options.light ? paperOf(ink) : 0;
+  if (paper >= LIGHT_PAPER) {
+    const max = Math.max(3, Math.round(Math.max(width, height) * LIGHT_THICKNESS_SHARE));
+    hMask = addThinLight(mask, ink, width, height, paper, max, true);
+    vMask = addThinLight(mask, ink, width, height, paper, max, false);
+  }
   const candidates: Band[] = [];
-  const horizontal = scan(mask, width, height, t, true, candidates);
-  let vertical = scan(eraseBands(mask, width, height, t, candidates), width, height, t, false);
+  const horizontal = scan(hMask, width, height, t, true, candidates);
+  let vertical = scan(eraseBands(vMask, width, height, t, candidates), width, height, t, false);
   const tol = Math.max(4, Math.max(width, height) * TOUCH_SHARE);
   const bands = candidates.filter((b) => bandAnchors(b, vertical, t, tol) >= BAND_MIN_ANCHORS);
   // 不算的横条不抹（抹了会把穿过它的竖线切断）。
   if (bands.length < candidates.length)
-    vertical = scan(eraseBands(mask, width, height, t, bands), width, height, t, false);
+    vertical = scan(eraseBands(vMask, width, height, t, bands), width, height, t, false);
   if (bands.length) {
     const posTol = Math.max(2, Math.max(width, height) * MERGE_SHARE);
     horizontal.splice(
@@ -535,6 +606,18 @@ export function findTables(page: PageLines): TableLines[] {
   // 只有横线的表：按位置从上到下，左右两端都和上一条对齐、离得不远的接成一串。
   const align = page.width * ALIGN_SHARE;
   const maxGap = page.height * RULED_GAP_SHARE;
+  // 一张网格的行高：网格里的横线相邻间距的中位数。
+  const rowGapOf = (i: number) => {
+    const ys = hs
+      .filter((_, k) => hOk[k] && find(k) === find(i))
+      .map((g) => g.pos)
+      .sort((a, b) => a - b);
+    const gaps = ys
+      .slice(1)
+      .map((y, k) => y - ys[k]!)
+      .filter((g) => g > tol);
+    return gaps.length ? gaps.sort((a, b) => a - b)[gaps.length >> 1]! : Infinity;
+  };
   const chains: number[][] = [];
   const order = hs.map((_, i) => i).sort((a, b) => hs[a]!.pos - hs[b]!.pos);
   for (const i of order) {
@@ -555,6 +638,10 @@ export function findTables(page: PageLines): TableLines[] {
         if (hOk[lastIndex] && c.filter((k) => hOk[k] && find(k) === find(lastIndex)).length > 3)
           return false;
         const prev = c.length >= 2 ? last.pos - hs[c.at(-2)!]!.pos : null;
+        // 网格上面只有横线的一串往下接网格：间距还要和网格的行高差不多（表头上面的几行）。
+        // 各节标题下的分隔线彼此隔着整段文字，比网格的行高得多，不是这张表的。
+        if (hOk[i] && !c.some((k) => hOk[k]) && prev !== null && prev > 2 * rowGapOf(i))
+          return false;
         return prev !== null && gap <= 2 * prev;
       }
       return true;

@@ -28,5 +28,11 @@
     "id": "irs-w9-header",
     "source": "05-irs-w9-header.pdf",
     "sha256": "95e6acea0c251e23b7a7a25379ab4439748c1720ff408cedc71a8eaa5a463d61"
+  },
+  {
+    "page": 6,
+    "id": "light-grey-ruled-table",
+    "source": "06-light-grey-ruled-table.html",
+    "sha256": "be2ed5850873c393ed911997a55ba0df410679ba184e82822cf9967a77158124"
   }
 ]

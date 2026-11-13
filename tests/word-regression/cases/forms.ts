@@ -5,8 +5,10 @@ import {
   exactParagraph,
   leaves,
   notInRow,
+  inRow,
   pairedRows,
   sideBySide,
+  table,
   together,
 } from '../lib/checks';
 import type { Case } from '../lib/case';
@@ -85,6 +87,22 @@ export const FORMS: Case[] = [
         return p && p.leaf.kind === 'paragraph' ? `paired: ${JSON.stringify(p.leaf.text)}` : null;
       }),
       apart('W-9', 'Give form to the'),
+    ],
+  },
+  {
+    id: 'light-grey-ruled-table',
+    suite: 'forms',
+    fix: 'TBD; EU sample 006',
+    what: "A table ruled with light grey lines (as in digital invoice and letter templates) was not seen as a table at all: the lines are lighter than the line finder's threshold on white paper, so the label/value rows fell apart into loose lines.",
+    lang: 'fra',
+    checks: [
+      table({
+        containing: ['Titulaire du compte', 'Atelier Brunel SARL', 'BNPAFRPPXXX'],
+        rows: 4,
+        cols: 2,
+      }),
+      inRow('IBAN', 'FR76 3000 4000 0312 3456 7890 143'),
+      inRow('Référence à rappeler', 'FAC-2026-0415'),
     ],
   },
 ];

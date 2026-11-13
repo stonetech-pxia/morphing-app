@@ -1328,6 +1328,8 @@ function buildPage(
     {
       ...options,
       textTables: false,
+      // 电子版模板常用很浅的灰线画表（EU 样本 001、006），转 Word 时也找。
+      lightRules: true,
       joinLines: (cell) =>
         rowsOf(cell)
           .map((r) => join(r.lines).trim())

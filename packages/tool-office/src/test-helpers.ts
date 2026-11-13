@@ -10,6 +10,8 @@ export interface Rect {
   y: number;
   width: number;
   height: number;
+  /** 灰度（0 黑 – 255 白），不给是 20（黑）。 */
+  shade?: number;
 }
 
 /** 画一页：rects 是转之前的坐标，deg 是绕页面中心顺时针转的角度（y 朝下）。 */
@@ -33,7 +35,7 @@ export function renderPage(
       for (const r of rects) {
         if (u >= r.x && u < r.x + r.width && v >= r.y && v < r.y + r.height) {
           const o = (y * width + x) * 4;
-          data[o] = data[o + 1] = data[o + 2] = 20;
+          data[o] = data[o + 1] = data[o + 2] = r.shade ?? 20;
           break;
         }
       }

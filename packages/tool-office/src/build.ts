@@ -43,6 +43,8 @@ export interface BuildOptions {
    * 表外的字按转 Word 的并排规则分栏、估每块字和每张表的字号和粗体。不给时表外的字照旧每段一行（转 Word 自己排）。
    */
   arrange?: boolean;
+  /** 很浅的表格线也找（findLines 的 light）：只给转 Word，转 Excel 不变。 */
+  lightRules?: boolean;
 }
 
 export interface PageInput {
@@ -595,7 +597,10 @@ export function sharedColumns(
 export function buildTablePage(input: PageInput, options: BuildOptions = {}): TablePage {
   const join = options.joinLines ?? defaultJoin;
   const { image } = input;
-  const page = findLines(image, input.skew !== undefined ? { skew: input.skew } : {});
+  const page = findLines(image, {
+    ...(input.skew !== undefined ? { skew: input.skew } : {}),
+    ...(options.lightRules ? { light: true } : {}),
+  });
   const t = Math.tan((page.skew * Math.PI) / 180);
   const tol = Math.max(4, Math.max(image.width, image.height) * 0.008);
   const arrange = options.arrange === true;
