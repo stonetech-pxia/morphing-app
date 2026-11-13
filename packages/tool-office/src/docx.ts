@@ -519,6 +519,7 @@ function layoutTableXml(
   widths: readonly number[],
   rows: readonly (readonly string[])[],
   size: number,
+  left = 0,
 ): string {
   const none = (side: string) => `<w:${side} w:val="nil"/>`;
   const tr = (cells: readonly string[]) =>
@@ -532,6 +533,7 @@ function layoutTableXml(
     '</w:tr>';
   return (
     `<w:tbl><w:tblPr><w:tblW w:w="${widths.reduce((a, b) => a + b, 0)}" w:type="dxa"/>` +
+    (left ? `<w:tblInd w:w="${left}" w:type="dxa"/>` : '') +
     '<w:tblBorders>' +
     ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(none).join('') +
     `</w:tblBorders><w:tblLayout w:type="fixed"/>${cellMarginsXml()}</w:tblPr><w:tblGrid>` +
@@ -1218,12 +1220,19 @@ export function writeDocx(
         }
       }
       lendToLast(block, widths);
+      // 并排行在原图里的左边（发票右半边的标签、地址窗）：整行往右缩进，不都挪到左页边；
+      // 只用格子右边还空着的宽，格子的宽不变。
+      const shift = Math.min(
+        twip((snap.get(block.box.x) ?? block.box.x) - base),
+        CONTENT_W - widths.reduce((a, b) => a + b, 0),
+      );
+      const indent = shift >= MIN_INDENT ? Math.round(shift / 10) * 10 : 0;
       // 格子里留一点边距，里面的表格、图片按格子的宽缩小；格子里的位置从这一格的左上角算。
       const cells = block.cells.map((cell, i) => {
         const max = widths[i]! - 2 * CELL_PAD;
         return cellXml(cell.blocks, max, block.box.y, fontWidths[i]! - 2 * CELL_PAD);
       });
-      body.push(layoutTableXml(widths, [cells], bodySize), blankXml(1));
+      body.push(layoutTableXml(widths, [cells], bodySize, indent), blankXml(1));
     }
     // 只把锚点放进表格外已有的段落；不增加正文行，也不让竖排单元格把底图参与测高。
     const drawings = page.blocks

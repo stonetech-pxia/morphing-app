@@ -139,6 +139,54 @@ describe('writeDocx', () => {
       );
     }
   });
+  it('keeps a side-by-side row on the right half where the source has it', () => {
+    // 发票右边的「FOB | DATE D'EXPÉDITION」：左半边空着，整行不该挪到左页边。
+    const p: DocPage = {
+      ...page(
+        [
+          {
+            kind: 'paragraph',
+            text: 'FACTURER À',
+            box: { x: 100, y: 300, width: 150, height: 20 },
+          },
+          {
+            kind: 'row',
+            box: { x: 700, y: 400, width: 220, height: 20 },
+            cells: [
+              {
+                width: 90,
+                blocks: [
+                  {
+                    kind: 'paragraph',
+                    text: 'FOB',
+                    box: { x: 700, y: 400, width: 40, height: 20 },
+                  },
+                ],
+              },
+              {
+                width: 130,
+                blocks: [
+                  {
+                    kind: 'paragraph',
+                    text: 'EXPÉDIÉ VIA',
+                    box: { x: 790, y: 400, width: 120, height: 20 },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        10,
+      ),
+      paper: { width: 595, height: 833 },
+    };
+    const xml = unzip(writeDocx({ version: 4, pages: [p] })).text('word/document.xml');
+    const indent = Number(xml.match(/<w:tblInd w:w="(\d+)"/)?.[1] ?? 0);
+    expect(indent).toBeGreaterThan(0.85 * ((700 - 100) / 1000) * 11906);
+    const grid = xml.match(/<w:tblGrid>.*?<\/w:tblGrid>/)![0];
+    const total = [...grid.matchAll(/w:w="(\d+)"/g)].reduce((n, m) => n + Number(m[1]), 0);
+    expect(indent + total).toBeLessThanOrEqual(11906 - 2 * 1134);
+  });
   it('reserves the painted border in the minimum height of a tightly packed text row', () => {
     const b = { x: 50, y: 100, width: 800, height: 2 };
     const t: DocTable = {

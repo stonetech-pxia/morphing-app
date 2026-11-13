@@ -189,4 +189,25 @@ export const GEOMETRY: Case[] = [
       fitsOneLine('http://www.example.org/atti/stampa/serie_generale/originario'),
     ],
   },
+  {
+    id: 'right-side-row-offset',
+    suite: 'geometry',
+    fix: 'EU sample 001, 008, 009',
+    what: 'Label pairs on the right half of an invoice ("FOB | DATE D\'EXPÉDITION") were written as a side-by-side row starting at the left margin, under the bill-to block; the row is indented to its source left edge.',
+    lang: 'fra',
+    checks: [
+      ...['FOB', 'MODALITÉS'].map((label) =>
+        custom(`"${label}" stays on the right half (≥ 90 mm from the body's left edge)`, (c) => {
+          const p = xmlPara(c, label);
+          if (!p) return 'missing';
+          const open = c.xml.lastIndexOf('<w:tbl>', p.at);
+          const ind =
+            open < 0 ? 0 : Number(/<w:tblInd w:w="(\d+)"/.exec(c.xml.slice(open, p.at))?.[1] ?? 0);
+          const got = (ind + indentLeft(p)) / MM;
+          return got >= 90 ? null : `${got.toFixed(0)} mm`;
+        }),
+      ),
+      sideBySide('FOB', "DATE D'EXPÉDITION"),
+    ],
+  },
 ];

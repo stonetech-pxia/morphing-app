@@ -52,5 +52,11 @@
     "id": "short-edge-cell-one-line",
     "source": "09-short-edge-cell-one-line.html",
     "sha256": "54331f04da399fb134a26dfa2a03ba4506709db026437248ec57fbcf0fe650dd"
+  },
+  {
+    "page": 10,
+    "id": "right-side-row-offset",
+    "source": "10-right-side-row-offset.html",
+    "sha256": "89caf5de7c80ed4d64430c6546780c8ec25c46382aede787ba0c50c5191996e3"
   }
 ]
