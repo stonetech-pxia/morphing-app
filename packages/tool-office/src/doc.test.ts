@@ -511,6 +511,28 @@ describe('buildDocPage', () => {
     expect(text).not.toContain('Pagina 2');
   });
 
+  it('does not take decorative asterisks or dashes around a line for a bullet', () => {
+    const { image, lines } = textPage([
+      { text: '*** ATTO COMPLETO ***', x: 380, y: 100, width: 240 },
+      { text: 'Il testo segue qui sotto.', x: 100, y: 160, width: 300 },
+      { text: '– Anmeldebestätigung –', x: 380, y: 260, width: 240 },
+      { text: 'Bitte aufbewahren.', x: 100, y: 320, width: 250 },
+      { text: '*********RECHNUNG**********', x: 340, y: 420, width: 320 },
+      { text: 'Tisch: 137', x: 100, y: 480, width: 120 },
+      { text: '- echter Punkt eins', x: 100, y: 580, width: 260 },
+      { text: '- echter Punkt zwei', x: 100, y: 605, width: 260 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const leaves = leafBlocks(doc);
+    const paragraphs = leaves.flatMap((b) => (b.kind === 'paragraph' ? [b.text] : []));
+    expect(paragraphs).toContain('*** ATTO COMPLETO ***');
+    expect(paragraphs).toContain('– Anmeldebestätigung –');
+    expect(paragraphs).toContain('*********RECHNUNG**********');
+    expect(leaves.filter((b) => b.kind === 'list')).toMatchObject([
+      { items: ['echter Punkt eins', 'echter Punkt zwei'] },
+    ]);
+  });
+
   it('without layout regions still makes paragraphs and numbered lists from positions', () => {
     const { image, lines } = textPage([
       { text: 'Conditions', x: 100, y: 60, width: 300, h: 40 },

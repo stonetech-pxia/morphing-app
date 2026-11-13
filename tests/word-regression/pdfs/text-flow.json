@@ -64,5 +64,11 @@
     "id": "short-lines-not-page-numbers",
     "source": "11-short-lines-not-page-numbers.html",
     "sha256": "c9eeac3bdf573002384c22c9a2afd8f7f683cde6efa60d7537bf7e5dde90022c"
+  },
+  {
+    "page": 12,
+    "id": "decorative-markers-not-bullets",
+    "source": "12-decorative-markers-not-bullets.html",
+    "sha256": "de5583b0b7bec0eb95afcaec2f47ca53a074b67e2e21df081c8b2859ce7d09b4"
   }
 ]

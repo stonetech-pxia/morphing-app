@@ -303,6 +303,13 @@ const WIDTH_SNAP = 0.08;
 const LIST_ITEM = /^\s*(?:[•·*▪●○◦■□]|[-–—](?!\d)|\d{1,3}[.、)）](?!\d)|[(（]\d{1,3}[)）]|[①-⑳])/;
 const ORDERED = /^\s*(?:(\d{1,3})([.、)）])(?!\d)|[(（](\d{1,3})[)）]|([①-⑳]))\s*/;
 const BULLET = /^\s*(?:[•·*▪●○◦■□]|[-–—](?!\d))\s*/;
+/**
+ * 装饰：符号连着重复（「***」「--」）或者一行两头是同一种符号（「– Anmeldebestätigung –」「*** ATTO ***」），
+ * 是标题、小票上的花边，不是列表的圆点。
+ */
+const DECORATED =
+  /^\s*(?:([*•·▪●○◦■□])\s*\1|[-–—]\s*[-–—])|^\s*(?:([*•·▪●○◦■□]).*\2|[-–—].*[-–—])\s*$/;
+const listStart = (text: string) => LIST_ITEM.test(text) && !DECORATED.test(text);
 
 const median = (values: readonly number[]) => {
   const sorted = [...values].sort((a, b) => a - b);
@@ -531,7 +538,7 @@ export function paragraphsOf(
   const out: { rows: Row[]; spaced: boolean; list: boolean }[] = [];
   for (const [i, row] of rows.entries()) {
     const prev = rows[i - 1];
-    const marker = LIST_ITEM.test(row.text);
+    const marker = listStart(row.text);
     const list = marker && /[\p{L}\p{N}]/u.test(stripMarker(row.text));
     const rangeTail =
       prev !== undefined && /\d[-–—]\s*$/.test(prev.text) && /^\s*\d+\.\s*$/.test(row.text);

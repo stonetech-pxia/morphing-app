@@ -214,4 +214,34 @@ export const TEXT_FLOW: Case[] = [
       order('5.2 Accesso a ulteriori studi', 'n.a.', '5.3 Status professionale'),
     ],
   },
+  {
+    id: 'decorative-markers-not-bullets',
+    suite: 'text-flow',
+    fix: 'EU sample 003, 004, 005',
+    what: 'Headings framed by asterisks or dashes ("*** TESTO INTEGRALE ***", "– Anmeldebestätigung –", "*****RECHNUNG*****") became bullet items: one asterisk was eaten and the next line was joined into the item. A real dash list must stay a list.',
+    lang: 'deu',
+    checks: [
+      custom('decorated headings stay plain paragraphs with their marks', (c) => {
+        const want = [
+          '*** TESTO INTEGRALE ***',
+          '– Anmeldebestätigung –',
+          '*********RECHNUNG**********',
+        ];
+        const texts = leaves(c.doc).flatMap((l) =>
+          l.leaf.kind === 'paragraph' ? [l.leaf.text.trim()] : [],
+        );
+        // 只比字和符号的种类（识别会把「–」认成「—」、丢空格）：整段就是这一行，符号都还在。
+        const key = (t: string) => t.replace(/\s+/g, '').replace(/[–—]/g, '-');
+        const missing = want.filter((w) => !texts.some((t) => key(t) === key(w)));
+        return missing.length ? `not a plain paragraph: ${missing.join(' | ')}` : null;
+      }),
+      apart('*********RECHNUNG**********', 'Tisch: 42'),
+      custom('the list items are exactly the three dash items', (c) => {
+        const items = leaves(c.doc).flatMap((l) => (l.leaf.kind === 'list' ? l.leaf.items : []));
+        return items.length === 3 && items.every((t) => !/RECHNUNG|TESTO|Anmeldebest/.test(t))
+          ? null
+          : JSON.stringify(items);
+      }),
+    ],
+  },
 ];
