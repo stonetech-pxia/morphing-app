@@ -902,14 +902,6 @@ export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {})
     input.lines,
     median(input.lines.map((l) => l.height)) || 20,
   );
-  if (input.nativeFigures?.length) {
-    // 接管整图后，原来的模型文字区可能跨好几栏；按保留下来的真实块重排，不能沿用那个大容器。
-    next.blocks = arrangeUnits(
-      leafBlocks(next).map((b) => ({ box: b.box, blocks: [b] })),
-      median(input.lines.map((l) => l.height)) || 20,
-      { dense: input.lines.length >= DENSE_LINES },
-    );
-  }
   const form = leafBlocks(next).find(
     (b) =>
       b.kind === 'table' &&

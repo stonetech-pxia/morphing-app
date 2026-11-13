@@ -712,6 +712,7 @@ export function writeDocx(
       return metrics;
     };
     let fit = 1;
+    let pictureScale = 1;
     // 已知纸张尺寸的页需要把默认 Arial 行框的上/下伸留量算足；字高不是整行高度。
     const leading = page.paper ? 1.34 : LINE_HEIGHT;
     const blankHeight = Math.round(LINE_HEIGHT * bodySize * 20);
@@ -790,7 +791,12 @@ export function writeDocx(
         const image = images.get(block.src)!;
         const w = (block.box.width / page.width) * PAGE_W,
           h = (w * image.height) / Math.max(1, image.width);
-        return h * Math.min(1, maxWidth / Math.max(1, w), (CONTENT_H * 0.9) / Math.max(1, h)) + 20;
+        return (
+          h *
+            Math.min(1, maxWidth / Math.max(1, w), (CONTENT_H * 0.9) / Math.max(1, h)) *
+            pictureScale +
+          20
+        );
       }
       return block.kind === 'image' ? h + (page.paper ? bodySize * 6 : 0) : h + LINE_HEIGHT * 20;
     };
@@ -929,8 +935,8 @@ export function writeDocx(
           let w = (block.box.width / page.width) * PAGE_W;
           let h = (w * image.height) / Math.max(1, image.width);
           const k = Math.min(1, maxWidth / w, (CONTENT_H * 0.9) / h);
-          w *= k;
-          h *= k;
+          w *= k * pictureScale;
+          h *= k * pictureScale;
           const pPr =
             (page.paper
               ? `<w:spacing w:before="${before ?? 0}" w:after="0" w:line="240" w:lineRule="auto"/><w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr>`
@@ -1000,6 +1006,20 @@ export function writeDocx(
             else lo = fit;
           }
           fit = lo;
+          // 段落正常行高加整图本身也可能超过源页；空白压到头后才等比缩图，正文不缩字。
+          if (
+            measure() > CONTENT_H - Math.round(leading * bodySize * 20) &&
+            leaves.some((b) => b.kind === 'image')
+          ) {
+            let low = 0.25,
+              high = 1;
+            for (let i = 0; i < 12; i++) {
+              pictureScale = (low + high) / 2;
+              if (measure() > CONTENT_H - Math.round(leading * bodySize * 20)) high = pictureScale;
+              else low = pictureScale;
+            }
+            pictureScale = low;
+          }
         } else {
           const dry: Flow = { top: marginPx, bottom: marginPx, height: 0 };
           let gaps = 0,

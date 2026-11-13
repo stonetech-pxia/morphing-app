@@ -842,6 +842,38 @@ describe('writeDocx', () => {
     expect(xml).not.toContain('<w:p/>');
   });
 
+  it('shrinks flowing pictures only after source whitespace cannot fit normal editable text on the page', () => {
+    const image = {
+      kind: 'image' as const,
+      src: 'picture',
+      box: { x: 0, y: 0, width: 900, height: 1200 },
+    };
+    const images = new Map([
+      ['picture', { bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), width: 900, height: 1200 }],
+    ]);
+    const extent = (blocks: DocPage['blocks']) =>
+      Number(
+        unzip(
+          writeDocx(
+            { version: 4, pages: [{ ...page(blocks), paper: { width: 600, height: 840 } }] },
+            images,
+          ),
+        )
+          .text('word/document.xml')
+          .match(/<wp:extent cx="(\d+)"/)?.[1],
+      );
+    expect(
+      extent([
+        image,
+        {
+          kind: 'paragraph',
+          box: { x: 0, y: 1210, width: 900, height: 180 },
+          text: 'Large editable heading spans several normal text lines',
+          size: 48,
+        },
+      ]),
+    ).toBeLessThan(extent([image]));
+  });
   it('keeps inline image line metrics independent of the surrounding body font', () => {
     for (const bodySize of [8, 24]) {
       const xml = unzip(
