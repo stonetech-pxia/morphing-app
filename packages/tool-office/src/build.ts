@@ -145,6 +145,20 @@ function textRows<T extends Box>(lines: readonly T[]): T[][] {
 }
 
 /** 默认的接法：同一排用空格接，排和排之间换行。 */
+/**
+ * 识别把一条虚线、双线读成的字：至少两个「=」「_」「-」这类记号，其余的字（夹进来的杂字）不超过一半；
+ * 只有一两个「-」的不算（格子里表示「无」的短横）。
+ */
+export function isRuleText(text: string): boolean {
+  const chars = [...text.replace(/\s/g, '')];
+  const marks = chars.filter((c) => /[=_~\-–—]/.test(c));
+  return (
+    marks.length >= 2 &&
+    marks.length * 2 >= chars.length &&
+    (marks.some((c) => /[=_~]/.test(c)) || marks.length >= 3)
+  );
+}
+
 function defaultJoin(lines: readonly OcrBox[]): string {
   return textRows(lines)
     .map((row) => row.map((l) => l.text.trim()).join(' '))
@@ -786,9 +800,28 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
         members = headed.lines;
       }
     }
+    // 压在表里一条横线上、只有「=」「_」「-」这类记号的识别行是这条线（虚线、双线）本身（EU 样本 020）：
+    // 算表里的（不排成正文），但不占一排、不写进格子。
+    const ruleText = new Set(
+      members.filter(
+        (l) =>
+          isRuleText(l.text) &&
+          table.hs.some(
+            (h) =>
+              Math.abs(h.pos - centerY(l)) <= Math.max(4, 0.6 * l.height) &&
+              h.from <= l.x + l.width &&
+              h.to >= l.x,
+          ),
+      ),
+    );
     // 里面没有字的不算表（例如表单里几条对齐的填空横线）。
-    if (!members.length) continue;
-    const built = buildGrid(table, members, tol, lineHeight);
+    if (members.length === ruleText.size) continue;
+    const built = buildGrid(
+      table,
+      members.filter((l) => !ruleText.has(l)),
+      tol,
+      lineHeight,
+    );
     if (!built) continue;
     let grid: Grid = built;
     // 中心在最外一条横线外面、又横跨了列线的字不是表里的（D-501：照片里弯的一行页脚压着表格的底线，
@@ -817,9 +850,10 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     }
     const texts = grid.cells.map(() => [] as OcrBox[]);
     for (const line of inside) {
+      if (ruleText.has(line)) continue;
       for (const { cell, piece } of piecesOf(line, grid)) texts[cell]!.push(piece);
     }
-    const chopped = inside.filter((l) => chopsWord(l, grid)).length;
+    const chopped = inside.filter((l) => !ruleText.has(l) && chopsWord(l, grid)).length;
     // 只有横线的表：至少两行有字、按文字空隙至少分出两列才算表（几条分隔线中间的正文分不出列）。
     const rowsWithText = new Set(grid.cells.filter((_, i) => texts[i]!.length).map((c) => c.row));
     if (!table.vs.length && (rowsWithText.size < 2 || grid.xs.length < 3)) continue;

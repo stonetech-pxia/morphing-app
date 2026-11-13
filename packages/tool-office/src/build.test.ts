@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildTablePage, sharedColumns } from './build';
+import { buildTablePage, isRuleText, sharedColumns } from './build';
 import { INVOICE, INVOICE_ITEMS } from './fixtures/invoice-ocr';
 import { findLines, findTables } from './lines';
 import { fakeLine, glyphs, gridRects, renderPage, type Rect } from './test-helpers';
@@ -69,6 +69,27 @@ describe('table structure from ruled lines (D-272)', () => {
     for (const w of page.colWidths) expect(Math.abs(w - 200)).toBeLessThan(6);
     // 没有表外的文字。
     expect(page.blocks.filter((b) => b.kind === 'text')).toHaveLength(0);
+  });
+
+  it('drops "==" text read from a ruled line instead of putting it in a cell (EU sample 020)', () => {
+    const { lines, marks } = cellTexts(xs, ys);
+    // 识别把第一条行线（虚线）读成了一行「==m=」，框的中间正压在线上。
+    const rule = fakeLine(
+      '==m=',
+      { x: 320, y: 151, width: 160, height: 18 },
+      { width: W, height: H },
+    );
+    const page = build([...gridRects(xs, ys), ...marks], [...lines, rule]);
+    const [table] = tablesOf(page);
+    expect(table!.rows).toBe(3);
+    expect(table!.cells.some((c) => c.text.includes('='))).toBe(false);
+    // 也不排成表外的文字。
+    expect(page.blocks.filter((b) => b.kind === 'text')).toHaveLength(0);
+    // 格子里表示「无」的短横照旧是字。
+    expect(isRuleText('-')).toBe(false);
+    expect(isRuleText('—')).toBe(false);
+    expect(isRuleText('主===主')).toBe(true);
+    expect(isRuleText('A-1')).toBe(false);
   });
 
   it('joins broken lines (photocopies) instead of merging cells', () => {

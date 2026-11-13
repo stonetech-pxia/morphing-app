@@ -142,5 +142,11 @@
     "id": "tbl-narrow-column-font",
     "source": "24-tbl-narrow-column-font.html",
     "sha256": "76007f1bd00f8386a05bd6bed621a49968e5cce8ed627c24c329ea561f11afea"
+  },
+  {
+    "page": 25,
+    "id": "tbl-dashed-double-rule",
+    "source": "25-tbl-dashed-double-rule.scan.html",
+    "sha256": "6915fcfa33334c964b2dc302337e3a1b881d354206dcca1fd53dd2701134455a"
   }
 ]

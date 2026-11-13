@@ -421,4 +421,21 @@ export const TABLES: Case[] = [
       }),
     ],
   },
+  {
+    id: 'tbl-dashed-double-rule',
+    suite: 'tables',
+    fix: 'EU sample 020',
+    what: 'Scanned utility-bill table drawn with dashed rules and a doubled dashed line under the header: OCR reads the dashes of the double rule as "==" text (with a stray letter), which ended up in the header cells or as a junk row between the header and the first item.',
+    // 识别把挨着的「0,00」「23」读成一行「0,0023」，表把它按列线分开：多出来的是这些，不是重复。
+    extra: 0.03,
+    checks: [
+      table({ containing: ['Składnik opłat', 'Netto', 'Brutto', 'abonament'], minRows: 8 }),
+      custom('no cell holds "==" read from the dashed rule', (c) => {
+        const junk = leaves(c.doc).flatMap((l) =>
+          l.leaf.kind === 'table' ? l.leaf.table.cells.filter((x) => /[=_~]{2,}/.test(x.text)) : [],
+        );
+        return junk.length ? junk.map((x) => JSON.stringify(x.text)).join(', ') : null;
+      }),
+    ],
+  },
 ];
