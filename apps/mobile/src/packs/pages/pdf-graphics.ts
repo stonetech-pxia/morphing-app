@@ -426,6 +426,7 @@ function planNativeGraphics(records, input) {
         .map((r) => r.i),
     ),
     shadows: new Set(masks.keys()),
+    // 没画进剪图的字：Word 里按它写颜色；图里和它重叠的识别行也留作正文（不归图）。
     colors: texts.filter((t) => !keep(t)).map((t) => ({ box: t.box, color: t.color })),
     // 圆角的信息卡片也是字下面的底色：不进页底（只画整页装饰），只能随段落、格子的底色保留。
     fills: records.filter((r) => r.fill && (r.rectangle || r.rounded) && r.box && r.alpha > 0.9 && !r.mask)

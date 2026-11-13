@@ -264,6 +264,31 @@ describe('Word figure ownership', () => {
     expect(textConservation(page, [...f.lines, body])).toEqual({ missing: [], extra: [] });
     expect(text(page)).toContain(body.text);
   });
+  it('keeps labels inside a native figure as text when their PDF text is not drawn into the crop', () => {
+    // 轴标签和图右边的说明在同一段 PDF 文字里：这段字只有约六成在图里，不画进剪图；
+    // 图里的标签就不能当成图的一部分从正文里去掉，不然哪儿都没有。
+    const f = fixture();
+    const loose = { x: 120, y: 120, width: 860, height: 110 };
+    const page = buildDocPage({
+      image: f.image,
+      lines: f.lines,
+      source: 'chart.pdf',
+      nativeFigures: [f.picture.box],
+      nativeText: [loose],
+    });
+    for (const label of ['Encoder', 'Structure tags', 'Output boxes'])
+      expect(text(page)).toContain(label);
+    expect(leafBlocks(page).filter((b) => b.kind === 'image')).toHaveLength(1);
+    // 画进了剪图的字（不在 nativeText 里）照旧归图。
+    const drawn = buildDocPage({
+      image: f.image,
+      lines: f.lines,
+      source: 'chart.pdf',
+      nativeFigures: [f.picture.box],
+      nativeText: [],
+    });
+    expect(text(drawn)).not.toContain('Encoder');
+  });
   it('keeps complete pictures side by side even when crop margins narrow the white gutter', () => {
     const a = { x: 20, y: 100, width: 200, height: 150 },
       b = { ...a, x: 222 };

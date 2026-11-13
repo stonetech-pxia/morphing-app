@@ -395,16 +395,19 @@ export const OCR_IMPLS: Record<string, Impl> = {
                   'decoration',
                 )
               : undefined;
+            const toPixels = (b: Box) => ({
+              x: (b.x / paper.width) * pixels.width,
+              y: (b.y / paper.height) * pixels.height,
+              width: (b.width / paper.width) * pixels.width,
+              height: (b.height / paper.height) * pixels.height,
+            });
             page = buildDocPage(
               {
                 ...pageInput,
                 prior: page,
-                nativeFigures: native.owned.map((b) => ({
-                  x: (b.x / paper.width) * pixels.width,
-                  y: (b.y / paper.height) * pixels.height,
-                  width: (b.width / paper.width) * pixels.width,
-                  height: (b.height / paper.height) * pixels.height,
-                })),
+                nativeFigures: native.owned.map(toPixels),
+                // 没画进剪图的原生字（colors 只列这些）：图里和它重叠的识别行留作正文。
+                nativeText: native.colors.map((c) => toPixels(c.box)),
               },
               buildOptions,
             );

@@ -125,8 +125,6 @@ export const NATIVE: Case[] = [
     suite: 'native',
     fix: 'probe (D-534/D-535 ownership rules)',
     what: 'Digital page (pdf-lib, one Tj) whose bar chart is a bitmap and whose axis labels Q1–Q4 are written in the same PDF text run as a note to the right of the chart: the labels must end up either in the chart picture or as editable text.',
-    knownFailure:
-      'Q1–Q4 are lost: the text run lies only ~60% inside the chart, so pdf-graphics does not draw it into the crop (needs > 80% per PDF text record), while doc.ts removes the OCR lines "Q1"…"Q4" from the body because each is > 80% inside the figure',
     checks: [
       times('Q1', 1),
       times('Q4', 1),

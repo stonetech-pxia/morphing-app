@@ -186,6 +186,8 @@ export interface DocPageInput {
   regions?: readonly LayoutRegion[];
   /** 原始数字 PDF 已验证的整图（像素坐标）；先隔离图中字和网格，再按普通图片参与排版。 */
   nativeFigures?: readonly Box[];
+  /** 原生 PDF 里没有画进整图剪图的字（像素坐标）：和它重叠的识别行不归图，留作正文。 */
+  nativeText?: readonly Box[];
   /** 同页接管原生整图前的排版；图外字号、样式沿用它，不让移走图内标签改变正文统计。 */
   prior?: DocPage;
   source: string;
@@ -1258,8 +1260,13 @@ function buildPage(
     )
   )
     return previous;
+  // 原生整图：图里的字只有画进了剪图才归图。和剪图外的原生字（nativeText）重叠的识别行留作正文，
+  // 不然一段只有一部分在图里的 PDF 文字（轴标签和图旁的说明连在一起）在图里、正文里都没有。
   const owns = (box: Box) =>
-    native ? figures.some((f) => lineShareIn(box, f.box) > 0.8) : figureOwns(box, figures);
+    native
+      ? figures.some((f) => lineShareIn(box, f.box) > 0.8) &&
+        !input.nativeText?.some((t) => lineShareIn(box, t) >= 0.5)
+      : figureOwns(box, figures);
   const available = figures.length ? lines.filter((l) => !owns(l)) : lines;
   const working = figureWorkingImage(image, figures, lineHeight);
   // 抹掉图形不能顺带改变图外网格的坐标系；倾斜仍按原图估计。
