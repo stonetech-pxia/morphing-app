@@ -125,4 +125,23 @@ describe('findTables: rules-only chains', () => {
     expect(tables).toHaveLength(1);
     expect(tables[0]!.hs).toHaveLength(3);
   });
+
+  it('starts a rules-only table at the dark header bar on top of it, with its column rule (EU sample 024)', () => {
+    // 时刻表：深色表头横条（白字）直接压在第一行上，中间没有横线；下面只有横线，钟点一列右边一条竖线，没有外框。
+    const letters = glyphs(160, 310, 200).map((r) => ({ ...r, shade: 255 }));
+    const bar: Rect = { x: 100, y: 300, width: 400, height: 36, shade: 60 };
+    const rules: Rect[] = [368, 400, 432, 464, 496].map((y) => ({
+      x: 100,
+      y,
+      width: 400,
+      height: 2,
+    }));
+    const column: Rect = { x: 150, y: 336, width: 2, height: 162 };
+    const image = renderPage(W, H, [...letters, bar, ...rules, column, ...glyphs(110, 344, 20)]);
+    const tables = findTables(findLines(image, { skew: 0 }));
+    expect(tables).toHaveLength(1);
+    expect(Math.abs(tables[0]!.box.y - 300)).toBeLessThan(4);
+    expect(tables[0]!.hs.some((h) => Math.abs(h.pos - 336) < 4)).toBe(true);
+    expect(tables[0]!.vs.some((v) => Math.abs(v.pos - 151) < 4 && v.to > 490)).toBe(true);
+  });
 });

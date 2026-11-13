@@ -838,7 +838,9 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
           x.pos > l.x + l.height * 0.5 &&
           x.pos < l.x + l.width - l.height * 0.5,
       );
-      return !(out && across);
+      // 整行都在最上面一条横线上面的字（表头横条上面紧挨着的一行说明）不是表里的。
+      const above = top.lined && l.y + l.height <= top.pos;
+      return !(out && across) && !above;
     });
     if (!inside.length) continue;
     // 表单的框连着好几行（D-520）：上面的几行不是表的行，字留给表外的文字。

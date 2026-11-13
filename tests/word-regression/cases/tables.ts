@@ -438,4 +438,43 @@ export const TABLES: Case[] = [
       }),
     ],
   },
+  {
+    id: 'tbl-header-bar-top-edge',
+    suite: 'tables',
+    fix: 'EU sample 024',
+    what: "Three timetables whose blue header bar sits right on the first row with no ink rule between them, and only one vertical (the hour column rule): the bar was not taken as the table top, so the 5 o'clock row fell outside the table and its minutes merged into the 6 o'clock cell (wrong data).",
+    lang: 'deu',
+    checks: [
+      table({
+        containing: ['montags', '33 43 53'],
+        rows: 20,
+        cols: 2,
+        cells: [
+          { row: 1, col: 0, text: '5' },
+          { row: 1, col: 1, text: '33 43 53' },
+          { row: 19, col: 0, text: '23' },
+        ],
+      }),
+      table({
+        containing: ['samstags', '47 57'],
+        rows: 20,
+        cols: 2,
+        cells: [
+          { row: 1, col: 0, text: '5' },
+          { row: 1, col: 1, text: '47 57' },
+          { row: 19, col: 0, text: '23' },
+        ],
+      }),
+      table({
+        containing: ['sonn', '11 31 51'],
+        rows: 20,
+        cols: 2,
+        cells: [
+          { row: 1, col: 0, text: '5' },
+          { row: 2, col: 1, text: '11 31 51' },
+          { row: 19, col: 0, text: '23' },
+        ],
+      }),
+    ],
+  },
 ];

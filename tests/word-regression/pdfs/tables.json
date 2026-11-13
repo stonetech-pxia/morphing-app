@@ -148,5 +148,11 @@
     "id": "tbl-dashed-double-rule",
     "source": "25-tbl-dashed-double-rule.scan.html",
     "sha256": "6915fcfa33334c964b2dc302337e3a1b881d354206dcca1fd53dd2701134455a"
+  },
+  {
+    "page": 26,
+    "id": "tbl-header-bar-top-edge",
+    "source": "26-tbl-header-bar-top-edge.html",
+    "sha256": "06124c088dafcca42f8095fda097a28479e09e659f2fa123e504cf39fc1c33de"
   }
 ]

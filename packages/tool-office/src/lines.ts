@@ -69,6 +69,8 @@ const BAND_MAX_SHARE = 0.06;
 const BAND_MIN_ELONGATION = 2;
 const BAND_MIN_FILL = 0.6;
 const BAND_MIN_ANCHORS = 2;
+const BAND_RULED_GAP = 3;
+const BAND_RULED_MIN = 2;
 /** 只有横线的表：左右两端对齐的误差（页宽的 2%），相邻两条最远隔页高的 40%（三线表的表身很高）。 */
 const ALIGN_SHARE = 0.02;
 const RULED_GAP_SHARE = 0.4;
@@ -424,6 +426,36 @@ function bandAnchors(band: Band, vertical: readonly RuleLine[], t: number, tol: 
   return at.length;
 }
 
+/**
+ * 横条下面紧接着一串和它左右两头都对齐的横线（时刻表、价目表的深色表头下面只有横线，列线只有一两条，EU 样本 024）：
+ * 算一条起止的线。头一条离横条底边不超过 BAND_RULED_GAP 个横条厚，至少 BAND_RULED_MIN 条，相邻两条也不隔更远。
+ */
+function bandRuledBelow(
+  band: Band,
+  horizontal: readonly RuleLine[],
+  t: number,
+  tol: number,
+): number {
+  const thick = band.last - band.first + 1;
+  const shift = band.last * t;
+  const below = horizontal
+    .filter(
+      (h) =>
+        h.pos > band.last &&
+        Math.abs(h.from - (band.from + shift)) <= tol &&
+        Math.abs(h.to - (band.to + shift)) <= tol,
+    )
+    .sort((a, b) => a.pos - b.pos);
+  let at = band.last;
+  let n = 0;
+  for (const h of below) {
+    if (h.pos - at > BAND_RULED_GAP * thick) break;
+    at = h.pos;
+    n++;
+  }
+  return n >= BAND_RULED_MIN ? 1 : 0;
+}
+
 /** 横条的上下边，当成两条横线（坐标换到拉正后，和 scan 的一样）。 */
 function bandEdges(band: Band, t: number): RuleLine[] {
   return [band.first, band.last].map((pos, i) => {
@@ -479,7 +511,10 @@ export function findLines(
   const horizontal = scan(hMask, width, height, t, true, candidates);
   let vertical = scan(eraseBands(vMask, width, height, t, candidates), width, height, t, false);
   const tol = Math.max(4, Math.max(width, height) * TOUCH_SHARE);
-  const bands = candidates.filter((b) => bandAnchors(b, vertical, t, tol) >= BAND_MIN_ANCHORS);
+  const bands = candidates.filter(
+    (b) =>
+      bandAnchors(b, vertical, t, tol) + bandRuledBelow(b, horizontal, t, tol) >= BAND_MIN_ANCHORS,
+  );
   // 不算的横条不抹（抹了会把穿过它的竖线切断）。
   if (bands.length < candidates.length)
     vertical = scan(eraseBands(vMask, width, height, t, bands), width, height, t, false);
@@ -728,6 +763,23 @@ export function findTables(
     for (const i of chain) {
       union(i, chain[0]!);
       used.add(i);
+    }
+  }
+  // 只有横线的一串里的列线（时刻表钟点那一列右边的竖线，左右没有外框）：每条横线只碰到它一条竖线，
+  // 上面的网格规则留不住它。整条在这一串的范围里、碰到这一串至少两条横线的竖线算这张表的列线。
+  for (const chain of chains) {
+    if (chain.length < RULED_MIN) continue;
+    const rules = chain.map((i) => hs[i]!);
+    const l = Math.min(...rules.map((h) => h.from));
+    const r = Math.max(...rules.map((h) => h.to));
+    const t = Math.min(...rules.map((h) => h.pos));
+    const b = Math.max(...rules.map((h) => h.pos));
+    for (const [j, v] of vs.entries()) {
+      if (vOk[j] || used.has(hs.length + j)) continue;
+      if (v.pos < l + tol || v.pos > r - tol || v.from < t - tol || v.to > b + tol) continue;
+      if (rules.filter((h) => touches(h, v, tol)).length < 2) continue;
+      union(hs.length + j, chain[0]!);
+      used.add(hs.length + j);
     }
   }
   // 一张表套在另一张表里（表单的大框里画着一张小表）：合成一张，不然外面那张会把里面的字都拿走。

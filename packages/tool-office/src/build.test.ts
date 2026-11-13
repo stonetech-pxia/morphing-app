@@ -55,6 +55,23 @@ describe('table structure from ruled lines (D-272)', () => {
   const xs = [100, 300, 500, 700, 900];
   const ys = [100, 160, 220, 280];
 
+  it('leaves a text line lying wholly above the top rule outside the table (EU sample 024)', () => {
+    // 时刻表的表头横条上面紧挨着一行「01 02 04」（离顶线不到一个容差）：不是表里的字。
+    const { lines, marks } = cellTexts(xs, ys);
+    const above = fakeLine(
+      '01 02 04 06',
+      { x: 520, y: 86, width: 160, height: 13 },
+      { width: W, height: H },
+    );
+    const page = build(
+      [...gridRects(xs, ys), ...marks, ...glyphs(530, 88, 140, 10)],
+      [...lines, above],
+    );
+    const [table] = tablesOf(page);
+    expect(table!.cells.some((c) => c.text.includes('01 02'))).toBe(false);
+    expect(page.blocks.some((b) => b.kind === 'text' && b.text.includes('01 02 04 06'))).toBe(true);
+  });
+
   it('reads a fully ruled 3 × 4 table and puts each text line in its cell', () => {
     const { lines, marks } = cellTexts(xs, ys);
     const page = build([...gridRects(xs, ys), ...marks], lines);
