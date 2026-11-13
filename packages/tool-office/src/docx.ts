@@ -9,6 +9,8 @@ import {
   type DocLeaf,
   type DocList,
   type DocPage,
+  type DocParagraph,
+  type DocRow,
   type DocRun,
   type DocStyle,
   type DocTable,
@@ -725,7 +727,7 @@ export function writeDocx(
       bottom: number;
       height: number;
     }
-    const nestedWidths = (row: import('./doc').DocRow, max: number) => {
+    const nestedWidths = (row: DocRow, max: number) => {
       const widths = fitWidths(
         row.cells.map((c) => twip(c.width)),
         max,
@@ -734,7 +736,9 @@ export function writeDocx(
       const needed = Math.max(
         widths.at(-1)!,
         ...last.blocks
-          .filter((b) => b.kind === 'paragraph' && !b.tab && !/[\n\t]/.test(b.text))
+          .filter(
+            (b): b is DocParagraph => b.kind === 'paragraph' && !b.tab && !/[\n\t]/.test(b.text),
+          )
           .map((b) =>
             Math.ceil(textEm(b.text) * (b.size ?? bodySize) * 20 * WIDTH_SLACK + 2 * CELL_PAD),
           ),
