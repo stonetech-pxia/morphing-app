@@ -26,7 +26,9 @@ export interface DocxPara {
   jc?: string;
 }
 
-export async function readDocx(bytes: Uint8Array): Promise<{ xml: string; paras: DocxPara[] }> {
+export async function readDocx(
+  bytes: Uint8Array,
+): Promise<{ xml: string; paras: DocxPara[]; media: DocxMedia[]; contentTypes: string }> {
   const zip = await JSZip.loadAsync(bytes);
   const xml = await zip.file('word/document.xml')!.async('string');
   const paras: DocxPara[] = [];
@@ -70,7 +72,12 @@ export async function readDocx(bytes: Uint8Array): Promise<{ xml: string; paras:
     } else if ((name === 'w:tab' || name === 'w:br') && top)
       top.text += name === 'w:tab' ? '\t' : '\n';
   }
-  return { xml, paras };
+  const media: DocxMedia[] = [];
+  for (const name of Object.keys(zip.files).filter((n) => n.startsWith('word/media/'))) {
+    media.push({ name, head: [...(await zip.file(name)!.async('uint8array')).slice(0, 8)] });
+  }
+  const contentTypes = (await zip.file('[Content_Types].xml')?.async('string')) ?? '';
+  return { xml, paras, media, contentTypes };
 }
 
 const decodeXml = (s: string) =>
@@ -81,10 +88,20 @@ const decodeXml = (s: string) =>
     .replace(/&apos;/g, "'")
     .replace(/&amp;/g, '&');
 
+/** docx 里的一个媒体文件：路径和开头几个字节（看真实格式）。 */
+export interface DocxMedia {
+  name: string;
+  head: number[];
+}
+
 export interface Converted {
   doc: DocDoc;
   paras: DocxPara[];
   xml: string;
+  /** word/media/ 里的文件（旧的调用方可以不给）。 */
+  media?: DocxMedia[];
+  /** [Content_Types].xml 的原文。 */
+  contentTypes?: string;
   /** 识别出的所有行（一页一页按识别顺序）。 */
   ocr: string[];
 }
@@ -486,3 +503,177 @@ export function textKept(minRecall = 0.97, maxExtra = 0.02): Check {
     },
   };
 }
+
+// ── 图片、底图和原生 PDF 绘图（graphics / native 套件加的）────────────
+
+type Region = { x: number; y: number; width: number; height: number };
+
+/** 不算底图的图片块，带所在页的大小。 */
+const pictures = (c: Converted) =>
+  leaves(c.doc).flatMap((l) =>
+    l.leaf.kind === 'image' && !l.leaf.background
+      ? [{ ...l, box: l.leaf.box, size: c.doc.pages[l.page]! }]
+      : [],
+  );
+
+const coverOf = (a: Region, b: Region) =>
+  (Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) *
+    Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y))) /
+  Math.max(1, a.width * a.height);
+
+/**
+ * 原页上这一块（按页宽、页高的比例给，0–1）被一张图片块盖住至少 min：图形整张剪下来了（没丢、没切成碎条）。
+ */
+export const imageCovers = (region: Region, min = 0.8): Check => ({
+  name: `an image covers ${JSON.stringify(region)} (≥ ${min})`,
+  run(c) {
+    const all = pictures(c);
+    const best = Math.max(
+      0,
+      ...all.map((p) =>
+        coverOf(
+          {
+            x: region.x * p.size.width,
+            y: region.y * p.size.height,
+            width: region.width * p.size.width,
+            height: region.height * p.size.height,
+          },
+          p.box,
+        ),
+      ),
+    );
+    return best >= min ? null : `best cover ${best.toFixed(2)} (${all.length} images)`;
+  },
+});
+
+/** 有一张至少占页宽 minWidth 的图片，在编辑页的块顺序里排在这处文字前面（图在图注、正文之前）。 */
+export const imageBefore = (text: string, minWidth = 0.5): Check => ({
+  name: `a wide image comes before ${JSON.stringify(text)}`,
+  run(c) {
+    const ls = leaves(c.doc);
+    const at = ls.findIndex((l) => norm(leafText(l.leaf)).includes(norm(text)));
+    if (at < 0) return 'text missing';
+    const img = ls.findIndex(
+      (l) =>
+        l.leaf.kind === 'image' &&
+        !l.leaf.background &&
+        l.leaf.box.width >= minWidth * c.doc.pages[l.page]!.width,
+    );
+    if (img < 0) return 'no wide image';
+    return img < at ? null : 'the image comes after it';
+  },
+});
+
+/** 至少 n 张图片在同一个并排行的不同格里（并排的几张图没有被上下摞起来）。 */
+export const imagesSideBySide = (n = 2): Check => ({
+  name: `${n} images side by side`,
+  run(c) {
+    const rows = new Map<DocBlock, Set<number>>();
+    for (const p of pictures(c)) {
+      if (!p.row) continue;
+      const cells = rows.get(p.row.block) ?? new Set<number>();
+      cells.add(p.row.cell);
+      rows.set(p.row.block, cells);
+    }
+    const most = Math.max(0, ...[...rows.values()].map((s) => s.size));
+    return most >= n ? null : `at most ${most} images in one row`;
+  },
+});
+
+/** 整页底图（DocImage.background）的个数在范围里。 */
+export const backgrounds = (range: { min?: number; max?: number }): Check => ({
+  name: `background images ${JSON.stringify(range)}`,
+  run(c) {
+    const n = leaves(c.doc).filter((l) => l.leaf.kind === 'image' && l.leaf.background).length;
+    if (range.min !== undefined && n < range.min) return `${n} backgrounds`;
+    if (range.max !== undefined && n > range.max) return `${n} backgrounds`;
+    return null;
+  },
+});
+
+/** docx 里浮动在页上的图（wp:anchor）不超过 max 个、都在正文后面（behindDoc），而且不在表格格子里。 */
+export const anchoredDrawings = (max: number): Check => ({
+  name: `≤ ${max} anchored drawings, behind the text and outside table cells`,
+  run(c) {
+    const anchors = [...c.xml.matchAll(/<wp:anchor\b([^>]*)>/g)];
+    if (anchors.length > max) return `${anchors.length} anchored drawings`;
+    if (anchors.some((a) => !/behindDoc="1"/.test(a[1]!))) return 'an anchored drawing is in front';
+    for (const tc of c.xml.matchAll(/<w:tc>[\s\S]*?<\/w:tc>/g)) {
+      if (tc[0].includes('<wp:anchor')) return 'an anchored drawing sits inside a table cell';
+    }
+    return null;
+  },
+});
+
+/** 原生 PDF 绘图剪出的图（PNG）有没有：扫描件、退回识别的页不该有。 */
+export const nativeGraphics = (expected: boolean): Check => ({
+  name: expected ? 'native PDF graphics used' : 'no native PDF graphics',
+  run(c) {
+    const native = leaves(c.doc).some(
+      (l) => l.leaf.kind === 'image' && /\.png$/i.test(l.leaf.src ?? ''),
+    );
+    return native === expected ? null : native ? 'native crops present' : 'no native crops';
+  },
+});
+
+const MAGIC: [string, number[]][] = [
+  ['png', [0x89, 0x50, 0x4e, 0x47]],
+  ['jpg', [0xff, 0xd8, 0xff]],
+  ['gif', [0x47, 0x49, 0x46]],
+  ['bmp', [0x42, 0x4d]],
+];
+
+/** 每个媒体文件的扩展名和真实格式一致，[Content_Types].xml 也声明了这个扩展名（D-509）。 */
+export const mediaTypesMatch = (): Check => ({
+  name: 'media extensions match their bytes and content types',
+  run(c) {
+    if (!c.media) return 'no media list';
+    for (const m of c.media) {
+      const kind = MAGIC.find(([, sig]) => sig.every((b, i) => m.head[i] === b))?.[0];
+      const ext = m.name.split('.').pop()!.toLowerCase().replace('jpeg', 'jpg');
+      if (kind && kind !== ext) return `${m.name} holds ${kind} bytes`;
+      const declared = new RegExp(`Extension="${m.name.split('.').pop()}"`, 'i');
+      if (!declared.test(c.contentTypes ?? '')) return `${m.name}: extension not declared`;
+    }
+    return null;
+  },
+});
+
+const luminance = (hex: string) => {
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+};
+
+/**
+ * 没有看不见的字：有底色（段落或格子的 w:shd）的段落里，字的颜色和底色的对比度至少 minContrast
+ * （深色字写在同样深的底色上，字在、但看不见）。
+ */
+export const textVisible = (minContrast = 2): Check => ({
+  name: `text contrasts with its shading (≥ ${minContrast}:1)`,
+  run(c) {
+    const bad: string[] = [];
+    const scan = (xml: string, outerFill?: string) => {
+      for (const p of xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)) {
+        const fill = /<w:pPr>[\s\S]*?w:fill="([0-9A-Fa-f]{6})"/.exec(p[0])?.[1] ?? outerFill;
+        if (!fill) continue;
+        for (const r of p[0].matchAll(/<w:r>[\s\S]*?<\/w:r>/g)) {
+          const text = [...r[0].matchAll(/<w:t[^>]*>([^<]*)/g)].map((m) => m[1]).join('');
+          if (!text.trim()) continue;
+          const color = /<w:color w:val="([0-9A-Fa-f]{6})"/.exec(r[0])?.[1] ?? '000000';
+          const [hi, lo] = [luminance(color), luminance(fill)].sort((a, b) => b - a);
+          if ((hi! + 0.05) / (lo! + 0.05) < minContrast)
+            bad.push(`"${text.slice(0, 30)}" ${color}/${fill}`);
+        }
+      }
+    };
+    for (const tc of c.xml.matchAll(/<w:tc>([\s\S]*?)<\/w:tc>/g)) {
+      const fill = /<w:tcPr>[\s\S]*?w:fill="([0-9A-Fa-f]{6})"[\s\S]*?<\/w:tcPr>/.exec(tc[1]!)?.[1];
+      scan(tc[1]!, fill);
+    }
+    scan(c.xml.replace(/<w:tc>[\s\S]*?<\/w:tc>/g, ''));
+    return bad.length ? `invisible: ${bad.slice(0, 5).join('; ')}` : null;
+  },
+});
