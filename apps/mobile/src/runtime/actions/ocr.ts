@@ -146,6 +146,7 @@ async function cropPictures(
   const kx = size.width / page.width;
   const ky = size.height / page.height;
   for (const [k, block] of pictures.entries()) {
+    if (block.src && images.has(block.src)) continue;
     const x = Math.max(0, Math.round(block.box.x * kx));
     const y = Math.max(0, Math.round(block.box.y * ky));
     const crop = {
@@ -314,23 +315,22 @@ export const OCR_IMPLS: Record<string, Impl> = {
         regions = null;
       }
       ctx.throwIfCancelled();
-      let page = buildDocPage(
-        {
-          image: pixels,
-          lines: found.lines,
-          ...(regions ? { regions } : {}),
-          source: item.uri,
-          ...(item.pageSize?.for === item.uri
-            ? { paper: { width: item.pageSize.width, height: item.pageSize.height } }
-            : {}),
-          // 增强过的图已经按 findSkew 转正；没增强过的照片在这里估倾斜。
-          ...(found.enhanced ? { skew: 0 } : {}),
-        },
-        {
-          joinLines: (lines) => polish(layoutOcrLines(lines), lang),
-          joinParagraph: (lines) => polish(joinOcrParagraph(lines), lang),
-        },
-      );
+      const pageInput = {
+        image: pixels,
+        lines: found.lines,
+        ...(regions ? { regions } : {}),
+        source: item.uri,
+        ...(item.pageSize?.for === item.uri
+          ? { paper: { width: item.pageSize.width, height: item.pageSize.height } }
+          : {}),
+        // 增强过的图已经按 findSkew 转正；没增强过的照片在这里估倾斜。
+        ...(found.enhanced ? { skew: 0 } : {}),
+      };
+      const buildOptions: Parameters<typeof buildDocPage>[1] = {
+        joinLines: (lines) => polish(layoutOcrLines(lines), lang),
+        joinParagraph: (lines) => polish(joinOcrParagraph(lines), lang),
+      };
+      let page = buildDocPage(pageInput, buildOptions);
       // PDF 的原始绘图只读本次明确授权的源文件；改过图片后 for 不匹配，照旧走扫描路径。
       const pdf = item.pdfSource;
       const runtime = ctx.services.packs?.runtime;
@@ -344,7 +344,13 @@ export const OCR_IMPLS: Record<string, Impl> = {
             height: (box.height / page.height) * paper.height,
           });
           const native = await runtime.call<
-            NativeGraphics & { applicable: boolean; width: number; height: number; png: string }
+            NativeGraphics & {
+              applicable: boolean;
+              width: number;
+              height: number;
+              crops: { png: string; width: number; height: number }[];
+              backgroundPng?: string;
+            }
           >(
             'pdfview',
             'graphics',
@@ -355,6 +361,9 @@ export const OCR_IMPLS: Record<string, Impl> = {
               figures: leafBlocks(page)
                 .filter((b) => b.kind === 'image')
                 .map((b) => toPoints(b.box)),
+              candidates: (regions ?? [])
+                .filter((r) => r.kind === 'image')
+                .map((r) => toPoints(r.box)),
               lines: found.lines.map((l) => ({
                 ...toPoints(l),
                 chars: l.text.replace(/\s/g, '').length,
@@ -363,15 +372,42 @@ export const OCR_IMPLS: Record<string, Impl> = {
             { input: pdf.uri },
           );
           ctx.throwIfCancelled();
-          if (native.applicable && native.png && native.width > 0 && native.height > 0) {
-            const bytes = Uint8Array.from(atob(native.png), (c) => c.charCodeAt(0));
-            const stored = await files.writeRunFile(
-              ctx.services.runId,
-              `word/${i + 1}-graphics.png`,
-              bytes,
+          if (native.applicable && native.crops?.length === native.owned.length) {
+            const store = async (
+              data: { png: string; width: number; height: number },
+              suffix: string,
+            ) => {
+              const bytes = Uint8Array.from(atob(data.png), (c) => c.charCodeAt(0));
+              const stored = await files.writeRunFile(
+                ctx.services.runId,
+                `word/${i + 1}-${suffix}.png`,
+                bytes,
+              );
+              images.set(stored.uri, { bytes, width: data.width, height: data.height });
+              return stored.uri;
+            };
+            const sources: string[] = [];
+            for (const [k, crop] of native.crops.entries())
+              sources.push(await store(crop, `figure-${k}`));
+            const background = native.backgroundPng
+              ? await store(
+                  { png: native.backgroundPng, width: native.width, height: native.height },
+                  'decoration',
+                )
+              : undefined;
+            page = buildDocPage(
+              {
+                ...pageInput,
+                nativeFigures: native.owned.map((b) => ({
+                  x: (b.x / paper.width) * pixels.width,
+                  y: (b.y / paper.height) * pixels.height,
+                  width: (b.width / paper.width) * pixels.width,
+                  height: (b.height / paper.height) * pixels.height,
+                })),
+              },
+              buildOptions,
             );
-            page = applyNativeGraphics(page, native, stored.uri);
-            images.set(stored.uri, { bytes, width: native.width, height: native.height });
+            page = applyNativeGraphics(page, native, sources, background);
           }
         } catch {
           // 不支持的字体裁剪、扫描页或绘图失败都保留原来的可编辑 OCR 结果。
@@ -393,7 +429,7 @@ export const OCR_IMPLS: Record<string, Impl> = {
     if (pages.every((p) => p.blocks.length === 0)) {
       throw new RunError('notFound', { name: displayName(items[0]!) });
     }
-    const doc: DocDoc = { version: 3, pages };
+    const doc: DocDoc = { version: 4, pages };
     // 文件名和转 Excel 一样（D-298）：一张照片、名字是人起的就用它，否则「文档-日期」。
     const name =
       items.length === 1 && !MACHINE_NAME.test(items[0]!.name)

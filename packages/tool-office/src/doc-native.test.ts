@@ -17,18 +17,39 @@ const page = (): DocPage => ({
   ],
 });
 describe('local source PDF graphics', () => {
-  it('uses real spaces for old figure flow and retains editable body and native text colors', () => {
+  it('binds native crops to inline figures and retains editable body and text colors', () => {
     const p = applyNativeGraphics(
       page(),
       {
         owned: [box],
-        colors: [{ box: { x: 20, y: 120, width: 200, height: 20 }, color: 'FFFFFF' }],
+        colors: [{ box: { x: 20, y: 120, width: 200, height: 20 }, color: '114477' }],
       },
-      'graphics.png',
+      ['figure.png'],
     );
-    expect(p.blocks.map((b) => b.kind)).toEqual(['image', 'space', 'paragraph']);
-    expect(p.blocks[0]).toMatchObject({ background: true, src: 'graphics.png' });
-    expect(p.blocks[2]).toMatchObject({ text: 'Editable body', color: 'FFFFFF' });
+    expect(p.blocks.map((b) => b.kind)).toEqual(['image', 'paragraph']);
+    expect(p.blocks[0]).toMatchObject({ src: 'figure.png' });
+    expect(p.blocks[0]).not.toHaveProperty('background');
+    expect(p.blocks[1]).toMatchObject({ text: 'Editable body', color: '114477' });
+  });
+  it('moves a dark header band with its white editable text, rather than leaving white text on white paper', () => {
+    const body = { x: 20, y: 120, width: 200, height: 20 };
+    const p = applyNativeGraphics(
+      page(),
+      {
+        owned: [],
+        colors: [{ box: body, color: 'FFFFFF' }],
+        fills: [{ box: { x: 0, y: 115, width: 600, height: 30 }, color: '123A6B' }],
+      },
+      [],
+    );
+    expect(p.blocks[1]).toMatchObject({ text: 'Editable body', color: 'FFFFFF', fill: '123A6B' });
+    const xml = strFromU8(unzipSync(writeDocx({ version: 4, pages: [p] }))['word/document.xml']!);
+    expect(xml).toContain('<w:shd w:val="clear" w:color="auto" w:fill="123A6B"/>');
+    expect(xml).not.toContain('<wp:anchor');
+    expect(
+      applyNativeGraphics(page(), { owned: [], colors: [{ box: body, color: 'FFFFFF' }] }, [])
+        .blocks[1],
+    ).toMatchObject({ color: '000000' });
   });
   it('retains the established editable layout for a rotated table', () => {
     const p = page();
@@ -51,59 +72,28 @@ describe('local source PDF graphics', () => {
     expect(canUseNativeGraphics(p)).toBe(false);
     expect(canUseNativeGraphics(page())).toBe(true);
   });
-  it('does not suppress a paragraph mixing figure labels with body text', () => {
+  it('never removes editable text when associating crop resources', () => {
     const p = page();
-    p.blocks = [
-      {
-        kind: 'paragraph',
-        box: { x: 20, y: 40, width: 100, height: 100 },
-        text: 'Seal\nThis is the body',
-      },
-    ];
-    expect(applyNativeGraphics(p, { owned: [box], colors: [] }, 'g.png').blocks[1]).toMatchObject({
-      kind: 'paragraph',
-      text: 'Seal\nThis is the body',
-    });
+    p.blocks.push({ kind: 'paragraph', box, text: 'Editable caption' });
+    const next = applyNativeGraphics(p, { owned: [box], colors: [] }, ['figure.png']);
+    expect(next.blocks.at(-1)).toMatchObject({ kind: 'paragraph', text: 'Editable caption' });
   });
-  it('suppresses a wholly owned graphic label without replacing its text line with a taller image space', () => {
-    const p = page();
-    p.blocks = [
-      { kind: 'paragraph', text: 'BADGE', size: 8, box },
-      { kind: 'paragraph', text: 'Body', box: { ...box, y: 150 } },
-    ];
-    const next = applyNativeGraphics(p, { owned: [box], colors: [] }, 'g.png');
-    expect(next.blocks[1]).toMatchObject({ kind: 'paragraph', text: '', size: 8, box });
-  });
-  it('trims only trailing graphic labels and spaces, including an otherwise empty final layout row', () => {
-    const p = page();
-    p.blocks.push({
-      kind: 'row',
-      box: { ...box, y: 700 },
-      cells: [
-        { width: 200, blocks: [{ kind: 'paragraph', text: 'BADGE', box: { ...box, y: 700 } }] },
-      ],
-    });
-    const next = applyNativeGraphics(p, { owned: [{ ...box, y: 700 }], colors: [] }, 'g.png');
-    expect(next.blocks.at(-1)).toMatchObject({ kind: 'paragraph', text: 'Editable body' });
-  });
-  it('writes a page-sized drawing behind editable body, without consuming a page of flow', () => {
-    const p = applyNativeGraphics(page(), { owned: [box], colors: [] }, 'g.png');
+  it('writes semantic images inline without a page-fixed drawing behind the table or body', () => {
+    const p = applyNativeGraphics(page(), { owned: [box], colors: [] }, ['g.png']);
     const bytes = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]);
     const zip = unzipSync(
       writeDocx(
         { version: 3, pages: [p] },
-        new Map([['g.png', { bytes, width: 600, height: 800 }]]),
+        new Map([['g.png', { bytes, width: 100, height: 30 }]]),
       ),
     );
     const xml = strFromU8(zip['word/document.xml']!);
-    expect(xml).toContain('behindDoc="1"');
-    expect(xml).toContain('<wp:posOffset>0</wp:posOffset>');
-    expect(xml).toContain('cx="7620000" cy="10160000"');
+    expect(xml).toContain('<wp:inline');
+    expect(xml).not.toContain('<wp:anchor');
     expect(xml).toContain('Editable body');
-    expect(xml).not.toContain('crop.jpg');
   });
   it('does not grow a selected original crop to the full background or remove that background', () => {
-    const p = applyNativeGraphics(page(), { owned: [box], colors: [] }, 'g.png');
+    const p = applyNativeGraphics(page(), { owned: [box], colors: [] }, ['figure.png'], 'g.png');
     const doc = { version: 3 as const, pages: [p] };
     const selected = { x: 20, y: 120, width: 200, height: 20 };
     const area = originalArea(doc, 0, [selected])!;
@@ -120,7 +110,7 @@ describe('local source PDF graphics', () => {
         cells: [{ width: 200, blocks: [{ kind: 'paragraph', text: 'Editable body', box }] }],
       },
     ];
-    const next = applyNativeGraphics(p, { owned: [], colors: [] }, 'g.png');
+    const next = applyNativeGraphics(p, { owned: [], colors: [] }, [], 'g.png');
     const png = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]);
     const zip = unzipSync(
       writeDocx(
@@ -153,12 +143,12 @@ describe('local source PDF graphics', () => {
     const xml = strFromU8(zip['word/document.xml']!);
     expect(xml.match(/<w:pageBreakBefore\/>/g)).toHaveLength(1);
   });
-  it.each([1, 2])(
+  it.each([1, 2, 3])(
     'upgrades version %s losslessly to the graphics-capable document format',
     (version) => {
       const p = page();
       const doc = parseDocDoc(JSON.stringify({ version, pages: [p] }));
-      expect(doc).toEqual({ version: 3, pages: [p] });
+      expect(doc).toEqual({ version: 4, pages: [p] });
     },
   );
 });

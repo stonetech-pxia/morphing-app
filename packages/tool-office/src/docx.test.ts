@@ -20,6 +20,128 @@ const unzip = (bytes: Uint8Array) => {
 };
 
 describe('writeDocx', () => {
+  it('uses the physical vertical scale after OCR padded the raster to another aspect ratio', () => {
+    const p: DocPage = {
+      ...page([
+        { kind: 'paragraph', text: 'Body', box: { x: 20, y: 1000, width: 500, height: 30 } },
+      ]),
+      height: 1500,
+      paper: { width: 600, height: 840 },
+      margins: { top: 0, left: 0, right: 0, bottom: 0 },
+    };
+    expect(unzip(writeDocx({ version: 4, pages: [p] })).text('word/document.xml')).toContain(
+      '<w:spacing w:before="11200"',
+    );
+  });
+  it('does not charge the full vertical gap of a merged cell to its first row', () => {
+    const b = { x: 50, y: 100, width: 800, height: 200 };
+    const t: DocTable = {
+      kind: 'table',
+      box: b,
+      colWidths: [400, 400],
+      cellLayout: [
+        {
+          row: 0,
+          col: 0,
+          lines: [
+            { x: 70, y: 110, width: 200, height: 20 },
+            { x: 70, y: 270, width: 200, height: 20 },
+          ],
+        },
+      ],
+      table: {
+        kind: 'table',
+        box: b,
+        col: 0,
+        cols: 2,
+        rows: 2,
+        cells: [
+          {
+            row: 0,
+            col: 0,
+            rowSpan: 2,
+            colSpan: 1,
+            box: { ...b, width: 400 },
+            text: 'Top\nBottom',
+          },
+          ...[0, 1].map((row) => ({
+            row,
+            col: 1,
+            rowSpan: 1,
+            colSpan: 1,
+            box: { x: 450, y: 100 + 100 * row, width: 400, height: 100 },
+            text: 'Value',
+          })),
+        ],
+      },
+    };
+    const xml = unzip(
+      writeDocx({ version: 4, pages: [{ ...page([t]), paper: { width: 600, height: 840 } }] }),
+    ).text('word/document.xml');
+    const cell = xml.slice(xml.indexOf('<w:tc>'), xml.indexOf('</w:tc>'));
+    expect(cell.match(/w:before="0"/g)).toHaveLength(2);
+    expect(cell).toContain('<w:vAlign w:val="center"/>');
+    expect(cell).not.toContain('w:lineRule="exact"');
+  });
+  it('keeps a form label below its empty writing area using normal cell paragraph spacing', () => {
+    const table: DocTable = {
+      kind: 'table',
+      box: { x: 50, y: 100, width: 800, height: 100 },
+      colWidths: [800],
+      cellLayout: [{ row: 0, col: 0, lines: [{ x: 70, y: 160, width: 300, height: 20 }] }],
+      table: {
+        kind: 'table',
+        col: 0,
+        cols: 1,
+        rows: 1,
+        box: { x: 50, y: 100, width: 800, height: 100 },
+        cells: [
+          {
+            row: 0,
+            col: 0,
+            rowSpan: 1,
+            colSpan: 1,
+            text: 'Label',
+            box: { x: 50, y: 100, width: 800, height: 100 },
+          },
+        ],
+      },
+    } as DocTable;
+    const xml = unzip(
+      writeDocx({ version: 3, pages: [{ ...page([table]), paper: { width: 600, height: 840 } }] }),
+    ).text('word/document.xml');
+    const before = Number(xml.match(/<w:spacing w:before="(\d+)"/)?.[1]);
+    expect(before).toBeGreaterThan(600);
+    expect(before).toBeLessThan(720);
+    expect(xml).toContain('<w:ind w:left="240"');
+    expect(xml).not.toContain('<w:txbxContent>');
+  });
+  it('keeps editable table rows at their source heights using the vertical paper scale', () => {
+    const table: DocTable = {
+      kind: 'table',
+      box: { x: 50, y: 100, width: 800, height: 200 },
+      colWidths: [800],
+      table: {
+        kind: 'table',
+        col: 0,
+        cols: 1,
+        rows: 2,
+        box: { x: 50, y: 100, width: 800, height: 200 },
+        cells: [0, 1].map((row) => ({
+          row,
+          col: 0,
+          rowSpan: 1,
+          colSpan: 1,
+          text: 'Label',
+          box: { x: 50, y: 100 + row * 100, width: 800, height: 100 },
+        })),
+      },
+    };
+    const xml = unzip(
+      writeDocx({ version: 3, pages: [{ ...page([table]), paper: { width: 600, height: 840 } }] }),
+    ).text('word/document.xml');
+    expect(xml.match(/<w:trHeight w:val="1190" w:hRule="atLeast"\/>/g)).toHaveLength(2);
+  });
   it('gives required table separator paragraphs an explicit one-point line height', () => {
     const table: DocTable = {
       kind: 'table',

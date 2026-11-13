@@ -4,6 +4,7 @@ import { findBarcodes, findTextTables, levelLines } from './text-table';
 import { findLines } from './lines';
 import { figureOwns, figureWorkingImage, planWordFigures } from './word-figures';
 import { recoverPictureCards } from './word-cards';
+import { restoreWordCellSpans } from './word-cell-spans';
 import type { Box, OcrBox, RgbaImage, TableBlock, TableCell } from './types';
 
 // 扫描件转 Word（D-328）：一页的识别结果 + 版面分析的区域 → DocDoc（编辑页改它，docx 每次从它重新生成）。
@@ -20,6 +21,8 @@ export interface DocStyle {
   /** 原图里字下面有一条和字一样长的线（D-463）。 */
   underline?: boolean;
   color?: string;
+  /** 来源色条跟随段落重排，不留在固定页底。 */
+  fill?: string;
   align?: 'left' | 'center' | 'right';
 }
 
@@ -81,6 +84,12 @@ export interface DocTable {
   colWidths: number[];
   /** 表里字的字号（磅，按表里文字的行高，D-335）；没有时用正文字号。写 docx 时随表的缩小一起缩小。 */
   size?: number;
+  /** 每格原来各行字的位置；只生成普通段落的缩进/段前距，编辑增删行后失效。 */
+  cellLayout?: {
+    row: number;
+    col: number;
+    lines: (Box & { color?: string; fill?: string; tabs?: number[] })[];
+  }[];
   box: Box;
 }
 
@@ -89,7 +98,7 @@ export interface DocImage {
   kind: 'image';
   box: Box;
   src?: string;
-  /** 原 PDF 中除正文外的整页绘图；放在正文后面，不占文档流。 */
+  /** 页面的纯装饰，不占文档流；旧版侧车也可能保留整个非正文绘图层。 */
   background?: true;
 }
 
@@ -126,6 +135,24 @@ export function leafBlocks(page: { blocks: readonly DocBlock[] }): DocLeaf[] {
   return page.blocks.flatMap((b) => (b.kind === 'row' ? b.cells.flatMap((c) => c.blocks) : [b]));
 }
 
+/** 一栏里还有并排字段时，临时用普通排版表格；文件里的块和编辑引用不变。 */
+export function flowCellBlocks(blocks: readonly DocLeaf[], h: number): readonly DocBlock[] {
+  const parallel = blocks.some((a, i) =>
+    blocks.slice(i + 1).some((b) => {
+      const x = Math.min(a.box.x + a.box.width, b.box.x + b.box.width) - Math.max(a.box.x, b.box.x);
+      const y =
+        Math.min(a.box.y + a.box.height, b.box.y + b.box.height) - Math.max(a.box.y, b.box.y);
+      return x < h * 1.5 && y > Math.min(a.box.height, b.box.height) * 0.5;
+    }),
+  );
+  return parallel
+    ? arrangeUnits(
+        blocks.map((b) => ({ box: b.box, blocks: [b] })),
+        h,
+      )
+    : blocks;
+}
+
 export interface DocPage {
   /** 截原图核对用的那张图的 uri。 */
   source: string;
@@ -143,7 +170,7 @@ export interface DocPage {
 }
 
 export interface DocDoc {
-  version: 1 | 2 | 3;
+  version: 1 | 2 | 3 | 4;
   pages: DocPage[];
 }
 
@@ -154,6 +181,8 @@ export interface DocPageInput {
   lines: readonly OcrBox[];
   /** 版面分析的区域（模型没装时没有：只按位置分块，不认标题和图片）。 */
   regions?: readonly LayoutRegion[];
+  /** 原始数字 PDF 已验证的整图（像素坐标）；先隔离图中字和网格，再按普通图片参与排版。 */
+  nativeFigures?: readonly Box[];
   source: string;
   /** PDF 渲染路径保留的物理尺寸；普通照片没有，不能凭像素猜票据的毫米数。 */
   paper?: { width: number; height: number };
@@ -864,12 +893,87 @@ function defaultJoin(lines: readonly OcrBox[]): string {
 /** 一页的 DocPage。 */
 export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {}): DocPage {
   const page = buildPage(input, options, true);
-  return recoverPictureCards(
+  const next = recoverPictureCards(
     page,
     input.image,
     input.lines,
     median(input.lines.map((l) => l.height)) || 20,
   );
+  const form = leafBlocks(next).find(
+    (b) =>
+      b.kind === 'table' &&
+      !b.borderless &&
+      b.box.height > input.image.height * 0.5 &&
+      b.box.y < input.image.height * 0.3,
+  );
+  if (form) {
+    const header = next.blocks.filter((b) => b.box.y + b.box.height <= form.box.y);
+    const leaves = leafBlocks({ blocks: header });
+    const compact = (s: string) => s.replace(/\s/g, '');
+    let split = false;
+    const parts = leaves.flatMap((b): DocLeaf[] => {
+      if (b.kind !== 'paragraph' || b.text.length > 160) return [b];
+      const rows = rowsOf(input.lines.filter((l) => lineShareIn(l, b.box) >= 0.8));
+      if (
+        rows.length < 2 ||
+        rows.length > 6 ||
+        compact(rows.map((r) => r.text).join('')) !== compact(b.text)
+      )
+        return [b];
+      split = true;
+      const { runs: _runs, ...style } = b;
+      return rows.map((r) => ({ ...style, text: r.text, box: r.box }));
+    });
+    if (split || header.length > 1)
+      next.blocks = [
+        ...arrangeUnits(
+          parts.map((b) => ({ box: b.box, blocks: [b] })),
+          median(input.lines.map((l) => l.height)) || 20,
+        ),
+        ...next.blocks.filter((b) => !header.includes(b)),
+      ];
+  }
+  for (const block of leafBlocks(next)) {
+    if (block.kind !== 'table' || block.direction) continue;
+    restoreWordCellSpans(block, input.image, input.lines, options.joinLines ?? defaultJoin);
+    const layout: NonNullable<DocTable['cellLayout']> = [];
+    for (const cell of block.table.cells) {
+      const box = cell.box;
+      if (!box || !cell.text.trim()) continue;
+      const lines = input.lines.filter((l) => {
+        const x = l.x + l.width / 2,
+          y = l.y + l.height / 2;
+        return (
+          x >= box.x &&
+          x < box.x + box.width &&
+          y >= box.y &&
+          y < box.y + box.height &&
+          l.x >= box.x - 2 &&
+          l.x + l.width <= box.x + box.width + 2
+        );
+      });
+      const rows = rowsOf(lines);
+      // 跨格识别行已在组表时按字符切过；不能拿整行框给某一格定位。
+      const compact = (s: string) => s.replace(/\s/g, '');
+      if (
+        rows.length !== cell.text.split('\n').length ||
+        compact(rows.map((r) => r.text).join('')) !== compact(cell.text)
+      )
+        continue;
+      layout.push({
+        row: cell.row,
+        col: cell.col,
+        lines: rows.map((r, i) => ({
+          ...r.box,
+          ...(r.lines.length > 1 && cell.text.split('\n')[i]?.split('\t').length === r.lines.length
+            ? { tabs: r.lines.slice(1).map((l) => l.x) }
+            : {}),
+        })),
+      });
+    }
+    if (layout.length) block.cellLayout = layout;
+  }
+  return next;
 }
 
 /** 补回缺失的条码时保留已有文字分组、样式和顺序，只在同一横带追加图片。 */
@@ -946,12 +1050,26 @@ function buildPage(
   const lineHeight =
     median(lines.map((l) => (rotated ? Math.min(l.width, l.height) : l.height))) || 20;
   const cropLineHeight = rotated ? median(lines.map((l) => l.height)) || 20 : lineHeight;
-  const figures = protectFigures
-    ? planWordFigures(image, lines, input.regions ?? [], lineHeight)
-    : [];
-  const previous = figures.length
-    ? buildPage(input, options, false, repairTables, repairBarcodes)
-    : undefined;
+  const native = protectFigures && input.nativeFigures?.length ? input.nativeFigures : undefined;
+  const sourceRegions: readonly LayoutRegion[] = native
+    ? [
+        ...(input.regions ?? []).filter(
+          (r) => !native.some((b) => lineShareIn(r.box, b) >= (r.kind === 'image' ? 0.5 : 0.8)),
+        ),
+        ...native.map((box): LayoutRegion => ({ kind: 'image', label: 'image', score: 1, box })),
+      ]
+    : (input.regions ?? []);
+  const figures = native
+    ? sourceRegions
+        .filter((r) => native.includes(r.box))
+        .map((region) => ({ region, box: region.box }))
+    : protectFigures
+      ? planWordFigures(image, lines, sourceRegions, lineHeight)
+      : [];
+  const previous =
+    figures.length && !native
+      ? buildPage(input, options, false, repairTables, repairBarcodes)
+      : undefined;
   // 旧路径已经完整保图且没有输出图内文字/表格时，不重排原本正确的页。
   if (
     previous &&
@@ -967,12 +1085,12 @@ function buildPage(
   // 抹掉图形不能顺带改变图外网格的坐标系；倾斜仍按原图估计。
   const tableSkew = input.skew ?? (figures.length ? findLines(image).skew : undefined);
   const layout = figures.length
-    ? (input.regions ?? []).flatMap((r) => {
+    ? sourceRegions.flatMap((r) => {
         const owned = figures.find((f) => f.region === r);
         if (owned) return [{ ...r, box: owned.box }];
         return r.kind !== 'image' && figureOwns(r.box, figures) ? [] : [r];
       })
-    : (input.regions ?? []);
+    : sourceRegions;
   // 带线的表格（和转 Excel 一样）；放进表格的行不再参加分段。
   const placedIn = new Map<TableBlock, readonly OcrBox[]>();
   const choppedIn = new Map<TableBlock, number>();
@@ -1148,7 +1266,7 @@ function buildPage(
     const members = free.filter((_, k) => owner[k] === i);
     if (region.kind === 'image') {
       // 模型的框常常贴着图的边，剪下来留一点边。
-      const pad = IMAGE_PAD * lineHeight;
+      const pad = native?.includes(region.box) ? 0 : IMAGE_PAD * lineHeight;
       const x = Math.max(0, region.box.x - pad);
       const y = Math.max(0, region.box.y - pad);
       images.push({
@@ -1837,7 +1955,32 @@ export function arrangeUnits(
   lineHeight: number,
   options: { dense?: boolean; onColumns?: (row: DocRow) => void } = {},
 ): DocBlock[] {
-  const bands = mergeColumnRows(arrangeBands(units, lineHeight), lineHeight);
+  const paragraphs = units
+    .flatMap((u) => u.blocks)
+    .filter((b) => b.kind === 'paragraph' || b.kind === 'image');
+  const separated = units.flatMap((unit): Unit[] => {
+    const parallel = unit.blocks.some((a) =>
+      paragraphs.some((b) => {
+        if (a === b || (a.kind !== 'paragraph' && a.kind !== 'image')) return false;
+        const x =
+          Math.min(a.box.x + a.box.width, b.box.x + b.box.width) - Math.max(a.box.x, b.box.x);
+        const y =
+          Math.min(a.box.y + a.box.height, b.box.y + b.box.height) - Math.max(a.box.y, b.box.y);
+        return (
+          x > 0 &&
+          x < lineHeight * (a.kind === 'image' || b.kind === 'image' ? 2.5 : 1.5) &&
+          y > SIDE_OVERLAP * Math.min(a.box.height, b.box.height)
+        );
+      }),
+    );
+    if (!parallel) return [unit];
+    // 同一个模型文字区里也可能有并排的抬头/选项。框边轻微膨胀不能把整带串成一列。
+    return unit.blocks.map((block) => ({
+      box: { ...block.box, width: Math.max(1, block.box.width - lineHeight * 2.5) },
+      blocks: [block],
+    }));
+  });
+  const bands = mergeColumnRows(arrangeBands(separated, lineHeight), lineHeight);
   return options.dense ? bands : retainProseColumns(bands, lineHeight, options.onColumns);
 }
 

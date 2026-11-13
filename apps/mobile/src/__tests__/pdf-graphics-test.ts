@@ -2,6 +2,9 @@ import { PDF_GRAPHICS_SCRIPT } from '../packs/pages/pdf-graphics';
 
 // 对真实固定页面中的分析函数喂独立几何；不替换 PDF.js 的绘图路径。
 const plan = new Function('handlers', PDF_GRAPHICS_SCRIPT + ';return planNativeGraphics;')({});
+const decoration = new Function('handlers', PDF_GRAPHICS_SCRIPT + ';return decorativeOperation;')(
+  {},
+);
 const box = (x: number, y: number, width: number, height: number) => ({ x, y, width, height });
 const text = (i: number, b: ReturnType<typeof box>, value = 'Editable body') => ({
   i,
@@ -18,6 +21,31 @@ const input = {
   figures: [],
 };
 describe('digital PDF graphics ownership', () => {
+  it('does not leave a form grid or an internal colored header in a page-fixed background', () => {
+    const full = box(0, 0, 600, 800);
+    expect(decoration({ rectangle: true, fill: true, box: box(0, 0, 600, 800) }, full)).toBe(true);
+    expect(decoration({ rectangle: true, box: box(25, 150, 550, 620) }, full)).toBe(false);
+    expect(decoration({ fill: true, rectangle: true, box: box(20, 220, 550, 16) }, full)).toBe(
+      false,
+    );
+    expect(decoration({ name: 'constructPath', box: full }, full)).toBe(false);
+  });
+  it('joins the bitmap pieces of a confirmed diagram while leaving its caption editable', () => {
+    const figure = box(300, 150, 250, 180),
+      caption = box(300, 340, 250, 20);
+    const result = plan(
+      [
+        text(1, box(20, 40, 160, 20)),
+        { i: 2, image: true, box: box(330, 200, 30, 30) },
+        { i: 3, image: true, box: box(450, 230, 30, 30) },
+        text(4, box(320, 165, 100, 15), 'Encoder'),
+        text(5, caption, 'Figure: editable caption'),
+      ],
+      { ...input, candidates: [figure] },
+    );
+    expect(result.owned).toEqual([figure]);
+    expect([...result.keep]).toEqual([4]);
+  });
   it('keeps body text out of the background and passes native text colors', () => {
     const result = plan(
       [text(1, box(20, 40, 160, 20)), { i: 2, image: true, box: box(50, 150, 200, 120) }],

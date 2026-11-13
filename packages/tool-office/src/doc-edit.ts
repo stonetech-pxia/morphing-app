@@ -216,6 +216,17 @@ export function setTableFrom(doc: DocDoc, at: DocRef, edited: TableDoc): DocDoc 
     table: { ...table, col: 0 },
     colWidths: page.colWidths.slice(table.col, table.col + table.cols),
   };
+  const geometry = (t: TableBlock) =>
+    JSON.stringify([
+      t.rows,
+      t.cols,
+      t.cells.map((c) => [c.row, c.col, c.rowSpan, c.colSpan, c.box]),
+    ]);
+  if (
+    geometry(block.table) !== geometry(table) ||
+    JSON.stringify(block.colWidths) !== JSON.stringify(next.colWidths)
+  )
+    delete next.cellLayout;
   return replaceBlock(doc, at, next);
 }
 
@@ -235,11 +246,52 @@ export function parseDocDoc(json: string): DocDoc | null {
   try {
     const doc = JSON.parse(json) as DocDoc;
     if (
-      (doc?.version !== 1 && doc?.version !== 2 && doc?.version !== 3) ||
+      (doc?.version !== 1 && doc?.version !== 2 && doc?.version !== 3 && doc?.version !== 4) ||
       !Array.isArray(doc.pages)
     )
       return null;
     if (!doc.pages.every((p) => Array.isArray(p?.blocks))) return null;
+    if (
+      !doc.pages.every((p) =>
+        leafBlocks(p).every((b) => {
+          if (
+            (b.kind === 'paragraph' || b.kind === 'list') &&
+            b.fill !== undefined &&
+            !/^[0-9A-F]{6}$/i.test(b.fill)
+          )
+            return false;
+          if (b.kind !== 'table' || b.cellLayout === undefined) return true;
+          return (
+            Array.isArray(b.cellLayout) &&
+            b.cellLayout.every(
+              (c) =>
+                Number.isInteger(c.row) &&
+                c.row >= 0 &&
+                c.row < b.table.rows &&
+                Number.isInteger(c.col) &&
+                c.col >= 0 &&
+                c.col < b.table.cols &&
+                Array.isArray(c.lines) &&
+                c.lines.every(
+                  (l) =>
+                    [l.x, l.y, l.width, l.height].every(Number.isFinite) &&
+                    l.width > 0 &&
+                    l.height > 0 &&
+                    [l.color, l.fill].every(
+                      (color) => color === undefined || /^[0-9A-F]{6}$/i.test(color),
+                    ) &&
+                    (l.tabs === undefined ||
+                      (Array.isArray(l.tabs) &&
+                        l.tabs.every(
+                          (x, i) => Number.isFinite(x) && (i === 0 || x > l.tabs![i - 1]!),
+                        ))),
+                ),
+            )
+          );
+        }),
+      )
+    )
+      return null;
     if (
       !doc.pages.every(
         (p) =>
@@ -259,10 +311,10 @@ export function parseDocDoc(json: string): DocDoc | null {
       )
     )
       return null;
-    return doc.version !== 3
+    return doc.version !== 4
       ? {
           ...doc,
-          version: 3,
+          version: 4,
           pages: doc.pages.map((p) => ({
             ...p,
             paper: p.paper ?? { width: 595.3, height: 841.9 },

@@ -131,6 +131,7 @@ function leafHtml(
         margin,
         `font-size:${px}${u}`,
         ...(block.color ? [`color:#${block.color}`] : []),
+        ...(block.fill ? [`background-color:#${block.fill}`] : []),
         ...(block.align && block.align !== 'left' ? [`text-align:${block.align}`] : []),
         // 表单的标签和值（D-332）：值从原图里的位置开始。
         ...(block.tab ? [`tab-size:${Math.round(block.tab * k)}${u}`] : []),
@@ -155,7 +156,7 @@ function leafHtml(
             `<li>${orBreak(runsHtml(block.itemRuns?.[i] ?? [{ text: item }], base, px, pageWidth, u, page.paper?.width))}</li>`,
         )
         .join('');
-      const color = block.color ? `;color:#${block.color}` : '';
+      const color = `${block.color ? `;color:#${block.color}` : ''}${block.fill ? `;background-color:#${block.fill}` : ''}`;
       const start = block.ordered ? `;counter-reset:n ${(block.start ?? 1) - 1}` : '';
       return `<${tag} data-ref="${ref}" class="${listClass(block)}" style="${margin};font-size:${px}${u}${color}${start}">${items}</${tag}>`;
     }
@@ -177,7 +178,58 @@ function leafHtml(
             const direction = block.direction
               ? `;writing-mode:vertical-rl;text-orientation:mixed${c.box ? `;height:${c.box.height * k}${u}` : ''}`
               : '';
-            return `<td data-i="${i}"${span} style="width:${w.toFixed(2)}%${align}${direction}">${orBreak(textHtml(c.text))}</td>`;
+            const positions =
+              !block.direction && c.box
+                ? block.cellLayout?.find((p) => p.row === c.row && p.col === c.col)?.lines
+                : undefined;
+            const sourceLines =
+              positions?.length === c.text.split('\n').length ? positions : undefined;
+            const ky = page.paper
+              ? ((pageWidth / page.paper.width) * page.paper.height) / page.height
+              : k;
+            const ownPx = fontPx(
+              c.size ?? block.size ?? page.bodySize,
+              pageWidth,
+              page.paper?.width,
+            );
+            const body = sourceLines
+              ? c.text
+                  .split('\n')
+                  .map((line, j) => {
+                    const box = sourceLines[j]!,
+                      previous = sourceLines[j - 1];
+                    const top =
+                      c.rowSpan > 1
+                        ? 0
+                        : Math.max(
+                            0,
+                            (box.y - (previous?.y ?? c.box!.y)) * ky -
+                              (previous ? ownPx * 1.12 : ownPx * 0.2),
+                          );
+                    const left = Math.max(0, (box.x - c.box!.x) * k);
+                    const paint = `${box.color ? `;color:#${box.color}` : ''}${box.fill ? `;background-color:#${box.fill}` : ''}`;
+                    const parts = line.split('\t');
+                    const text =
+                      box.tabs?.length === parts.length - 1 && parts.length > 1
+                        ? parts
+                            .map((part, at) => {
+                              const x = at ? box.tabs![at - 1]! : box.x;
+                              const width =
+                                at < parts.length - 1
+                                  ? `;width:${Math.max(0, (box.tabs![at]! - x) * k)}${u}`
+                                  : '';
+                              return `<span style="display:inline-block;vertical-align:top${width}">${orBreak(textHtml(part))}</span>${at < parts.length - 1 ? '<span style="font-size:0">\t</span>' : ''}`;
+                            })
+                            .join('')
+                        : orBreak(textHtml(line));
+                    return `<p style="margin-top:${top.toFixed(2)}${u};margin-left:${left.toFixed(2)}${u};text-align:left${paint}">${text}</p>`;
+                  })
+                  .join('')
+              : orBreak(textHtml(c.text));
+            const positioning = sourceLines
+              ? `;padding:0 1${u};height:${c.box!.height * ky}${u}`
+              : '';
+            return `<td data-i="${i}"${span} style="width:${w.toFixed(2)}%;font-size:${ownPx}${u}${align}${direction}${positioning}">${body}</td>`;
           })
           .join('');
         return `<tr>${cells}</tr>`;

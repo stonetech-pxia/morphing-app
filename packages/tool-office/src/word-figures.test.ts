@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildDocPage, leafBlocks } from './doc';
+import { arrangeUnits, buildDocPage, leafBlocks } from './doc';
 import type { LayoutRegion } from './layout';
 import { fakeLine, gridRects, renderPage, type Rect } from './test-helpers';
 import type { OcrBox } from './types';
@@ -54,6 +54,99 @@ function fixture() {
 }
 
 describe('Word figure ownership', () => {
+  it('retains distinct table values when the OCR character gaps already prove separate columns', () => {
+    const image = renderPage(1100, 1400, [
+      ...gridRects([100, 1000], [300, 550, 800], { thickness: 2 }),
+      ...[400, 700].flatMap((x) => [300, 550].map((y) => ({ x, y, width: 2, height: 180 }))),
+    ]);
+    const text = 'Alpha Beta Gamma';
+    const xs = [150, 170, 190, 210, 230, 350, 450, 470, 490, 510, 650, 750, 770, 790, 810, 830];
+    const lines = [
+      {
+        text,
+        x: 150,
+        y: 510,
+        width: 700,
+        height: 24,
+        chars: [...text].map((text, i) => ({ text, at: (xs[i]! - 150) / 700 })),
+      },
+      fakeLine(
+        'Owner',
+        { x: 150, y: 760, width: 180, height: 24 },
+        { width: 1100, height: 1400 },
+        true,
+      ),
+    ];
+    const table = leafBlocks(buildDocPage({ image, lines, source: 'values.jpg', skew: 0 })).find(
+      (b) => b.kind === 'table',
+    );
+    expect(
+      table?.kind === 'table' && table.table.cells.filter((c) => c.text.trim()).map((c) => c.text),
+    ).toEqual(['Alpha', 'Beta', 'Gamma', 'Owner']);
+  });
+  it('keeps a form label across short field dividers that end above the text', () => {
+    const image = renderPage(1100, 1400, [
+      ...gridRects([100, 1000], [300, 550, 800], { thickness: 2 }),
+      ...[400, 700].flatMap((x) => [300, 550].map((y) => ({ x, y, width: 2, height: 180 }))),
+    ]);
+    const lines = [
+      fakeLine(
+        'Vehicle identification number and category',
+        { x: 150, y: 510, width: 700, height: 24 },
+        { width: 1100, height: 1400 },
+        true,
+      ),
+      fakeLine(
+        'Owner',
+        { x: 150, y: 760, width: 180, height: 24 },
+        { width: 1100, height: 1400 },
+        true,
+      ),
+    ];
+    const page = buildDocPage({ image, lines, source: 'form.jpg', skew: 0 });
+    const table = leafBlocks(page).find((b) => b.kind === 'table');
+    expect(
+      table?.kind === 'table' && table.table.cells.filter((c) => c.text.trim()).map((c) => c.text),
+    ).toEqual(lines.map((l) => l.text));
+  });
+  it('keeps parallel form-header paragraphs side by side when their OCR boxes barely overlap', () => {
+    const blocks = [
+      {
+        kind: 'paragraph' as const,
+        text: 'Ministry',
+        box: { x: 20, y: 50, width: 140, height: 60 },
+      },
+      {
+        kind: 'paragraph' as const,
+        text: 'Application title',
+        box: { x: 145, y: 40, width: 600, height: 25 },
+      },
+    ];
+    const result = arrangeUnits([{ box: { x: 20, y: 40, width: 725, height: 70 }, blocks }], 20);
+    expect(result[0]?.kind).toBe('row');
+    expect(result[0]?.kind === 'row' && result[0].cells).toHaveLength(2);
+    expect(leafBlocks({ blocks: result }).map((b) => b.kind === 'paragraph' && b.text)).toEqual([
+      'Ministry',
+      'Application title',
+    ]);
+  });
+  it('places a source-PDF diagram in flow before its editable caption, even when its grid fooled table detection', () => {
+    const f = fixture();
+    const page = buildDocPage({
+      image: f.image,
+      lines: f.lines,
+      source: 'diagram.jpg',
+      // 原始 PDF 已证明这些像素是图；不能再次被表格/短标签的启发式否决。
+      nativeFigures: [f.picture.box],
+    } as Parameters<typeof buildDocPage>[0]);
+    const blocks = leafBlocks(page);
+    expect(blocks.filter((b) => b.kind === 'image')).toHaveLength(1);
+    expect(blocks.find((b) => b.kind === 'image')).toMatchObject({ box: f.picture.box });
+    expect(text(page)).toContain('Figure 1: Pipeline overview.');
+    expect(text(page)).toContain('Ordinary body text');
+    expect(text(page)).not.toContain('Encoder');
+    expect(blocks.every((b) => b.kind !== 'image' || !b.background)).toBe(true);
+  });
   it('retains existing vertical-text crops while adapting the writing direction of a landscape page', () => {
     const image = renderPage(1400, 1000, gridRects([700, 850, 1000, 1150], [100, 500, 900]));
     const lines = [700, 850, 1000].flatMap((x, c) =>

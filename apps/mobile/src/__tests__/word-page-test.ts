@@ -108,6 +108,18 @@ function open(d: DocDoc = doc) {
 }
 
 describe('Word page layout like the original (D-464, D-465)', () => {
+  it('round-trips positioned cell paragraphs and tab-separated labels without losing the spacing metadata', () => {
+    const d = structuredClone(doc);
+    d.version = 4;
+    const table = d.pages[0]!.blocks.find((b) => b.kind === 'table')!;
+    table.table.cells[0]!.text = 'Label\tValue';
+    table.table.cells[0]!.box = box(150, 900, 400, 40);
+    table.cellLayout = [{ row: 0, col: 0, lines: [{ ...box(160, 910, 300, 20), tabs: [350] }] }];
+    const { q, merge } = open(d);
+    expect(q('td[data-i="0"]').textContent).toBe('Label\tValue');
+    expect(q('td[data-i="0"] p').style.marginTop).not.toBe('');
+    expect(merge()).toEqual(d);
+  });
   it('keeps source graphics and figure spaces when editing body text', () => {
     const d: DocDoc = {
       version: 3,

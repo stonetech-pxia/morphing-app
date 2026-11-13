@@ -102,7 +102,7 @@ function onePage(vision: FakeVision) {
 }
 
 describe('ocr.toWord (D-328)', () => {
-  it('keeps native PDF graphics behind editable body text without exporting a page screenshot as the body', async () => {
+  it('keeps only an explicit decorative background behind editable body text', async () => {
     let input: RunValue | null = null;
     const png = await makePng(100, 140);
     const calls: { method: string; files: Record<string, string> }[] = [];
@@ -119,7 +119,8 @@ describe('ocr.toWord (D-328)', () => {
           paper: { width: 595.3, height: 841.9 },
           width: 100,
           height: 140,
-          png: btoa(String.fromCharCode(...png)),
+          backgroundPng: btoa(String.fromCharCode(...png)),
+          crops: [],
           owned: [],
           colors: [],
         } as T;
@@ -224,7 +225,7 @@ describe('ocr.toWord (D-328)', () => {
     onePage(vision);
     const item = resultItem(await run());
     const doc = parseDocDoc(decodeUtf8(await files.readUri(item.docDoc!.uri)))!;
-    expect(doc.version).toBe(3);
+    expect(doc.version).toBe(4);
     expect(doc.pages[0]!.paper).toEqual({ width: 595.28, height: 255.12 });
     const { xml } = await documentXml(files, item);
     expect(xml).toContain('w:h="5102" w:orient="landscape"');
