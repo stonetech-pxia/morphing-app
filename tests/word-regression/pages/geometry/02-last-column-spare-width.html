@@ -1,0 +1,181 @@
+<!doctype html><meta charset="utf-8" />
+<html lang="en">
+  <style>
+    @page {
+      size: 210mm 297mm;
+      margin: 0;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font:
+        11pt Arial,
+        'PingFang SC',
+        sans-serif;
+      color: #20252a;
+    }
+    .page {
+      width: 210mm;
+      height: 297mm;
+      padding: 16mm;
+      break-after: page;
+      overflow: hidden;
+    }
+    .page:last-child {
+      break-after: auto;
+    }
+    p {
+      margin: 0 0 9pt;
+      line-height: 1.4;
+    }
+    h1 {
+      font-size: 22pt;
+      margin: 0 0 16pt;
+    }
+    h2 {
+      font-size: 14pt;
+      margin: 16pt 0 8pt;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 10pt;
+      margin: 9pt 0;
+    }
+    td,
+    th {
+      border: 1px solid #677781;
+      padding: 7px;
+      text-align: left;
+    }
+    th {
+      background: #dce6ed;
+      font-weight: bold;
+    }
+    .unruled td,
+    .unruled th {
+      border: 0;
+      border-bottom: 1px dashed #aaa;
+    }
+    .cols {
+      display: flex;
+      gap: 22px;
+    }
+    .cols > * {
+      width: 50%;
+    }
+    .cv {
+      display: grid;
+      grid-template-columns: 30% 1fr;
+      gap: 24px;
+    }
+    .cv aside {
+      background: #e5edf1;
+      padding: 12px;
+    }
+    .columns {
+      column-count: 2;
+      column-gap: 24px;
+    }
+    .columns img,
+    .columns table {
+      break-inside: avoid;
+    }
+    img {
+      width: 100%;
+      height: auto;
+      max-height: 150px;
+      object-fit: contain;
+    }
+    .field {
+      border: 1px solid #70818c;
+      padding: 12px;
+      margin: 16px 0;
+    }
+    .field p:last-child {
+      font-weight: bold;
+      margin: 0;
+    }
+    .receipt {
+      width: 100mm;
+      margin-left: 55mm;
+      padding: 10mm;
+      font-family: 'Courier New', 'PingFang SC', monospace;
+    }
+    .receipt h1 {
+      font-size: 17pt;
+    }
+    .receipt table {
+      font-size: 9pt;
+    }
+    .receipt td {
+      padding: 5px 2px;
+    }
+    .receipt .cols {
+      display: block;
+    }
+    .receipt .cols > * {
+      width: 100%;
+    }
+  </style>
+  <body>
+    <section class="page">
+      <h1 data-p>Invoice</h1>
+      <p class="" data-p>Elena Martin | ID: DOC-101-1 | 2026-10-15</p>
+      <div class="cols">
+        <p class="" data-p>From: Northfield Studio</p>
+        <p class="" data-p>Bill to: Elena Martin</p>
+      </div>
+      <table class="" data-table>
+        <tr>
+          <th>Description</th>
+          <th>Qty</th>
+          <th>Unit price</th>
+          <th>Amount</th>
+        </tr>
+        <tr>
+          <td>Office paper</td>
+          <td>1</td>
+          <td>12.35</td>
+          <td>12.35</td>
+        </tr>
+        <tr>
+          <td>Delivery service</td>
+          <td>2</td>
+          <td>15.55</td>
+          <td>31.10</td>
+        </tr>
+        <tr>
+          <td>Maintenance kit</td>
+          <td>3</td>
+          <td>18.75</td>
+          <td>56.25</td>
+        </tr>
+        <tr>
+          <td>Consultation</td>
+          <td>4</td>
+          <td>21.95</td>
+          <td>87.80</td>
+        </tr>
+        <tr>
+          <td>Storage boxes</td>
+          <td>5</td>
+          <td>25.15</td>
+          <td>125.75</td>
+        </tr>
+        <tr>
+          <td>Printer ink</td>
+          <td>6</td>
+          <td>28.35</td>
+          <td>170.10</td>
+        </tr>
+      </table>
+      <h2 data-p>Total due</h2>
+      <p class="" data-p>739.55</p>
+      <p class="" data-p>IBAN: FR76 3000 6000 0112 3456 7890 189</p>
+      <p class="" data-p>billing@example.test</p>
+    </section>
+  </body>
+</html>

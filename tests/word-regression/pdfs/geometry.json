@@ -1,0 +1,44 @@
+[
+  {
+    "page": 1,
+    "id": "position-indent-and-gaps",
+    "source": "01-position-indent-and-gaps.html",
+    "sha256": "0abc83520b0bf2a12f2ffb992528f52b57304a914dacc4ecf2734f1f928cd3e9"
+  },
+  {
+    "page": 2,
+    "id": "last-column-spare-width",
+    "source": "02-last-column-spare-width.html",
+    "sha256": "2df4edc917ba434179f5b4eb376e4816aa1cb843e9c9384ce61ade745ed35ef0"
+  },
+  {
+    "page": 3,
+    "id": "last-column-cjk-heading",
+    "source": "03-last-column-cjk-heading.html",
+    "sha256": "b98d6129d896d271234f0a004d148561010b34d9e6d2cda425f5d28d01d06277"
+  },
+  {
+    "page": 4,
+    "id": "short-label-width",
+    "source": "04-short-label-width.html",
+    "sha256": "02eda76ad723e02da56c8ee76ea0b9c27446367176ea757c91ea8f78220648b3"
+  },
+  {
+    "page": 5,
+    "id": "landscape-paper-size",
+    "source": "05-landscape-paper-size.html",
+    "sha256": "000c14b40261def826a078313d8f2bb0e1aa561df636ce4a1a4c276e0236769b"
+  },
+  {
+    "page": 6,
+    "id": "table-row-height-budget",
+    "source": "06-table-row-height-budget.pdf",
+    "sha256": "58921bfff63dd369033b440dcef9326a3bf397b7f8f3a43c3cbaf5f7fff4db76"
+  },
+  {
+    "page": 7,
+    "id": "picture-fit-policy",
+    "source": "07-picture-fit-policy.pdf",
+    "sha256": "f21db77c420f9f5784db2ef5bf92ea674b81cafd9c37a7997e0a543b54160628"
+  }
+]

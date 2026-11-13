@@ -1,0 +1,39 @@
+<!doctype html><meta charset="utf-8" /><style>
+  /* 8 厘米宽的小票（数字 PDF）：字号要按真实纸宽换算，不能按 A4 宽放大；两行的居中标题保持居中。 */
+  @page {
+    size: 80mm 150mm;
+    margin: 6mm 5mm;
+  }
+  body {
+    margin: 0;
+    font:
+      8pt/1.45 Arial,
+      sans-serif;
+  }
+  h1 {
+    font-size: 13pt;
+    line-height: 1.25;
+    text-align: center;
+    margin: 0 0 6pt;
+  }
+  .c {
+    text-align: center;
+  }
+  .r {
+    display: flex;
+    justify-content: space-between;
+  }
+  p {
+    margin: 0 0 6pt;
+  }
+</style>
+<h1>Harbour Cafe<br />and Bakery</h1>
+<p class="c">Quay Street 4, Port Ellen<br />Open daily from seven to six</p>
+<p>Table 12 · Server Lina · 14 Nov 2026 10:42</p>
+<div class="r"><span>Cappuccino large</span><span>4.20</span></div>
+<div class="r"><span>Almond croissant</span><span>3.10</span></div>
+<div class="r"><span>Orange juice fresh</span><span>3.80</span></div>
+<div class="r"><span>Sourdough loaf to take away</span><span>5.50</span></div>
+<div class="r" style="margin-top: 6pt; font-weight: bold"><span>Total</span><span>16.60</span></div>
+<p style="margin-top: 6pt">Paid by card. Prices include sales tax at the reduced rate.</p>
+<p class="c">Thank you for your visit and see you soon.</p>
