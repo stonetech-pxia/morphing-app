@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildDocPage, leafBlocks } from './doc';
-import { fakeLine, glyphs, gridRects, renderPage, type Rect } from './test-helpers';
+import {
+  fakeLine,
+  glyphs,
+  gridRects,
+  renderPage,
+  textConservation,
+  type Rect,
+} from './test-helpers';
 import type { OcrBox } from './types';
 
 const width = 1000;
@@ -27,6 +34,7 @@ describe('Word table evidence', () => {
       source: 'certificate',
       skew: 0,
     });
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
     expect(leafBlocks(page).filter((b) => b.kind === 'table')).toHaveLength(0);
     expect(
       leafBlocks(page)
@@ -47,6 +55,7 @@ describe('Word table evidence', () => {
       source: 'exam',
       skew: 0,
     });
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
     expect(leafBlocks(page).filter((b) => b.kind === 'table')).toHaveLength(0);
     const text = leafBlocks(page)
       .flatMap((b) => (b.kind === 'paragraph' ? [b.text] : b.kind === 'list' ? b.items : []))
@@ -69,6 +78,7 @@ describe('Word table evidence', () => {
       source: 'agenda',
       skew: 0,
     });
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
     const paragraphs = leafBlocks(page)
       .filter((b) => b.kind === 'paragraph')
       .map((b) => b.text);
@@ -92,6 +102,7 @@ describe('Word table evidence', () => {
       source: 'sparse-data',
       skew: 0,
     });
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
     const tables = leafBlocks(page).filter((b) => b.kind === 'table');
     expect(tables).toHaveLength(1);
     expect(
@@ -131,6 +142,7 @@ describe('Word table evidence', () => {
         },
       ],
     });
+    expect(textConservation(page, all)).toEqual({ missing: [], extra: [] });
     const tables = leafBlocks(page).filter((b) => b.kind === 'table');
     expect(tables).toHaveLength(1);
     const table = tables[0]!.table;
@@ -171,6 +183,7 @@ describe('Word table evidence', () => {
       source: 'merged-table',
       skew: 0,
     });
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
     const tables = leafBlocks(page).filter((b) => b.kind === 'table');
     expect(tables).toHaveLength(1);
     expect(tables[0]!.table.cells.filter((c) => c.text).map((c) => c.text)).toEqual(
@@ -213,6 +226,120 @@ describe('Word table evidence', () => {
       word('Right column prose goes on here.', 600, 200 + r * 30, 340),
     ]).flat();
     const page = buildDocPage({ image: image(lines), lines, source: 'columns', skew: 0 });
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
     expect(leafBlocks(page).filter((b) => b.kind === 'table')).toHaveLength(0);
   });
+
+  it('keeps a blank fill-in form as a table', () => {
+    const lines = ['Full name', 'Address', 'Phone', 'Email'].map((t, i) =>
+      word(t, 120, 120 + i * 60, 140),
+    );
+    const page = buildDocPage({
+      image: image(lines, gridRects([100, 350, 900], [100, 160, 220, 280, 340])),
+      lines,
+      source: 'blank-form',
+      skew: 0,
+    });
+    const tables = leafBlocks(page).filter((b) => b.kind === 'table');
+    expect(tables).toHaveLength(1);
+    expect(tables[0]!.table.rows).toBe(4);
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
+  });
+
+  it('keeps a sign-up sheet with a header row and empty rows as a table', () => {
+    const lines = [
+      word('Name', 120, 120, 100),
+      word('Email', 420, 120, 100),
+      word('Signature', 720, 120, 150),
+    ];
+    const page = buildDocPage({
+      image: image(
+        lines,
+        gridRects(
+          [100, 400, 700, 900],
+          Array.from({ length: 9 }, (_, i) => 100 + i * 50),
+        ),
+      ),
+      lines,
+      source: 'sign-up',
+      skew: 0,
+    });
+    const tables = leafBlocks(page).filter((b) => b.kind === 'table');
+    expect(tables).toHaveLength(1);
+    expect(tables[0]!.table.rows).toBe(8);
+    expect(tables[0]!.table.cols).toBe(3);
+  });
+
+  const prose = (n: number) =>
+    Array.from({ length: n }, (_, i) =>
+      word(
+        `Prose line ${String.fromCharCode(65 + i)} fills the column width here`,
+        120,
+        100 + i * 28,
+        760,
+      ),
+    );
+
+  it.each([1, 3, 6, 12])(
+    'keeps every word exactly once when a decorative grid follows a %i-line paragraph',
+    (n) => {
+      const top = 100 + n * 28 + 4;
+      const lines = [
+        ...prose(n),
+        word('Approval of previous minutes', 120, top + 10, 350),
+        word('Roadmap status', 120, top + 40, 240),
+        word('Pricing experiment results', 120, top + 70, 330),
+      ];
+      const page = buildDocPage({
+        image: image(lines, gridRects([100, 600, 900], [top, top + 34, top + 64, top + 100])),
+        lines,
+        source: 'agenda-after-prose',
+        skew: 0,
+      });
+      expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
+      const paragraphs = leafBlocks(page)
+        .filter((b) => b.kind === 'paragraph')
+        .map((b) => b.text);
+      expect(paragraphs).toContain('Roadmap status');
+      expect(paragraphs.some((p) => p.includes('Prose line A') && p.includes('Approval'))).toBe(
+        false,
+      );
+    },
+  );
+
+  it.each([1, 3, 8])(
+    'keeps every word exactly once when a bounded text table follows a %i-line paragraph',
+    (n) => {
+      const y0 = 100 + n * 28 + 8;
+      const rows = [
+        ['Action', 'Owner', 'Due', 'Status'],
+        ['Publish roadmap', 'L. Chen', '2026-11-13', 'Open'],
+        ['Confirm assets', 'S. Duarte', '2026-11-16', 'Open'],
+      ];
+      const xs = [120, 500, 660, 840];
+      const widths = [240, 100, 140, 120];
+      const lines = [
+        ...prose(n),
+        ...rows.flatMap((row, r) => row.map((t, c) => word(t, xs[c]!, y0 + r * 30, widths[c]!))),
+      ];
+      const page = buildDocPage({
+        image: image(lines),
+        lines,
+        source: 'table-after-prose',
+        skew: 0,
+        regions: [
+          {
+            kind: 'table',
+            label: 'table',
+            score: 0.9,
+            box: { x: 110, y: y0 - 6, width: 860, height: 100 },
+          },
+        ],
+      });
+      const tables = leafBlocks(page).filter((b) => b.kind === 'table');
+      expect(tables).toHaveLength(1);
+      expect(tables[0]!.table.cells.filter((c) => c.row === 1).map((c) => c.text)).toEqual(rows[1]);
+      expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
+    },
+  );
 });

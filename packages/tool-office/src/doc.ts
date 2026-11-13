@@ -681,6 +681,34 @@ function isSparseColumnLayout(table: TableBlock): boolean {
   for (const cell of filled) counts.set(cell.row, (counts.get(cell.row) ?? 0) + 1);
   const paired = [...counts.values()].filter((n) => n >= 2).length;
   if (paired >= 2) return false;
+  // 签到表：表头一排每列都有字，下面至少两排整排空着，是留给人填的表，不是装饰。
+  const rowsWith = new Set(filled.map((c) => c.row));
+  const header = filled.filter((c) => c.row === filled[0]!.row);
+  if (
+    paired === 1 &&
+    rowsWith.size === 1 &&
+    header.reduce((n, c) => n + c.colSpan, 0) === table.cols &&
+    table.rows - 1 >= 2
+  )
+    return false;
+  // 空白表单：标签都在同一列，右边整列空着、至少和标签列一样宽，是填写栏。
+  // 装饰网格（议程、试卷的答题线、奖状边框）空着的列比有字的列窄。
+  if (!paired && filled.every((c) => c.colSpan === 1 && c.col === filled[0]!.col)) {
+    const widthOf = (col: number) =>
+      Math.max(
+        0,
+        ...table.cells
+          .filter((c) => c.col === col && c.colSpan === 1 && c.box)
+          .map((c) => c.box!.width),
+      );
+    const label = filled[0]!.col;
+    for (let col = label + 1; col < table.cols; col++) {
+      const blank = table.cells.every(
+        (c) => !(c.col <= col && c.col + c.colSpan > col) || !c.text.trim(),
+      );
+      if (blank && widthOf(label) > 0 && widthOf(col) >= widthOf(label)) return false;
+    }
+  }
   // 整页共用的列会给一张合并表添上空格子。已有一排真实列关系时，先折掉这些
   // 空列再看密度；不能把本来填得很满的合并表拆成散文，导致表单额外分页。
   const folded = paired ? foldEmptyColumns(table) : table;
@@ -1091,6 +1119,24 @@ export function insertWordFigures(page: DocPage, boxes: readonly Box[]): DocPage
   return { ...page, blocks };
 }
 
+/** 比这更竖长（高/宽）的照片不是一页纸（小票、长条截图）：不设纸，按旧版连续排在 A4 上、自然分页。 */
+const PAGE_LIKE_RATIO = 1.6;
+/** 照片的高宽比和 A4 差不到这么多时直接用 A4。 */
+const A4_ASPECT_SNAP = 0.03;
+
+/**
+ * 没有物理尺寸的照片按 A4 宽估纸（横向按 A4 长边），纸的高宽比跟照片一样：横竖同一个比例，不压扁。
+ * 比一页纸还竖长的（小票）不设纸，按旧版连续排在 A4 上、自然分页，不做成一张又窄又长的怪纸。
+ */
+function photoPaper(image: { width: number; height: number }) {
+  if (image.width > image.height)
+    return { width: 841.9, height: (841.9 * image.height) / image.width };
+  const ratio = image.height / image.width;
+  if (Math.abs(ratio / (841.9 / 595.3) - 1) <= A4_ASPECT_SNAP)
+    return { width: 595.3, height: 841.9 };
+  return ratio > PAGE_LIKE_RATIO ? undefined : { width: 595.3, height: 595.3 * ratio };
+}
+
 function buildPage(
   input: DocPageInput,
   options: DocBuildOptions,
@@ -1100,11 +1146,7 @@ function buildPage(
 ): DocPage {
   const join = options.joinLines ?? defaultJoin;
   const { image } = input;
-  const paper =
-    input.paper ??
-    (image.width > image.height
-      ? { width: 841.9, height: (841.9 * image.height) / image.width }
-      : { width: 595.3, height: 841.9 });
+  const paper = input.paper ?? photoPaper(image);
   // 确知的窄幅 PDF 按它的物理宽度估字，再做字号限制；照片仍沿用 A4 标定，也不因宽纸放大字。
   const fontWidthPx =
     (image.width * A4_WIDTH_PT) / Math.min(A4_WIDTH_PT, input.paper?.width ?? A4_WIDTH_PT);
@@ -1211,7 +1253,8 @@ function buildPage(
   const ruledCandidates = sheet.blocks.filter(
     (b): b is TableBlock =>
       b.kind === 'table' &&
-      !figures.some((f) => lineShareIn(f.box, b.box) >= 0.2) &&
+      // 表大半在整图里才是图内的网格；图在表的一格里（表单的证件照）时表照样要。
+      !figures.some((f) => lineShareIn(b.box, f.box) >= 0.5) &&
       !isRuleGrid(b, lines.filter((l) => inBox(l, b.box)).length) &&
       !chopsMuch(b),
   );
@@ -1326,8 +1369,11 @@ function buildPage(
     },
   );
   // 接管是整页事务：后续去重或表格过滤若淘汰了任一整图，撤销 OCR/像素隔离，沿用原路径。
+  // 非原生整图时 previous 就是同样参数的原路径结果，不再重建一遍。
   if (figures.some((f) => !regions.some((r) => r.kind === 'image' && r.box === f.box)))
-    return buildPage(input, options, false, repairTables, repairBarcodes);
+    return !native && previous
+      ? previous
+      : buildPage(input, options, false, repairTables, repairBarcodes);
   const merged = mergeTextRegions(regions, lineHeight);
   regions.splice(0, regions.length, ...merged);
   const owner = assignLines(free, regions);
@@ -1492,14 +1538,23 @@ function buildPage(
     ).flatMap((para) => {
       const chunks: (typeof para)[] = [];
       let previousCell: TableCell | undefined;
+      let previousReleased = false;
       for (const row of para.rows) {
         const cells = new Set(row.lines.map((l) => releasedCells.get(orig(l))).filter(Boolean));
         const cell = cells.size === 1 ? [...cells][0] : undefined;
+        const released = cells.size > 0;
         const previous = chunks.at(-1);
-        // 误判网格的不同格子仍是独立信息行，不能因去掉边框就把两条议程接成一段。
-        if (previous && (!cell || !previousCell || cell === previousCell)) previous.rows.push(row);
+        // 误判网格的不同格子仍是独立信息行，不能因去掉边框就把两条议程接成一段；
+        // 网格外的正文和网格里的第一行也不接（一边是原来的段落，一边是去掉边框后放出来的行）。
+        if (
+          previous &&
+          released === previousReleased &&
+          (!cell || !previousCell || cell === previousCell)
+        )
+          previous.rows.push(row);
         else chunks.push({ ...para, rows: [row], spaced: chunks.length ? false : para.spaced });
         previousCell = cell;
+        previousReleased = released;
       }
       return chunks;
     });
@@ -1609,7 +1664,7 @@ function buildPage(
     source: input.source,
     width: image.width,
     height: image.height,
-    paper,
+    ...(paper ? { paper } : {}),
     bodySize,
     blocks: arrangeUnits(units, lineHeight, {
       // 密集页沿用原来的局部并排行；长表格的标题 keepNext 会改变跨页行为，另行处理分页。
@@ -1633,11 +1688,56 @@ function buildPage(
   if (repairBaseline) {
     // 组表会改变整页字号、分组统计。只替换修复范围中的顶层块，范围外继续用原来的
     // 段落和并排行（包括它们的顺序和样式），避免修一张表挪动上方的日期、署名。
-    const affected = (b: DocBlock) => repairBoxes.some((box) => lineShareIn(b.box, box) >= 0.2);
-    page.blocks = readingOrder(
-      [...repairBaseline.blocks.filter((b) => !affected(b)), ...page.blocks.filter(affected)],
+    // 按识别行归属换块：两边分段不同（修复范围上面的段落接进了网格的第一行）时，
+    // 一行字所在的块两边一起换，直到两边换的块装着同一批行，不丢字也不重复。
+    const linesOf = (b: DocBlock) => {
+      const boxes = leafBlocks({ blocks: [b] }).map((leaf) => leaf.box);
+      return lines.filter((l) => {
+        const cx = l.x + l.width / 2,
+          cy = l.y + l.height / 2;
+        return boxes.some(
+          (box) =>
+            cx >= box.x && cx <= box.x + box.width && cy >= box.y && cy <= box.y + box.height,
+        );
+      });
+    };
+    const oldLines = new Map(repairBaseline.blocks.map((b) => [b, linesOf(b)] as const));
+    const newLines = new Map(page.blocks.map((b) => [b, linesOf(b)] as const));
+    const owned = new Set(
+      lines.filter((l) => repairBoxes.some((box) => lineShareIn(l, box) >= 0.5)),
+    );
+    const touches = (members: readonly OcrBox[]) => members.some((l) => owned.has(l));
+    for (let size = -1; size !== owned.size;) {
+      size = owned.size;
+      for (const members of [...oldLines.values(), ...newLines.values()])
+        if (touches(members)) for (const l of members) owned.add(l);
+    }
+    const merged = readingOrder(
+      [
+        ...repairBaseline.blocks.filter((b) => !touches(oldLines.get(b)!)),
+        ...page.blocks.filter((b) => touches(newLines.get(b)!)),
+      ],
       lineHeight * 0.3,
     );
+    // 拼好以后的字必须和整页重建的字一样多：对不上（行和块对不准）就不修这一页。
+    const words = (blocks: readonly DocBlock[]) =>
+      leafBlocks({ blocks })
+        .flatMap((b) =>
+          b.kind === 'paragraph'
+            ? [b.text]
+            : b.kind === 'list'
+              ? b.items
+              : b.kind === 'table'
+                ? b.table.cells.map((c) => c.text)
+                : [],
+        )
+        .join(' ')
+        .split(/\s+/)
+        .filter(Boolean)
+        .sort()
+        .join(' ');
+    if (words(merged) !== words(page.blocks)) return repairBaseline;
+    page.blocks = merged;
   }
   if (previous) {
     const outside = (b: DocLeaf) => figures.every((f) => lineShareIn(b.box, f.box) === 0);
@@ -1740,15 +1840,17 @@ function buildPage(
       return previous;
   }
   const content = leafBlocks(page);
-  if (content.length) {
+  if (content.length && paper) {
+    // 横竖各用自己的比例（近似 A4 的照片按 A4 纸，两个比例只差一点点）。
     const k = paper.width / image.width;
+    const ky = paper.height / image.height;
     const max = Math.min(56.7, paper.width / 10, paper.height / 10);
     const margin = (v: number) => Math.round(Math.max(0, Math.min(max, v)) * 100) / 100;
     page.margins = {
       left: margin(Math.min(...content.map((b) => b.box.x)) * k),
       right: margin((image.width - Math.max(...content.map((b) => b.box.x + b.box.width))) * k),
-      top: margin(Math.min(...content.map((b) => b.box.y)) * k),
-      bottom: margin(paper.height - Math.max(...content.map((b) => b.box.y + b.box.height)) * k),
+      top: margin(Math.min(...content.map((b) => b.box.y)) * ky),
+      bottom: margin(paper.height - Math.max(...content.map((b) => b.box.y + b.box.height)) * ky),
     };
   }
   return page;

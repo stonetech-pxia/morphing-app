@@ -1,3 +1,6 @@
+import type { DocPage } from './doc';
+import { leafBlocks } from './doc';
+import { lineShareIn } from './layout';
 import type { OcrBox, RgbaImage } from './types';
 
 // 测试用的合成页面：白底上画黑色的矩形（线、字的笔画），整页可以转一个角度（模拟拍歪了）。
@@ -127,4 +130,51 @@ export function fakeLine(
       ? { chars: chars.map((ch, i) => ({ text: ch, at: (i + 0.5) / chars.length })) }
       : {}),
   };
+}
+
+/**
+ * 字的守恒：识别出来的每个词在 Word 的可编辑文字里正好出现一次（丢字、重复都算错）。
+ * 一半以上落在图片块里的行可以只留在图里（出现 0 次或 1 次都行）。按词计数，不受分段、分格影响。
+ */
+export function textConservation(
+  page: Pick<DocPage, 'blocks'>,
+  lines: readonly OcrBox[],
+): { missing: string[]; extra: string[] } {
+  const leaves = leafBlocks(page);
+  const images = leaves.filter((b) => b.kind === 'image').map((b) => b.box);
+  // 列表的编号写进 Word 的自动编号，不在项目文字里：编号样的词两边都不数。
+  const marker = /^(?:[(（]?[\p{N}\p{L}]{1,3}[.)）、:]|[•·\-–*])$/u;
+  const words = (s: string) => s.split(/\s+/).filter((w) => w && !marker.test(w));
+  const count = (list: readonly string[]) => {
+    const m = new Map<string, number>();
+    for (const w of list) m.set(w, (m.get(w) ?? 0) + 1);
+    return m;
+  };
+  const inImage = (l: OcrBox) => images.some((box) => lineShareIn(l, box) >= 0.5);
+  const expected = count(lines.filter((l) => !inImage(l)).flatMap((l) => words(l.text)));
+  const optional = count(lines.filter(inImage).flatMap((l) => words(l.text)));
+  const actual = count(
+    leaves.flatMap((b) =>
+      words(
+        b.kind === 'paragraph'
+          ? b.text
+          : b.kind === 'list'
+            ? b.items.join(' ')
+            : b.kind === 'table'
+              ? b.table.cells.map((c) => c.text).join(' ')
+              : '',
+      ),
+    ),
+  );
+  const missing: string[] = [];
+  const extra: string[] = [];
+  for (const [w, n] of expected) {
+    const got = actual.get(w) ?? 0;
+    for (let i = got; i < n; i++) missing.push(w);
+  }
+  for (const [w, got] of actual) {
+    const allowed = (expected.get(w) ?? 0) + (optional.get(w) ?? 0);
+    for (let i = allowed; i < got; i++) extra.push(w);
+  }
+  return { missing, extra };
 }

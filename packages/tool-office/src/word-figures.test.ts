@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import { arrangeUnits, buildDocPage, leafBlocks, insertWordFigures } from './doc';
 import type { LayoutRegion } from './layout';
-import { fakeLine, gridRects, renderPage, type Rect } from './test-helpers';
+import {
+  fakeLine,
+  glyphs,
+  gridRects,
+  renderPage,
+  textConservation,
+  type Rect,
+} from './test-helpers';
 import type { OcrBox } from './types';
 import { restoreWordCellSpans } from './word-cell-spans';
 
@@ -213,6 +220,7 @@ describe('Word figure ownership', () => {
       source: 'mixed.jpg',
       nativeFigures: [f.picture.box],
     });
+    expect(textConservation(page, [...f.lines, body])).toEqual({ missing: [], extra: [] });
     expect(text(page)).toContain(body.text);
   });
   it('keeps complete pictures side by side even when crop margins narrow the white gutter', () => {
@@ -415,6 +423,7 @@ describe('Word figure ownership', () => {
       source: 's',
       skew: 0,
     });
+    expect(textConservation(page, [...heading, ...body])).toEqual({ missing: [], extra: [] });
     const title = leafBlocks(page).find((b) => b.kind === 'paragraph' && b.heading === 1);
     expect(title && 'align' in title && title.align).toBe('center');
   });
@@ -515,6 +524,7 @@ describe('Word figure ownership', () => {
       source: 's',
       skew: 0,
     });
+    expect(textConservation(page, [...f.lines, ...data])).toEqual({ missing: [], extra: [] });
     expect(leafBlocks(page).filter((b) => b.kind === 'image')).toHaveLength(1);
     expect(text(page)).not.toContain('Encoder');
     expect(text(page)).toContain('Entry 1');
@@ -533,6 +543,7 @@ describe('Word figure ownership', () => {
       source: 'original',
       skew: 0,
     });
+    expect(textConservation(page, f.lines)).toEqual({ missing: [], extra: [] });
     expect(leafBlocks(page).filter((b) => b.kind === 'image')).toHaveLength(1);
     expect(leafBlocks(page).filter((b) => b.kind === 'table')).toHaveLength(0);
     expect(text(page)).toContain('Figure 1: Pipeline overview.');
@@ -554,6 +565,7 @@ describe('Word figure ownership', () => {
         source: 's',
         skew: 0,
       });
+      expect(textConservation(page, f.lines)).toEqual({ missing: [], extra: [] });
       expect(leafBlocks(page).filter((b) => b.kind === 'image')).toHaveLength(1);
       expect(text(page)).toContain(captionText);
     },
@@ -578,6 +590,7 @@ describe('Word figure ownership', () => {
         source: 's',
         skew: 0,
       });
+      expect(textConservation(page, [...prose, ...f.outside])).toEqual({ missing: [], extra: [] });
       expect(leafBlocks(page).filter((b) => b.kind === 'image')).toHaveLength(0);
       expect(text(page)).toContain('ordinary prose');
     },
@@ -593,6 +606,7 @@ describe('Word figure ownership', () => {
       source: 's',
       skew: 0,
     });
+    expect(textConservation(page, f.lines)).toEqual({ missing: [], extra: [] });
     expect(leafBlocks(page).some((b) => b.kind === 'table')).toBe(true);
     expect(text(page)).toContain('Encoder');
   });
@@ -607,6 +621,7 @@ describe('Word figure ownership', () => {
       source: 's',
       skew: 0,
     });
+    expect(textConservation(page, f.lines)).toEqual({ missing: [], extra: [] });
     const pictures = leafBlocks(page).filter((b) => b.kind === 'image');
     expect(pictures).toHaveLength(1);
     expect(pictures[0]!.box.y + pictures[0]!.box.height).toBeGreaterThanOrEqual(352);
@@ -624,6 +639,7 @@ describe('Word figure ownership', () => {
       source: 's',
       skew: 0,
     });
+    expect(textConservation(page, f.lines)).toEqual({ missing: [], extra: [] });
     expect(text(page)).toContain('Encoder');
     expect(text(page)).toContain('Ordinary body text remains editable');
   });
@@ -638,6 +654,7 @@ describe('Word figure ownership', () => {
       source: 's',
       skew: 0,
     });
+    expect(textConservation(page, f.lines)).toEqual({ missing: [], extra: [] });
     expect(text(page)).toContain('Encoder');
   });
 
@@ -656,6 +673,7 @@ describe('Word figure ownership', () => {
       source: 's',
       skew: 0,
     });
+    expect(textConservation(page, [...f.lines, crossing])).toEqual({ missing: [], extra: [] });
     expect(text(page)).toContain('Encoder');
     expect(text(page)).toContain('An adjacent paragraph must remain editable');
   });
@@ -731,8 +749,49 @@ describe('Word figure ownership', () => {
         source: 's',
         skew: 0,
       });
+      expect(textConservation(page, f.lines)).toEqual({ missing: [], extra: [] });
       expect(text(page)).toContain('Encoder');
       expect(text(page)).toContain('Ordinary body text remains editable');
     },
   );
+
+  it('keeps a bordered form as a table when a photo sits inside one of its cells', () => {
+    const labels = ['Surname', 'Given names', 'Date of birth', 'Nationality', 'Passport no.'];
+    const values = ['Fischer', 'Amara Nwosu', '1990-04-12', 'German', 'C01X00T47'];
+    const lines = labels.flatMap((t, i) => [
+      line(t, 120, 120 + i * 60, 150),
+      line(values[i]!, 370, 120 + i * 60, 160),
+    ]);
+    // 证件照：右边一列合并的四格里一块有纹理的深色图。
+    const photo: Rect[] = [{ x: 740, y: 140, width: 120, height: 150 }];
+    for (let y = 115; y < 330; y += 4)
+      for (let x = 720; x < 880; x += 4)
+        if ((x + y) % 8 === 0) photo.push({ x, y, width: 3, height: 3 });
+    const grid = gridRects([100, 350, 700, 900], [100, 160, 220, 280, 340, 400], {
+      skipH: [
+        [1, 2],
+        [2, 2],
+        [3, 2],
+      ],
+    });
+    const page = buildDocPage({
+      image: renderPage(size.width, size.height, [
+        ...grid,
+        ...photo,
+        ...lines.flatMap((l) => glyphs(l.x, l.y + 4, l.width, 12)),
+      ]),
+      lines,
+      source: 'id-form',
+      skew: 0,
+      regions: [hint('image', 'image', 715, 110, 170, 225)],
+    });
+    const tables = leafBlocks(page).filter((b) => b.kind === 'table');
+    expect(tables).toHaveLength(1);
+    const cells = tables[0]!.table.cells;
+    for (const [i, label] of labels.entries()) {
+      const row = cells.find((c) => c.text === label)!.row;
+      expect(cells.find((c) => c.text === values[i])!.row).toBe(row);
+    }
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
+  });
 });

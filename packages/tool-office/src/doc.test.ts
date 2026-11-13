@@ -723,6 +723,36 @@ describe('buildDocPage', () => {
     expect(narrow.bodySize).toBeLessThan(old.bodySize);
     expect(letter.bodySize).toBe(old.bodySize);
   });
+  it('gives a photo without paper metadata a page with its own proportions', () => {
+    const page = (width: number, height: number) => {
+      const lines = [
+        fakeLine('Corner Bakery', { x: 150, y: 80, width: 300, height: 30 }, { width, height }),
+        fakeLine(
+          'Total 12.50',
+          { x: 150, y: height - 200, width: 260, height: 30 },
+          { width, height },
+        ),
+      ];
+      return buildDocPage({
+        image: renderPage(
+          width,
+          height,
+          lines.flatMap((l) => glyphs(l.x, l.y + 6, l.width, 18)),
+        ),
+        lines,
+        source: 'receipt.jpg',
+        skew: 0,
+      });
+    };
+    // 不是 A4 比例的一页纸（如 Letter）：纸的高宽比和照片一样，横竖用同一个比例，不把竖向压扁。
+    const letter = page(1000, 1290);
+    expect(letter.paper!.width).toBeCloseTo(595.3, 1);
+    expect(letter.paper!.height / letter.paper!.width).toBeCloseTo(1290 / 1000, 3);
+    // 接近 A4 比例的照片仍是 A4；竖长的小票不设纸，按旧版连续排、自然分页（不压扁成一页 A4）。
+    expect(page(1000, 1400).paper).toEqual({ width: 595.3, height: 841.9 });
+    expect(page(600, 1500).paper).toBeUndefined();
+    expect(page(600, 2400).paper).toBeUndefined();
+  });
   it('sizes lines by the width of their letters when the page is set in one font (D-463)', () => {
     // 识别框一样高（p、g 往下伸的字母让小字的框也一样高），字宽看得出大小：正文 17 像素，小字 13，大字 22。
     const px = (text: string, size: number) => Math.round(textEm(text) * size);
