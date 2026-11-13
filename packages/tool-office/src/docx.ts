@@ -114,9 +114,10 @@ function runXml(text: string, style: DocStyle, bodySize: number, styleId?: strin
     RUN_FONTS +
     (style.bold ? '<w:b/><w:bCs/>' : '') +
     (style.italic ? '<w:i/><w:iCs/>' : '') +
-    (style.underline ? '<w:u w:val="single"/>' : '') +
     (style.color ? `<w:color w:val="${style.color}"/>` : '') +
-    sizeXml(style, bodySize, styleId);
+    sizeXml(style, bodySize, styleId) +
+    // schema 的顺序：color、sz/szCs 在 u 前面。
+    (style.underline ? '<w:u w:val="single"/>' : '');
   const rPr = `<w:rPr>${props}</w:rPr>`;
   return text
     .split('\n')
@@ -184,14 +185,15 @@ function paragraphXml(
     (extra.styleId ? `<w:pStyle w:val="${extra.styleId}"/>` : '') +
     (extra.pageBreak ? '<w:pageBreakBefore/>' : '') +
     (extra.numId ? `<w:numPr><w:ilvl w:val="0"/><w:numId w:val="${extra.numId}"/></w:numPr>` : '') +
-    spacing +
-    ind +
-    (extra.tabs?.length
-      ? `<w:tabs>${extra.tabs.map((pos) => `<w:tab w:val="left" w:pos="${pos}"/>`).join('')}</w:tabs>`
-      : '') +
+    // schema 的顺序：shd、tabs 在 spacing、ind 前面。
     (extra.fill || style.fill
       ? `<w:shd w:val="clear" w:color="auto" w:fill="${extra.fill ?? style.fill}"/>`
       : '') +
+    (extra.tabs?.length
+      ? `<w:tabs>${extra.tabs.map((pos) => `<w:tab w:val="left" w:pos="${pos}"/>`).join('')}</w:tabs>`
+      : '') +
+    spacing +
+    ind +
     (style.align && style.align !== 'left'
       ? `<w:jc w:val="${style.align === 'center' ? 'center' : 'right'}"/>`
       : '') +
@@ -400,14 +402,14 @@ function tableXml(
       const w = widths.slice(c, c + span).reduce((a, b) => a + b, 0);
       const first = cell.row === r;
       const cellLayout = block.cellLayout?.find((p) => p.row === cell.row && p.col === cell.col);
+      // schema 的顺序：tcW、gridSpan、vMerge、shd、tcMar、textDirection、vAlign。
       const tcPr =
         `<w:tcW w:w="${w}" w:type="dxa"/>` +
-        (cellLayout?.fill
-          ? `<w:shd w:val="clear" w:color="auto" w:fill="${cellLayout.fill}"/>`
-          : '') +
         (span > 1 ? `<w:gridSpan w:val="${span}"/>` : '') +
         (cell.rowSpan > 1 ? (first ? '<w:vMerge w:val="restart"/>' : '<w:vMerge/>') : '') +
-        (block.direction ? '<w:textDirection w:val="tbRl"/>' : '');
+        (cellLayout?.fill
+          ? `<w:shd w:val="clear" w:color="auto" w:fill="${cellLayout.fill}"/>`
+          : '');
       const ownSize =
         cell.size === undefined
           ? size
@@ -459,10 +461,13 @@ function tableXml(
             .join('')
         : blankXml(size, !!page.paper);
       const sourceMargins = sourceLines
-        ? '<w:tcMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tcMar>' +
-          (cell.rowSpan > 1 ? '<w:vAlign w:val="center"/>' : '')
+        ? '<w:tcMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tcMar>'
         : '';
-      cells.push(`<w:tc><w:tcPr>${tcPr}${sourceMargins}</w:tcPr>${body || blankXml(size)}</w:tc>`);
+      const direction = block.direction ? '<w:textDirection w:val="tbRl"/>' : '';
+      const vAlign = sourceLines && cell.rowSpan > 1 ? '<w:vAlign w:val="center"/>' : '';
+      cells.push(
+        `<w:tc><w:tcPr>${tcPr}${sourceMargins}${direction}${vAlign}</w:tcPr>${body || blankXml(size)}</w:tc>`,
+      );
       c += span;
     }
     let rowHeight = block.direction
@@ -494,9 +499,10 @@ function tableXml(
   return (
     '<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/>' +
     (left ? `<w:tblInd w:w="${left}" w:type="dxa"/>` : '') +
-    '<w:tblLayout w:type="fixed"/><w:tblBorders>' +
+    // schema 的顺序：tblBorders 在 tblLayout 前面。
+    '<w:tblBorders>' +
     ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(border).join('') +
-    `</w:tblBorders>${cellMarginsXml()}</w:tblPr><w:tblGrid>` +
+    `</w:tblBorders><w:tblLayout w:type="fixed"/>${cellMarginsXml()}</w:tblPr><w:tblGrid>` +
     widths.map((w) => `<w:gridCol w:w="${w}"/>`).join('') +
     `</w:tblGrid>${rows.join('')}</w:tbl>`
   );
@@ -526,9 +532,9 @@ function layoutTableXml(
     '</w:tr>';
   return (
     `<w:tbl><w:tblPr><w:tblW w:w="${widths.reduce((a, b) => a + b, 0)}" w:type="dxa"/>` +
-    '<w:tblLayout w:type="fixed"/><w:tblBorders>' +
+    '<w:tblBorders>' +
     ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(none).join('') +
-    `</w:tblBorders>${cellMarginsXml()}</w:tblPr><w:tblGrid>` +
+    `</w:tblBorders><w:tblLayout w:type="fixed"/>${cellMarginsXml()}</w:tblPr><w:tblGrid>` +
     widths.map((w) => `<w:gridCol w:w="${w}"/>`).join('') +
     `</w:tblGrid>${rows.map(tr).join('')}</w:tbl>`
   );
@@ -671,7 +677,8 @@ export function writeDocx(
     const CONTENT_H = PAGE_H - margins.top - margins.bottom;
     if (sections && p > 0)
       body.push(
-        `<w:p><w:pPr>${sectionXml(doc.pages[p - 1], true)}<w:spacing w:line="1" w:lineRule="exact"/></w:pPr></w:p>`,
+        // sectPr 是 pPr 的最后一个子元素（schema 的顺序）。
+        `<w:p><w:pPr><w:spacing w:line="1" w:lineRule="exact"/>${sectionXml(doc.pages[p - 1], true)}</w:pPr></w:p>`,
       );
     const pageStart = body.length;
     // 每页的字按这一页的正文字号写（D-335：表单页和正文页的正文字号可能差很多）。
@@ -960,12 +967,15 @@ export function writeDocx(
           const k = Math.min(1, maxWidth / w, (CONTENT_H * 0.9) / h);
           w *= k * pictureScale;
           h *= k * pictureScale;
+          // schema 的顺序：spacing、ind，段落标记的 rPr 在最后。
           const pPr =
             (page.paper
-              ? `<w:spacing w:before="${before ?? 0}" w:after="0" w:line="240" w:lineRule="auto"/><w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr>`
+              ? `<w:spacing w:before="${before ?? 0}" w:after="0" w:line="240" w:lineRule="auto"/>`
               : before !== undefined && before >= MIN_BEFORE
                 ? `<w:spacing w:before="${before}"/>`
-                : '') + (left ? `<w:ind w:left="${left}"/>` : '');
+                : '') +
+            (left ? `<w:ind w:left="${left}"/>` : '') +
+            (page.paper ? '<w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr>' : '');
           out.push(
             imageXml(rid, n, Math.round(w * EMU_PER_TWIP), Math.round(h * EMU_PER_TWIP), pPr),
           );
@@ -1017,31 +1027,40 @@ export function writeDocx(
       };
       if (measure() > CONTENT_H - (page.paper ? Math.round(leading * bodySize * 20) : 0)) {
         if (page.paper) {
-          let lo = 0,
-            hi = 1;
-          for (let i = 0; i < 12; i++) {
-            fit = (lo + hi) / 2;
-            // 字体替代和尾行折行留一行余量；只压来源空白，不缩正文或让文字跨到图上。
-            if (measure() > CONTENT_H - Math.round(leading * bodySize * 20)) hi = fit;
-            else lo = fit;
-          }
-          fit = lo;
-          // 段落正常行高加整图本身也可能超过源页；空白压到头后才等比缩图，正文不缩字。
-          if (
-            measure() > CONTENT_H - Math.round(leading * bodySize * 20) &&
-            leaves.some((b) => b.kind === 'image')
-          ) {
-            let low = 0.25,
-              high = 1;
-            pictureScale = low;
-            // 正文本来就需要续页时，缩图不能解决溢出；保留原图尺寸继续正常分页。
-            const feasible = measure() <= CONTENT_H - Math.round(leading * bodySize * 20);
-            for (let i = 0; feasible && i < 12; i++) {
-              pictureScale = (low + high) / 2;
-              if (measure() > CONTENT_H - Math.round(leading * bodySize * 20)) high = pictureScale;
-              else low = pictureScale;
+          // 空白压到零、图缩到最小也放不进这一页时（正文本来就要续页），不压空白：段落之间照样空开，正常分页。
+          fit = 0;
+          pictureScale = leaves.some((b) => b.kind === 'image') ? 0.25 : 1;
+          const fits = measure() <= CONTENT_H - Math.round(leading * bodySize * 20);
+          fit = 1;
+          pictureScale = 1;
+          if (fits) {
+            let lo = 0,
+              hi = 1;
+            for (let i = 0; i < 12; i++) {
+              fit = (lo + hi) / 2;
+              // 字体替代和尾行折行留一行余量；只压来源空白，不缩正文或让文字跨到图上。
+              if (measure() > CONTENT_H - Math.round(leading * bodySize * 20)) hi = fit;
+              else lo = fit;
             }
-            pictureScale = feasible ? low : 1;
+            fit = lo;
+            // 段落正常行高加整图本身也可能超过源页；空白压到头后才等比缩图，正文不缩字。
+            if (
+              measure() > CONTENT_H - Math.round(leading * bodySize * 20) &&
+              leaves.some((b) => b.kind === 'image')
+            ) {
+              let low = 0.25,
+                high = 1;
+              pictureScale = low;
+              // 正文本来就需要续页时，缩图不能解决溢出；保留原图尺寸继续正常分页。
+              const feasible = measure() <= CONTENT_H - Math.round(leading * bodySize * 20);
+              for (let i = 0; feasible && i < 12; i++) {
+                pictureScale = (low + high) / 2;
+                if (measure() > CONTENT_H - Math.round(leading * bodySize * 20))
+                  high = pictureScale;
+                else low = pictureScale;
+              }
+              pictureScale = feasible ? low : 1;
+            }
           }
         } else {
           const dry: Flow = { top: marginPx, bottom: marginPx, height: 0 };

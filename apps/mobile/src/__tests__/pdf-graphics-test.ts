@@ -180,4 +180,45 @@ describe('digital PDF graphics ownership', () => {
     expect(result.owned).toHaveLength(4);
     expect([...result.keep]).toEqual([20, 21, 22, 23]);
   });
+  it('treats glyph runs without Unicode as text, never as drawing in the background or crops', () => {
+    const script = (name: string) =>
+      new Function('handlers', PDF_GRAPHICS_SCRIPT + `;return ${name};`)({});
+    const cropOperation = script('cropOperation');
+    const backgroundOperation = script('backgroundOperation');
+    const figure = box(300, 150, 250, 180);
+    const inside = {
+      i: 6,
+      name: 'showText',
+      text: '',
+      alpha: 1,
+      mode: 0,
+      box: box(320, 200, 60, 15),
+    };
+    const outside = {
+      i: 7,
+      name: 'showText',
+      text: '',
+      alpha: 1,
+      mode: 0,
+      box: box(20, 70, 60, 15),
+    };
+    const result = plan(
+      [
+        text(1, box(20, 40, 160, 20)),
+        { i: 2, image: true, box: box(330, 200, 30, 30) },
+        { i: 3, image: true, box: box(450, 230, 30, 30) },
+        inside,
+        outside,
+      ],
+      { ...input, candidates: [figure] },
+    );
+    expect(result.owned).toEqual([figure]);
+    // 图里的无编码字形跟着这张图；图外的是正文，由可编辑文字承载。
+    expect(result.keep.has(6)).toBe(true);
+    expect(result.keep.has(7)).toBe(false);
+    expect(cropOperation(inside, result)).toBe(true);
+    expect(cropOperation(outside, result)).toBe(false);
+    expect(backgroundOperation(outside, box(0, 0, 600, 800))).toBe(false);
+    expect(backgroundOperation({ i: 8, name: 'setFont' }, box(0, 0, 600, 800))).toBe(true);
+  });
 });

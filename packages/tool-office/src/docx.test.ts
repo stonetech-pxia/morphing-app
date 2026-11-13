@@ -276,6 +276,37 @@ describe('writeDocx', () => {
     expect(xml).toContain('Third source page');
   });
 
+  it('keeps source spacing on a physical page whose text needs another page anyway', () => {
+    const blocks: DocPage['blocks'] = [];
+    let y = 60;
+    for (let i = 0; i < 8; i++) {
+      blocks.push({
+        kind: 'paragraph',
+        text: `Heading line ${i}`,
+        box: { x: 80, y, width: 300, height: 20 },
+      });
+      y += 80;
+    }
+    blocks.push({
+      kind: 'paragraph',
+      text: 'lorem ipsum dolor sit amet consectetur adipiscing elit '.repeat(80),
+      box: { x: 80, y, width: 840, height: 600 },
+    });
+    const befores = (paper?: { width: number; height: number }) =>
+      [
+        ...unzip(
+          writeDocx({ version: 5, pages: [{ ...page(blocks), ...(paper ? { paper } : {}) }] }),
+        )
+          .text('word/document.xml')
+          .matchAll(/w:before="(\d+)"/g),
+      ].map((m) => Number(m[1]));
+    // 压掉空白也放不进一页：和旧写法一样不压，段落之间照样空开。
+    const spaced = befores({ width: 595.3, height: 841.9 });
+    expect(spaced.length).toBeGreaterThanOrEqual(7);
+    expect(spaced.every((v) => v > 0)).toBe(true);
+    expect(befores()).toHaveLength(spaced.length);
+  });
+
   it('gives rotated table cells their source text direction and vertical writing room', () => {
     const table: DocTable = {
       kind: 'table',
@@ -1194,7 +1225,7 @@ describe('writeDocx', () => {
     expect(tables).toHaveLength(2);
     // 外面那张：没有边框，两列按原图宽度换算（1000 像素 = 11906 twip）。
     expect(xml).toMatch(
-      /<w:body><w:tbl><w:tblPr><w:tblW [^>]*><w:tblLayout [^>]*><w:tblBorders><w:top w:val="nil"\/>/,
+      /<w:body><w:tbl><w:tblPr><w:tblW [^>]*><w:tblBorders><w:top w:val="nil"\/>/,
     );
     expect(xml).toContain('<w:gridCol w:w="4762"/><w:gridCol w:w="4167"/>');
     // 里面的表照常有边框，按它那一格的宽（减去左右边距）缩小：2381 → 2004。
@@ -1308,5 +1339,255 @@ describe('left alignment snap (D-473)', () => {
     );
     const lefts = [...xml.matchAll(/<w:ind w:left="(\d+)"/g)].map((m) => m[1]);
     expect(new Set(lefts).size).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('OOXML element order', () => {
+  // ECMA-376 第 1 部分的顺序（只列会写到的几种）：Word 按 schema 的顺序读，顺序错了可能报「无法读取的内容」或丢掉属性。
+  const ORDER: Record<string, string[]> = {
+    pPr: [
+      'pStyle',
+      'keepNext',
+      'keepLines',
+      'pageBreakBefore',
+      'framePr',
+      'widowControl',
+      'numPr',
+      'suppressLineNumbers',
+      'pBdr',
+      'shd',
+      'tabs',
+      'suppressAutoHyphens',
+      'kinsoku',
+      'wordWrap',
+      'overflowPunct',
+      'topLinePunct',
+      'autoSpaceDE',
+      'autoSpaceDN',
+      'bidi',
+      'adjustRightInd',
+      'snapToGrid',
+      'spacing',
+      'ind',
+      'contextualSpacing',
+      'mirrorIndents',
+      'suppressOverlap',
+      'jc',
+      'textDirection',
+      'textAlignment',
+      'textboxTightWrap',
+      'outlineLvl',
+      'divId',
+      'cnfStyle',
+      'rPr',
+      'sectPr',
+      'pPrChange',
+    ],
+    rPr: [
+      'rStyle',
+      'rFonts',
+      'b',
+      'bCs',
+      'i',
+      'iCs',
+      'caps',
+      'smallCaps',
+      'strike',
+      'dstrike',
+      'outline',
+      'shadow',
+      'emboss',
+      'imprint',
+      'noProof',
+      'snapToGrid',
+      'vanish',
+      'webHidden',
+      'color',
+      'spacing',
+      'w',
+      'kern',
+      'position',
+      'sz',
+      'szCs',
+      'highlight',
+      'u',
+      'effect',
+      'bdr',
+      'shd',
+      'fitText',
+      'vertAlign',
+      'rtl',
+      'cs',
+      'em',
+      'lang',
+      'eastAsianLayout',
+      'specVanish',
+      'oMath',
+    ],
+    tcPr: [
+      'cnfStyle',
+      'tcW',
+      'gridSpan',
+      'hMerge',
+      'vMerge',
+      'tcBorders',
+      'shd',
+      'noWrap',
+      'tcMar',
+      'textDirection',
+      'tcFitText',
+      'vAlign',
+      'hideMark',
+    ],
+    tblPr: [
+      'tblStyle',
+      'tblpPr',
+      'tblOverlap',
+      'bidiVisual',
+      'tblStyleRowBandSize',
+      'tblStyleColBandSize',
+      'tblW',
+      'jc',
+      'tblCellSpacing',
+      'tblInd',
+      'tblBorders',
+      'shd',
+      'tblLayout',
+      'tblCellMar',
+      'tblLook',
+    ],
+  };
+  /** 每个 w:pPr / w:rPr / w:tcPr / w:tblPr 的直接子元素，按出现的顺序。 */
+  const childLists = (xml: string) => {
+    const out: { parent: string; children: string[] }[] = [];
+    const stack: { name: string; children: string[] }[] = [];
+    for (const m of xml.matchAll(/<(\/?)w:([A-Za-z]+)[^>]*?(\/?)>/g)) {
+      const [, close, name, self] = m;
+      if (close) {
+        const top = stack.pop()!;
+        if (ORDER[top.name]) out.push({ parent: top.name, children: top.children });
+        continue;
+      }
+      stack.at(-1)?.children.push(name!);
+      if (!self) stack.push({ name: name!, children: [] });
+    }
+    return out;
+  };
+  const misordered = (xml: string) =>
+    childLists(xml).flatMap(({ parent, children }) => {
+      const order = ORDER[parent]!;
+      const at = children.map((c) => order.indexOf(c));
+      return at.some((v) => v < 0) || at.some((v, i) => i > 0 && v <= at[i - 1]!)
+        ? [`${parent}: ${children.join(',')}`]
+        : [];
+    });
+
+  it('writes every property element in schema order, on legacy and physical-paper pages', () => {
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const images = new Map([
+      ['figure', { bytes: png, width: 300, height: 150 }],
+      ['decoration', { bytes: png, width: 1000, height: 1400 }],
+    ]);
+    const cellBox = (x: number, y: number, width: number, height: number) => ({
+      x,
+      y,
+      width,
+      height,
+    });
+    const table: DocTable = {
+      kind: 'table',
+      box: cellBox(100, 500, 800, 120),
+      colWidths: [300, 300, 200],
+      table: {
+        kind: 'table',
+        box: cellBox(100, 500, 800, 120),
+        col: 0,
+        rows: 2,
+        cols: 3,
+        cells: [
+          {
+            row: 0,
+            col: 0,
+            rowSpan: 1,
+            colSpan: 2,
+            text: 'Header\tvalue',
+            box: cellBox(100, 500, 600, 60),
+          },
+          {
+            row: 0,
+            col: 2,
+            rowSpan: 2,
+            colSpan: 1,
+            text: 'Side',
+            box: cellBox(700, 500, 200, 120),
+          },
+          { row: 1, col: 0, rowSpan: 1, colSpan: 1, text: 'a', box: cellBox(100, 560, 300, 60) },
+          { row: 1, col: 1, rowSpan: 1, colSpan: 1, text: 'b', box: cellBox(400, 560, 300, 60) },
+        ],
+      },
+      cellLayout: [
+        {
+          row: 0,
+          col: 0,
+          fill: 'FFCC00',
+          lines: [{ ...cellBox(110, 510, 200, 20), fill: 'FFCC00', color: 'FF0000', tabs: [400] }],
+        },
+        { row: 0, col: 2, fill: 'CCCCCC', lines: [cellBox(710, 510, 50, 20)] },
+      ],
+    };
+    const blocks: DocPage['blocks'] = [
+      { kind: 'image', background: true, src: 'decoration', box: cellBox(0, 0, 1000, 1400) },
+      {
+        kind: 'paragraph',
+        text: 'Heading',
+        heading: 1,
+        align: 'center',
+        box: cellBox(300, 60, 400, 40),
+      },
+      {
+        kind: 'paragraph',
+        text: 'Banded body',
+        fill: 'DDEEFF',
+        color: '336699',
+        bold: true,
+        italic: true,
+        underline: true,
+        align: 'right',
+        box: cellBox(200, 120, 600, 20),
+      },
+      { kind: 'list', ordered: true, items: ['one', 'two'], box: cellBox(150, 160, 400, 40) },
+      { kind: 'image', src: 'figure', box: cellBox(400, 220, 300, 150) },
+      { kind: 'space', box: cellBox(100, 380, 400, 30) },
+      table,
+      {
+        kind: 'row',
+        box: cellBox(100, 700, 800, 60),
+        cells: [
+          {
+            width: 400,
+            blocks: [{ kind: 'paragraph', text: 'Left', box: cellBox(100, 700, 300, 20) }],
+          },
+          {
+            width: 400,
+            blocks: [{ kind: 'paragraph', text: 'Right', box: cellBox(500, 700, 300, 20) }],
+          },
+        ],
+      },
+    ];
+    const paper = { width: 595.3, height: 841.9 };
+    for (const doc of [
+      {
+        version: 5 as const,
+        pages: [
+          { ...page(blocks), paper },
+          { ...page(blocks), paper },
+        ],
+      },
+      { version: 1 as const, pages: [page(blocks), page(blocks)] },
+    ]) {
+      const zip = unzip(writeDocx(doc, images));
+      for (const part of ['word/document.xml', 'word/styles.xml', 'word/numbering.xml'])
+        expect(misordered(zip.text(part)), part).toEqual([]);
+    }
   });
 });

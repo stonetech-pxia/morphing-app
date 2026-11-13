@@ -1,3 +1,4 @@
+import { strFromU8, unzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 
 import type { DocDoc } from './doc';
@@ -14,6 +15,8 @@ import {
   setTableFrom,
   tableDocOf,
 } from './doc-edit';
+import { writeDocx } from './docx';
+import { importDocx } from './docx-import';
 import {
   insertColumn,
   insertRow,
@@ -23,6 +26,7 @@ import {
   startHistory,
   undo,
 } from './edit';
+import { textToDocDoc } from './text-doc';
 
 const box = { x: 0, y: 0, width: 100, height: 20 };
 
@@ -124,16 +128,27 @@ describe('DocDoc edits', () => {
   });
 
   it('reads back its own JSON and rejects anything else', () => {
-    expect(parseDocDoc(JSON.stringify(doc))).toEqual({
-      ...doc,
-      version: 5,
-      pages: doc.pages.map((p) => ({ ...p, paper: { width: 595.3, height: 841.9 } })),
-    });
+    // 旧版本只升版本号，内容和（没有的）纸张都原样保留。
+    expect(parseDocDoc(JSON.stringify(doc))).toEqual({ ...doc, version: 5 });
     expect(parseDocDoc('{"version":6,"pages":[]}')).toBeNull();
     expect(parseDocDoc('{"version":1,"pages":[{}]}')).toBeNull();
     expect(parseDocDoc('not json')).toBeNull();
   });
 
+  it('writes the same Word file after reopening a legacy text, imported or scanned document', () => {
+    const documentXml = (d: DocDoc) => strFromU8(unzipSync(writeDocx(d))['word/document.xml']!);
+    const text = textToDocDoc('First paragraph.\n\nSecond paragraph.\n\nThird paragraph.');
+    const imported = importDocx(writeDocx(text)).doc;
+    for (const legacy of [text, imported, doc]) {
+      const reopened = parseDocDoc(JSON.stringify(legacy))!;
+      expect(reopened.pages.map((p) => p.paper)).toEqual(legacy.pages.map((p) => p.paper));
+      expect(documentXml(reopened)).toBe(documentXml(legacy));
+    }
+    // 占位框的文档分段靠段前距：重新打开后不能丢。
+    expect(documentXml(parseDocDoc(JSON.stringify(text))!)).toContain(
+      '<w:spacing w:before="160"/>',
+    );
+  });
   it('upgrades version 4 without inventing physical paper for a photo, and preserves full-cell fills', () => {
     const previous = { ...structuredClone(doc), version: 4 as const };
     const next = parseDocDoc(JSON.stringify(previous));

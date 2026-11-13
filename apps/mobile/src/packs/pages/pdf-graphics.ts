@@ -33,6 +33,23 @@ function decorativeOperation(r, full) {
       b.x <= full.width * 0.08 && b.y <= full.height * 0.08 &&
       b.x + b.width >= full.width * 0.92 && b.y + b.height >= full.height * 0.92));
 }
+// 画字的指令：没有 Unicode 的字形（text 是空串）也是字，不能当成绘图画进页底或图外的剪图。
+const isTextOp = (r) => typeof r.text === 'string';
+// 剪图那一遍画哪些指令：图里的字、透明字层画，图外的字不画；阴影蒙版下的绘图不画。
+function cropOperation(r, plan) {
+  if (!r) return false;
+  if (isTextOp(r)) return plan.keep.has(r.i) || r.mode === 3;
+  if (r.activeMask && plan.shadows.has(r.activeMask) && (r.name === 'constructPath' || r.image))
+    return false;
+  return true;
+}
+// 页底那一遍只画纯装饰：任何字都不画。
+function backgroundOperation(r, full) {
+  if (!r || isTextOp(r)) return false;
+  if (r.name === 'constructPath' || r.image || r.name === 'shadingFill')
+    return !!decorativeOperation(r, full);
+  return true;
+}
 function padGraphicBoxes(boxes, lines, width, height) {
   // 绘图框和版面框都有边界误差；剪图留少量白边，但不能接管相邻正文。
   return boxes.map((b) => {
@@ -349,7 +366,12 @@ function planNativeGraphics(records, input) {
   if (total && matched / total < 0.85) return null;
   return {
     owned,
-    keep: new Set(texts.filter(keep).map((t) => t.i)),
+    // 图里的字（连同没有 Unicode 的字形）跟着剪图画。
+    keep: new Set(
+      records
+        .filter((r) => isTextOp(r) && r.box && r.alpha > 0.01 && r.mode !== 3 && keep(r))
+        .map((r) => r.i),
+    ),
     shadows: new Set(masks.keys()),
     colors: texts.filter((t) => !keep(t)).map((t) => ({ box: t.box, color: t.color })),
     fills: records.filter((r) => r.fill && r.rectangle && r.box && r.alpha > 0.9 && !r.mask)
@@ -552,18 +574,7 @@ handlers.graphics = async ({ file, index, maxSide, figures, candidates, lines })
       canvasContext: ctx,
       viewport,
       background: 'rgba(0,0,0,0)',
-      operationsFilter(i) {
-        const r = byIndex.get(i);
-        if (!r) return false;
-        if (r.text) return plan.keep.has(i) || r.mode === 3;
-        if (
-          r.activeMask &&
-          plan.shadows.has(r.activeMask) &&
-          (r.name === 'constructPath' || r.image)
-        )
-          return false;
-        return true;
-      },
+      operationsFilter: (i) => cropOperation(byIndex.get(i), plan),
     }).promise;
     // 每张图单独输出。完整绘图层只在此处作剪图中间值，绝不作为文字/表格后面的固定内容层。
     plan.owned = completeBarcodes(ctx, canvas.width, canvas.height, plan.owned, scale,
@@ -584,13 +595,7 @@ handlers.graphics = async ({ file, index, maxSide, figures, candidates, lines })
     if (records.some((r) => decorativeOperation(r, full))) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       await page.render({ canvas, canvasContext: ctx, viewport, background: 'rgba(0,0,0,0)',
-        operationsFilter(i) {
-          const r = byIndex.get(i);
-          if (!r || r.text) return false;
-          if (r.name === 'constructPath' || r.image || r.name === 'shadingFill')
-            return !!decorativeOperation(r, full);
-          return true;
-        },
+        operationsFilter: (i) => backgroundOperation(byIndex.get(i), full),
       }).promise;
       for (const b of plan.owned) ctx.clearRect(b.x * scale, b.y * scale, b.width * scale, b.height * scale);
       backgroundPng = canvas.toDataURL('image/png').split(',')[1];
