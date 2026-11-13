@@ -58,5 +58,11 @@
     "id": "right-side-row-offset",
     "source": "10-right-side-row-offset.html",
     "sha256": "89caf5de7c80ed4d64430c6546780c8ec25c46382aede787ba0c50c5191996e3"
+  },
+  {
+    "page": 11,
+    "id": "landscape-text-size",
+    "source": "11-landscape-text-size.html",
+    "sha256": "e5d3e24073f551439ee5fe066278914d9cb04e6bda7f6c1be39d2adebc7c8390"
   }
 ]

@@ -6,6 +6,7 @@ import {
   indentLeft,
   pictures,
   sections,
+  sizeOf,
   spaceBefore,
   xmlPara,
 } from '../lib/layout-checks';
@@ -208,6 +209,23 @@ export const GEOMETRY: Case[] = [
         }),
       ),
       sideBySide('FOB', "DATE D'EXPÉDITION"),
+    ],
+  },
+  {
+    id: 'landscape-text-size',
+    suite: 'geometry',
+    fix: 'EU sample 017, 019',
+    what: 'Landscape A4 notice with a 14 pt heading and 11 pt body: the page width was read as 595 pt (portrait A4) while the Word page is 842 pt wide, so all text came out at 0.71× its source size (14 → 10 pt, 11 → 8 pt).',
+    lang: 'deu',
+    checks: [
+      custom('body text ≈ 11 pt (±1 pt)', (c) => {
+        const got = sizeOf(c, 'Der Gemeinschaftsraum im Erdgeschoss');
+        return Math.abs(got - 11) <= 1 ? null : `${got} pt`;
+      }),
+      custom('heading ≈ 14 pt (±1.5 pt)', (c) => {
+        const got = sizeOf(c, 'Muster einer Gebrauchsanweisung');
+        return Math.abs(got - 14) <= 1.5 ? null : `${got} pt`;
+      }),
     ],
   },
 ];

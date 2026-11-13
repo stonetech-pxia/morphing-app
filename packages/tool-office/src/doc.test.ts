@@ -786,6 +786,36 @@ describe('buildDocPage', () => {
     );
   });
 
+  it('sizes text on a landscape page by the landscape paper width, not the portrait A4 width (EU sample 017)', () => {
+    // 横向 A4（842 × 595 磅）渲染成 1400 × 990 像素：20 像素高的行约 842 × 0.9 × 20 / 1400 ≈ 11 磅。
+    const LW = 1400;
+    const LH = 990;
+    const rects: Rect[] = [];
+    const lines: OcrBox[] = [];
+    [
+      'An editable paragraph on a landscape source page.',
+      'The same landscape page continues with a second line.',
+      'And a third body line keeps the size estimate stable.',
+    ].forEach((text, i) => {
+      const y = 100 + i * 45;
+      for (let s = 0; s + 2 <= 900; s += 9)
+        rects.push({ x: 80 + s, y: y + 4, width: 2, height: 12 });
+      lines.push(fakeLine(text, { x: 80, y, width: 900, height: 20 }, { width: LW, height: LH }));
+    });
+    const image = renderPage(LW, LH, rects);
+    const pdf = buildDocPage({
+      image,
+      lines,
+      source: 's',
+      paper: { width: 841.9, height: 595.3 },
+      skew: 0,
+    });
+    // 旧的按 595 磅估：约 7.7 磅（只有原来的 0.71 倍），再被正文下限抬到 9 磅。
+    expect(pdf.bodySize).toBeGreaterThanOrEqual(10.5);
+    // 横拍的照片没有纸张信息，Word 的纸也按横向 A4：字一样大。
+    expect(buildDocPage({ image, lines, source: 's', skew: 0 }).bodySize).toBe(pdf.bodySize);
+  });
+
   it('calibrates fonts to a known narrow PDF before applying the readable body minimum', () => {
     const { image, lines } = textPage([
       {

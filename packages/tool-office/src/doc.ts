@@ -1306,9 +1306,9 @@ function buildPage(
   const join = options.joinLines ?? defaultJoin;
   const { image } = input;
   const paper = input.paper ?? photoPaper(image);
-  // 确知的窄幅 PDF 按它的物理宽度估字，再做字号限制；照片仍沿用 A4 标定，也不因宽纸放大字。
-  const fontWidthPx =
-    (image.width * A4_WIDTH_PT) / Math.min(A4_WIDTH_PT, input.paper?.width ?? A4_WIDTH_PT);
+  // 按 Word 的纸宽估字：窄幅 PDF 按它的物理宽度；横向的纸（横向 A4 的 PDF、横拍的照片）按 842 磅宽，
+  // 不按竖向 A4 的 595 磅，不然字整体只有原来的 0.71 倍。比 A3 大的纸已经由 fitPaper 缩过，不会因此放大字。
+  const fontWidthPx = (image.width * A4_WIDTH_PT) / (paper?.width ?? A4_WIDTH_PT);
   const lines = input.lines.filter((l) => l.text.trim());
   const joinParagraph = lines.length < DENSE_LINES ? (options.joinParagraph ?? join) : join;
   const rotatedLines = lines.filter((l) => l.text.trim().length >= 4 && l.height > 2 * l.width);
