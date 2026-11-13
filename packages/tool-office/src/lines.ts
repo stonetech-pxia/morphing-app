@@ -73,6 +73,11 @@ const BAND_MIN_ANCHORS = 2;
 const ALIGN_SHARE = 0.02;
 const RULED_GAP_SHARE = 0.4;
 const RULED_MIN = 3;
+/**
+ * 只有横线的一串，头两条线最远隔页高的 10%：三线表的顶线和表头线之间只有表头那一行，只有表身才可能很高。
+ * 一开始就隔着一大段的，是一节一节表单框的底线、各处填空的横线（EU 样本 014），不是一张表。
+ */
+const RULED_HEAD_GAP_SHARE = 0.1;
 
 /**
  * 很浅的表格线（转 Word 用，findLines 的 light）：电子版的发票模板、表单常用浅灰的线（最暗的通道 0.75–0.86），
@@ -656,6 +661,7 @@ export function findTables(
   // 只有横线的表：按位置从上到下，左右两端都和上一条对齐、离得不远的接成一串。
   const align = page.width * ALIGN_SHARE;
   const maxGap = page.height * RULED_GAP_SHARE;
+  const maxHeadGap = page.height * RULED_HEAD_GAP_SHARE;
   // 一张网格的行高：网格里的横线相邻间距的中位数。
   const rowGapOf = (i: number) => {
     const ys = hs
@@ -678,6 +684,7 @@ export function findTables(
       const gap = h.pos - last.pos;
       if (gap > maxGap || Math.abs(h.from - last.from) > align || Math.abs(h.to - last.to) > align)
         return false;
+      if (c.length === 1 && !hOk[i] && !hOk[lastIndex] && gap > maxHeadGap) return false;
       // 隔着一大段（比这一串的间距大一倍以上）、中间压着另一张网格的横线：上下是两串，不跨过网格接起来
       // （发票右边的填写横线，中间隔着整张商品栏，EU 样本 001）。一串紧挨着穿过网格的线照旧接
       // （IRS Schedule B 金额栏的横线一格一条，中间的分节线也是网格的线）。

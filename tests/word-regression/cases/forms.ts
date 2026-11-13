@@ -202,4 +202,20 @@ export const FORMS: Case[] = [
       ),
     ],
   },
+  {
+    id: 'three-framed-sections',
+    suite: 'forms',
+    fix: 'EU sample 014',
+    what: 'Three stacked framed sections (cerfa-like vehicle transfer form) whose top rules are broken by the section titles: the frames were not grids, but their three full-width bottom rules (and three fill-in underlines with aligned ends) chained into one horizontal-rules-only table, so two whole sections became one page-tall grid with one row per text line.',
+    lang: 'fra',
+    checks: [
+      notInTable('Je certifie en outre'),
+      notInTable('Avoir été informé de la situation administrative'),
+      together(
+        "Que ce véhicule n'a pas subi de transformation notable",
+        "l'actuel certificat d'immatriculation",
+      ),
+      order('LE VÉHICULE', 'Ancien propriétaire', 'Je certifie en outre', 'Nouveau propriétaire'),
+    ],
+  },
 ];

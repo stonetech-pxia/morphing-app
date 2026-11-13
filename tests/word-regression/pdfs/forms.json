@@ -52,5 +52,11 @@
     "id": "framed-section-checkboxes",
     "source": "09-framed-section-checkboxes.html",
     "sha256": "6068f1ee2f4fe61b7bf07ad3fbb0836e86008eb1dcb8d0b2f1d0603fe1c6b3fe"
+  },
+  {
+    "page": 10,
+    "id": "three-framed-sections",
+    "source": "10-three-framed-sections.html",
+    "sha256": "0f6439aae60e69343492080e6ecb863506a90239fe1aec7015b4406d4b68e10d"
   }
 ]

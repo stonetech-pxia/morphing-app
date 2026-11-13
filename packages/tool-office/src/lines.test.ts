@@ -109,3 +109,20 @@ describe('findTables: stacked tables in one frame (Word)', () => {
     expect(findTables(page, { splitStacked: true })).toHaveLength(1);
   });
 });
+
+describe('findTables: rules-only chains', () => {
+  it('does not chain the bottom rules of stacked form frames into one table (EU sample 014)', () => {
+    // 三节表单框：标题把顶线断开，框不成网格；三条整页宽的底线彼此隔着一整节（都不到页高的 40%）。
+    const bottoms: Rect[] = [300, 800, 1300].map((y) => ({ x: 60, y, width: 882, height: 2 }));
+    const tables = findTables(findLines(renderPage(W, H, bottoms), { skew: 0 }));
+    expect(tables).toHaveLength(0);
+  });
+
+  it('still takes a three-line table with a short header and a tall body', () => {
+    // 三线表：顶线、表头线隔着一行，表身很高。
+    const rules: Rect[] = [300, 340, 900].map((y) => ({ x: 60, y, width: 882, height: 2 }));
+    const tables = findTables(findLines(renderPage(W, H, rules), { skew: 0 }));
+    expect(tables).toHaveLength(1);
+    expect(tables[0]!.hs).toHaveLength(3);
+  });
+});
