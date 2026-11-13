@@ -179,8 +179,6 @@ export const TEXT_FLOW: Case[] = [
       aligned('Sprechzeiten', 'center'),
       together('Ibuprofen 400 mg', 'new appointment at the practice'),
     ],
-    knownFailure:
-      'Regressed by 5f61ae5e (passes at 0fcb9def and 21978e07): the ragged-right wrap rule joins the second to fourth centered letterhead lines into one paragraph ("Lindenstraße 14 … Telefon … Sprechzeiten …").',
   },
   {
     id: 'stray-margin-mark',
@@ -197,6 +195,8 @@ export const TEXT_FLOW: Case[] = [
           : 'missing',
       ),
       order('General Conditions', 'The tenant shall keep', 'Subletting is not permitted'),
+      // 两个短句各自成段：栏比这两行宽，「Inventory」放得下却换了行（5f61ae5e 起接成了一段）。
+      apart('Subletting is not permitted', 'Inventory checked'),
     ],
   },
 ];

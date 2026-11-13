@@ -472,13 +472,17 @@ function splitRow(row: Row, lineHeight: number): Row[] {
 function fitsOnPrev(prev: Row, row: Row, right: number, typical: number): boolean {
   // 很短的行（表单的标签一列）长短不一是常事，不是折行；只对够长的行用这个判断。
   if ([...prev.text].length <= LABEL_MAX) return true;
+  return prev.box.x + prev.box.width + firstWordWidth(row) <= right + 0.3 * typical;
+}
+
+/** 一行的第一个词（连同前面的空格）大约多宽：按这一行平均每个字的宽估。中日文的第一个字就可以折行。 */
+function firstWordWidth(row: Row): number {
   const text = row.text.trim();
   const first = /^[\u2e80-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/.test(text)
     ? text.slice(0, 1)
     : (text.split(/\s+/)[0] ?? '');
   const char = row.box.width / Math.max(1, text.length);
-  const word = (first.length + 1) * char;
-  return prev.box.x + prev.box.width + word <= right + 0.3 * typical;
+  return (first.length + 1) * char;
 }
 
 /** 一块里的行分成段落：空隙大、是列表项、上一行没写到右边（不是折行）、或者有缩进的地方开始新的一段。 */
@@ -491,8 +495,37 @@ export function paragraphsOf(
   const typical = median(rows.map((r) => median(r.lines.map((l) => l.height)))) || 1;
   const left = Math.min(...rows.map((r) => r.box.x));
   // 右边：行数多时用靠右的八成位置，一行特别长（网址、表格里漏进来的）不把右边撑出去。
-  const rights = rows.map((r) => r.box.x + r.box.width).sort((a, b) => a - b);
-  const right = rows.length >= 5 ? rights[Math.floor((rights.length - 1) * 0.85)]! : rights.at(-1)!;
+  // 块外的行（peers）说明这一栏有多宽：几行短行自成一块时，最宽的那行不是栏的右边。
+  // 和块同高、在块左右两边又在那一行横跨范围里有别的字，那一行横跨了别的栏，不算。
+  const top = Math.min(...rows.map((r) => r.box.y));
+  const bottom = Math.max(...rows.map((r) => r.box.y + r.box.height));
+  const own = Math.max(...rows.map((r) => r.box.x + r.box.width));
+  const beside = peers.filter(
+    (q) => (q.x + q.width <= left || q.x >= own) && q.y < bottom && q.y + q.height > top,
+  );
+  const sameColumn = (p: OcrBox) => !beside.some((q) => q.x < p.x + p.width && q.x + q.width > p.x);
+  // 左对齐的：左边对齐、字差不多高、上下挨着（三个行高以内）的行。
+  const column = peers.filter(
+    (p) =>
+      Math.abs(p.x - left) <= typical &&
+      Math.abs(p.height - typical) <= 0.5 * typical &&
+      Math.max(p.y - bottom, top - (p.y + p.height)) <= 3 * typical &&
+      sameColumn(p),
+  );
+  const rights = [
+    ...rows.map((r) => r.box.x + r.box.width),
+    ...column.map((p) => p.x + p.width),
+  ].sort((a, b) => a - b);
+  const right =
+    rights.length >= 5 ? rights[Math.floor((rights.length - 1) * 0.85)]! : rights.at(-1)!;
+  // 居中的：横跨块中线的行有多宽，居中的行就能排多宽。
+  const middle = (left + own) / 2;
+  const centeredWidth = Math.max(
+    own - left,
+    ...peers
+      .filter((p) => p.x <= middle && p.x + p.width >= middle && sameColumn(p))
+      .map((p) => p.width),
+  );
   const out: { rows: Row[]; spaced: boolean; list: boolean }[] = [];
   for (const [i, row] of rows.entries()) {
     const prev = rows[i - 1];
@@ -506,11 +539,21 @@ export function paragraphsOf(
     const h = median(row.lines.map((l) => l.height));
     const prevH = prev ? median(prev.lines.map((l) => l.height)) : h;
     // 居中排的几行（信头、处方的页眉，D-463）：中线对齐、左边不齐，是一行一行的，不是折行。
+    const centerShift = prev
+      ? Math.abs(prev.box.x + prev.box.width / 2 - (row.box.x + row.box.width / 2))
+      : 0;
+    const leftShift = prev ? Math.abs(prev.box.x - row.box.x) : 0;
+    // 左边只差一点、中线对得比左边准得多的两行也是居中排的（左对齐的行左边只有几像素的抖动）：
+    // 下一行的第一个词放得进居中能排的宽度却换了行，是一行一行排的，不是折行。
+    const centeredLines =
+      prev !== undefined &&
+      centerShift <= CENTER_PAIR * typical &&
+      leftShift > 0.2 * typical &&
+      centerShift < leftShift / 4 &&
+      prev.box.width + firstWordWidth(row) <= centeredWidth + 0.3 * typical;
     const centeredPair =
       prev !== undefined &&
-      Math.abs(prev.box.x + prev.box.width / 2 - (row.box.x + row.box.width / 2)) <=
-        CENTER_PAIR * typical &&
-      Math.abs(prev.box.x - row.box.x) > 0.5 * typical;
+      ((centerShift <= CENTER_PAIR * typical && leftShift > 0.5 * typical) || centeredLines);
     // 同一排左右各有「标签：值」是独立的信息行，不是上一段正文的折行。
     // 只看组外、隔开一栏的字段；正文两栏恰好对齐、字段值自己的续行都不因此拆段。
     const field = (text: string) => /^[^:：.!?。！？\n]{1,30}[:：]\s*\S/u.test(text.trim());

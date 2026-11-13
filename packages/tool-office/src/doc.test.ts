@@ -106,6 +106,50 @@ describe('paragraphsOf', () => {
       [false, true],
     ]);
   });
+
+  it('keeps centred letterhead lines apart when the next first word would have fit, and joins a wrapped centred title', () => {
+    // 同一条中线、左边只差 9 和 15 像素（不到半个行高）。下面的正文写满 129–1239：
+    // 「Telefon」接在上一行后面、照样居中也排得下，却换了行，是一行一行排的。
+    const lines = [
+      line('Praxis für Allgemeinmedizin · Dr. med. Lena Hartmann', 279, 158, 849, 37),
+      line('Lindenstraße 14, 79098 Freiburg im Breisgau', 347, 207, 713, 41),
+      line('Telefon 0761 555 0192 · Fax 0761 555 0193', 356, 256, 695, 37),
+      line('Sprechzeiten Montag bis Freitag 8–12 Uhr', 371, 308, 666, 37),
+    ];
+    const body = line(
+      'Ibuprofen 400 mg, one tablet up to three times a day with food',
+      129,
+      475,
+      1110,
+      40,
+    );
+    expect(paragraphsOf(lines, [body])).toHaveLength(4);
+    // 居中的标题折成两行、两行差不多长：第二行的第一个词在这一栏的宽里放不下，是同一段。
+    const title = [
+      line('Annual report on the regional water quality of', 200, 100, 600, 40),
+      line('measurements taken in the alpine lakes', 215, 145, 570, 40),
+    ];
+    const narrow = line('Body text of this column.', 200, 260, 600, 40);
+    expect(paragraphsOf(title, [narrow])).toHaveLength(1);
+  });
+
+  it('does not take the widest of a few short lines as the right edge when the column around them is wider', () => {
+    const pets = line(
+      'Pets are allowed with the written consent of the landlord. Small',
+      170,
+      438,
+      1081,
+      46,
+    );
+    const lines = [
+      line('Subletting is not permitted.', 170, 540, 318, 37),
+      line('Inventory checked: Ok', 170, 603, 263, 31),
+    ];
+    // 同一栏里上面的正文写到 1251：「Inventory」接在 488 后面放得下，是两段。
+    expect(paragraphsOf(lines, [pets])).toHaveLength(2);
+    // 别的栏里的行（左边不齐）不算这一栏的宽。
+    expect(paragraphsOf(lines, [{ ...pets, x: 700, width: 500 }])).toHaveLength(1);
+  });
 });
 
 describe('OCR region paragraph fragments', () => {
