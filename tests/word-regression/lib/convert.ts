@@ -60,6 +60,7 @@ export async function convertPage(opts: {
   const uri = `${dir}/page.jpg`;
   writeFileSync(uri, opts.image);
   const ocrLines: string[] = [];
+  const ocrBoxes: NonNullable<Converted['ocrBoxes']> = [];
   const work = (rel: string) => {
     const path = resolve(dir, 'work', rel);
     mkdirSync(dirname(path), { recursive: true });
@@ -72,6 +73,23 @@ export async function convertPage(opts: {
       recognizeLines: async (u: string, _langs: unknown, px?: Pixels) => {
         const found = await ocr.lines(px ?? pixelsOf(readFileSync(u)));
         ocrLines.push(...found.lines.map((l) => l.text));
+        const boxed = found.lines as unknown as {
+          text: string;
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+        }[];
+        ocrBoxes.push(
+          ...boxed.map(({ text, x, y, width, height }) => ({
+            text,
+            x,
+            y,
+            width,
+            height,
+            page: { width: found.width, height: found.height },
+          })),
+        );
         return found;
       },
       detectLayout: async (px: Pixels) => ocr.regions(px),
@@ -168,6 +186,7 @@ export async function convertPage(opts: {
       doc: JSON.parse(readFileSync(made.docDoc.uri, 'utf8')),
       ...(await readDocx(new Uint8Array(readFileSync(made.uri)))),
       ocr: ocrLines,
+      ocrBoxes,
     };
   } finally {
     rmSync(`${dir}/work`, { recursive: true, force: true });

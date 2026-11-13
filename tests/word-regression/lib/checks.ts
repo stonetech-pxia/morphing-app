@@ -104,6 +104,15 @@ export interface Converted {
   contentTypes?: string;
   /** 识别出的所有行（一页一页按识别顺序）。 */
   ocr: string[];
+  /** 识别出的行和它们的框（page 是识别用的图的大小，和编辑页的像素坐标一样时才能拿来比位置）。 */
+  ocrBoxes?: {
+    text: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    page: { width: number; height: number };
+  }[];
 }
 
 export interface Check {
@@ -473,6 +482,27 @@ export function textKept(minRecall = 0.97, maxExtra = 0.02): Check {
     run(c) {
       const want = new Map<string, number>();
       for (const w of c.ocr.flatMap(words)) want.set(w, (want.get(w) ?? 0) + 1);
+      // 留在图片里的字（中心在一张不是底图的图片块里的行）：图里有，Word 里没有可编辑的字不算丢。
+      const pictured = new Map<string, number>();
+      const shots = leaves(c.doc).flatMap((l) =>
+        l.leaf.kind === 'image' && !l.leaf.background
+          ? [{ box: l.leaf.box, page: c.doc.pages[l.page]! }]
+          : [],
+      );
+      for (const line of c.ocrBoxes ?? []) {
+        const cx = line.x + line.width / 2;
+        const cy = line.y + line.height / 2;
+        const inside = shots.some(
+          ({ box, page }) =>
+            page.width === line.page.width &&
+            page.height === line.page.height &&
+            cx >= box.x &&
+            cx <= box.x + box.width &&
+            cy >= box.y &&
+            cy <= box.y + box.height,
+        );
+        if (inside) for (const w of words(line.text)) pictured.set(w, (pictured.get(w) ?? 0) + 1);
+      }
       const got = new Map<string, number>();
       // docx 里换行连字符、断词会合起来：两个识别出的词在 docx 里可能是一个词，所以按子串补数。
       for (const w of words(fullText(c))) got.set(w, (got.get(w) ?? 0) + 1);
@@ -495,8 +525,11 @@ export function textKept(minRecall = 0.97, maxExtra = 0.02): Check {
                 .reduce((sum, d) => sum + got.get(d)!, k)
             : count(glued, norm(w));
         const found = Math.min(n, k >= n ? n : Math.max(k, loose));
+        // 没找到的里面留在图片里的那几次不算。
+        const excused = Math.min(n - found, pictured.get(w) ?? 0);
+        total -= excused;
         kept += found;
-        if (found < n) lost.push(w);
+        if (found + excused < n) lost.push(w);
         if (k > n) {
           extra += k - n;
           dup.push(`${w}×${k}/${n}`);
