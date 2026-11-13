@@ -1,0 +1,55 @@
+<!doctype html><meta charset="utf-8" /><style>
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  body {
+    font:
+      11pt/1.5 Georgia,
+      serif;
+    margin: 0;
+    position: relative;
+    width: 210mm;
+    height: 297mm;
+  }
+  .text {
+    position: absolute;
+    left: 25mm;
+    top: 40mm;
+    width: 160mm;
+  }
+  h2 {
+    font-size: 13pt;
+    margin: 0 0 10pt;
+  }
+  p {
+    margin: 0 0 9pt;
+    text-align: justify;
+  }
+  .smudge {
+    position: absolute;
+    left: 6mm;
+    top: 6mm;
+    font:
+      7pt/1 Arial,
+      sans-serif;
+    color: #9a9a9a;
+    letter-spacing: -0.4pt;
+    transform: rotate(-12deg) scaleY(1.8);
+  }
+</style>
+<!-- 扫描件页边角的污点被认成「00」：离正文很远、在页边、高度不正常，应丢掉；正文里的短字（「Ok」）留着。 -->
+<div class="smudge">00</div>
+<div class="text">
+  <h2>General Conditions</h2>
+  <p>
+    The tenant shall keep the premises clean and in good repair, and shall report any damage to the
+    landlord without delay.
+  </p>
+  <p>
+    Pets are allowed with the written consent of the landlord. Small animals kept in cages do not
+    need consent.
+  </p>
+  <p>Subletting is not permitted.</p>
+  <p>Inventory checked: Ok</p>
+</div>
