@@ -21,6 +21,16 @@ const input = {
   figures: [],
 };
 describe('digital PDF graphics ownership', () => {
+  it('keeps the bounding-box quantization margin without owning the adjacent caption', () => {
+    const pad = new Function('handlers', PDF_GRAPHICS_SCRIPT + ';return padGraphicBoxes;')({});
+    const b = box(100, 200, 200, 100),
+      caption = { ...box(100, 302, 200, 12), chars: 20 };
+    const [crop] = pad([b], [caption], 600, 800);
+    expect(crop.x).toBeLessThan(b.x);
+    expect(crop.y).toBeLessThan(b.y);
+    expect(crop.x + crop.width).toBeGreaterThan(b.x + b.width);
+    expect(Math.max(0, crop.y + crop.height - caption.y) / caption.height).toBeLessThan(0.4);
+  });
   it('does not leave a form grid or an internal colored header in a page-fixed background', () => {
     const full = box(0, 0, 600, 800);
     expect(decoration({ rectangle: true, fill: true, box: box(0, 0, 600, 800) }, full)).toBe(true);

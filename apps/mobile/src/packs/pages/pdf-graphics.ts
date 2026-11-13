@@ -33,6 +33,30 @@ function decorativeOperation(r, full) {
       b.x <= full.width * 0.08 && b.y <= full.height * 0.08 &&
       b.x + b.width >= full.width * 0.92 && b.y + b.height >= full.height * 0.92));
 }
+function padGraphicBoxes(boxes, lines, width, height) {
+  // 绘图框和版面框都有边界误差；剪图留少量白边，但不能接管相邻正文。
+  return boxes.map((b) => {
+    let left = Math.max(0, b.x - width / 128), top = Math.max(0, b.y - height / 128);
+    let right = Math.min(width, b.x + b.width + width / 128), bottom = Math.min(height, b.y + b.height + height / 128);
+    for (const l of lines || []) {
+      if (boxes.some((o) => covered(l, o) > 0.8)) continue;
+      if (covered(l, { x: left, y: top, width: right - left, height: bottom - top }) < 0.4) continue;
+      if (l.x < right && l.x + l.width > left) {
+        if (l.y >= b.y + b.height) bottom = Math.min(bottom, l.y - 0.25);
+        else if (l.y + l.height <= b.y) top = Math.max(top, l.y + l.height + 0.25);
+        else { if (l.y < b.y) top = b.y; if (l.y + l.height > b.y + b.height) bottom = b.y + b.height; }
+      }
+      if (l.y < bottom && l.y + l.height > top) {
+        if (l.x >= b.x + b.width) right = Math.min(right, l.x - 0.25);
+        else if (l.x + l.width <= b.x) left = Math.max(left, l.x + l.width + 0.25);
+        else { if (l.x < b.x) left = b.x; if (l.x + l.width > b.x + b.width) right = b.x + b.width; }
+      }
+    }
+    return { x: Math.min(left, b.x), y: Math.min(top, b.y),
+      width: Math.max(right, b.x + b.width) - Math.min(left, b.x),
+      height: Math.max(bottom, b.y + b.height) - Math.min(top, b.y) };
+  });
+}
 function completeBarcodes(ctx, width, height, boxes, scale, texts) {
   const pixels = ctx.getImageData(0, 0, width, height).data;
   return boxes.map((b) => {
@@ -544,6 +568,7 @@ handlers.graphics = async ({ file, index, maxSide, figures, candidates, lines })
     // 每张图单独输出。完整绘图层只在此处作剪图中间值，绝不作为文字/表格后面的固定内容层。
     plan.owned = completeBarcodes(ctx, canvas.width, canvas.height, plan.owned, scale,
       visible.filter((t) => !plan.keep.has(t.i)));
+    plan.owned = padGraphicBoxes(plan.owned, lines, base.width, base.height);
     const crops = plan.owned.map((box) => {
       const crop = document.createElement('canvas');
       const x = Math.max(0, Math.floor(box.x * scale)), y = Math.max(0, Math.floor(box.y * scale));

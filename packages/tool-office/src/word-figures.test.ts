@@ -4,6 +4,7 @@ import { arrangeUnits, buildDocPage, leafBlocks } from './doc';
 import type { LayoutRegion } from './layout';
 import { fakeLine, gridRects, renderPage, type Rect } from './test-helpers';
 import type { OcrBox } from './types';
+import { restoreWordCellSpans } from './word-cell-spans';
 
 const size = { width: 1000, height: 1400 };
 const hint = (
@@ -54,6 +55,136 @@ function fixture() {
 }
 
 describe('Word figure ownership', () => {
+  it('restores adjacent labels together when a coarse grid splits both labels in one shared cell', () => {
+    const box = { x: 100, y: 100, width: 800, height: 40 };
+    const xs = [100, 400, 500, 600, 700, 900];
+    const block = {
+      kind: 'table' as const,
+      box,
+      colWidths: xs.slice(1).map((x, i) => x - xs[i]!),
+      table: {
+        kind: 'table' as const,
+        box,
+        col: 0,
+        rows: 1,
+        cols: 5,
+        cells: xs
+          .slice(0, -1)
+          .map((x, i) => ({
+            row: 0,
+            col: i,
+            rowSpan: 1,
+            colSpan: 1,
+            box: { ...box, x, width: xs[i + 1]! - x },
+            text: ['Vehicle identifi', 'cation number  Ge', 'nre', '  Other ', 'label'][i]!,
+          })),
+      },
+    };
+    const lines = [
+      fakeLine(
+        'Vehicle identification number',
+        { x: 110, y: 110, width: 480, height: 20 },
+        size,
+        true,
+      ),
+      fakeLine('Genre  Other label', { x: 580, y: 110, width: 300, height: 20 }, size, true),
+    ];
+    // 故意按粗网格分配原字，第二行的开头和第一行的末尾落在同一格。
+    for (const c of block.table.cells)
+      c.text = lines
+        .map((l) =>
+          l
+            .chars!.filter(
+              (ch) =>
+                l.x + ch.at * l.width >= c.box.x && l.x + ch.at * l.width < c.box.x + c.box.width,
+            )
+            .map((ch) => ch.text)
+            .join(''),
+        )
+        .filter(Boolean)
+        .join(' ');
+    restoreWordCellSpans(block, renderPage(1000, 1400, []), lines, (ls) =>
+      ls.map((l) => l.text).join(' '),
+    );
+    expect(block.table.cells.filter((c) => c.text.trim()).map((c) => c.text)).toEqual([
+      lines.map((l) => l.text).join('\t'),
+    ]);
+  });
+  it('separates a full-width label below writing fields from the preceding text in the same coarse row', () => {
+    const image = renderPage(1100, 1400, [
+      ...gridRects([100, 1000], [300, 550, 800], { thickness: 2 }),
+      ...[400, 700].flatMap((x) => [300, 550].map((y) => ({ x, y, width: 2, height: 180 }))),
+    ]);
+    const lines = [
+      fakeLine(
+        'Registration',
+        { x: 150, y: 440, width: 180, height: 24 },
+        { width: 1100, height: 1400 },
+        true,
+      ),
+      fakeLine(
+        'Vehicle identification number and category',
+        { x: 150, y: 510, width: 700, height: 24 },
+        { width: 1100, height: 1400 },
+        true,
+      ),
+      fakeLine(
+        'Owner',
+        { x: 150, y: 760, width: 180, height: 24 },
+        { width: 1100, height: 1400 },
+        true,
+      ),
+    ];
+    const table = leafBlocks(buildDocPage({ image, lines, source: 'form.jpg', skew: 0 })).find(
+      (b) => b.kind === 'table',
+    );
+    expect(
+      table?.kind === 'table' && table.table.cells.filter((c) => c.text.trim()).map((c) => c.text),
+    ).toEqual(lines.map((l) => l.text));
+  });
+  it('keeps a body line editable when only part of its OCR box overlaps a native figure', () => {
+    const f = fixture();
+    const body = line('Editable body continues below the diagram.', 100, 320, 500, 30);
+    const page = buildDocPage({
+      image: f.image,
+      lines: [...f.lines, body],
+      source: 'mixed.jpg',
+      nativeFigures: [f.picture.box],
+    });
+    expect(text(page)).toContain(body.text);
+  });
+  it('keeps complete pictures side by side even when crop margins narrow the white gutter', () => {
+    const a = { x: 20, y: 100, width: 200, height: 150 },
+      b = { ...a, x: 222 };
+    const result = arrangeUnits(
+      [a, b].map((box) => ({ box, blocks: [{ kind: 'image', box }] })),
+      20,
+    );
+    expect(result[0]?.kind === 'row' && result[0].cells).toHaveLength(2);
+  });
+  it('retains outside paragraph formatting when native figure labels leave the font statistics', () => {
+    const f = fixture();
+    const prior = buildDocPage({ image: f.image, lines: f.lines, source: 'same.jpg' });
+    const body = leafBlocks(prior).find(
+      (b) => b.kind === 'paragraph' && b.text.includes('Ordinary body'),
+    );
+    if (!body || body.kind !== 'paragraph') throw new Error('fixture');
+    body.size = 17.5;
+    body.bold = true;
+    body.color = '114477';
+    const next = buildDocPage({
+      image: f.image,
+      lines: f.lines,
+      source: 'same.jpg',
+      nativeFigures: [f.picture.box],
+      prior,
+    });
+    expect(next.bodySize).toBe(prior.bodySize);
+    expect(
+      leafBlocks(next).find((b) => b.kind === 'paragraph' && b.text === body.text),
+    ).toMatchObject({ size: 17.5, bold: true, color: '114477' });
+    expect(leafBlocks(next).filter((b) => b.kind === 'image')).toHaveLength(1);
+  });
   it('retains distinct table values when the OCR character gaps already prove separate columns', () => {
     const image = renderPage(1100, 1400, [
       ...gridRects([100, 1000], [300, 550, 800], { thickness: 2 }),

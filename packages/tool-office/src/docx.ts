@@ -303,7 +303,7 @@ function tableMetrics(
           return count * own * CELL_LINE_HEIGHT * 20;
         }),
     ),
-  );
+  ).map((height) => height + (block.borderless ? 0 : 10));
   const source = minimum.map((min, row) => {
     const raw = Math.min(
       ...table.cells
@@ -314,7 +314,52 @@ function tableMetrics(
       ? Math.max(min, (raw / page.height) * page.paper.height * 20 * k)
       : min;
   });
-  return { widths, k, scale, size, minimum, source };
+  // 来源标签靠近格底时，段前距加正常字行可能比来源格高更大。
+  // 量页和写行共用这个下限，不能只量 trHeight 而漏掉 Word 自动撑高的格内段落。
+  const contents = table.cells
+    .filter((c) => c.rowSpan === 1)
+    .map((c) => {
+      const own =
+        c.size === undefined ? size : Math.max(TABLE_MIN_SIZE, Math.floor(c.size * scale * 2) / 2);
+      const lines = c.text.split('\n');
+      const positions = block.cellLayout?.find((p) => p.row === c.row && p.col === c.col)?.lines;
+      const sourceLines = c.box && positions?.length === lines.length ? positions : undefined;
+      const width = Math.max(
+        1,
+        widths.slice(c.col, c.col + c.colSpan).reduce((n, w) => n + w, 0) - 2 * CELL_PAD,
+      );
+      const text =
+        lines.reduce(
+          (n, l) => n + Math.max(1, Math.ceil((textEm(l) * own * 20 * WIDTH_SLACK) / width)),
+          0,
+        ) *
+        own *
+        CELL_LINE_HEIGHT *
+        20;
+      const yScale = ((page.paper?.height ?? PAGE_H / 20) / page.height) * 20 * k;
+      const gaps =
+        sourceLines?.reduce(
+          (n, p, i) =>
+            n +
+            Math.max(
+              0,
+              Math.round(
+                (p.y - (sourceLines[i - 1]?.y ?? c.box!.y)) * yScale -
+                  (i ? own * CELL_LINE_HEIGHT * 20 : own * 4),
+              ),
+            ),
+          0,
+        ) ?? 0;
+      return { row: c.row, text, gaps };
+    });
+  const heightAt = (row: number, fit: number) =>
+    Math.max(
+      minimum[row]! + (source[row]! - minimum[row]!) * fit,
+      ...contents
+        .filter((c) => c.row === row)
+        .map((c) => c.text + c.gaps * fit + (block.borderless ? 0 : 10)),
+    );
+  return { widths, k, scale, size, minimum, source, heightAt };
 }
 
 function tableXml(
@@ -427,7 +472,7 @@ function tableXml(
             20,
         )
       : page.paper
-        ? Math.round(metrics.minimum[r]! + (metrics.source[r]! - metrics.minimum[r]!) * spaceScale)
+        ? Math.round(metrics.heightAt(r, spaceScale))
         : 0;
     // trHeight 是格内的最小高度；外画的 0.5 磅行边框仍占高度，不能每行再加一次。
     if (rowHeight && !block.borderless) rowHeight = Math.max(1, rowHeight - 10);
@@ -492,7 +537,7 @@ function imageXml(
   background = false,
 ): string {
   return (
-    `<w:p>${pPr ? `<w:pPr>${pPr}</w:pPr>` : ''}<w:r>${background ? '<w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr>' : ''}<w:drawing>` +
+    `<w:p>${pPr ? `<w:pPr>${pPr}</w:pPr>` : ''}<w:r><w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr><w:drawing>` +
     (background
       ? '<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="0" behindDoc="1" locked="0" layoutInCell="0" allowOverlap="1">' +
         '<wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionH>' +
@@ -730,7 +775,7 @@ export function writeDocx(
           }
           return total;
         });
-        return Math.max(h, ...measured) + LINE_HEIGHT * 20;
+        return Math.max(0, ...measured) + LINE_HEIGHT * 20;
       }
       if (page.paper && block.kind === 'table' && !block.direction) {
         const m = measureTable(
@@ -738,19 +783,23 @@ export function writeDocx(
           available,
           Math.min(maxWidth, PAGE_W * TABLE_FONT_PAGE_SHARE) - left,
         );
-        return (
-          m.minimum.reduce((n, v, i) => n + v + (m.source[i]! - v) * fit, 0) + LINE_HEIGHT * 20
-        );
+        return m.minimum.reduce((n, _v, i) => n + m.heightAt(i, fit), 0) + LINE_HEIGHT * 20;
       }
       if (block.kind === 'space') return h;
+      if (page.paper && block.kind === 'image' && block.src && images.has(block.src)) {
+        const image = images.get(block.src)!;
+        const w = (block.box.width / page.width) * PAGE_W,
+          h = (w * image.height) / Math.max(1, image.width);
+        return h * Math.min(1, maxWidth / Math.max(1, w), (CONTENT_H * 0.9) / Math.max(1, h)) + 20;
+      }
       return block.kind === 'image' ? h + (page.paper ? bodySize * 6 : 0) : h + LINE_HEIGHT * 20;
     };
     // 段前距（twip）；在上一块上面、和它重叠（位置用不了，例如文字转 Word 的占位框）时没有，按 spaced 写。
     // 一页（一格）的第一块离上边不到一行时不空（字的上边和页边距差一点）。
     const beforeOf = (block: DocBlock, flow: Flow): number | undefined => {
-      if (block.box.y < flow.bottom) return page.paper ? 0 : undefined;
+      if (block.box.y < flow.bottom && !page.paper) return undefined;
       const v = (yTwip(block.box.y - flow.top) - flow.height) * fit;
-      if (!flow.height && v < blankHeight) return 0;
+      if (!flow.height && v < blankHeight && !page.paper) return 0;
       return Math.max(0, Math.round(v / 10) * 10);
     };
     const advance = (flow: Flow, block: DocBlock, maxWidth = CONTENT_W, from = base) => {
@@ -883,9 +932,11 @@ export function writeDocx(
           w *= k;
           h *= k;
           const pPr =
-            (before !== undefined && before >= MIN_BEFORE
-              ? `<w:spacing w:before="${before}"/>`
-              : '') + (left ? `<w:ind w:left="${left}"/>` : '');
+            (page.paper
+              ? `<w:spacing w:before="${before ?? 0}" w:after="0" w:line="240" w:lineRule="auto"/><w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr>`
+              : before !== undefined && before >= MIN_BEFORE
+                ? `<w:spacing w:before="${before}"/>`
+                : '') + (left ? `<w:ind w:left="${left}"/>` : '');
           out.push(
             imageXml(rid, n, Math.round(w * EMU_PER_TWIP), Math.round(h * EMU_PER_TWIP), pPr),
           );
@@ -938,7 +989,7 @@ export function writeDocx(
         }
         return total;
       };
-      if (measure() > CONTENT_H) {
+      if (measure() > CONTENT_H - (page.paper ? Math.round(leading * bodySize * 20) : 0)) {
         if (page.paper) {
           let lo = 0,
             hi = 1;

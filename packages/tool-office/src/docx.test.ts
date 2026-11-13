@@ -20,6 +20,51 @@ const unzip = (bytes: Uint8Array) => {
 };
 
 describe('writeDocx', () => {
+  it('includes source label insets when measuring the content that can enlarge a table row', () => {
+    const b = { x: 50, y: 100, width: 800, height: 20 };
+    const table: DocTable = {
+      kind: 'table',
+      box: b,
+      colWidths: [800],
+      cellLayout: [{ row: 0, col: 0, lines: [{ x: 50, y: 119, width: 100, height: 1 }] }],
+      table: {
+        kind: 'table',
+        box: b,
+        col: 0,
+        rows: 1,
+        cols: 1,
+        cells: [{ row: 0, col: 0, rowSpan: 1, colSpan: 1, box: b, text: 'Label' }],
+      },
+    };
+    const xml = unzip(
+      writeDocx({ version: 4, pages: [{ ...page([table]), paper: { width: 600, height: 840 } }] }),
+    ).text('word/document.xml');
+    const cell = xml.slice(xml.indexOf('<w:tc>'));
+    const gap = Number(cell.match(/<w:spacing w:before="(\d+)"/)?.[1]);
+    const row = Number(xml.match(/<w:trHeight w:val="(\d+)"/)?.[1]);
+    expect(gap).toBeGreaterThan(0);
+    expect(row).toBeGreaterThanOrEqual(gap + Math.round(10 * 1.18 * 20));
+  });
+  it('reserves the painted border in the minimum height of a tightly packed text row', () => {
+    const b = { x: 50, y: 100, width: 800, height: 2 };
+    const t: DocTable = {
+      kind: 'table',
+      box: b,
+      colWidths: [800],
+      table: {
+        kind: 'table',
+        box: b,
+        col: 0,
+        cols: 1,
+        rows: 1,
+        cells: [{ row: 0, col: 0, rowSpan: 1, colSpan: 1, box: b, text: 'Label' }],
+      },
+    };
+    const xml = unzip(
+      writeDocx({ version: 4, pages: [{ ...page([t]), paper: { width: 600, height: 840 } }] }),
+    ).text('word/document.xml');
+    expect(Number(xml.match(/<w:trHeight w:val="(\d+)"/)?.[1])).toBeGreaterThanOrEqual(246);
+  });
   it('uses the physical vertical scale after OCR padded the raster to another aspect ratio', () => {
     const p: DocPage = {
       ...page([
@@ -110,7 +155,9 @@ describe('writeDocx', () => {
     const xml = unzip(
       writeDocx({ version: 3, pages: [{ ...page([table]), paper: { width: 600, height: 840 } }] }),
     ).text('word/document.xml');
-    const before = Number(xml.match(/<w:spacing w:before="(\d+)"/)?.[1]);
+    const before = Number(
+      xml.slice(xml.indexOf('<w:tc>')).match(/<w:spacing w:before="(\d+)"/)?.[1],
+    );
     expect(before).toBeGreaterThan(600);
     expect(before).toBeLessThan(720);
     expect(xml).toContain('<w:ind w:left="240"');
@@ -795,6 +842,32 @@ describe('writeDocx', () => {
     expect(xml).not.toContain('<w:p/>');
   });
 
+  it('keeps inline image line metrics independent of the surrounding body font', () => {
+    for (const bodySize of [8, 24]) {
+      const xml = unzip(
+        writeDocx(
+          {
+            version: 4,
+            pages: [
+              {
+                ...page([{ kind: 'image', src: 'picture', box }], bodySize),
+                paper: { width: 600, height: 840 },
+              },
+            ],
+          },
+          new Map([
+            [
+              'picture',
+              { bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), width: 400, height: 40 },
+            ],
+          ]),
+        ),
+      ).text('word/document.xml');
+      expect(xml).toContain(
+        '<w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr><w:drawing><wp:inline',
+      );
+    }
+  });
   it('embeds cropped images and skips image blocks without one; each page starts on a new page', () => {
     const jpg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
     const doc: DocDoc = {

@@ -5,6 +5,7 @@ import { findLines } from './lines';
 import { figureOwns, figureWorkingImage, planWordFigures } from './word-figures';
 import { recoverPictureCards } from './word-cards';
 import { restoreWordCellSpans } from './word-cell-spans';
+import { restoreWordFormRows } from './word-form-rows';
 import type { Box, OcrBox, RgbaImage, TableBlock, TableCell } from './types';
 
 // 扫描件转 Word（D-328）：一页的识别结果 + 版面分析的区域 → DocDoc（编辑页改它，docx 每次从它重新生成）。
@@ -183,6 +184,8 @@ export interface DocPageInput {
   regions?: readonly LayoutRegion[];
   /** 原始数字 PDF 已验证的整图（像素坐标）；先隔离图中字和网格，再按普通图片参与排版。 */
   nativeFigures?: readonly Box[];
+  /** 同页接管原生整图前的排版；图外字号、样式沿用它，不让移走图内标签改变正文统计。 */
+  prior?: DocPage;
   source: string;
   /** PDF 渲染路径保留的物理尺寸；普通照片没有，不能凭像素猜票据的毫米数。 */
   paper?: { width: number; height: number };
@@ -899,6 +902,14 @@ export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {})
     input.lines,
     median(input.lines.map((l) => l.height)) || 20,
   );
+  if (input.nativeFigures?.length) {
+    // 接管整图后，原来的模型文字区可能跨好几栏；按保留下来的真实块重排，不能沿用那个大容器。
+    next.blocks = arrangeUnits(
+      leafBlocks(next).map((b) => ({ box: b.box, blocks: [b] })),
+      median(input.lines.map((l) => l.height)) || 20,
+      { dense: input.lines.length >= DENSE_LINES },
+    );
+  }
   const form = leafBlocks(next).find(
     (b) =>
       b.kind === 'table' &&
@@ -935,6 +946,7 @@ export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {})
   }
   for (const block of leafBlocks(next)) {
     if (block.kind !== 'table' || block.direction) continue;
+    restoreWordFormRows(block, input.image, input.lines, options.joinLines ?? defaultJoin);
     restoreWordCellSpans(block, input.image, input.lines, options.joinLines ?? defaultJoin);
     const layout: NonNullable<DocTable['cellLayout']> = [];
     for (const cell of block.table.cells) {
@@ -1066,13 +1078,15 @@ function buildPage(
     : protectFigures
       ? planWordFigures(image, lines, sourceRegions, lineHeight)
       : [];
-  const previous =
-    figures.length && !native
+  const previous = native
+    ? input.prior
+    : figures.length
       ? buildPage(input, options, false, repairTables, repairBarcodes)
       : undefined;
   // 旧路径已经完整保图且没有输出图内文字/表格时，不重排原本正确的页。
   if (
     previous &&
+    !native &&
     figures.every(
       (f) =>
         leafBlocks(previous).some((b) => b.kind === 'image' && lineShareIn(f.box, b.box) >= 0.9) &&
@@ -1080,7 +1094,9 @@ function buildPage(
     )
   )
     return previous;
-  const available = figures.length ? lines.filter((l) => !figureOwns(l, figures)) : lines;
+  const owns = (box: Box) =>
+    native ? figures.some((f) => lineShareIn(box, f.box) > 0.8) : figureOwns(box, figures);
+  const available = figures.length ? lines.filter((l) => !owns(l)) : lines;
   const working = figureWorkingImage(image, figures, lineHeight);
   // 抹掉图形不能顺带改变图外网格的坐标系；倾斜仍按原图估计。
   const tableSkew = input.skew ?? (figures.length ? findLines(image).skew : undefined);
@@ -1088,7 +1104,7 @@ function buildPage(
     ? sourceRegions.flatMap((r) => {
         const owned = figures.find((f) => f.region === r);
         if (owned) return [{ ...r, box: owned.box }];
-        return r.kind !== 'image' && figureOwns(r.box, figures) ? [] : [r];
+        return r.kind !== 'image' && owns(r.box) ? [] : [r];
       })
     : sourceRegions;
   // 带线的表格（和转 Excel 一样）；放进表格的行不再参加分段。
@@ -1257,6 +1273,12 @@ function buildPage(
   const merged = mergeTextRegions(regions, lineHeight);
   regions.splice(0, regions.length, ...merged);
   const owner = assignLines(free, regions);
+  if (native)
+    for (const [i, l] of free.entries()) {
+      const region = regions[owner[i] ?? -1];
+      if (region?.kind === 'image' && figures.some((f) => f.box === region.box) && !owns(l))
+        owner[i] = -1;
+    }
   // 整页的标签列（W-4 的「Step 3:」一列）：版面模型把每一步切成很小的区域，要在整页上找。
   const labelSplit = splitLabelColumn(free, lineHeight);
   // 区域里的行；页码区域的字不要；图片区域里的少量字（标志、照片里的字）也不要。
@@ -1642,19 +1664,20 @@ function buildPage(
       );
     // 图外的网格、条码和字体也可能依赖整页统计；有任何连带变化就整页回退，不局部拼补。
     if (
-      previous.bodySize !== page.bodySize ||
-      artifacts(previous) !== artifacts(page) ||
-      leafBlocks(page).some((b) => {
-        const old = styles.get(JSON.stringify(b.box));
-        return old && b.kind === 'paragraph' && outside(b) && styleOf(old) !== styleOf(b);
-      }) ||
-      leafBlocks(previous).some((old) => {
-        if (old.kind !== 'paragraph' || !outside(old)) return false;
-        const matching = leafBlocks(page).filter(
-          (b) => b.kind === 'paragraph' && b.text === old.text && outside(b),
-        );
-        return matching.length > 0 && matching.every((b) => styleOf(old) !== styleOf(b));
-      })
+      !native &&
+      (previous.bodySize !== page.bodySize ||
+        artifacts(previous) !== artifacts(page) ||
+        leafBlocks(page).some((b) => {
+          const old = styles.get(JSON.stringify(b.box));
+          return old && b.kind === 'paragraph' && outside(b) && styleOf(old) !== styleOf(b);
+        }) ||
+        leafBlocks(previous).some((old) => {
+          if (old.kind !== 'paragraph' || !outside(old)) return false;
+          const matching = leafBlocks(page).filter(
+            (b) => b.kind === 'paragraph' && b.text === old.text && outside(b),
+          );
+          return matching.length > 0 && matching.every((b) => styleOf(old) !== styleOf(b));
+        }))
     )
       return previous;
   }
@@ -1968,7 +1991,7 @@ export function arrangeUnits(
           Math.min(a.box.y + a.box.height, b.box.y + b.box.height) - Math.max(a.box.y, b.box.y);
         return (
           x > 0 &&
-          x < lineHeight * (a.kind === 'image' || b.kind === 'image' ? 2.5 : 1.5) &&
+          x < lineHeight * (a.kind === 'image' || b.kind === 'image' ? 3 : 1.5) &&
           y > SIDE_OVERLAP * Math.min(a.box.height, b.box.height)
         );
       }),
@@ -1976,7 +1999,10 @@ export function arrangeUnits(
     if (!parallel) return [unit];
     // 同一个模型文字区里也可能有并排的抬头/选项。框边轻微膨胀不能把整带串成一列。
     return unit.blocks.map((block) => ({
-      box: { ...block.box, width: Math.max(1, block.box.width - lineHeight * 2.5) },
+      box: {
+        ...block.box,
+        width: Math.max(1, block.box.width - lineHeight * (block.kind === 'image' ? 3.5 : 2)),
+      },
       blocks: [block],
     }));
   });
@@ -2132,7 +2158,14 @@ function columnsOf(units: readonly Unit[], gap: number): Unit[][] {
   let end = -Infinity;
   for (const u of [...units].sort((a, b) => a.box.x - b.box.x)) {
     const right = u.box.x + u.box.width;
-    if (cols.length && u.box.x < end + gap) {
+    // 整图的留边可能占掉白色栏缝；两张仍不重叠的图不能因此变成上下排列。
+    const pictureGap =
+      u.blocks.length > 0 &&
+      u.blocks.every((b) => b.kind === 'image') &&
+      cols.at(-1)?.every((old) => old.blocks.every((b) => b.kind === 'image'))
+        ? 0
+        : gap;
+    if (cols.length && u.box.x < end + pictureGap) {
       cols.at(-1)!.push(u);
       end = Math.max(end, right);
     } else {

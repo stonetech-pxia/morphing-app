@@ -398,6 +398,7 @@ export const OCR_IMPLS: Record<string, Impl> = {
             page = buildDocPage(
               {
                 ...pageInput,
+                prior: page,
                 nativeFigures: native.owned.map((b) => ({
                   x: (b.x / paper.width) * pixels.width,
                   y: (b.y / paper.height) * pixels.height,
