@@ -211,6 +211,16 @@ function blankXml(size: number, single = false): string {
 const TABLE_CELL_PAD_PT = (2 * CELL_PAD) / 20;
 /** 表里的字为了放下最长的词最多缩到这么小（磅，D-335）。 */
 const TABLE_MIN_SIZE = 5;
+/**
+ * 一格放不下它最长的词时，整张表最多跟着缩到这么多倍（相对表本来的比例），一般的表仍是一个字号（D-335）；
+ * 还放不下的个别格子自己再缩。不然一个很窄的格子（多出来的假列）会把整张表、连同长段的说明都缩到 5 磅。
+ */
+const TABLE_SHRINK_FLOOR = 0.6;
+
+/** 一格左右的边距加起来（twip）：窄格子的边距不超过格宽的 1/4，不让 8 磅的边距占掉一个 10 磅宽的格子。 */
+function cellPadTwip(width: number): number {
+  return Math.min(2 * CELL_PAD, Math.round(width / 4));
+}
 
 /**
  * 一个词在 Arial 里大概多宽（以字号为单位，D-335）：大写字母约 0.7，小写约 0.52，数字 0.56，
@@ -247,7 +257,7 @@ function longestWordEm(text: string): number {
 
 /**
  * 原图像素 → twip：整页宽度按 A4 宽算，放不下时按内容区等比缩小。表里的字号（D-335）按表自己的字号跟着一起缩小，
- * 哪一格最长的词放不下时整张表再一起缩小，最小 5 磅（取到半磅）。
+ * 哪一格最长的词放不下时整张表再一起缩小，但最多缩到 TABLE_SHRINK_FLOOR；还放不下的格子自己再缩，最小 5 磅（取到半磅）。
  */
 function tableMetrics(
   block: DocTable,
@@ -264,7 +274,9 @@ function tableMetrics(
   const k = Math.min(1, maxWidth / total);
   const widths = raw.map((w) => Math.max(200, Math.round(w * k)));
   const sourceSize = block.size ?? bodySize;
-  let scale = Math.min(k, fontMaxWidth / total);
+  const base = Math.min(k, fontMaxWidth / total);
+  // 每格放得下最长的词的比例；整张表取其中最小的，但不小于 base 的 TABLE_SHRINK_FLOOR 倍。
+  const fits = new Map<DocTable['table']['cells'][number], number>();
   for (const cell of table.cells) {
     const em = longestWordEm(cell.text);
     if (!em) continue;
@@ -274,29 +286,33 @@ function tableMetrics(
       block.direction && cell.box
         ? (cell.box.height / page.width) * (page.paper?.width ?? PAGE_W / 20)
         : cross;
+    let fit = (w - cellPadTwip(w * 20) / 20) / em / (cell.size ?? sourceSize);
     if (block.direction)
-      scale = Math.min(
-        scale,
-        (cross - TABLE_CELL_PAD_PT) / LINE_HEIGHT / (cell.size ?? sourceSize),
-      );
-    scale = Math.min(scale, (w - TABLE_CELL_PAD_PT) / em / (cell.size ?? sourceSize));
+      fit = Math.min(fit, (cross - TABLE_CELL_PAD_PT) / LINE_HEIGHT / (cell.size ?? sourceSize));
+    fits.set(cell, fit);
   }
+  const scale = Math.min(
+    base,
+    Math.max(base * TABLE_SHRINK_FLOOR, Math.min(base, ...fits.values())),
+  );
   const size = Math.max(TABLE_MIN_SIZE, Math.floor(sourceSize * scale * 2) / 2);
+  /** 一格的字号：按整张表的比例，这一格自己放不下最长的词时再缩。 */
+  const sizeOfCell = (c: DocTable['table']['cells'][number]) => {
+    const own = Math.min(scale, fits.get(c) ?? scale);
+    return c.size === undefined && own === scale
+      ? size
+      : Math.max(TABLE_MIN_SIZE, Math.floor((c.size ?? sourceSize) * own * 2) / 2);
+  };
   const minimum = Array.from({ length: table.rows }, (_, row) =>
     Math.max(
       size * CELL_LINE_HEIGHT * 20,
       ...table.cells
         .filter((c) => c.row <= row && c.row + c.rowSpan > row)
         .map((c) => {
-          const own =
-            c.size === undefined
-              ? size
-              : Math.max(TABLE_MIN_SIZE, Math.floor(c.size * scale * 2) / 2);
+          const own = sizeOfCell(c);
           if (c.row !== row) return own * CELL_LINE_HEIGHT * 20;
-          const width = Math.max(
-            1,
-            widths.slice(c.col, c.col + c.colSpan).reduce((n, w) => n + w, 0) - CELL_PAD * 2,
-          );
+          const cross = widths.slice(c.col, c.col + c.colSpan).reduce((n, w) => n + w, 0);
+          const width = Math.max(1, cross - cellPadTwip(cross));
           const count = c.text
             .split('\n')
             .reduce(
@@ -323,15 +339,12 @@ function tableMetrics(
   const contents = table.cells
     .filter((c) => c.rowSpan === 1)
     .map((c) => {
-      const own =
-        c.size === undefined ? size : Math.max(TABLE_MIN_SIZE, Math.floor(c.size * scale * 2) / 2);
+      const own = sizeOfCell(c);
       const lines = c.text.split('\n');
       const positions = block.cellLayout?.find((p) => p.row === c.row && p.col === c.col)?.lines;
       const sourceLines = c.box && positions?.length === lines.length ? positions : undefined;
-      const width = Math.max(
-        1,
-        widths.slice(c.col, c.col + c.colSpan).reduce((n, w) => n + w, 0) - 2 * CELL_PAD,
-      );
+      const cross = widths.slice(c.col, c.col + c.colSpan).reduce((n, w) => n + w, 0);
+      const width = Math.max(1, cross - cellPadTwip(cross));
       const text =
         lines.reduce(
           (n, l) => n + Math.max(1, Math.ceil((textEm(l) * own * 20 * WIDTH_SLACK) / width)),
@@ -363,7 +376,7 @@ function tableMetrics(
         .filter((c) => c.row === row)
         .map((c) => c.text + c.gaps * fit + (block.borderless ? 0 : 10)),
     );
-  return { widths, k, scale, size, minimum, source, heightAt };
+  return { widths, k, scale, size, sizeOfCell, minimum, source, heightAt };
 }
 
 function tableXml(
@@ -377,7 +390,7 @@ function tableXml(
 ): string {
   const { table } = block;
   const metrics = tableMetrics(block, page, bodySize, maxWidth, fontMaxWidth);
-  const { widths, k, scale, size } = metrics;
+  const { widths, k, size, sizeOfCell } = metrics;
   // 每个位置属于哪一格（合并格子的左上角以外的位置写成 vMerge 的续格）。
   const at = new Map<string, number>();
   table.cells.forEach((c, i) => {
@@ -410,10 +423,7 @@ function tableXml(
         (cellLayout?.fill
           ? `<w:shd w:val="clear" w:color="auto" w:fill="${cellLayout.fill}"/>`
           : '');
-      const ownSize =
-        cell.size === undefined
-          ? size
-          : Math.max(TABLE_MIN_SIZE, Math.floor(cell.size * scale * 2) / 2);
+      const ownSize = sizeOfCell(cell);
       const style = { size: ownSize, ...(cell.align ? { align: cell.align } : {}) };
       const positions =
         !block.direction && cell.box
@@ -460,9 +470,13 @@ function tableXml(
             })
             .join('')
         : blankXml(size, !!page.paper);
+      // 窄格子的左右边距按格宽缩小（cellPadTwip），和量字号时用的一样。
+      const pad = cellPadTwip(w);
       const sourceMargins = sourceLines
         ? '<w:tcMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tcMar>'
-        : '';
+        : pad < 2 * CELL_PAD
+          ? `<w:tcMar><w:left w:w="${Math.floor(pad / 2)}" w:type="dxa"/><w:right w:w="${Math.floor(pad / 2)}" w:type="dxa"/></w:tcMar>`
+          : '';
       const direction = block.direction ? '<w:textDirection w:val="tbRl"/>' : '';
       const vAlign = sourceLines && cell.rowSpan > 1 ? '<w:vAlign w:val="center"/>' : '';
       cells.push(

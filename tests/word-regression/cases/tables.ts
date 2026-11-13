@@ -18,6 +18,7 @@ import {
   type Converted,
 } from '../lib/checks';
 import type { Case } from '../lib/case';
+import { sizeOf } from '../lib/layout-checks';
 
 /** docx 里每张最外层表的 w:tblPr（按文档顺序；嵌套的表也算）。 */
 const tblPrs = (xml: string) =>
@@ -401,6 +402,23 @@ export const TABLES: Case[] = [
       inRow('001697', '5.00 1.00', '5.00 SR'),
       inRow('GST Summary', 'Amount(RM)', 'GST (RM)'),
       inRow('SR = 6 %', '30.85', '1.85'),
+    ],
+  },
+  {
+    id: 'tbl-narrow-column-font',
+    suite: 'tables',
+    fix: 'EU sample 020, 018, 016',
+    what: 'A ruled 10 pt table with one very narrow "%" column: the narrowest cell set the scale of the whole table, and the 8 pt cell padding left almost nothing of that column, so every cell (long descriptions included) was written at the 5 pt floor.',
+    checks: [
+      table({ containing: ['Składnik', 'Opis', 'Netto', 'Brutto'], rows: 3, cols: 5 }),
+      custom('the description column stays ≥ 8.5 pt', (c) => {
+        const got = sizeOf(c, 'opłata za energię czynną pobraną');
+        return got >= 8.5 ? null : `${got} pt`;
+      }),
+      custom('the narrow column keeps "23" on one line and ≥ 7 pt', (c) => {
+        const got = sizeOf(c, '23');
+        return got >= 7 ? null : `${got} pt`;
+      }),
     ],
   },
 ];

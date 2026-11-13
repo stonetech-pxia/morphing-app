@@ -136,5 +136,11 @@
     "id": "tbl-summary-joins-table",
     "source": "23-tbl-summary-joins-table.html",
     "sha256": "de716fb6000d6e0c3b83fc732cc3d2c1b454d7af79c07c4193da35009c8ec5c2"
+  },
+  {
+    "page": 24,
+    "id": "tbl-narrow-column-font",
+    "source": "24-tbl-narrow-column-font.html",
+    "sha256": "76007f1bd00f8386a05bd6bed621a49968e5cce8ed627c24c329ea561f11afea"
   }
 ]

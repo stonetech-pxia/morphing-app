@@ -1010,6 +1010,42 @@ describe('writeDocx', () => {
     expect(sizes(table([100, 900], ['MARQUEUR', 'b'], 10))).toEqual([7, 7]);
     // 再长的词也不小于 5 磅。
     expect(sizes(table([100, 900], ['REFRIGERATEURS', 'b'], 10))).toEqual([5, 5]);
+    // 整张表最多跟着缩到 0.6 倍（14 磅的表按内容区本来是 11 磅，最多缩到 6.5 磅）；只有放不下的那一格缩到 5 磅。
+    expect(sizes(table([100, 900], ['REFRIGERATEURS', 'b'], 14))).toEqual([5, 6.5]);
+  });
+
+  it('keeps a table readable when one very narrow column holds a short number (EU sample 020)', () => {
+    const doc: DocDoc = {
+      version: 1,
+      pages: [
+        page([
+          {
+            kind: 'table',
+            colWidths: [855, 30, 115],
+            size: 10,
+            box,
+            table: {
+              kind: 'table',
+              rows: 1,
+              col: 0,
+              cols: 3,
+              box,
+              cells: ['opłata za energię czynną pobraną w okresie', '23', '24,48'].map(
+                (text, col) => ({ row: 0, col, rowSpan: 1, colSpan: 1, text }),
+              ),
+            },
+          },
+        ]),
+      ],
+    };
+    const xml = unzip(writeDocx(doc)).text('word/document.xml');
+    const sizes = [...xml.matchAll(/<w:sz w:val="(\d+)"\/><w:szCs [^>]*><\/w:rPr><w:t /g)].map(
+      (m) => Number(m[1]) / 2,
+    );
+    // 「23」那一列约 14 磅宽：旧的 8 磅格子边距占掉一大半，整张表跟着缩到 5.5 磅。
+    // 边距按格宽缩小后「23」放得下，表照常按内容区缩到 8 磅。
+    expect(sizes).toEqual([8, 8, 8]);
+    expect(xml).toMatch(/<w:tcMar><w:left w:w="\d+" w:type="dxa"\/><w:right w:w="\d+"/);
   });
 
   it('writes each page’s text at that page’s body size (D-335)', () => {
