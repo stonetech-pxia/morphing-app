@@ -46,5 +46,11 @@
     "id": "stacked-form-subtables",
     "source": "08-stacked-form-subtables.html",
     "sha256": "fea5bfd6d9aaf666adcde2602dac077e0128e4d13b4dfcb8fb3b687229090e86"
+  },
+  {
+    "page": 9,
+    "id": "framed-section-checkboxes",
+    "source": "09-framed-section-checkboxes.html",
+    "sha256": "6068f1ee2f4fe61b7bf07ad3fbb0836e86008eb1dcb8d0b2f1d0603fe1c6b3fe"
   }
 ]

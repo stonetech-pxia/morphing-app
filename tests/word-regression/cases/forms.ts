@@ -95,7 +95,7 @@ export const FORMS: Case[] = [
   {
     id: 'light-grey-ruled-table',
     suite: 'forms',
-    fix: 'TBD; EU sample 006',
+    fix: 'ecdb14ce; EU sample 006',
     what: "A table ruled with light grey lines (as in digital invoice and letter templates) was not seen as a table at all: the lines are lighter than the line finder's threshold on white paper, so the label/value rows fell apart into loose lines.",
     lang: 'fra',
     checks: [
@@ -111,7 +111,7 @@ export const FORMS: Case[] = [
   {
     id: 'blank-invoice-grids',
     suite: 'forms',
-    fix: 'TBD; EU samples 001, 006',
+    fix: '85529b71; EU samples 001, 006',
     what: 'Blank invoice template: the empty item grid (headers printed above it) vanished, leaving only the header words over a gap, and the label | empty answer box table lost its answer column, so there was nothing left to fill in.',
     lang: 'fra',
     checks: [
@@ -153,7 +153,7 @@ export const FORMS: Case[] = [
   {
     id: 'stacked-form-subtables',
     suite: 'forms',
-    fix: 'TBD; EU sample 004',
+    fix: '9f3747d6; EU sample 004',
     what: 'A registration form whose person tables share one outer frame chained into one page-wide grid, rejected as form ruling: the row numbers 1–4 of every sub-table were printed first in one column and the column headers afterwards, with nowhere to fill in.',
     lang: 'deu',
     checks: [
@@ -172,6 +172,34 @@ export const FORMS: Case[] = [
       differentTables('Familienname', 'Doktorgrad'),
       order('Familienname', 'Doktorgrad', 'Staatsangehörigkeit', 'Mit Ihrer Unterschrift'),
       notInTable('Mit Ihrer Unterschrift versichern Sie'),
+    ],
+  },
+  {
+    id: 'framed-section-checkboxes',
+    suite: 'forms',
+    fix: 'guard for 85529b71, 9f3747d6 (batch-02 problem 1 shape)',
+    what: 'Guard: framed form sections (a cerfa-like vehicle transfer form) with checkboxes, fill-in field boxes with end ticks and a SIRET comb must stay text; checkbox sides, comb ticks and field-box edges must not become the columns of a fake grid. This page does not reproduce the 37×3 grid of EU sample 014, which is still open.',
+    lang: 'fra',
+    checks: [
+      custom('no table with more than 3 columns', (c) => {
+        const wide = leaves(c.doc)
+          .map((l) => l.leaf)
+          .filter((b) => b.kind === 'table' && b.table.cols > 3);
+        return wide.length
+          ? `tables: ${wide.map((t) => (t.kind === 'table' ? `${t.table.rows}×${t.table.cols}` : '')).join(', ')}`
+          : null;
+      }),
+      together(
+        "Que ce véhicule n'a pas subi de transformation notable",
+        "l'actuel certificat d'immatriculation",
+      ),
+      order(
+        'Ancien propriétaire',
+        'Personne physique',
+        'Je soussigné',
+        'Je certifie en outre',
+        'Nouveau propriétaire',
+      ),
     ],
   },
 ];
