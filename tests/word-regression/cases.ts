@@ -2,5 +2,7 @@
 // 每修一次转 Word 的问题，就在 pages/<suite>/ 加一页、在对应的文件里加一条（见 README.md）。
 import type { Case } from './lib/case';
 import { TEXT_FLOW } from './cases/text-flow';
+import { FONTS } from './cases/fonts';
+import { GEOMETRY } from './cases/geometry';
 
-export const CASES: Case[] = [...TEXT_FLOW];
+export const CASES: Case[] = [...TEXT_FLOW, ...FONTS, ...GEOMETRY];
