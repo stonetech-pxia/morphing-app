@@ -7,6 +7,7 @@ import {
   flowing,
   images,
   leaves,
+  listItem,
   norm,
   notInRow,
   order,
@@ -260,6 +261,24 @@ export const TEXT_FLOW: Case[] = [
       // 正文照样折行接成一段。
       together('mit dieser Rechnung erhalten Sie', 'an Ihren Verbrauch angepasst'),
       order('Frau', 'Erika Beispiel', 'Ahornweg 7', '04177 Leipzig'),
+    ],
+  },
+  {
+    id: 'missing-list-markers',
+    suite: 'text-flow',
+    fix: 'EU sample 026, 027',
+    what: 'Bulleted ("•") and dashed ("-") lists whose small markers OCR does not return: the items became plain paragraphs, two short items were joined into one and a wrapped item lost its second line to the next block.',
+    lang: 'ita',
+    checks: [
+      listItem('Utilizzate frasi brevi'),
+      listItem("Controllate l'ortografia"),
+      listItem('Rileggete con cura'),
+      listItem('des colocations formalisées'),
+      listItem('des logements de fonction'),
+      apart("Controllate l'ortografia", 'Allegate una lettera'),
+      together('Utilizzate frasi brevi', 'la vostra esperienza professionale'),
+      together('Aggiornate costantemente', 'le informazioni ormai superate'),
+      apart('des locations de logement', 'des logements de fonction'),
     ],
   },
 ];

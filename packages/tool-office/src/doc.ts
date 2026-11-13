@@ -5,6 +5,7 @@ import { findLines } from './lines';
 import { figureOwns, figureWorkingImage, planWordFigures } from './word-figures';
 import { recoverPictureCards } from './word-cards';
 import { restoreWordCellSpans } from './word-cell-spans';
+import { withBullets } from './word-bullets';
 import { ENDS_WITH_FILL, FILL_RUN, findFillIns, leaderDots, withFillIns } from './word-fill-ins';
 import { restoreWordFormRows } from './word-form-rows';
 import type { Box, OcrBox, RgbaImage, TableBlock, TableCell } from './types';
@@ -1531,8 +1532,10 @@ function buildPage(
     lineHeight,
     [...tables.map((t) => t.box), ...figures.map((f) => f.box)],
   );
-  const { lines: kept, source: fillSource } = withFillIns(upright, fills, lineHeight);
-  const synthetic = new Set(kept.filter((l) => !fillSource.has(l) && !upright.includes(l)));
+  const { lines: filled, source: fillSource } = withFillIns(upright, fills, lineHeight);
+  const synthetic = new Set(filled.filter((l) => !fillSource.has(l) && !upright.includes(l)));
+  // 识别漏了的列表记号（「•」「-」）补在行的前面（EU 样本 026、027）。
+  const { lines: kept, source: bulletSource } = withBullets(image, filled);
   const verticals = verticalBoxes(outside.filter(isVertical), cropLineHeight, {
     width: image.width,
     height: image.height,
@@ -1543,7 +1546,8 @@ function buildPage(
   // 原来的识别行（接了填写处的行换回识别出的那一行：量笔画、颜色、下划线，找它在哪张表里）。
   const orig = (l: OcrBox) => {
     const o = originalOf.get(l) ?? l;
-    return fillSource.get(o) ?? o;
+    const b = bulletSource.get(o) ?? o;
+    return fillSource.get(b) ?? b;
   };
   const releasedCells = new Map<OcrBox, TableCell>();
   for (const table of rejected) {
@@ -1960,6 +1964,7 @@ function buildPage(
       },
     }),
   };
+  page.blocks = joinListContinuations(page.blocks, lineHeight);
   if (repairBaseline) {
     // 组表会改变整页字号、分组统计。只替换修复范围中的顶层块，范围外继续用原来的
     // 段落和并排行（包括它们的顺序和样式），避免修一张表挪动上方的日期、署名。
@@ -2133,6 +2138,58 @@ function buildPage(
     };
   }
   return page;
+}
+
+/**
+ * 列表项的折行被版面模型分到了另一块（EU 样本 026、027）：紧接在列表下面、左边和项目的字对齐（比记号靠右）、
+ * 不比列表宽、字号样式一样的一段，接回最后一项。
+ */
+export function joinListContinuations(blocks: readonly DocBlock[], lineHeight: number): DocBlock[] {
+  const out: DocBlock[] = [];
+  for (const b of blocks) {
+    if (b.kind === 'row') {
+      out.push({
+        ...b,
+        cells: b.cells.map((c) => ({
+          ...c,
+          blocks: joinListContinuations(c.blocks, lineHeight) as DocLeaf[],
+        })),
+      });
+      continue;
+    }
+    const list = out.at(-1);
+    if (
+      list?.kind === 'list' &&
+      !list.ordered &&
+      !list.itemRuns &&
+      b.kind === 'paragraph' &&
+      !b.heading &&
+      !b.runs &&
+      !b.tab &&
+      !b.align &&
+      !listStart(b.text) &&
+      b.box.y - (list.box.y + list.box.height) <= PARAGRAPH_GAP * lineHeight &&
+      b.box.y >= list.box.y + list.box.height - 0.5 * lineHeight &&
+      b.box.x - list.box.x >= 0.5 * lineHeight &&
+      b.box.x - list.box.x <= 3 * lineHeight &&
+      b.box.x + b.box.width <= list.box.x + list.box.width + lineHeight &&
+      b.size === list.size &&
+      b.bold === list.bold &&
+      b.underline === list.underline &&
+      b.color === list.color
+    ) {
+      const items = [...list.items];
+      items[items.length - 1] = `${items.at(-1)!} ${b.text.replace(/\n/g, ' ')}`;
+      out[out.length - 1] = {
+        ...list,
+        items,
+        box: unionBox([list.box, b.box]),
+      };
+      continue;
+    }
+    out.push(b);
+  }
+  return out;
 }
 
 /**

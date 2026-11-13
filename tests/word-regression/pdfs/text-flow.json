@@ -76,5 +76,11 @@
     "id": "short-stacked-lines",
     "source": "13-short-stacked-lines.html",
     "sha256": "0f4c235126751fad7b0839f1c2bbbab05825e81d3a9dafd6b09539a80e0fe15f"
+  },
+  {
+    "page": 14,
+    "id": "missing-list-markers",
+    "source": "14-missing-list-markers.html",
+    "sha256": "ec40be6beb3b3275a239afa0c3be970ea289ee5d08c46931a9da03334664b991"
   }
 ]
