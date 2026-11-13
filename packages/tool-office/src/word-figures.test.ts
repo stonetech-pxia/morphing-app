@@ -62,6 +62,29 @@ function fixture() {
 }
 
 describe('Word figure ownership', () => {
+  it('does not take a whole cover page with its title as one uncaptioned picture (EU sample 036)', () => {
+    // 右半是照片、左上是深色标题带：版面模型给一个盖满整页的图框，里面只有四行字。
+    const image = renderPage(size.width, size.height, [
+      { x: 560, y: 0, width: 440, height: 1400, shade: 120 },
+      { x: 0, y: 140, width: 670, height: 280, shade: 40 },
+    ]);
+    const lines = [
+      line('Contrato modelo', 110, 230, 420, 50),
+      line('Arrendamiento de vivienda', 110, 290, 540, 42),
+      line('Programa', 150, 1250, 120),
+      line('Vivienda Escolar', 60, 1275, 210),
+    ];
+    const page = buildDocPage({
+      image,
+      lines,
+      source: 'p.jpg',
+      regions: [hint('image', 'image', 0, 0, 1000, 1400)],
+    });
+    expect(text(page)).toContain('Contrato modelo');
+    expect(text(page)).toContain('Vivienda Escolar');
+    expect(leafBlocks(page).some((b) => b.kind === 'image' && b.box.width > 900)).toBe(false);
+  });
+
   it('keeps a tall margin graphic beside the complete figure-caption-body band', () => {
     const figure = { x: 100, y: 200, width: 800, height: 250 },
       margin = { x: 60, y: 180, width: 35, height: 600 };

@@ -88,5 +88,11 @@
     "id": "figure-before-caption",
     "source": "17-figure-before-caption.pdf",
     "sha256": "4aa8e7204808472e4d601a66049fe876c1499c965faded61da6d6fd4738aae7e"
+  },
+  {
+    "page": 16,
+    "id": "cover-page-text",
+    "source": "18-cover-page-text.html",
+    "sha256": "875339810076d5c991f5f99e517f488f45d04b6917dfe31d8f486c9284333f30"
   }
 ]

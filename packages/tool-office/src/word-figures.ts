@@ -6,6 +6,8 @@ import type { Box, OcrBox, RgbaImage } from './types';
 const captionStart = /^(?:fig(?:ure)?\.?\s*\d+[\s:：.)]|[图圖]\s*\d+[\s:：.、])/iu;
 const captionLabels = new Set(['figure_title', 'chart_title']);
 const area = (b: Box) => b.width * b.height;
+/** 没有图注的图最多占整页的这么多（封面的大照片约六成，NIST 封面插图 0.54）。 */
+const FIGURE_MAX_PAGE_SHARE = 0.8;
 const overlap = (a: Box, b: Box) =>
   Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) *
   Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
@@ -61,6 +63,10 @@ export function planWordFigures(
     )
       continue;
     const inside = lines.filter((l) => l !== caption && lineShareIn(l, b) >= 0.5);
+    // 没有图注、几乎盖满整页的「图」是整页本身（封面的照片底和色块），不是一张图：
+    // 接管了就把页上所有的字一起吞掉（EU 样本 036 封面，一个字都没留下）。页上没有字时照旧当整图。
+    if (!caption && inside.length && area(b) > FIGURE_MAX_PAGE_SHARE * image.width * image.height)
+      continue;
     // 无图注的大色块也可能是多格表单；不能把大量短字段当成示意图标签。
     if (
       !caption &&

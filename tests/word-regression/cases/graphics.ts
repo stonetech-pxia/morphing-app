@@ -1,6 +1,7 @@
 // graphics 套件：图片、印章、条形码、示意图和图表（识别 + 版面模型那条路；数字 PDF 也会经过原生绘图）。
 // 图里的标注字本来就该留在图里：这类页的通用「字都在」检查把 recall 放低到只差图里那些字。
 import {
+  heading,
   images,
   imageBefore,
   imageCovers,
@@ -209,6 +210,20 @@ export const GRAPHICS: Case[] = [
       order('Figure 1: Left', 'Abstract', 'Recent diffusion-based generators'),
       times('pikachu', 0),
       imageCovers({ x: 0.085, y: 0.295, width: 0.8, height: 0.19 }),
+    ],
+  },
+  {
+    id: 'cover-page-text',
+    suite: 'graphics',
+    fix: 'EU sample 036',
+    what: 'Cover page whose photo, coloured panels and title band make one page-sized image proposal with no caption: the whole page used to become one picture and every word (title, programme name) was lost; the text must stay editable.',
+    lang: 'spa',
+    checks: [
+      heading('Contrato modelo'),
+      times('Contrato modelo', 1),
+      times('Arrendamiento de vivienda', 1),
+      times('Programa', 1),
+      times('Vivienda Escolar', 1),
     ],
   },
 ];
