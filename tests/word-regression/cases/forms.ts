@@ -31,7 +31,7 @@ export const FORMS: Case[] = [
   {
     id: 'irs-w4-label-column',
     suite: 'forms',
-    fix: '5f61ae5e D-473 ⑥',
+    fix: '5f61ae5e D-473 ⑥; d937db44',
     what: 'IRS W-4: the narrow "Step N:" label column was merged into the content lines it labels; labels and content must sit side by side, with the full-width instructions outside the rows.',
     checks: [
       apart('Step 2:', 'Complete this step if you'),
@@ -40,8 +40,7 @@ export const FORMS: Case[] = [
       sideBySide('Adjustments', 'If you want tax withheld for other income'),
       notInRow('Complete Steps 2–4 ONLY if they apply to you'),
     ],
-    knownFailure:
-      'Regressed by ca14ef0b (bounded text table recovery; passes at 11c12020): the Step 3 block is now detected as a 5×3 table and the whole Step 4 block ("Step 4: Other Adjustments", lines (a) and (b)) is missing from the Word file (text recall 0.94).',
+    // ca14ef0b 曾让 Step 3 变成 5×3 的表、Step 4 整块丢失；d937db44 的按行守恒修好了。
   },
   {
     id: 'invoice-zh-header-rows',
