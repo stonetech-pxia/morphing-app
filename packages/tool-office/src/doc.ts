@@ -466,6 +466,26 @@ const ROOM_GUTTER = 3;
 /** 一排里两块字隔得超过这么多个行高，分成左右两块（一行里词与词的空隙远小于一个行高）。 */
 const ROW_SPLIT = 1.6;
 
+/** 撑满的一行至少拆成这么多个词，词间空隙和中位数最多差这么多，才当成一行（不是几栏）。 */
+const JUSTIFIED_MIN_WORDS = 3;
+const JUSTIFIED_GAP_SPREAD = 0.2;
+
+/**
+ * 两端对齐、词少的一行（「dont   le   siège   est   fixé   à   (adresse   précise)」）词间空得很大，
+ * 识别把每个词分成一块：每块只有一个词、空隙几乎一样大，是一行字，不是几栏（EU 样本 037）。
+ * 几栏、信头左右两边的块里有好几个词，空隙也不会一样大。
+ */
+function justifiedWords(pieces: readonly (readonly OcrBox[])[]): boolean {
+  if (pieces.length < JUSTIFIED_MIN_WORDS) return false;
+  if (!pieces.every((p) => /^\S+$/u.test(p.map((l) => l.text.trim()).join('')))) return false;
+  const gaps = pieces.slice(1).map((p, i) => {
+    const prev = pieces[i]!.at(-1)!;
+    return p[0]!.x - (prev.x + prev.width);
+  });
+  const mid = median(gaps);
+  return gaps.every((g) => Math.abs(g - mid) <= JUSTIFIED_GAP_SPREAD * mid);
+}
+
 /** 一排里隔得很远的几块分开（左右两栏、信头左右两边）。 */
 function splitRow(row: Row, lineHeight: number): Row[] {
   const out: OcrBox[][] = [[row.lines[0]!]];
@@ -474,6 +494,7 @@ function splitRow(row: Row, lineHeight: number): Row[] {
     if (line.x - (prev.x + prev.width) > ROW_SPLIT * lineHeight) out.push([line]);
     else out.at(-1)!.push(line);
   }
+  if (justifiedWords(out)) return [row];
   return out.map((g) => ({
     lines: g,
     box: unionBox(g),

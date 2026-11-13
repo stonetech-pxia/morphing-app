@@ -298,4 +298,15 @@ export const TEXT_FLOW: Case[] = [
       numbered('Vote du règlement', 2),
     ],
   },
+  {
+    id: 'justified-line-word-gaps',
+    suite: 'text-flow',
+    fix: 'EU sample 037',
+    what: 'A short force-justified line ("dont le siège … (adresse précise)") whose huge word gaps make OCR return every word as its own box: each word became its own paragraph, in scrambled order; it must stay one line.',
+    lang: 'fra',
+    checks: [
+      together('dont le siège sera transféré à (nouvelle adresse)'),
+      order('Association (nom)', 'dont le siège', 'Le président expose'),
+    ],
+  },
 ];

@@ -88,5 +88,11 @@
     "id": "numbered-headings-after-list",
     "source": "15-numbered-headings-after-list.html",
     "sha256": "0a5655642531d16c98154f39ce8ddd3a71d815f8c71272fb70f3f2084c3eacb8"
+  },
+  {
+    "page": 16,
+    "id": "justified-line-word-gaps",
+    "source": "16-justified-line-word-gaps.html",
+    "sha256": "d3aa3fddf49842b8bc5de2d5e89242c291ee0b5b5c382c19d1d6eacc210c1a0a"
   }
 ]

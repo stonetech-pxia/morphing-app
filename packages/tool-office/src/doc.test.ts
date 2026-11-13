@@ -594,6 +594,33 @@ describe('buildDocPage', () => {
     ]);
   });
 
+  it('keeps a force-justified line whose words OCR returned one by one as one line (EU sample 037)', () => {
+    const words = ['whose', 'seat', 'is', 'set', 'at', '(full', 'address)'];
+    const { image, lines } = textPage([
+      {
+        text: 'The meeting decided to found the association named below.',
+        x: 100,
+        y: 100,
+        width: 800,
+      },
+      ...words.map((text, i) => ({ text, x: 100 + i * 120, y: 160, width: 60 })),
+      { text: 'The chair then presents the draft statutes.', x: 100, y: 220, width: 620 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const texts = leafBlocks(doc).flatMap((b) => (b.kind === 'paragraph' ? [b.text] : []));
+    expect(texts.some((t) => t.includes('whose seat is set at (full address)'))).toBe(true);
+  });
+
+  it('still splits a row whose far-apart pieces are not single words with even gaps', () => {
+    const { image, lines } = textPage([
+      { text: 'Atelier Lindenhof', x: 100, y: 100, width: 220 },
+      { text: 'Rechnung RE-2026-0311', x: 600, y: 100, width: 300 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const texts = leafBlocks(doc).flatMap((b) => (b.kind === 'paragraph' ? [b.text] : []));
+    expect(texts.some((t) => t.includes('Lindenhof Rechnung'))).toBe(false);
+  });
+
   it('treats a picture region full of body text as text, not as a picture', () => {
     const rows = Array.from({ length: 5 }, (_, i) => ({
       text: `Line ${i + 1} of a long paragraph that fills the page width`,
