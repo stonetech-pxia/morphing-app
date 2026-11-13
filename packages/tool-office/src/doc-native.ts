@@ -6,6 +6,8 @@ export interface NativeGraphics {
   owned: Box[];
   colors: { box: Box; color: string }[];
   fills?: { box: Box; color: string }[];
+  /** 这些框所在的 PDF 页大小（点）；Word 的纸缩过时（fitPaper）和 page.paper 不一样。 */
+  paper?: { width: number; height: number };
 }
 /** 旋转文字的整图所有权还不能可靠推断，仍用已有的文字方向/裁图路径。 */
 export function canUseNativeGraphics(page: DocPage): boolean {
@@ -24,8 +26,9 @@ export function applyNativeGraphics(
   sources: readonly string[],
   background?: string,
 ): DocPage {
-  const kx = page.width / (page.paper?.width ?? 595.3);
-  const ky = page.height / (page.paper?.height ?? 841.9);
+  const paper = graphics.paper ?? page.paper;
+  const kx = page.width / (paper?.width ?? 595.3);
+  const ky = page.height / (paper?.height ?? 841.9);
   const pixel = (b: Box): Box => ({
     x: b.x * kx,
     y: b.y * ky,

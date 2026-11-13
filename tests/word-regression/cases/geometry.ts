@@ -1,5 +1,5 @@
 // geometry 套件：纸张大小、位置和缩进、栏宽、表格行高、图片大小。
-import { custom, leaves, sideBySide } from '../lib/checks';
+import { custom, leaves, sideBySide, table } from '../lib/checks';
 import type { Case } from '../lib/case';
 import {
   fitsOneLine,
@@ -154,6 +154,27 @@ export const GEOMETRY: Case[] = [
           ? `widths ${got.map((w) => w.toFixed(0)).join('/')} pt, source ${src.map((w) => w.toFixed(0)).join('/')} pt`
           : null;
       }),
+    ],
+  },
+  {
+    id: 'oversized-scan-paper',
+    suite: 'geometry',
+    fix: 'EU sample 009',
+    what: 'A scan stored as a PDF at one point per pixel (MediaBox 2481 × 3508 pt, 87 × 124 cm): the Word page copied that paper size, so the body text was a tiny 7.5 pt cluster on a giant page. Paper larger than A3 is fitted to A4 width with the same proportions.',
+    lang: 'fra',
+    checks: [
+      custom('one section, A4 width (±2 pt) and the source proportions', (c) => {
+        const s = sections(c);
+        if (s.length !== 1) return `${s.length} sections`;
+        const { width, height } = s[0]!;
+        return Math.abs(width - 11906) <= 40 && Math.abs(height / width - 3508 / 2481) < 0.01
+          ? null
+          : `${width}×${height}`;
+      }),
+      custom('body text is at least 9 pt', (c) =>
+        c.doc.pages[0]!.bodySize >= 9 ? null : `body ${c.doc.pages[0]!.bodySize} pt`,
+      ),
+      table({ rows: 3, cols: 3, containing: ['Forfait mobile 20 Go', '12,99 €'] }),
     ],
   },
 ];

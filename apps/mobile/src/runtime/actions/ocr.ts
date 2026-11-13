@@ -336,7 +336,8 @@ export const OCR_IMPLS: Record<string, Impl> = {
       const runtime = ctx.services.packs?.runtime;
       if (pdf?.for === item.uri && runtime && canUseNativeGraphics(page)) {
         try {
-          const paper = page.paper!;
+          // 原生绘图按 PDF 自己的点坐标；Word 的纸可能已经缩过（比 A3 大的页，fitPaper）。
+          const paper = pageInput.paper ?? page.paper!;
           const toPoints = (box: Box) => ({
             x: (box.x / page.width) * paper.width,
             y: (box.y / page.height) * paper.height,

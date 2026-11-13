@@ -975,8 +975,28 @@ function defaultJoin(lines: readonly OcrBox[]): string {
     .join(' ');
 }
 
+/** A3 的长短边（磅）；比它还大一点的纸算作量错了的纸。 */
+const A3_PT = { short: 841.9, long: 1190.6 };
+const A3_SLACK = 1.05;
+
+/**
+ * 比 A3 还大的 PDF 页（扫描件按 1 像素 = 1 磅存成的 87 × 124 cm）不照抄成 Word 的纸：按原来的高宽比
+ * 缩到 A4 宽（横向按 A4 长边），和没有纸张信息的照片一样。字号本来就按 A4 宽估，这样字和纸的比例才对。
+ */
+export function fitPaper(paper: { width: number; height: number }): {
+  width: number;
+  height: number;
+} {
+  const short = Math.min(paper.width, paper.height);
+  const long = Math.max(paper.width, paper.height);
+  if (short <= A3_PT.short * A3_SLACK && long <= A3_PT.long * A3_SLACK) return paper;
+  const width = paper.width > paper.height ? 841.9 : 595.3;
+  return { width, height: Math.round(((width * paper.height) / paper.width) * 10) / 10 };
+}
+
 /** 一页的 DocPage。 */
 export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {}): DocPage {
+  if (input.paper) input = { ...input, paper: fitPaper(input.paper) };
   const page = buildPage(input, options, true);
   const next = recoverPictureCards(
     page,

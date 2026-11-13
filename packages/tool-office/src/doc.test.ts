@@ -831,6 +831,30 @@ describe('buildDocPage', () => {
     expect(page(600, 1500).paper).toBeUndefined();
     expect(page(600, 2400).paper).toBeUndefined();
   });
+  it('fits a PDF page far larger than A3 (a scan stored at one point per pixel) to A4 width', () => {
+    const { image, lines } = textPage([
+      {
+        text: 'Montant total prélevé ce mois-ci sur votre compte bancaire',
+        x: 60,
+        y: 150,
+        width: 800,
+      },
+      { text: 'Le détail de vos communications se trouve en page 2.', x: 60, y: 180, width: 700 },
+    ]);
+    const build = (paper: { width: number; height: number }) =>
+      buildDocPage({ image, lines, source: 's', paper, skew: 0 });
+    const scan = build({ width: 2481, height: 3508.5 });
+    const a4 = build({ width: 595.3, height: 841.9 });
+    expect(scan.paper!.width).toBeCloseTo(595.3, 1);
+    expect(scan.paper!.height / scan.paper!.width).toBeCloseTo(3508.5 / 2481, 3);
+    // 字号、页边和 A4 原件一样，不因为纸大就把字缩成一小团。
+    expect(scan.bodySize).toBe(a4.bodySize);
+    expect(scan.margins!.left).toBeCloseTo(a4.margins!.left, 0);
+    // 横向的大纸按 A4 长边；A3 和 Letter、Legal 这类真实纸张照旧。
+    expect(build({ width: 3508.5, height: 2481 }).paper!.width).toBeCloseTo(841.9, 1);
+    expect(build({ width: 841.9, height: 1190.6 }).paper).toEqual({ width: 841.9, height: 1190.6 });
+    expect(build({ width: 612, height: 1008 }).paper).toEqual({ width: 612, height: 1008 });
+  });
   it('sizes lines by the width of their letters when the page is set in one font (D-463)', () => {
     // 识别框一样高（p、g 往下伸的字母让小字的框也一样高），字宽看得出大小：正文 17 像素，小字 13，大字 22。
     const px = (text: string, size: number) => Math.round(textEm(text) * size);

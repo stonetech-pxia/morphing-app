@@ -31,6 +31,19 @@ describe('local source PDF graphics', () => {
     expect(p.blocks[0]).not.toHaveProperty('background');
     expect(p.blocks[1]).toMatchObject({ text: 'Editable body', color: '114477' });
   });
+  it('maps native boxes by the source PDF page size when the Word paper was fitted to A4', () => {
+    // PDF 页是 2400 × 3200 点，Word 的纸缩成了 600 × 800（fitPaper）：原生框仍按 PDF 的点换成像素。
+    const p = applyNativeGraphics(
+      page(),
+      {
+        owned: [{ x: 80, y: 160, width: 400, height: 120 }],
+        colors: [],
+        paper: { width: 2400, height: 3200 },
+      },
+      ['figure.png'],
+    );
+    expect(p.blocks[0]).toMatchObject({ src: 'figure.png' });
+  });
   it('paints the whole editable field cell only when the source fill covers that cell', () => {
     const cell = { x: 20, y: 120, width: 300, height: 60 },
       line = { x: 30, y: 135, width: 120, height: 20 };

@@ -40,5 +40,11 @@
     "id": "picture-fit-policy",
     "source": "07-picture-fit-policy.pdf",
     "sha256": "f21db77c420f9f5784db2ef5bf92ea674b81cafd9c37a7997e0a543b54160628"
+  },
+  {
+    "page": 8,
+    "id": "oversized-scan-paper",
+    "source": "08-oversized-scan-paper.html",
+    "sha256": "cf019d4879531e3af96fb03118e22943817352fec77707eb954e6c89d7a24eb6"
   }
 ]
