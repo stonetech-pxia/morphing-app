@@ -202,7 +202,7 @@ export const TEXT_FLOW: Case[] = [
   {
     id: 'short-lines-not-page-numbers',
     suite: 'text-flow',
-    fix: 'EU sample 005, 010',
+    fix: 'af0a8f99 EU sample 005, 010',
     what: 'The layout model labels a centred "Art. 1" and a lone value "n.a." as page numbers, and page-number regions were dropped whole: the text was lost. Only text that reads like a page number ("1/3") may go.',
     lang: 'ita',
     checks: [
@@ -217,7 +217,7 @@ export const TEXT_FLOW: Case[] = [
   {
     id: 'decorative-markers-not-bullets',
     suite: 'text-flow',
-    fix: 'EU sample 003, 004, 005',
+    fix: 'f72f4ac7 EU sample 003, 004, 005',
     what: 'Headings framed by asterisks or dashes ("*** TESTO INTEGRALE ***", "– Anmeldebestätigung –", "*****RECHNUNG*****") became bullet items: one asterisk was eaten and the next line was joined into the item. A real dash list must stay a list.',
     lang: 'deu',
     checks: [

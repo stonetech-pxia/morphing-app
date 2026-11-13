@@ -159,7 +159,7 @@ export const GEOMETRY: Case[] = [
   {
     id: 'oversized-scan-paper',
     suite: 'geometry',
-    fix: 'EU sample 009',
+    fix: '4e7e5b74 EU sample 009',
     what: 'A scan stored as a PDF at one point per pixel (MediaBox 2481 × 3508 pt, 87 × 124 cm): the Word page copied that paper size, so the body text was a tiny 7.5 pt cluster on a giant page. Paper larger than A3 is fitted to A4 width with the same proportions.',
     lang: 'fra',
     checks: [
@@ -180,7 +180,7 @@ export const GEOMETRY: Case[] = [
   {
     id: 'short-edge-cell-one-line',
     suite: 'geometry',
-    fix: 'EU sample 005, 010',
+    fix: '33bda478 EU sample 005, 010',
     what: 'Header and footer rows wider than the content area with a short text at the right page edge ("Page 2 of 5", "Rev. 4b"; EU samples: "1/3", "AUTRE TOTAL"): the last cell was only as wide as its source ink, so the text wrapped one or two characters per line; it borrows the unused width of the cell to its left.',
     checks: [
       fitsOneLine('Page 2 of 5'),
@@ -192,7 +192,7 @@ export const GEOMETRY: Case[] = [
   {
     id: 'right-side-row-offset',
     suite: 'geometry',
-    fix: 'EU sample 001, 008, 009',
+    fix: '1cd36e52 EU sample 001, 008, 009',
     what: 'Label pairs on the right half of an invoice ("FOB | DATE D\'EXPÉDITION") were written as a side-by-side row starting at the left margin, under the bill-to block; the row is indented to its source left edge.',
     lang: 'fra',
     checks: [
