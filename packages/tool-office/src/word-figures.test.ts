@@ -68,16 +68,14 @@ describe('Word figure ownership', () => {
         col: 0,
         rows: 1,
         cols: 5,
-        cells: xs
-          .slice(0, -1)
-          .map((x, i) => ({
-            row: 0,
-            col: i,
-            rowSpan: 1,
-            colSpan: 1,
-            box: { ...box, x, width: xs[i + 1]! - x },
-            text: ['Vehicle identifi', 'cation number  Ge', 'nre', '  Other ', 'label'][i]!,
-          })),
+        cells: xs.slice(0, -1).map((x, i) => ({
+          row: 0,
+          col: i,
+          rowSpan: 1,
+          colSpan: 1,
+          box: { ...box, x, width: xs[i + 1]! - x },
+          text: ['Vehicle identifi', 'cation number  Ge', 'nre', '  Other ', 'label'][i]!,
+        })),
       },
     };
     const lines = [
