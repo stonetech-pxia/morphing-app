@@ -1324,8 +1324,14 @@ function buildPage(
   const ruledCandidates = sheet.blocks.filter(
     (b): b is TableBlock =>
       b.kind === 'table' &&
-      // 表大半在整图里才是图内的网格；图在表的一格里（表单的证件照）时表照样要。
-      !figures.some((f) => lineShareIn(b.box, f.box) >= 0.5) &&
+      // 图内的网格（表大半在图里）不要；图跨过表的好几格时（整页的版式框把图表框在里面，D-533）也不要。
+      // 图在表的一格里（表单的证件照占着合并的一格）时表照样要。
+      !figures.some(
+        (f) =>
+          lineShareIn(b.box, f.box) >= 0.5 ||
+          (lineShareIn(f.box, b.box) >= 0.2 &&
+            !b.cells.some((c) => c.box && lineShareIn(f.box, c.box) >= 0.8)),
+      ) &&
       !isRuleGrid(b, lines.filter((l) => inBox(l, b.box)).length) &&
       !chopsMuch(b),
   );
