@@ -977,6 +977,34 @@ export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {})
     }
     if (layout.length) block.cellLayout = layout;
   }
+  if (input.prior && input.nativeFigures?.length) {
+    const candidate = insertBarcodes(input.prior, input.nativeFigures);
+    // 只换图且可编辑块完全相同时保留原分栏顺序；组表或正文有变化时仍用隔离后的重建结果。
+    const signature = (page: DocPage) =>
+      leafBlocks(page)
+        .filter((b) => b.kind !== 'image')
+        .map((b) => {
+          if (b.kind === 'table')
+            return JSON.stringify([
+              b.kind,
+              b.table.rows,
+              b.table.cols,
+              b.table.cells.map((c) => [c.row, c.col, c.rowSpan, c.colSpan, c.text]),
+            ]);
+          return JSON.stringify([
+            b.kind,
+            b.kind === 'paragraph' ? b.text : b.kind === 'list' ? b.items : b.box,
+          ]);
+        })
+        .sort()
+        .join('\n');
+    if (
+      signature(candidate) === signature(next) &&
+      leafBlocks(candidate).filter((b) => b.kind === 'image').length ===
+        leafBlocks(next).filter((b) => b.kind === 'image').length
+    )
+      return candidate;
+  }
   return next;
 }
 

@@ -1,7 +1,7 @@
 import { strFromU8, unzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 
-import type { DocDoc, DocPage, DocTable } from './doc';
+import { textEm, type DocDoc, type DocPage, type DocTable } from './doc';
 import { writeDocx } from './docx';
 
 const box = { x: 100, y: 100, width: 400, height: 40 };
@@ -44,6 +44,56 @@ describe('writeDocx', () => {
     const row = Number(xml.match(/<w:trHeight w:val="(\d+)"/)?.[1]);
     expect(gap).toBeGreaterThan(0);
     expect(row).toBeGreaterThanOrEqual(gap + Math.round(10 * 1.18 * 20));
+  });
+  it('uses spare width for a short label in the last column of a nested layout row', () => {
+    const p: DocPage = {
+      ...page(
+        [
+          {
+            kind: 'row',
+            box: { x: 50, y: 100, width: 850, height: 80 },
+            cells: [
+              {
+                width: 450,
+                blocks: [
+                  {
+                    kind: 'paragraph',
+                    text: 'Passenger',
+                    box: { x: 50, y: 100, width: 150, height: 20 },
+                  },
+                  {
+                    kind: 'paragraph',
+                    text: 'FLIGHT',
+                    box: { x: 360, y: 100, width: 40, height: 20 },
+                  },
+                  {
+                    kind: 'paragraph',
+                    text: 'Name and flight number',
+                    box: { x: 50, y: 135, width: 350, height: 20 },
+                  },
+                ],
+              },
+              {
+                width: 400,
+                blocks: [
+                  {
+                    kind: 'paragraph',
+                    text: 'Date and destination',
+                    box: { x: 500, y: 100, width: 350, height: 20 },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        10,
+      ),
+      paper: { width: 600, height: 840 },
+    };
+    const xml = unzip(writeDocx({ version: 4, pages: [p] })).text('word/document.xml');
+    const grids = xml.match(/<w:tblGrid>.*?<\/w:tblGrid>/g)!;
+    const widths = [...grids[1]!.matchAll(/w:w="(\d+)"/g)].map((m) => Number(m[1]));
+    expect(widths.at(-1)).toBeGreaterThanOrEqual(Math.ceil(textEm('FLIGHT') * 10 * 20 + 160));
   });
   it('reserves the painted border in the minimum height of a tightly packed text row', () => {
     const b = { x: 50, y: 100, width: 800, height: 2 };

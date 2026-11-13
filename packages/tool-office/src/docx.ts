@@ -725,6 +725,24 @@ export function writeDocx(
       bottom: number;
       height: number;
     }
+    const nestedWidths = (row: import('./doc').DocRow, max: number) => {
+      const widths = fitWidths(
+        row.cells.map((c) => twip(c.width)),
+        max,
+      );
+      const last = row.cells.at(-1)!;
+      const needed = Math.max(
+        widths.at(-1)!,
+        ...last.blocks
+          .filter((b) => b.kind === 'paragraph' && !b.tab && !/[\n\t]/.test(b.text))
+          .map((b) =>
+            Math.ceil(textEm(b.text) * (b.size ?? bodySize) * 20 * WIDTH_SLACK + 2 * CELL_PAD),
+          ),
+      );
+      const spare = Math.max(0, max - widths.reduce((n, w) => n + w, 0));
+      widths[widths.length - 1]! += Math.min(spare, needed - widths.at(-1)!);
+      return widths;
+    };
     // 一块在 Word 里大概多高：文字按原图里有几行 × 行高，表格、图片按原图里的高。
     const heightOf = (block: DocBlock, maxWidth = CONTENT_W, from = base): number => {
       const h = yTwip(block.box.height);
@@ -759,10 +777,7 @@ export function writeDocx(
         return Math.max(lines, Math.round(h / one)) * one;
       }
       if (page.paper && block.kind === 'row') {
-        const widths = fitWidths(
-          block.cells.map((c) => twip(c.width)),
-          maxWidth,
-        );
+        const widths = nestedWidths(block, maxWidth);
         const measured = block.cells.map((cell, i) => {
           const flow: Flow = { top: block.box.y, bottom: block.box.y, height: 0 };
           let total = 0;
@@ -969,10 +984,7 @@ export function writeDocx(
               { ...(before !== undefined ? { before } : {}), left: leftOf(b, from, max) },
               fontMax,
             );
-          const widths = fitWidths(
-            b.cells.map((c) => twip(c.width)),
-            max,
-          );
+          const widths = nestedWidths(b, max);
           const cells = b.cells.map((c, i) =>
             cellXml(
               c.blocks,
