@@ -126,21 +126,32 @@ describe('DocDoc edits', () => {
   it('reads back its own JSON and rejects anything else', () => {
     expect(parseDocDoc(JSON.stringify(doc))).toEqual({
       ...doc,
-      version: 4,
+      version: 5,
       pages: doc.pages.map((p) => ({ ...p, paper: { width: 595.3, height: 841.9 } })),
     });
-    expect(parseDocDoc('{"version":5,"pages":[]}')).toBeNull();
+    expect(parseDocDoc('{"version":6,"pages":[]}')).toBeNull();
     expect(parseDocDoc('{"version":1,"pages":[{}]}')).toBeNull();
     expect(parseDocDoc('not json')).toBeNull();
   });
 
+  it('upgrades version 4 without inventing physical paper for a photo, and preserves full-cell fills', () => {
+    const previous = { ...structuredClone(doc), version: 4 as const };
+    const next = parseDocDoc(JSON.stringify(previous));
+    expect(next).toEqual({ ...previous, version: 5 });
+    const table = next!.pages[0]!.blocks.find((b) => b.kind === 'table');
+    if (!table || table.kind !== 'table') throw new Error('fixture');
+    table.cellLayout = [{ row: 0, col: 0, fill: 'CCD7FF', lines: [] }];
+    expect(parseDocDoc(JSON.stringify(next))).toEqual(next);
+    table.cellLayout[0]!.fill = 'not-a-color';
+    expect(parseDocDoc(JSON.stringify(next))).toBeNull();
+  });
   it('keeps a version 2 page size and all editable content when opening it again', () => {
     const next = {
       ...doc,
       version: 2,
       pages: doc.pages.map((p) => ({ ...p, paper: { width: 595.28, height: 255.12 } })),
     };
-    expect(parseDocDoc(JSON.stringify(next))).toEqual({ ...next, version: 4 });
+    expect(parseDocDoc(JSON.stringify(next))).toEqual({ ...next, version: 5 });
     expect(
       parseDocDoc(
         JSON.stringify({

@@ -108,6 +108,18 @@ function open(d: DocDoc = doc) {
 }
 
 describe('Word page layout like the original (D-464, D-465)', () => {
+  it('paints the full cell and preserves its background when the user edits its text', () => {
+    const d = structuredClone(doc);
+    d.version = 5;
+    const table = d.pages[0]!.blocks.find((b) => b.kind === 'table')!;
+    table.cellLayout = [{ row: 0, col: 0, fill: 'CCD7FF', lines: [] }];
+    const { q, merge } = open(d);
+    expect(q('td[data-i="0"]').style.backgroundColor).toBe('rgb(204, 215, 255)');
+    q('td[data-i="0"]').textContent = 'Edited field';
+    const next = merge().pages[0]!.blocks.find((b) => b.kind === 'table')!;
+    expect(next.table.cells[0]!.text).toBe('Edited field');
+    expect(next.cellLayout).toEqual(table.cellLayout);
+  });
   it('round-trips positioned cell paragraphs and tab-separated labels without losing the spacing metadata', () => {
     const d = structuredClone(doc);
     d.version = 4;

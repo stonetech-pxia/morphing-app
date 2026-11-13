@@ -225,7 +225,7 @@ describe('ocr.toWord (D-328)', () => {
     onePage(vision);
     const item = resultItem(await run());
     const doc = parseDocDoc(decodeUtf8(await files.readUri(item.docDoc!.uri)))!;
-    expect(doc.version).toBe(4);
+    expect(doc.version).toBe(5);
     expect(doc.pages[0]!.paper).toEqual({ width: 595.28, height: 255.12 });
     const { xml } = await documentXml(files, item);
     expect(xml).toContain('w:h="5102" w:orient="landscape"');

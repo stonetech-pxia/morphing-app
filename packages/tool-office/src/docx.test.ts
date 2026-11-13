@@ -937,6 +937,37 @@ describe('writeDocx', () => {
     expect(xml).not.toContain('<w:p/>');
   });
 
+  it('retains source picture size when even the smallest picture cannot fit overflowing editable text', () => {
+    const image = {
+      kind: 'image' as const,
+      src: 'picture',
+      box: { x: 50, y: 50, width: 600, height: 200 },
+    };
+    const images = new Map([
+      ['picture', { bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), width: 600, height: 200 }],
+    ]);
+    const extent = (blocks: DocPage['blocks']) =>
+      Number(
+        unzip(
+          writeDocx(
+            { version: 4, pages: [{ ...page(blocks), paper: { width: 600, height: 840 } }] },
+            images,
+          ),
+        )
+          .text('word/document.xml')
+          .match(/<wp:extent cx="(\d+)"/)?.[1],
+      );
+    expect(
+      extent([
+        image,
+        {
+          kind: 'paragraph',
+          box: { x: 50, y: 270, width: 800, height: 1000 },
+          text: 'Editable body text '.repeat(2000),
+        },
+      ]),
+    ).toBe(extent([image]));
+  });
   it('shrinks flowing pictures only after source whitespace cannot fit normal editable text on the page', () => {
     const image = {
       kind: 'image' as const,

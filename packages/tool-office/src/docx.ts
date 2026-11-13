@@ -399,8 +399,12 @@ function tableXml(
       const span = Math.max(1, Math.min(cell.colSpan, table.cols - c));
       const w = widths.slice(c, c + span).reduce((a, b) => a + b, 0);
       const first = cell.row === r;
+      const cellLayout = block.cellLayout?.find((p) => p.row === cell.row && p.col === cell.col);
       const tcPr =
         `<w:tcW w:w="${w}" w:type="dxa"/>` +
+        (cellLayout?.fill
+          ? `<w:shd w:val="clear" w:color="auto" w:fill="${cellLayout.fill}"/>`
+          : '') +
         (span > 1 ? `<w:gridSpan w:val="${span}"/>` : '') +
         (cell.rowSpan > 1 ? (first ? '<w:vMerge w:val="restart"/>' : '<w:vMerge/>') : '') +
         (block.direction ? '<w:textDirection w:val="tbRl"/>' : '');
@@ -1029,12 +1033,15 @@ export function writeDocx(
           ) {
             let low = 0.25,
               high = 1;
-            for (let i = 0; i < 12; i++) {
+            pictureScale = low;
+            // 正文本来就需要续页时，缩图不能解决溢出；保留原图尺寸继续正常分页。
+            const feasible = measure() <= CONTENT_H - Math.round(leading * bodySize * 20);
+            for (let i = 0; feasible && i < 12; i++) {
               pictureScale = (low + high) / 2;
               if (measure() > CONTENT_H - Math.round(leading * bodySize * 20)) high = pictureScale;
               else low = pictureScale;
             }
-            pictureScale = low;
+            pictureScale = feasible ? low : 1;
           }
         } else {
           const dry: Flow = { top: marginPx, bottom: marginPx, height: 0 };

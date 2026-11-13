@@ -226,10 +226,14 @@ function leafHtml(
                   })
                   .join('')
               : orBreak(textHtml(c.text));
+            const cellFill = block.cellLayout?.find(
+              (p) => p.row === c.row && p.col === c.col,
+            )?.fill;
+            const paint = cellFill ? `;background-color:#${cellFill}` : '';
             const positioning = sourceLines
               ? `;padding:0 1${u};height:${c.box!.height * ky}${u}`
               : '';
-            return `<td data-i="${i}"${span} style="width:${w.toFixed(2)}%;font-size:${ownPx}${u}${align}${direction}${positioning}">${body}</td>`;
+            return `<td data-i="${i}"${span} style="width:${w.toFixed(2)}%;font-size:${ownPx}${u}${align}${direction}${positioning}${paint}">${body}</td>`;
           })
           .join('');
         return `<tr>${cells}</tr>`;

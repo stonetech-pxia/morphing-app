@@ -89,6 +89,8 @@ export interface DocTable {
   cellLayout?: {
     row: number;
     col: number;
+    /** 原生填色覆盖整格时，底色随单元格走，不只随字行走。 */
+    fill?: string;
     lines: (Box & { color?: string; fill?: string; tabs?: number[] })[];
   }[];
   box: Box;
@@ -171,7 +173,7 @@ export interface DocPage {
 }
 
 export interface DocDoc {
-  version: 1 | 2 | 3 | 4;
+  version: 1 | 2 | 3 | 4 | 5;
   pages: DocPage[];
 }
 
@@ -978,7 +980,7 @@ export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {})
     if (layout.length) block.cellLayout = layout;
   }
   if (input.prior && input.nativeFigures?.length) {
-    const candidate = insertBarcodes(input.prior, input.nativeFigures);
+    const candidate = insertWordFigures(input.prior, input.nativeFigures);
     // 只换图且可编辑块完全相同时保留原分栏顺序；组表或正文有变化时仍用隔离后的重建结果。
     const signature = (page: DocPage) =>
       leafBlocks(page)
@@ -1008,18 +1010,51 @@ export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {})
   return next;
 }
 
-/** 补回缺失的条码时保留已有文字分组、样式和顺序，只在同一横带追加图片。 */
-function insertBarcodes(page: DocPage, boxes: readonly Box[]): DocPage {
+/** 补回原生整图时保留文字与来源顺序；跨多个横带的页边图与这些横带共用一张排版表。 */
+export function insertWordFigures(page: DocPage, boxes: readonly Box[]): DocPage {
   const owned = (b: DocLeaf) => boxes.some((box) => lineShareIn(b.box, box) >= 0.8);
   const blocks = page.blocks.flatMap((b): DocBlock[] => {
     if (b.kind !== 'row') return owned(b) ? [] : [b];
     const cells = b.cells
       .map((c) => ({ ...c, blocks: c.blocks.filter((x) => !owned(x)) }))
       .filter((c) => c.blocks.length);
-    return cells.length ? [{ ...b, cells }] : [];
+    return cells.length
+      ? [{ ...b, box: unionBox(cells.flatMap((c) => c.blocks.map((x) => x.box))), cells }]
+      : [];
   });
-  for (const box of boxes) {
+  for (const box of [...boxes].sort((a, b) => b.width - a.width)) {
     const image: DocImage = { kind: 'image', box };
+    if (box.width < page.width * 0.12 && box.height > box.width * 3) {
+      const band = blocks.filter((b) => {
+        const overlap =
+          Math.min(b.box.y + b.box.height, box.y + box.height) - Math.max(b.box.y, box.y);
+        return (
+          overlap >= Math.min(b.box.height, box.height) * 0.3 &&
+          leafBlocks({ blocks: [b] }).every(
+            (l) => box.x + box.width <= l.box.x + 2 || box.x >= l.box.x + l.box.width - 2,
+          )
+        );
+      });
+      if (band.length > 1) {
+        const content = leafBlocks({ blocks: band });
+        const bounds = unionBox(content.map((b) => b.box));
+        const left = box.x < bounds.x;
+        const cells = left
+          ? [
+              { width: bounds.x - box.x, blocks: [image] },
+              { width: bounds.width, blocks: content },
+            ]
+          : [
+              { width: box.x - bounds.x, blocks: content },
+              { width: box.width, blocks: [image] },
+            ];
+        const index = blocks.indexOf(band[0]!);
+        const next: DocRow = { kind: 'row', box: unionBox([bounds, box]), cells };
+        blocks.splice(index, 1, next);
+        for (const b of band.slice(1)) blocks.splice(blocks.indexOf(b), 1);
+        continue;
+      }
+    }
     const index = blocks.findIndex((b) => {
       const overlap =
         Math.min(b.box.y + b.box.height, box.y + box.height) - Math.max(b.box.y, box.y);
@@ -1046,7 +1081,10 @@ function insertBarcodes(page: DocPage, boxes: readonly Box[]): DocPage {
         cells: slots.map((s, i) => ({ ...s.cell, width: (slots[i + 1]?.x ?? s.right) - s.x })),
       };
     } else {
-      const index = blocks.findIndex((b) => b.box.y > box.y);
+      const index = blocks.findIndex((b) => {
+        const body = leafBlocks({ blocks: [b] }).filter((x) => x.kind !== 'image');
+        return (body.length ? Math.min(...body.map((x) => x.box.y)) : b.box.y) > box.y;
+      });
       blocks.splice(index < 0 ? blocks.length : index, 0, image);
     }
   }
@@ -1261,7 +1299,7 @@ function buildPage(
   ).filter((b) => !tables.some((t) => !t.borderless && inBox(b, t.box)));
   if (repairBarcodes && protectFigures && repairTables && !oldBarcodes.length && barcodes.length) {
     const baseline = buildPage(input, options, protectFigures, repairTables, false);
-    return insertBarcodes(baseline, barcodes);
+    return insertWordFigures(baseline, barcodes);
   }
   const inBarcode = (l: OcrBox) => {
     const cx = l.x + l.width / 2;

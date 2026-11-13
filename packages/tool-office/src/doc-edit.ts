@@ -246,7 +246,11 @@ export function parseDocDoc(json: string): DocDoc | null {
   try {
     const doc = JSON.parse(json) as DocDoc;
     if (
-      (doc?.version !== 1 && doc?.version !== 2 && doc?.version !== 3 && doc?.version !== 4) ||
+      (doc?.version !== 1 &&
+        doc?.version !== 2 &&
+        doc?.version !== 3 &&
+        doc?.version !== 4 &&
+        doc?.version !== 5) ||
       !Array.isArray(doc.pages)
     )
       return null;
@@ -271,6 +275,7 @@ export function parseDocDoc(json: string): DocDoc | null {
                 Number.isInteger(c.col) &&
                 c.col >= 0 &&
                 c.col < b.table.cols &&
+                (c.fill === undefined || /^[0-9A-F]{6}$/i.test(c.fill)) &&
                 Array.isArray(c.lines) &&
                 c.lines.every(
                   (l) =>
@@ -311,14 +316,17 @@ export function parseDocDoc(json: string): DocDoc | null {
       )
     )
       return null;
-    return doc.version !== 4
+    return doc.version !== 5
       ? {
           ...doc,
-          version: 4,
-          pages: doc.pages.map((p) => ({
-            ...p,
-            paper: p.paper ?? { width: 595.3, height: 841.9 },
-          })),
+          version: 5,
+          pages:
+            doc.version === 4
+              ? doc.pages
+              : doc.pages.map((p) => ({
+                  ...p,
+                  paper: p.paper ?? { width: 595.3, height: 841.9 },
+                })),
         }
       : doc;
   } catch {

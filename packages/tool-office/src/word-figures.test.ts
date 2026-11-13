@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { arrangeUnits, buildDocPage, leafBlocks } from './doc';
+import { arrangeUnits, buildDocPage, leafBlocks, insertWordFigures } from './doc';
 import type { LayoutRegion } from './layout';
 import { fakeLine, gridRects, renderPage, type Rect } from './test-helpers';
 import type { OcrBox } from './types';
@@ -55,6 +55,70 @@ function fixture() {
 }
 
 describe('Word figure ownership', () => {
+  it('keeps a tall margin graphic beside the complete figure-caption-body band', () => {
+    const figure = { x: 100, y: 200, width: 800, height: 250 },
+      margin = { x: 60, y: 180, width: 35, height: 600 };
+    const caption = {
+      kind: 'paragraph' as const,
+      text: 'Caption',
+      box: { x: 100, y: 470, width: 800, height: 30 },
+    };
+    const body = {
+      kind: 'paragraph' as const,
+      text: 'Body',
+      box: { x: 100, y: 520, width: 800, height: 400 },
+    };
+    const next = insertWordFigures(
+      { source: 'p.jpg', width: 1000, height: 1400, bodySize: 11, blocks: [caption, body] },
+      [margin, figure],
+    );
+    expect(next.blocks).toHaveLength(1);
+    const row = next.blocks[0]!;
+    expect(
+      row.kind === 'row' &&
+        row.cells[1]!.blocks.map((b) => (b.kind === 'paragraph' ? b.text : b.kind)),
+    ).toEqual(['image', 'Caption', 'Body']);
+  });
+  it('places a wide figure before its caption when a stale model row still starts above the figure', () => {
+    const figure = { x: 100, y: 200, width: 800, height: 250 };
+    const caption = {
+      kind: 'paragraph' as const,
+      text: 'Figure caption',
+      box: { x: 100, y: 470, width: 800, height: 30 },
+    };
+    const body = {
+      kind: 'paragraph' as const,
+      text: 'Editable body',
+      box: { x: 100, y: 550, width: 800, height: 300 },
+    };
+    const next = insertWordFigures(
+      {
+        source: 'p.jpg',
+        width: 1000,
+        height: 1400,
+        bodySize: 11,
+        blocks: [
+          {
+            kind: 'row',
+            box: { x: 80, y: 180, width: 840, height: 600 },
+            cells: [{ width: 840, blocks: [{ kind: 'image', box: figure }, caption] }],
+          },
+          {
+            kind: 'row',
+            box: { x: 80, y: 180, width: 840, height: 800 },
+            cells: [{ width: 840, blocks: [body] }],
+          },
+        ],
+      },
+      [figure],
+    );
+    expect(leafBlocks(next).map((b) => (b.kind === 'paragraph' ? b.text : b.kind))).toEqual([
+      'image',
+      'Figure caption',
+      'Editable body',
+    ]);
+    expect(next.blocks[1]!.box.y).toBe(caption.box.y);
+  });
   it('restores adjacent labels together when a coarse grid splits both labels in one shared cell', () => {
     const box = { x: 100, y: 100, width: 800, height: 40 };
     const xs = [100, 400, 500, 600, 700, 900];

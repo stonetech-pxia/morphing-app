@@ -61,21 +61,28 @@ export function applyNativeGraphics(
       );
       return i >= 0 && sources[i] ? { ...block, src: sources[i] } : block;
     }
-    if (block.kind === 'table' && block.cellLayout)
+    if (block.kind === 'table')
       return {
         ...block,
-        cellLayout: block.cellLayout.map((cell) => ({
-          ...cell,
-          lines: cell.lines.map((line) => {
-            const color = colorOf(line);
-            const fill = fillOf(line);
-            return {
-              ...line,
-              ...(color && (color !== 'FFFFFF' || fill) ? { color } : {}),
-              ...(fill && fill !== 'FFFFFF' ? { fill } : {}),
-            };
-          }),
-        })),
+        cellLayout: block.table.cells.map((cell) => {
+          const previous = block.cellLayout?.find((c) => c.row === cell.row && c.col === cell.col);
+          const fill = cell.box ? fillOf(cell.box) : undefined;
+          return {
+            ...previous,
+            row: cell.row,
+            col: cell.col,
+            ...(fill && fill !== 'FFFFFF' ? { fill } : {}),
+            lines: (previous?.lines ?? []).map((line) => {
+              const color = colorOf(line);
+              const fill = fillOf(line);
+              return {
+                ...line,
+                ...(color && (color !== 'FFFFFF' || fill) ? { color } : {}),
+                ...(fill && fill !== 'FFFFFF' ? { fill } : {}),
+              };
+            }),
+          };
+        }),
       };
     if (block.kind !== 'paragraph' && block.kind !== 'list') return block;
     const color = colorOf(block.box);

@@ -31,6 +31,50 @@ describe('local source PDF graphics', () => {
     expect(p.blocks[0]).not.toHaveProperty('background');
     expect(p.blocks[1]).toMatchObject({ text: 'Editable body', color: '114477' });
   });
+  it('paints the whole editable field cell only when the source fill covers that cell', () => {
+    const cell = { x: 20, y: 120, width: 300, height: 60 },
+      line = { x: 30, y: 135, width: 120, height: 20 };
+    const p: DocPage = {
+      ...page(),
+      blocks: [
+        {
+          kind: 'table',
+          box: cell,
+          colWidths: [300],
+          cellLayout: [{ row: 0, col: 0, lines: [line] }],
+          table: {
+            kind: 'table',
+            box: cell,
+            col: 0,
+            cols: 1,
+            rows: 1,
+            cells: [{ row: 0, col: 0, rowSpan: 1, colSpan: 1, text: 'Editable value', box: cell }],
+          },
+        },
+      ],
+    };
+    const filled = applyNativeGraphics(
+      p,
+      { owned: [], colors: [], fills: [{ box: cell, color: 'CCD7FF' }] },
+      [],
+    );
+    const xml = strFromU8(
+      unzipSync(writeDocx({ version: 4, pages: [filled] }))['word/document.xml']!,
+    );
+    expect(xml).toMatch(
+      /<w:tcPr>[^]*?<w:shd w:val="clear" w:color="auto" w:fill="CCD7FF"\/>[^]*?<\/w:tcPr>/,
+    );
+    const stripe = applyNativeGraphics(
+      p,
+      { owned: [], colors: [], fills: [{ box: line, color: 'CCD7FF' }] },
+      [],
+    );
+    const stripeXml = strFromU8(
+      unzipSync(writeDocx({ version: 4, pages: [stripe] }))['word/document.xml']!,
+    );
+    expect(stripeXml.match(/<w:tcPr>[^]*?<\/w:tcPr>/)?.[0]).not.toContain('CCD7FF');
+    expect(stripeXml).toContain('w:fill="CCD7FF"');
+  });
   it('moves a dark header band with its white editable text, rather than leaving white text on white paper', () => {
     const body = { x: 20, y: 120, width: 200, height: 20 };
     const p = applyNativeGraphics(
@@ -143,12 +187,12 @@ describe('local source PDF graphics', () => {
     const xml = strFromU8(zip['word/document.xml']!);
     expect(xml.match(/<w:pageBreakBefore\/>/g)).toHaveLength(1);
   });
-  it.each([1, 2, 3])(
+  it.each([1, 2, 3, 4])(
     'upgrades version %s losslessly to the graphics-capable document format',
     (version) => {
       const p = page();
       const doc = parseDocDoc(JSON.stringify({ version, pages: [p] }));
-      expect(doc).toEqual({ version: 4, pages: [p] });
+      expect(doc).toEqual({ version: 5, pages: [p] });
     },
   );
 });

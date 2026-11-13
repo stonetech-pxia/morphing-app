@@ -430,7 +430,7 @@ export const OCR_IMPLS: Record<string, Impl> = {
     if (pages.every((p) => p.blocks.length === 0)) {
       throw new RunError('notFound', { name: displayName(items[0]!) });
     }
-    const doc: DocDoc = { version: 4, pages };
+    const doc: DocDoc = { version: 5, pages };
     // 文件名和转 Excel 一样（D-298）：一张照片、名字是人起的就用它，否则「文档-日期」。
     const name =
       items.length === 1 && !MACHINE_NAME.test(items[0]!.name)
