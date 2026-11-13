@@ -1,5 +1,6 @@
 // forms 套件：标签和值、表单栏位、填写框。
 import {
+  aligned,
   apart,
   custom,
   differentTables,
@@ -216,6 +217,61 @@ export const FORMS: Case[] = [
         "l'actuel certificat d'immatriculation",
       ),
       order('LE VÉHICULE', 'Ancien propriétaire', 'Je certifie en outre', 'Nouveau propriétaire'),
+    ],
+  },
+  {
+    id: 'fill-in-lines',
+    suite: 'forms',
+    fix: 'EU sample 021, 030',
+    what: 'A form whose fields are dotted leaders (inside and after labels, and stand-alone dotted lines) and L-bracket answer lines and a comb: OCR does not read them, so every field was lost, labels ran together, and the emptied space made the centred captions a second column that came out before the labels.',
+    checks: [
+      order(
+        'ZAŚWIADCZENIE',
+        'Stwierdza się',
+        '(imię i nazwisko pracownika)',
+        'imiona rodziców',
+        'urodzony',
+        '(data urodzenia)',
+        'był zatrudniony',
+        '(pracodawca)',
+        'w okresie od',
+        'Ulica i numer domu',
+        'Numer PESEL',
+      ),
+      apart('imiona rodziców', 'urodzony'),
+      apart('Stwierdza się', '(imię i nazwisko pracownika)'),
+      custom('dotted leaders stay after their labels and inside the lines', (c) => {
+        const want = [
+          /Stwierdza się, że \.{20,}/,
+          /imiona rodziców \.{20,}/,
+          /był zatrudniony \.{20,}/,
+          /w okresie od \.{4,} do \.{4,} w wymiarze \.{4,}/,
+        ];
+        const texts = c.paras.map((p) => p.text);
+        const missing = want.filter((re) => !texts.some((t) => re.test(t)));
+        return missing.length ? `no paragraph matches ${missing.join(', ')}` : null;
+      }),
+      custom('the stand-alone dotted line is kept', (c) =>
+        c.paras.some((p) => /^\s*\.{20,}\s*$/.test(p.text)) ? null : 'missing',
+      ),
+      custom('each answer line follows its label', (c) => {
+        const labels = [
+          'Ulica i numer domu',
+          'Kod pocztowy',
+          'Kraj',
+          'Telefon',
+          'Adres e-mail',
+          'Numer PESEL',
+        ];
+        const bad = labels.filter(
+          (l) => !c.paras.some((p) => new RegExp(`${l} _{8,}`).test(p.text)),
+        );
+        return bad.length ? `no field after ${bad.join(', ')}` : null;
+      }),
+      notInTable('Ulica i numer domu'),
+      // 接了点线的整行宽的行不按左右各空一点算成居中。
+      aligned('imiona rodziców', 'left'),
+      aligned('urodzony', 'left'),
     ],
   },
 ];

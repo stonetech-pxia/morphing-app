@@ -617,7 +617,10 @@ export function sharedColumns(
 
 /** 同一张图、同样的参数找过的线（转 Word 会对同一页组两次表：分不分开叠着的表）。 */
 const linesCache = new WeakMap<RgbaImage, Map<string, PageLines>>();
-function cachedLines(image: RgbaImage, options: { skew?: number; light?: boolean }): PageLines {
+export function cachedLines(
+  image: RgbaImage,
+  options: { skew?: number; light?: boolean },
+): PageLines {
   const key = JSON.stringify(options);
   let byOptions = linesCache.get(image);
   if (!byOptions) linesCache.set(image, (byOptions = new Map()));

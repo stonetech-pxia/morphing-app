@@ -1,10 +1,11 @@
-import { buildTablePage, type BuildOptions } from './build';
+import { buildTablePage, cachedLines, type BuildOptions } from './build';
 import { assignLines, cleanRegions, lineShareIn, readingOrder, type LayoutRegion } from './layout';
 import { findBarcodes, findTextTables, levelLines } from './text-table';
 import { findLines } from './lines';
 import { figureOwns, figureWorkingImage, planWordFigures } from './word-figures';
 import { recoverPictureCards } from './word-cards';
 import { restoreWordCellSpans } from './word-cell-spans';
+import { ENDS_WITH_FILL, FILL_RUN, findFillIns, leaderDots, withFillIns } from './word-fill-ins';
 import { restoreWordFormRows } from './word-form-rows';
 import type { Box, OcrBox, RgbaImage, TableBlock, TableCell } from './types';
 
@@ -260,6 +261,8 @@ const PARAGRAPH_GAP = 1.2;
 /** 一行字的中线离整页中线不到页宽的这么多、左右都至少空着页宽的 15%（D-463）算居中。 */
 const PAGE_CENTER = 0.06;
 const PAGE_CENTER_MARGIN = 0.15;
+/** 居中的行最宽占容器宽的这么多。 */
+const CENTER_MAX_SHARE = 0.85;
 
 /** 先确定容器，再判断对齐；页眉可额外按整页居中，栏内的字只看本栏。 */
 function alignmentIn(
@@ -272,9 +275,11 @@ function alignmentIn(
 ): DocStyle['align'] {
   const leftGap = box.x - left;
   const rightGap = right - (box.x + box.width);
+  // 差不多和容器一样宽的行（左右各空一点）不算居中：两边的空白是噪声（EU 样本 021 接了填写处的整行）。
   const centered =
     (leftGap > 2 * h &&
       rightGap > 2 * h &&
+      box.width <= CENTER_MAX_SHARE * (right - left) &&
       Math.abs(leftGap - rightGap) < 0.2 * (leftGap + rightGap)) ||
     (pageWidth !== undefined &&
       rows === 1 &&
@@ -582,6 +587,8 @@ export function paragraphsOf(
       prev !== undefined &&
       !centeredPair &&
       !fieldRow &&
+      // 以填写处结尾的行（「Name ……」）是一行一行的，不是折行。
+      !ENDS_WITH_FILL.test(prev.text) &&
       gap <= PARAGRAPH_GAP * typical &&
       (prev.box.x + prev.box.width >= right - 1.2 * typical ||
         !fitsOnPrev(prev, row, right, typical)) &&
@@ -597,6 +604,7 @@ export function paragraphsOf(
       last?.list === true &&
       prev !== undefined &&
       !fieldRow &&
+      !ENDS_WITH_FILL.test(prev.text) &&
       gap <= PARAGRAPH_GAP * typical &&
       !list &&
       !bareLabel &&
@@ -1361,7 +1369,12 @@ function buildPage(
         !input.nativeText?.some((t) => lineShareIn(box, t) >= 0.5)
       : figureOwns(box, figures);
   const available = figures.length ? lines.filter((l) => !owns(l)) : lines;
-  const working = figureWorkingImage(image, figures, lineHeight);
+  // 表单的点线（填写处）先从找线、组表用的图里抹掉，后面接进标签那一行（EU 样本 021）。
+  const { dots, erased: working } = leaderDots(
+    figureWorkingImage(image, figures, lineHeight),
+    lines,
+    lineHeight,
+  );
   // 抹掉图形不能顺带改变图外网格的坐标系；倾斜仍按原图估计。
   const tableSkew = input.skew ?? (figures.length ? findLines(image).skew : undefined);
   const layout = figures.length
@@ -1488,7 +1501,18 @@ function buildPage(
   const outside = available.filter((l) => !inTable.has(l) && !isStray(l, lines, lineHeight, image));
   // 竖排、旋转的字（页边的竖排标志、侧边的说明、条码旁的编号）：认出来的字多半是乱的，
   // 放进正文又会把字号撑得很大。整块剪成图片，原样保留。
-  const kept = outside.filter((l) => !isVertical(l));
+  const upright = outside.filter((l) => !isVertical(l));
+  // 表单的填写处（一串点、标签右边的横线）接进同一排的标签后面，或者自成一行（EU 样本 021、030）。
+  const fills = findFillIns(
+    working,
+    dots,
+    cachedLines(working, { ...(tableSkew !== undefined ? { skew: tableSkew } : {}), light: true }),
+    upright,
+    lineHeight,
+    [...tables.map((t) => t.box), ...figures.map((f) => f.box)],
+  );
+  const { lines: kept, source: fillSource } = withFillIns(upright, fills, lineHeight);
+  const synthetic = new Set(kept.filter((l) => !fillSource.has(l) && !upright.includes(l)));
   const verticals = verticalBoxes(outside.filter(isVertical), cropLineHeight, {
     width: image.width,
     height: image.height,
@@ -1496,7 +1520,11 @@ function buildPage(
   const originalOf = new Map<OcrBox, OcrBox>();
   const leveled = levelLines(kept, lineHeight, image.width / 2);
   leveled.forEach((flat, k) => originalOf.set(flat, kept[k]!));
-  const orig = (l: OcrBox) => originalOf.get(l) ?? l;
+  // 原来的识别行（接了填写处的行换回识别出的那一行：量笔画、颜色、下划线，找它在哪张表里）。
+  const orig = (l: OcrBox) => {
+    const o = originalOf.get(l) ?? l;
+    return fillSource.get(o) ?? o;
+  };
   const releasedCells = new Map<OcrBox, TableCell>();
   for (const table of rejected) {
     for (const l of placedIn.get(table) ?? []) {
@@ -1648,7 +1676,7 @@ function buildPage(
   groups = pairForms(groups, lineHeight);
   // 字号和笔画：先量出整页的正文字号和笔画粗细，再和它比。
   const strokes = new Map<OcrBox, number>();
-  for (const l of free) strokes.set(l, strokeRatio(image, orig(l)));
+  for (const l of free) strokes.set(l, synthetic.has(orig(l)) ? 0 : strokeRatio(image, orig(l)));
   const pageStroke = median([...strokes.values()].filter((v) => v > 0));
   const bodyHeight = median(
     groups.filter((g) => !g.title).flatMap((g) => g.lines.map((l) => l.height)),
@@ -1916,9 +1944,11 @@ function buildPage(
     // 段落和并排行（包括它们的顺序和样式），避免修一张表挪动上方的日期、署名。
     // 按识别行归属换块：两边分段不同（修复范围上面的段落接进了网格的第一行）时，
     // 一行字所在的块两边一起换，直到两边换的块装着同一批行，不丢字也不重复。
+    // 自成一行的填写处（一串点）也算一行，它在哪一块里按位置找。
+    const every = [...lines, ...synthetic];
     const linesOf = (b: DocBlock) => {
       const boxes = leafBlocks({ blocks: [b] }).map((leaf) => leaf.box);
-      return lines.filter((l) => {
+      return every.filter((l) => {
         const cx = l.x + l.width / 2,
           cy = l.y + l.height / 2;
         return boxes.some(
@@ -1930,7 +1960,7 @@ function buildPage(
     const oldLines = new Map(repairBaseline.blocks.map((b) => [b, linesOf(b)] as const));
     const newLines = new Map(page.blocks.map((b) => [b, linesOf(b)] as const));
     const owned = new Set(
-      lines.filter((l) => repairBoxes.some((box) => lineShareIn(l, box) >= 0.5)),
+      every.filter((l) => repairBoxes.some((box) => lineShareIn(l, box) >= 0.5)),
     );
     const touches = (members: readonly OcrBox[]) => members.some((l) => owned.has(l));
     for (let size = -1; size !== owned.size;) {
@@ -1958,6 +1988,8 @@ function buildPage(
                 : [],
         )
         .join(' ')
+        // 填写处（「....」「____」）的长短跟着它接在哪一行，不算字。
+        .replace(FILL_RUN, ' ')
         .split(/\s+/)
         .filter(Boolean)
         .sort()

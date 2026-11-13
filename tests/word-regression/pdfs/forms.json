@@ -58,5 +58,11 @@
     "id": "three-framed-sections",
     "source": "10-three-framed-sections.html",
     "sha256": "0f6439aae60e69343492080e6ecb863506a90239fe1aec7015b4406d4b68e10d"
+  },
+  {
+    "page": 11,
+    "id": "fill-in-lines",
+    "source": "11-fill-in-lines.html",
+    "sha256": "81678e6bc8c67c28ebeb4307653b474e1eb50aefc2fe73c98e13b2df4c580653"
   }
 ]

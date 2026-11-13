@@ -392,6 +392,27 @@ describe('buildDocPage', () => {
   const regions = (list: [LayoutRegion['kind'], string, Rect][]): LayoutRegion[] =>
     list.map(([kind, label, box]) => ({ kind, label, score: 0.9, box }));
 
+  it('does not center a line that nearly fills the text width (EU sample 021)', () => {
+    // 页眉的字比正文宽一点：接近整行宽的一行左右各空出两个多行高，不是居中的。
+    const { image, lines } = textPage([
+      { text: 'Gazette of the Region', x: 60, y: 100, width: 220, h: 22 },
+      { text: 'No. 2292', x: 840, y: 100, width: 100, h: 22 },
+      {
+        text: 'He was employed at the company from the first of May until today',
+        x: 110,
+        y: 300,
+        width: 780,
+        h: 22,
+      },
+      { text: 'Short note', x: 110, y: 400, width: 120, h: 22 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const wide = leafBlocks(doc).find(
+      (b): b is DocParagraph => b.kind === 'paragraph' && b.text.startsWith('He was'),
+    )!;
+    expect(wide.align).toBeUndefined();
+  });
+
   it('preserves independent header rows after the layout regions have been merged', () => {
     const { image, lines } = textPage([
       { text: '陈晓明 | ID: DOC-101-3 | 2026-10-15', x: 105, y: 223, width: 432, h: 31 },
