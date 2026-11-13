@@ -139,8 +139,6 @@ export const TEXT_FLOW: Case[] = [
       images({ min: 1, max: 1 }),
       figureInColumn('Figure 1. Visits per quarter'),
     ],
-    knownFailure:
-      'Regressed by c5ac5a4e (passes at b29d8d16): the native chart is moved out of the right column and written after the whole two-column row, leaving a gap above its caption (same on the academic-columns page).',
   },
   {
     id: 'first-line-indent',

@@ -1083,6 +1083,27 @@ export function insertWordFigures(page: DocPage, boxes: readonly Box[]): DocPage
         continue;
       }
     }
+    // 分栏里的图（只在某一栏里）放回那一栏、按上下位置插进去，不挪到整个分栏行的后面。
+    const column = blocks.flatMap((b) => {
+      if (b.kind !== 'row' || b.cells.length < 2) return [];
+      const overlap =
+        Math.min(b.box.y + b.box.height, box.y + box.height) - Math.max(b.box.y, box.y);
+      if (overlap < 0.5 * box.height) return [];
+      const xs = b.cells.map((c) => Math.min(...c.blocks.map((x) => x.box.x)));
+      const cell = b.cells.findIndex((_, i) => {
+        const right = xs[i + 1] ?? b.box.x + b.box.width;
+        const inside = Math.min(right, box.x + box.width) - Math.max(xs[i]!, box.x);
+        return inside >= 0.8 * box.width;
+      });
+      return cell >= 0 ? [{ row: b, cell: b.cells[cell]! }] : [];
+    })[0];
+    if (column) {
+      const { row, cell } = column;
+      const at = cell.blocks.findIndex((b) => b.box.y > box.y);
+      cell.blocks.splice(at < 0 ? cell.blocks.length : at, 0, image);
+      row.box = unionBox([row.box, box]);
+      continue;
+    }
     const index = blocks.findIndex((b) => {
       const overlap =
         Math.min(b.box.y + b.box.height, box.y + box.height) - Math.max(b.box.y, box.y);

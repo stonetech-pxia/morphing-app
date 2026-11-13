@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { arrangeUnits, buildDocPage, leafBlocks, insertWordFigures } from './doc';
+import { arrangeUnits, buildDocPage, leafBlocks, insertWordFigures, type DocBlock } from './doc';
 import type { LayoutRegion } from './layout';
 import {
   fakeLine,
@@ -85,6 +85,47 @@ describe('Word figure ownership', () => {
       row.kind === 'row' &&
         row.cells[1]!.blocks.map((b) => (b.kind === 'paragraph' ? b.text : b.kind)),
     ).toEqual(['image', 'Caption', 'Body']);
+  });
+  it('puts a figure inside one column of a two-column row back into that column, above its caption', () => {
+    const para = (text: string, x: number, y: number, height = 60) => ({
+      kind: 'paragraph' as const,
+      text,
+      box: { x, y, width: 520, height },
+    });
+    const figure = { x: 724, y: 413, width: 560, height: 259 };
+    const left = [para('Left start', 133, 334, 190), para('Left end', 133, 742, 140)];
+    const right = [
+      para('Right start', 733, 336),
+      para('Figure 1', 734, 691, 27),
+      para('Right end', 733, 746, 140),
+    ];
+    const next = insertWordFigures(
+      {
+        source: 'p.pdf',
+        width: 1408,
+        height: 2016,
+        bodySize: 10.5,
+        blocks: [
+          {
+            kind: 'row',
+            box: { x: 132, y: 280, width: 1132, height: 654 },
+            cells: [
+              { width: 599, blocks: left },
+              { width: 542, blocks: right },
+            ],
+          },
+        ],
+      },
+      [figure],
+    );
+    expect(next.blocks).toHaveLength(1);
+    const row = next.blocks[0]!;
+    const texts = (blocks: readonly DocBlock[]) =>
+      blocks.map((b) => (b.kind === 'paragraph' ? b.text : b.kind));
+    expect(row.kind === 'row' && row.cells.map((c) => texts(c.blocks))).toEqual([
+      ['Left start', 'Left end'],
+      ['Right start', 'image', 'Figure 1', 'Right end'],
+    ]);
   });
   it('places a wide figure before its caption when a stale model row still starts above the figure', () => {
     const figure = { x: 100, y: 200, width: 800, height: 250 };
