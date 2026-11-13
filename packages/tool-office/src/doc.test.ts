@@ -1093,6 +1093,32 @@ describe('ragged-right wrapping (D-473)', () => {
     expect(paragraphsOf(value, [line('Account: 123', 721, 100, 190)])).toHaveLength(1);
   });
 
+  it('keeps stacked short lines apart when the next word would fit in the room to their right (EU sample 023, 025)', () => {
+    // 地址：最宽的一行看着写满了这一块，可是右边一直空到整页的右边（或者右边隔得很远的另一块）。
+    const address = [
+      line('Atelier Garance', 600, 100, 150),
+      line('Camille Rousseau', 600, 125, 165),
+      line('8 place du Marché', 600, 150, 175),
+      line('69002 Lyon', 600, 175, 105),
+    ];
+    expect(paragraphsOf(address, [], 950)).toHaveLength(4);
+    expect(
+      paragraphsOf(
+        address.map((l) => ({ ...l, x: l.x - 500 })),
+        [line('Kunden-Nr.: 1004711', 700, 110, 200)],
+      ),
+    ).toHaveLength(4);
+    // 窄栏的正文：右边隔一条窄缝就是另一栏，下一个词放不下，照样是折行。
+    const column = [
+      line('Die Abschläge haben', 100, 100, 200),
+      line('wir an Ihren Verbrauch', 100, 125, 190),
+      line('angepasst.', 100, 150, 100),
+    ];
+    expect(paragraphsOf(column, [line('Rechte Spalte mit Text', 340, 110, 220)], 600)).toHaveLength(
+      1,
+    );
+  });
+
   it('joins a line that stopped short because the next word would not fit', () => {
     // 左对齐的正文右边参差不齐：第二行没写到头（离右边 30），因为下一行的第一个词放不下。
     const lines = [

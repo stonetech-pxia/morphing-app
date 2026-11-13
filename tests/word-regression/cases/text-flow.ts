@@ -244,4 +244,22 @@ export const TEXT_FLOW: Case[] = [
       }),
     ],
   },
+  {
+    id: 'short-stacked-lines',
+    suite: 'text-flow',
+    fix: 'EU sample 023, 025',
+    what: 'Stacked short lines (an address window, a delivery address, a right-hand address with nothing beside it): the widest line of the stack looked full, so the next line was taken for a wrap and addresses came out as one run-on line ("Erika Beispiel Ahornweg 7 04177 Leipzig").',
+    lang: 'deu',
+    checks: [
+      apart('Erika Beispiel', 'Ahornweg 7'),
+      apart('Ahornweg 7', '04177 Leipzig'),
+      apart('Maison Lavande', '12 rue des Tilleuls'),
+      apart('12 rue des Tilleuls', '31000 Toulouse'),
+      apart('Atelier Garance', 'Camille Rousseau'),
+      apart('8 place du Marché', '69002 Lyon'),
+      // 正文照样折行接成一段。
+      together('mit dieser Rechnung erhalten Sie', 'an Ihren Verbrauch angepasst'),
+      order('Frau', 'Erika Beispiel', 'Ahornweg 7', '04177 Leipzig'),
+    ],
+  },
 ];

@@ -70,5 +70,11 @@
     "id": "decorative-markers-not-bullets",
     "source": "12-decorative-markers-not-bullets.html",
     "sha256": "de5583b0b7bec0eb95afcaec2f47ca53a074b67e2e21df081c8b2859ce7d09b4"
+  },
+  {
+    "page": 13,
+    "id": "short-stacked-lines",
+    "source": "13-short-stacked-lines.html",
+    "sha256": "0f4c235126751fad7b0839f1c2bbbab05825e81d3a9dafd6b09539a80e0fe15f"
   }
 ]

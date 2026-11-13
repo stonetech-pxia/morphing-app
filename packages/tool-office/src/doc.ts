@@ -460,6 +460,8 @@ function clustersOf(
   ];
 }
 
+/** 短行后面至少空出这么多个行高（加上下一行的第一个词）才算放得下：栏和栏之间的空隙不算空着。 */
+const ROOM_GUTTER = 3;
 /** 一排里两块字隔得超过这么多个行高，分成左右两块（一行里词与词的空隙远小于一个行高）。 */
 const ROW_SPLIT = 1.6;
 
@@ -503,6 +505,8 @@ function firstWordWidth(row: Row): number {
 export function paragraphsOf(
   lines: readonly OcrBox[],
   peers: readonly OcrBox[] = [],
+  /** 整页文字（含表格）的右边；不给时按 peers 和这一块算。 */
+  textRight?: number,
 ): { rows: Row[]; spaced: boolean; list: boolean }[] {
   const rows = rowsOf(lines);
   if (!rows.length) return [];
@@ -539,6 +543,14 @@ export function paragraphsOf(
     ...peers
       .filter((p) => p.x <= middle && p.x + p.width >= middle && sameColumn(p))
       .map((p) => p.width),
+  );
+  // 这一块的字右边能写到哪：块右边、上下三个行高以内最近的别的字（另一栏、另一块）的左边，
+  // 没有时是整页文字的右边。
+  const roomRight = Math.min(
+    textRight ?? Math.max(own, ...peers.map((p) => p.x + p.width)),
+    ...peers
+      .filter((p) => p.x >= own && p.y < bottom + 3 * typical && p.y + p.height > top - 3 * typical)
+      .map((p) => p.x),
   );
   const out: { rows: Row[]; spaced: boolean; list: boolean }[] = [];
   for (const [i, row] of rows.entries()) {
@@ -583,10 +595,18 @@ export function paragraphsOf(
           field(p.text)
         );
       });
+    // 一叠短行（地址、信头、小票上的字段）：下一行的第一个词在上一行后面放得下（右边到下一块字、
+    // 或者整页的右边还空着一大段），却换了行，是一行一行写的，不是折行（EU 样本 023、025、029）。
+    const roomy =
+      prev !== undefined &&
+      [...prev.text].length <= LABEL_MAX &&
+      [...row.text].length <= LABEL_MAX &&
+      prev.box.x + prev.box.width + firstWordWidth(row) + ROOM_GUTTER * typical < roomRight;
     const wrapped =
       prev !== undefined &&
       !centeredPair &&
       !fieldRow &&
+      !roomy &&
       // 以填写处结尾的行（「Name ……」）是一行一行的，不是折行。
       !ENDS_WITH_FILL.test(prev.text) &&
       gap <= PARAGRAPH_GAP * typical &&
@@ -1789,6 +1809,7 @@ function buildPage(
     const paragraphs = paragraphsOf(
       group.lines,
       free.filter((l) => !members.has(l)),
+      textRight,
     ).flatMap((para) => {
       const chunks: (typeof para)[] = [];
       let previousCell: TableCell | undefined;
