@@ -60,6 +60,22 @@ const doc: DocDoc = {
 };
 
 describe('DocDoc edits', () => {
+  it('keeps source cell spacing for text edits and clears it after a grid change', () => {
+    const d = structuredClone(doc);
+    const b = d.pages[0]!.blocks[2]!;
+    if (b.kind !== 'table') throw new Error('fixture');
+    b.cellLayout = [{ row: 0, col: 0, lines: [{ x: 0, y: 4, width: 40, height: 10 }] }];
+    const at = { page: 0, block: 2 };
+    const edited = editDocTable(d, at, (t) => setCellText(t, { page: 0, block: 0 }, 0, 'changed'));
+    expect(edited.pages[0]!.blocks[2]).toMatchObject({ cellLayout: b.cellLayout });
+    const inserted = editDocTable(d, at, (t) => insertRow(t, { page: 0, block: 0 }, 0));
+    expect(inserted.pages[0]!.blocks[2]).not.toHaveProperty('cellLayout');
+    const invalid = structuredClone(d);
+    const table = invalid.pages[0]!.blocks[2]!;
+    if (table.kind !== 'table') throw new Error('fixture');
+    table.cellLayout![0]!.lines[0]!.width = -1;
+    expect(parseDocDoc(JSON.stringify(invalid))).toBeNull();
+  });
   it('edits paragraph text and list items one per line, without touching the original', () => {
     const a = setBlockText(doc, { page: 0, block: 0 }, 'New title');
     expect(a.pages[0]!.blocks[0]).toMatchObject({ text: 'New title', heading: 1 });
@@ -108,10 +124,42 @@ describe('DocDoc edits', () => {
   });
 
   it('reads back its own JSON and rejects anything else', () => {
-    expect(parseDocDoc(JSON.stringify(doc))).toEqual(doc);
-    expect(parseDocDoc('{"version":2,"pages":[]}')).toBeNull();
+    expect(parseDocDoc(JSON.stringify(doc))).toEqual({
+      ...doc,
+      version: 5,
+      pages: doc.pages.map((p) => ({ ...p, paper: { width: 595.3, height: 841.9 } })),
+    });
+    expect(parseDocDoc('{"version":6,"pages":[]}')).toBeNull();
     expect(parseDocDoc('{"version":1,"pages":[{}]}')).toBeNull();
     expect(parseDocDoc('not json')).toBeNull();
+  });
+
+  it('upgrades version 4 without inventing physical paper for a photo, and preserves full-cell fills', () => {
+    const previous = { ...structuredClone(doc), version: 4 as const };
+    const next = parseDocDoc(JSON.stringify(previous));
+    expect(next).toEqual({ ...previous, version: 5 });
+    const table = next!.pages[0]!.blocks.find((b) => b.kind === 'table');
+    if (!table || table.kind !== 'table') throw new Error('fixture');
+    table.cellLayout = [{ row: 0, col: 0, fill: 'CCD7FF', lines: [] }];
+    expect(parseDocDoc(JSON.stringify(next))).toEqual(next);
+    table.cellLayout[0]!.fill = 'not-a-color';
+    expect(parseDocDoc(JSON.stringify(next))).toBeNull();
+  });
+  it('keeps a version 2 page size and all editable content when opening it again', () => {
+    const next = {
+      ...doc,
+      version: 2,
+      pages: doc.pages.map((p) => ({ ...p, paper: { width: 595.28, height: 255.12 } })),
+    };
+    expect(parseDocDoc(JSON.stringify(next))).toEqual({ ...next, version: 5 });
+    expect(
+      parseDocDoc(
+        JSON.stringify({
+          ...next,
+          pages: [{ ...next.pages[0], paper: { width: -1, height: 255 } }],
+        }),
+      ),
+    ).toBeNull();
   });
 
   it('edits, deletes and opens tables inside a side-by-side row (D-331)', () => {

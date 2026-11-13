@@ -2,12 +2,15 @@ import { strToU8, zipSync, type Zippable } from 'fflate';
 
 import {
   leafBlocks,
+  flowCellBlocks,
   textEm,
   type DocBlock,
   type DocDoc,
   type DocLeaf,
   type DocList,
   type DocPage,
+  type DocParagraph,
+  type DocRow,
   type DocRun,
   type DocStyle,
   type DocTable,
@@ -31,7 +34,7 @@ const PAGE_W = 11906;
 const PAGE_H = 16838;
 const MARGIN = 1134;
 const CONTENT_W = PAGE_W - 2 * MARGIN;
-const CONTENT_H = PAGE_H - 2 * MARGIN;
+const TABLE_FONT_PAGE_SHARE = CONTENT_W / PAGE_W;
 /** 1 twip = 635 EMU。 */
 const EMU_PER_TWIP = 635;
 /** 所有表格每格左右的边距（twip）；文件里的实际值和量字预算共用。 */
@@ -44,6 +47,8 @@ function cellMarginsXml(): string {
 const SPACED_BEFORE = 160;
 /** 一行字在 Word 里的高度 ≈ 字号的这么多倍（D-463）：Arial 的上下伸出 1.117 × 默认行距 1.15。 */
 const LINE_HEIGHT = 1.28;
+/** 单元格用 Word 的单倍行距；仍按字体的真实上下伸出排版，不用固定高度裁字。 */
+const CELL_LINE_HEIGHT = 1.12;
 /** 不到这么多（twip：6 磅、3 磅）的左缩进、段前距不写：识别框的抖动，字的左边和页边距差一点。 */
 const MIN_INDENT = 120;
 const MIN_BEFORE = 60;
@@ -155,10 +160,14 @@ function paragraphXml(
     indent?: number;
     /** 左缩进（twip，D-463）：原图里的左边。 */
     left?: number;
+    fill?: string;
+    tabs?: number[];
+    single?: boolean;
   } = {},
 ): string {
-  const spacing =
-    extra.before !== undefined
+  const spacing = extra.single
+    ? `<w:spacing w:before="${extra.before ?? 0}" w:after="0" w:line="240" w:lineRule="auto"/>`
+    : extra.before !== undefined
       ? extra.before >= MIN_BEFORE || extra.styleId?.startsWith('Heading')
         ? `<w:spacing w:before="${extra.before >= MIN_BEFORE ? extra.before : 0}"${extra.styleId?.startsWith('Heading') ? ' w:after="0"' : ''}/>`
         : ''
@@ -177,6 +186,12 @@ function paragraphXml(
     (extra.numId ? `<w:numPr><w:ilvl w:val="0"/><w:numId w:val="${extra.numId}"/></w:numPr>` : '') +
     spacing +
     ind +
+    (extra.tabs?.length
+      ? `<w:tabs>${extra.tabs.map((pos) => `<w:tab w:val="left" w:pos="${pos}"/>`).join('')}</w:tabs>`
+      : '') +
+    (extra.fill || style.fill
+      ? `<w:shd w:val="clear" w:color="auto" w:fill="${extra.fill ?? style.fill}"/>`
+      : '') +
     (style.align && style.align !== 'left'
       ? `<w:jc w:val="${style.align === 'center' ? 'center' : 'right'}"/>`
       : '') +
@@ -186,8 +201,8 @@ function paragraphXml(
 }
 
 /** 空段落（表格后面的分隔、空格子）：段落标记也写字号（D-335），不然按默认样式（苹果的预览按 12 磅）撑高。 */
-function blankXml(size: number): string {
-  return `<w:p><w:pPr><w:rPr>${sizeXml({}, size)}</w:rPr></w:pPr></w:p>`;
+function blankXml(size: number, single = false): string {
+  return `<w:p><w:pPr>${single ? '<w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/>' : size <= 1 ? '<w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/>' : ''}<w:rPr>${sizeXml({}, size)}</w:rPr></w:pPr></w:p>`;
 }
 
 /** 表格格子左右的边距加起来（磅），和写入每张表的值一致。 */
@@ -232,27 +247,135 @@ function longestWordEm(text: string): number {
  * 原图像素 → twip：整页宽度按 A4 宽算，放不下时按内容区等比缩小。表里的字号（D-335）按表自己的字号跟着一起缩小，
  * 哪一格最长的词放不下时整张表再一起缩小，最小 5 磅（取到半磅）。
  */
+function tableMetrics(
+  block: DocTable,
+  page: DocPage,
+  bodySize: number,
+  maxWidth: number,
+  fontMaxWidth: number,
+) {
+  const { table, colWidths } = block;
+  const raw = colWidths.map(
+    (w) => (w / page.width) * (page.paper ? Math.round(page.paper.width * 20) : PAGE_W),
+  );
+  const total = raw.reduce((a, b) => a + b, 0) || 1;
+  const k = Math.min(1, maxWidth / total);
+  const widths = raw.map((w) => Math.max(200, Math.round(w * k)));
+  const sourceSize = block.size ?? bodySize;
+  let scale = Math.min(k, fontMaxWidth / total);
+  for (const cell of table.cells) {
+    const em = longestWordEm(cell.text);
+    if (!em) continue;
+    const span = Math.max(1, Math.min(cell.colSpan, table.cols - cell.col));
+    const cross = widths.slice(cell.col, cell.col + span).reduce((a, b) => a + b, 0) / 20;
+    const w =
+      block.direction && cell.box
+        ? (cell.box.height / page.width) * (page.paper?.width ?? PAGE_W / 20)
+        : cross;
+    if (block.direction)
+      scale = Math.min(
+        scale,
+        (cross - TABLE_CELL_PAD_PT) / LINE_HEIGHT / (cell.size ?? sourceSize),
+      );
+    scale = Math.min(scale, (w - TABLE_CELL_PAD_PT) / em / (cell.size ?? sourceSize));
+  }
+  const size = Math.max(TABLE_MIN_SIZE, Math.floor(sourceSize * scale * 2) / 2);
+  const minimum = Array.from({ length: table.rows }, (_, row) =>
+    Math.max(
+      size * CELL_LINE_HEIGHT * 20,
+      ...table.cells
+        .filter((c) => c.row <= row && c.row + c.rowSpan > row)
+        .map((c) => {
+          const own =
+            c.size === undefined
+              ? size
+              : Math.max(TABLE_MIN_SIZE, Math.floor(c.size * scale * 2) / 2);
+          if (c.row !== row) return own * CELL_LINE_HEIGHT * 20;
+          const width = Math.max(
+            1,
+            widths.slice(c.col, c.col + c.colSpan).reduce((n, w) => n + w, 0) - CELL_PAD * 2,
+          );
+          const count = c.text
+            .split('\n')
+            .reduce(
+              (n, line) =>
+                n + Math.max(1, Math.ceil((textEm(line) * own * 20 * WIDTH_SLACK) / width)),
+              0,
+            );
+          return count * own * CELL_LINE_HEIGHT * 20;
+        }),
+    ),
+  ).map((height) => height + (block.borderless ? 0 : 10));
+  const source = minimum.map((min, row) => {
+    const raw = Math.min(
+      ...table.cells
+        .filter((c) => c.box && c.row <= row && c.row + c.rowSpan > row)
+        .map((c) => c.box!.height / c.rowSpan),
+    );
+    return Number.isFinite(raw) && page.paper
+      ? Math.max(min, (raw / page.height) * page.paper.height * 20 * k)
+      : min;
+  });
+  // 来源标签靠近格底时，段前距加正常字行可能比来源格高更大。
+  // 量页和写行共用这个下限，不能只量 trHeight 而漏掉 Word 自动撑高的格内段落。
+  const contents = table.cells
+    .filter((c) => c.rowSpan === 1)
+    .map((c) => {
+      const own =
+        c.size === undefined ? size : Math.max(TABLE_MIN_SIZE, Math.floor(c.size * scale * 2) / 2);
+      const lines = c.text.split('\n');
+      const positions = block.cellLayout?.find((p) => p.row === c.row && p.col === c.col)?.lines;
+      const sourceLines = c.box && positions?.length === lines.length ? positions : undefined;
+      const width = Math.max(
+        1,
+        widths.slice(c.col, c.col + c.colSpan).reduce((n, w) => n + w, 0) - 2 * CELL_PAD,
+      );
+      const text =
+        lines.reduce(
+          (n, l) => n + Math.max(1, Math.ceil((textEm(l) * own * 20 * WIDTH_SLACK) / width)),
+          0,
+        ) *
+        own *
+        CELL_LINE_HEIGHT *
+        20;
+      const yScale = ((page.paper?.height ?? PAGE_H / 20) / page.height) * 20 * k;
+      const gaps =
+        sourceLines?.reduce(
+          (n, p, i) =>
+            n +
+            Math.max(
+              0,
+              Math.round(
+                (p.y - (sourceLines[i - 1]?.y ?? c.box!.y)) * yScale -
+                  (i ? own * CELL_LINE_HEIGHT * 20 : own * 4),
+              ),
+            ),
+          0,
+        ) ?? 0;
+      return { row: c.row, text, gaps };
+    });
+  const heightAt = (row: number, fit: number) =>
+    Math.max(
+      minimum[row]! + (source[row]! - minimum[row]!) * fit,
+      ...contents
+        .filter((c) => c.row === row)
+        .map((c) => c.text + c.gaps * fit + (block.borderless ? 0 : 10)),
+    );
+  return { widths, k, scale, size, minimum, source, heightAt };
+}
+
 function tableXml(
   block: DocTable,
   page: DocPage,
   bodySize: number,
   maxWidth = CONTENT_W,
   left = 0,
+  fontMaxWidth = maxWidth,
+  spaceScale = 1,
 ): string {
-  const { table, colWidths } = block;
-  const raw = colWidths.map((w) => (w / page.width) * PAGE_W);
-  const total = raw.reduce((a, b) => a + b, 0) || 1;
-  const k = Math.min(1, maxWidth / total);
-  const widths = raw.map((w) => Math.max(200, Math.round(w * k)));
-  let size = (block.size ?? bodySize) * k;
-  for (const cell of table.cells) {
-    const em = longestWordEm(cell.text);
-    if (!em) continue;
-    const span = Math.max(1, Math.min(cell.colSpan, table.cols - cell.col));
-    const w = widths.slice(cell.col, cell.col + span).reduce((a, b) => a + b, 0) / 20;
-    size = Math.min(size, (w - TABLE_CELL_PAD_PT) / em);
-  }
-  size = Math.max(TABLE_MIN_SIZE, Math.floor(size * 2) / 2);
+  const { table } = block;
+  const metrics = tableMetrics(block, page, bodySize, maxWidth, fontMaxWidth);
+  const { widths, k, scale, size } = metrics;
   // 每个位置属于哪一格（合并格子的左上角以外的位置写成 vMerge 的续格）。
   const at = new Map<string, number>();
   table.cells.forEach((c, i) => {
@@ -268,7 +391,7 @@ function tableXml(
       if (!cell) {
         // 网格里没有格子的位置（编辑出错的文件）：补一个空格子。
         cells.push(
-          `<w:tc><w:tcPr><w:tcW w:w="${widths[c]}" w:type="dxa"/></w:tcPr>${blankXml(size)}</w:tc>`,
+          `<w:tc><w:tcPr><w:tcW w:w="${widths[c]}" w:type="dxa"/></w:tcPr>${blankXml(size, !!page.paper)}</w:tc>`,
         );
         c++;
         continue;
@@ -276,21 +399,92 @@ function tableXml(
       const span = Math.max(1, Math.min(cell.colSpan, table.cols - c));
       const w = widths.slice(c, c + span).reduce((a, b) => a + b, 0);
       const first = cell.row === r;
+      const cellLayout = block.cellLayout?.find((p) => p.row === cell.row && p.col === cell.col);
       const tcPr =
         `<w:tcW w:w="${w}" w:type="dxa"/>` +
+        (cellLayout?.fill
+          ? `<w:shd w:val="clear" w:color="auto" w:fill="${cellLayout.fill}"/>`
+          : '') +
         (span > 1 ? `<w:gridSpan w:val="${span}"/>` : '') +
-        (cell.rowSpan > 1 ? (first ? '<w:vMerge w:val="restart"/>' : '<w:vMerge/>') : '');
-      const style = { size, ...(cell.align ? { align: cell.align } : {}) };
+        (cell.rowSpan > 1 ? (first ? '<w:vMerge w:val="restart"/>' : '<w:vMerge/>') : '') +
+        (block.direction ? '<w:textDirection w:val="tbRl"/>' : '');
+      const ownSize =
+        cell.size === undefined
+          ? size
+          : Math.max(TABLE_MIN_SIZE, Math.floor(cell.size * scale * 2) / 2);
+      const style = { size: ownSize, ...(cell.align ? { align: cell.align } : {}) };
+      const positions =
+        !block.direction && cell.box
+          ? block.cellLayout?.find((p) => p.row === cell.row && p.col === cell.col)?.lines
+          : undefined;
+      const sourceLines =
+        positions?.length === cell.text.split('\n').length ? positions : undefined;
+      const yScale = ((page.paper?.height ?? PAGE_H / 20) / page.height) * 20 * k;
+      const xScale = ((page.paper?.width ?? PAGE_W / 20) / page.width) * 20 * k;
       const body = first
         ? cell.text
             .split('\n')
-            .map((line) => paragraphXml(line, style, bodySize))
+            .map((line, i) => {
+              const position = sourceLines?.[i];
+              if (!position)
+                return paragraphXml(line, style, bodySize, page.paper ? { single: true } : {});
+              const previous = sourceLines![i - 1];
+              const before = Math.max(
+                0,
+                Math.round(
+                  (position.y - (previous?.y ?? cell.box!.y)) * yScale -
+                    (previous ? ownSize * CELL_LINE_HEIGHT * 20 : ownSize * 4),
+                ),
+              );
+              const needed = textEm(line) * ownSize * 20 * WIDTH_SLACK;
+              const left = Math.max(
+                0,
+                Math.min(Math.round((position.x - cell.box!.x) * xScale), w - needed - 20),
+              );
+              return paragraphXml(
+                line,
+                { ...style, align: 'left', ...(position.color ? { color: position.color } : {}) },
+                bodySize,
+                {
+                  before: cell.rowSpan > 1 ? 0 : Math.round(before * spaceScale),
+                  left,
+                  single: true,
+                  ...(position.fill ? { fill: position.fill } : {}),
+                  ...(position.tabs
+                    ? { tabs: position.tabs.map((x) => Math.round((x - cell.box!.x) * xScale)) }
+                    : {}),
+                },
+              );
+            })
             .join('')
-        : blankXml(size);
-      cells.push(`<w:tc><w:tcPr>${tcPr}</w:tcPr>${body || blankXml(size)}</w:tc>`);
+        : blankXml(size, !!page.paper);
+      const sourceMargins = sourceLines
+        ? '<w:tcMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tcMar>' +
+          (cell.rowSpan > 1 ? '<w:vAlign w:val="center"/>' : '')
+        : '';
+      cells.push(`<w:tc><w:tcPr>${tcPr}${sourceMargins}</w:tcPr>${body || blankXml(size)}</w:tc>`);
       c += span;
     }
-    rows.push(`<w:tr>${cells.join('')}</w:tr>`);
+    let rowHeight = block.direction
+      ? Math.round(
+          (Math.max(
+            0,
+            ...table.cells
+              .filter((c) => c.row === r && c.box)
+              .map((c) => c.box!.height / c.rowSpan),
+          ) /
+            page.width) *
+            (page.paper?.width ?? PAGE_W / 20) *
+            20,
+        )
+      : page.paper
+        ? Math.round(metrics.heightAt(r, spaceScale))
+        : 0;
+    // trHeight 是格内的最小高度；外画的 0.5 磅行边框仍占高度，不能每行再加一次。
+    if (rowHeight && !block.borderless) rowHeight = Math.max(1, rowHeight - 10);
+    rows.push(
+      `<w:tr>${rowHeight ? `<w:trPr><w:trHeight w:val="${rowHeight}" w:hRule="atLeast"/></w:trPr>` : ''}${cells.join('')}</w:tr>`,
+    );
   }
   // 原图里没有线、按列对齐认出来的表（D-471）不画边框。
   const border = (side: string) =>
@@ -340,10 +534,22 @@ function layoutTableXml(
   );
 }
 
-function imageXml(rid: string, id: number, cx: number, cy: number, pPr = ''): string {
+function imageXml(
+  rid: string,
+  id: number,
+  cx: number,
+  cy: number,
+  pPr = '',
+  background = false,
+): string {
   return (
-    `<w:p>${pPr ? `<w:pPr>${pPr}</w:pPr>` : ''}<w:r><w:drawing>` +
-    `<wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/>` +
+    `<w:p>${pPr ? `<w:pPr>${pPr}</w:pPr>` : ''}<w:r><w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr><w:drawing>` +
+    (background
+      ? '<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="0" behindDoc="1" locked="0" layoutInCell="0" allowOverlap="1">' +
+        '<wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionH>' +
+        '<wp:positionV relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionV>' +
+        `<wp:extent cx="${cx}" cy="${cy}"/><wp:wrapNone/>`
+      : `<wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/>`) +
     `<wp:docPr id="${id}" name="Picture ${id}"/>` +
     '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
     '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
@@ -352,7 +558,9 @@ function imageXml(rid: string, id: number, cx: number, cy: number, pPr = ''): st
     `<pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
     `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>` +
     '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>' +
-    '</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>'
+    '</a:graphicData></a:graphic>' +
+    (background ? '</wp:anchor>' : '</wp:inline>') +
+    '</w:drawing></w:r></w:p>'
   );
 }
 
@@ -415,32 +623,104 @@ export function writeDocx(
   const lists: DocList[] = [];
   const media: { name: string; rid: string; bytes: Uint8Array }[] = [];
   const body: string[] = [];
+  const sections = doc.pages.some((p) => p.paper);
+  const geometry = (page?: DocPage) => {
+    const width = page?.paper ? Math.round(page.paper.width * 20) : PAGE_W;
+    const height = page?.paper ? Math.round(page.paper.height * 20) : PAGE_H;
+    const maxMargin = Math.min(MARGIN, Math.floor(width / 4), Math.floor(height / 4));
+    const margins = Object.fromEntries(
+      ['top', 'right', 'bottom', 'left'].map((side) => [
+        side,
+        Math.max(
+          0,
+          Math.min(
+            maxMargin,
+            page?.margins
+              ? Math.round(page.margins[side as keyof NonNullable<DocPage['margins']>] * 20)
+              : maxMargin,
+          ),
+        ),
+      ]),
+    ) as Record<'top' | 'right' | 'bottom' | 'left', number>;
+    // Word 强制保留表后的段落；来源内容贴到下边界时，要把这点不可见的行高留在空白页边距里。
+    const last = page?.blocks.filter((b) => !(b.kind === 'image' && b.background)).at(-1);
+    const separators =
+      last?.kind === 'table'
+        ? 1
+        : last?.kind === 'row'
+          ? last.cells.some((c) => c.blocks.some((b) => b.kind === 'table'))
+            ? 2
+            : 1
+          : 0;
+    if (page?.paper)
+      margins.bottom = Math.max(0, margins.bottom - Math.ceil(separators * LINE_HEIGHT * 20));
+    return { width, height, margins };
+  };
+  const sectionXml = (page?: DocPage, next = false) => {
+    const { width, height, margins: m } = geometry(page);
+    return (
+      '<w:sectPr>' +
+      (next ? '<w:type w:val="nextPage"/>' : '') +
+      `<w:pgSz w:w="${width}" w:h="${height}"${width > height ? ' w:orient="landscape"' : ''}/>` +
+      `<w:pgMar w:top="${m.top}" w:right="${m.right}" w:bottom="${m.bottom}" w:left="${m.left}" w:header="${Math.min(567, m.top)}" w:footer="${Math.min(567, m.bottom)}" w:gutter="0"/></w:sectPr>`
+    );
+  };
   doc.pages.forEach((page, p) => {
+    const { width: PAGE_W, height: PAGE_H, margins } = geometry(page);
+    const CONTENT_W = PAGE_W - margins.left - margins.right;
+    const CONTENT_H = PAGE_H - margins.top - margins.bottom;
+    if (sections && p > 0)
+      body.push(
+        `<w:p><w:pPr>${sectionXml(doc.pages[p - 1], true)}<w:spacing w:line="1" w:lineRule="exact"/></w:pPr></w:p>`,
+      );
+    const pageStart = body.length;
     // 每页的字按这一页的正文字号写（D-335：表单页和正文页的正文字号可能差很多）。
     const bodySize = page.bodySize ?? docSize;
-    let first = p > 0;
+    let first = p > 0 && !sections;
     const pageBreak = () => {
       const b = first;
       first = false;
       return b;
     };
     const twip = (px: number) => Math.round((px / page.width) * PAGE_W);
+    const yTwip = (px: number) => (page.paper ? Math.round((px / page.height) * PAGE_H) : twip(px));
     // 位置（D-463）：左缩进从 A4 的左页边距算起（原图的字更靠左时从最左的字算起），
     // 段前距是原图里和上一块之间空着的高度；字和空白加起来在 Word 里比 A4 的内容区还高、只靠字又放得下一页时，
     // 段前距按比例缩小，原件一页还是一页（字本身就超过一页的正文页不缩，段落之间照样空开）。
-    const marginPx = (MARGIN / PAGE_W) * page.width;
-    const leaves = leafBlocks(page);
-    const base = Math.min(marginPx, ...leaves.map((b) => b.box.x));
+    const marginPx = page.paper
+      ? (margins.top / PAGE_H) * page.height
+      : (margins.top / PAGE_W) * page.width;
+    const foreground = page.blocks.filter((b) => !(b.kind === 'image' && b.background));
+    const leaves = leafBlocks({ blocks: foreground });
+    const base = Math.min((margins.left / PAGE_W) * page.width, ...leaves.map((b) => b.box.x));
     // 左边对齐的块左边只差一点（认字框的左边总有几个像素的抖动）时对齐到同一个位置：
     // 不然每段的缩进都差几磅，Word 里左边是锯齿。差不到 0.7 个字宽的归为一组，取这一组最左的。
-    const emPx = (bodySize / 595) * page.width;
+    const emPx = (bodySize / (PAGE_W / 20)) * page.width;
     const snap = new Map<number, number>();
     let anchor = -Infinity;
     for (const x of [...new Set(leaves.map((b) => b.box.x))].sort((a, b) => a - b)) {
       if (x - anchor > SNAP_EM * emPx) anchor = x;
       snap.set(x, anchor);
     }
+    const metricsCache = new Map<DocTable, Map<string, ReturnType<typeof tableMetrics>>>();
+    const measureTable = (block: DocTable, width: number, fontWidth: number) => {
+      let cache = metricsCache.get(block);
+      if (!cache) {
+        cache = new Map();
+        metricsCache.set(block, cache);
+      }
+      const key = `${width}:${fontWidth}`;
+      let metrics = cache.get(key);
+      if (!metrics) {
+        metrics = tableMetrics(block, page, bodySize, width, fontWidth);
+        cache.set(key, metrics);
+      }
+      return metrics;
+    };
     let fit = 1;
+    let pictureScale = 1;
+    // 已知纸张尺寸的页需要把默认 Arial 行框的上/下伸留量算足；字高不是整行高度。
+    const leading = page.paper ? 1.34 : LINE_HEIGHT;
     const blankHeight = Math.round(LINE_HEIGHT * bodySize * 20);
     /**
      * 上一块：上边、下边（原图像素）和它在 Word 里占的高度（twip，连同后面补的空段落）。
@@ -451,37 +731,121 @@ export function writeDocx(
       bottom: number;
       height: number;
     }
+    const nestedWidths = (row: DocRow, max: number) => {
+      const widths = fitWidths(
+        row.cells.map((c) => twip(c.width)),
+        max,
+      );
+      const last = row.cells.at(-1)!;
+      const needed = Math.max(
+        widths.at(-1)!,
+        ...last.blocks
+          .filter(
+            (b): b is DocParagraph => b.kind === 'paragraph' && !b.tab && !/[\n\t]/.test(b.text),
+          )
+          .map((b) =>
+            Math.ceil(textEm(b.text) * (b.size ?? bodySize) * 20 * WIDTH_SLACK + 2 * CELL_PAD),
+          ),
+      );
+      const spare = Math.max(0, max - widths.reduce((n, w) => n + w, 0));
+      widths[widths.length - 1]! += Math.min(spare, needed - widths.at(-1)!);
+      return widths;
+    };
     // 一块在 Word 里大概多高：文字按原图里有几行 × 行高，表格、图片按原图里的高。
-    const heightOf = (block: DocBlock): number => {
-      const h = twip(block.box.height);
+    const heightOf = (block: DocBlock, maxWidth = CONTENT_W, from = base): number => {
+      const h = yTwip(block.box.height);
+      const left = block.kind === 'row' ? 0 : leftOf(block, from, maxWidth);
+      const available = Math.max(1, maxWidth - left);
+      const wrapped = (text: string, size: number, width: number) =>
+        text
+          .split('\n')
+          .reduce(
+            (n, line) =>
+              n +
+              Math.max(1, Math.ceil((textEm(line) * size * 20 * WIDTH_SLACK) / Math.max(1, width))),
+            0,
+          );
       if (block.kind === 'paragraph' && !block.tab) {
         const size = block.size || bodySize;
-        const one = LINE_HEIGHT * size * 20;
-        return Math.max(1, Math.round(h / one)) * one;
+        const one = leading * size * 20;
+        return (
+          Math.max(
+            1,
+            Math.round(h / one),
+            wrapped(block.text, size, available - twip(block.indent ?? 0)),
+          ) * one
+        );
       }
       if (block.kind === 'list') {
-        const one = LINE_HEIGHT * (block.size || bodySize) * 20;
-        return Math.max(block.items.length, Math.round(h / one)) * one;
+        const one = leading * (block.size || bodySize) * 20;
+        const lines = block.items.reduce(
+          (n, item) => n + wrapped(item, block.size || bodySize, available - 420),
+          0,
+        );
+        return Math.max(lines, Math.round(h / one)) * one;
       }
-      return block.kind === 'image' ? h : h + blankHeight;
+      if (page.paper && block.kind === 'row') {
+        const widths = nestedWidths(block, maxWidth);
+        const measured = block.cells.map((cell, i) => {
+          const flow: Flow = { top: block.box.y, bottom: block.box.y, height: 0 };
+          let total = 0;
+          const from = Math.min(...cell.blocks.map((b) => b.box.x));
+          for (const child of flowCellBlocks(cell.blocks, emPx)) {
+            const height = heightOf(child, Math.max(1, widths[i]! - 2 * CELL_PAD), from);
+            total += (beforeOf(child, flow) ?? 0) + height;
+            flow.top = child.box.y;
+            flow.bottom = child.box.y + child.box.height;
+            flow.height = height;
+          }
+          return total;
+        });
+        return Math.max(0, ...measured) + LINE_HEIGHT * 20;
+      }
+      if (page.paper && block.kind === 'table' && !block.direction) {
+        const m = measureTable(
+          block,
+          available,
+          Math.min(maxWidth, PAGE_W * TABLE_FONT_PAGE_SHARE) - left,
+        );
+        return m.minimum.reduce((n, _v, i) => n + m.heightAt(i, fit), 0) + LINE_HEIGHT * 20;
+      }
+      if (block.kind === 'space') return h;
+      if (page.paper && block.kind === 'image' && block.src && images.has(block.src)) {
+        const image = images.get(block.src)!;
+        const w = (block.box.width / page.width) * PAGE_W,
+          h = (w * image.height) / Math.max(1, image.width);
+        return (
+          h *
+            Math.min(1, maxWidth / Math.max(1, w), (CONTENT_H * 0.9) / Math.max(1, h)) *
+            pictureScale +
+          20
+        );
+      }
+      return block.kind === 'image' ? h + (page.paper ? bodySize * 6 : 0) : h + LINE_HEIGHT * 20;
     };
     // 段前距（twip）；在上一块上面、和它重叠（位置用不了，例如文字转 Word 的占位框）时没有，按 spaced 写。
     // 一页（一格）的第一块离上边不到一行时不空（字的上边和页边距差一点）。
     const beforeOf = (block: DocBlock, flow: Flow): number | undefined => {
-      if (block.box.y < flow.bottom) return undefined;
-      const v = (twip(block.box.y - flow.top) - flow.height) * fit;
-      if (!flow.height && v < blankHeight) return 0;
+      if (block.box.y < flow.bottom && !page.paper) return undefined;
+      const v = (yTwip(block.box.y - flow.top) - flow.height) * fit;
+      if (!flow.height && v < blankHeight && !page.paper) return 0;
       return Math.max(0, Math.round(v / 10) * 10);
     };
-    const advance = (flow: Flow, block: DocBlock) => {
+    const advance = (flow: Flow, block: DocBlock, maxWidth = CONTENT_W, from = base) => {
       flow.top = block.box.y;
       flow.bottom = block.box.y + block.box.height;
-      flow.height = heightOf(block);
+      flow.height = heightOf(block, maxWidth, from);
     };
     // 左缩进（twip）：居中、靠右的段落没有；一行的段落放得下才缩进（不让它折到下一行）。
     const leftOf = (block: DocLeaf, from: number, maxWidth: number): number => {
       if (block.kind === 'paragraph' && block.tab) return 0;
-      if (block.kind !== 'image' && block.kind !== 'table' && block.align && block.align !== 'left')
+      if (
+        block.kind !== 'image' &&
+        block.kind !== 'table' &&
+        block.kind !== 'space' &&
+        block.align &&
+        block.align !== 'left'
+      )
         return 0;
       const room = maxWidth - twip(block.box.width) * (block.kind === 'table' ? 1 : WIDTH_SLACK);
       const v = Math.min(twip((snap.get(block.box.x) ?? block.box.x) - from), Math.max(0, room));
@@ -498,7 +862,12 @@ export function writeDocx(
       left: number;
     }
     // 一个块的 XML；maxWidth 是能放的宽（twip）：整页的内容区，或者并排行的一格。
-    const leafXml = (block: DocLeaf, maxWidth: number, place: Place): string[] => {
+    const leafXml = (
+      block: DocLeaf,
+      maxWidth: number,
+      place: Place,
+      fontMaxWidth = maxWidth,
+    ): string[] => {
       const { before, left } = place;
       switch (block.kind) {
         case 'paragraph':
@@ -516,7 +885,7 @@ export function writeDocx(
               ...(pageBreak() ? [paragraphXml('', {}, bodySize, { pageBreak: true })] : []),
               spacerXml(before),
               layoutTableXml(widths, rows, bodySize),
-              blankXml(bodySize),
+              blankXml(1),
             ];
           }
           return [
@@ -549,29 +918,54 @@ export function writeDocx(
           return [
             ...(pageBreak() ? [paragraphXml('', {}, bodySize, { pageBreak: true })] : []),
             spacerXml(before),
-            tableXml(block, page, bodySize, maxWidth - left, left),
+            tableXml(
+              block,
+              page,
+              bodySize,
+              maxWidth - left,
+              left,
+              Math.max(200, fontMaxWidth - left),
+              fit,
+            ),
             // 两张表紧挨着时 Word 会把它们并成一张：后面补一个空段落。
-            blankXml(bodySize),
+            blankXml(1),
+          ];
+        case 'space':
+          return [
+            `<w:p><w:pPr><w:spacing w:before="${before ?? 0}" w:after="0" w:line="${Math.max(1, twip(block.box.height))}" w:lineRule="exact"/><w:rPr><w:sz w:val="2"/></w:rPr></w:pPr></w:p>`,
           ];
         case 'image': {
           const image = block.src ? images.get(block.src) : undefined;
           if (!image) return [];
-          const out = pageBreak() ? [paragraphXml('', {}, bodySize, { pageBreak: true })] : [];
           const n = media.length + 1;
           const rid = `rIdImg${n}`;
           // 剪下来的是 JPG；外来的 docx 读进来的图片（D-509）也可能是 PNG、GIF、BMP，按文件开头认。
           const ext = imageExt(image.bytes) ?? 'jpg';
           media.push({ name: `image${n}.${ext}`, rid, bytes: image.bytes });
+          if (block.background)
+            return [
+              imageXml(
+                rid,
+                n,
+                Math.round(PAGE_W * EMU_PER_TWIP),
+                Math.round(PAGE_H * EMU_PER_TWIP),
+                '<w:spacing w:before="0" w:after="0" w:line="1" w:lineRule="exact"/><w:rPr><w:sz w:val="2"/></w:rPr>',
+                true,
+              ),
+            ];
+          const out = pageBreak() ? [paragraphXml('', {}, bodySize, { pageBreak: true })] : [];
           // 大小按它在原图里占的宽度，放不下时等比缩小。
           let w = (block.box.width / page.width) * PAGE_W;
           let h = (w * image.height) / Math.max(1, image.width);
           const k = Math.min(1, maxWidth / w, (CONTENT_H * 0.9) / h);
-          w *= k;
-          h *= k;
+          w *= k * pictureScale;
+          h *= k * pictureScale;
           const pPr =
-            (before !== undefined && before >= MIN_BEFORE
-              ? `<w:spacing w:before="${before}"/>`
-              : '') + (left ? `<w:ind w:left="${left}"/>` : '');
+            (page.paper
+              ? `<w:spacing w:before="${before ?? 0}" w:after="0" w:line="240" w:lineRule="auto"/><w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr>`
+              : before !== undefined && before >= MIN_BEFORE
+                ? `<w:spacing w:before="${before}"/>`
+                : '') + (left ? `<w:ind w:left="${left}"/>` : '');
           out.push(
             imageXml(rid, n, Math.round(w * EMU_PER_TWIP), Math.round(h * EMU_PER_TWIP), pPr),
           );
@@ -579,29 +973,104 @@ export function writeDocx(
         }
       }
     };
+    const cellXml = (
+      blocks: readonly DocLeaf[],
+      max: number,
+      top: number,
+      fontMax: number,
+    ): string => {
+      const flow: Flow = { top, bottom: top, height: 0 };
+      const from = Math.min(...blocks.map((b) => b.box.x));
+      return flowCellBlocks(blocks, emPx)
+        .flatMap((b) => {
+          const before = beforeOf(b, flow);
+          advance(flow, b, max, from);
+          if (b.kind !== 'row')
+            return leafXml(
+              b,
+              max,
+              { ...(before !== undefined ? { before } : {}), left: leftOf(b, from, max) },
+              fontMax,
+            );
+          const widths = nestedWidths(b, max);
+          const cells = b.cells.map((c, i) =>
+            cellXml(
+              c.blocks,
+              Math.max(1, widths[i]! - CELL_PAD * 2),
+              b.box.y,
+              Math.min(fontMax, widths[i]! - CELL_PAD * 2),
+            ),
+          );
+          return [spacerXml(before), layoutTableXml(widths, [cells], 1), blankXml(1)];
+        })
+        .join('');
+    };
     {
-      const dry: Flow = { top: marginPx, bottom: marginPx, height: 0 };
-      let gaps = 0;
-      let heights = 0;
-      for (const block of page.blocks) {
-        const before = beforeOf(block, dry);
-        gaps += before ?? 0;
-        heights += heightOf(block);
-        advance(dry, block);
+      const measure = () => {
+        const dry: Flow = { top: marginPx, bottom: marginPx, height: 0 };
+        let total = 0;
+        for (const block of foreground) {
+          total += (beforeOf(block, dry) ?? 0) + heightOf(block);
+          advance(dry, block);
+        }
+        return total;
+      };
+      if (measure() > CONTENT_H - (page.paper ? Math.round(leading * bodySize * 20) : 0)) {
+        if (page.paper) {
+          let lo = 0,
+            hi = 1;
+          for (let i = 0; i < 12; i++) {
+            fit = (lo + hi) / 2;
+            // 字体替代和尾行折行留一行余量；只压来源空白，不缩正文或让文字跨到图上。
+            if (measure() > CONTENT_H - Math.round(leading * bodySize * 20)) hi = fit;
+            else lo = fit;
+          }
+          fit = lo;
+          // 段落正常行高加整图本身也可能超过源页；空白压到头后才等比缩图，正文不缩字。
+          if (
+            measure() > CONTENT_H - Math.round(leading * bodySize * 20) &&
+            leaves.some((b) => b.kind === 'image')
+          ) {
+            let low = 0.25,
+              high = 1;
+            pictureScale = low;
+            // 正文本来就需要续页时，缩图不能解决溢出；保留原图尺寸继续正常分页。
+            const feasible = measure() <= CONTENT_H - Math.round(leading * bodySize * 20);
+            for (let i = 0; feasible && i < 12; i++) {
+              pictureScale = (low + high) / 2;
+              if (measure() > CONTENT_H - Math.round(leading * bodySize * 20)) high = pictureScale;
+              else low = pictureScale;
+            }
+            pictureScale = feasible ? low : 1;
+          }
+        } else {
+          const dry: Flow = { top: marginPx, bottom: marginPx, height: 0 };
+          let gaps = 0,
+            heights = 0;
+          for (const block of foreground) {
+            gaps += beforeOf(block, dry) ?? 0;
+            heights += heightOf(block);
+            advance(dry, block);
+          }
+          if (gaps > 0 && heights < CONTENT_H) fit = Math.max(0, (CONTENT_H - heights) / gaps);
+        }
       }
-      if (gaps > 0 && heights + gaps > CONTENT_H && heights < CONTENT_H)
-        fit = (CONTENT_H - heights) / gaps;
     }
     const flow: Flow = { top: marginPx, bottom: marginPx, height: 0 };
-    for (const block of page.blocks) {
+    for (const block of foreground) {
       const before = beforeOf(block, flow);
       advance(flow, block);
       if (block.kind !== 'row') {
         body.push(
-          ...leafXml(block, CONTENT_W, {
-            ...(before !== undefined ? { before } : {}),
-            left: leftOf(block, base, CONTENT_W),
-          }),
+          ...leafXml(
+            block,
+            CONTENT_W,
+            {
+              ...(before !== undefined ? { before } : {}),
+              left: leftOf(block, base, CONTENT_W),
+            },
+            Math.min(CONTENT_W, PAGE_W * TABLE_FONT_PAGE_SHARE),
+          ),
         );
         continue;
       }
@@ -611,6 +1080,11 @@ export function writeDocx(
       const widths = fitWidths(
         block.cells.map((c) => twip(c.width)),
         CONTENT_W,
+      );
+      // 页边距修复只扩展列宽，不顺带放大已经识别好的表格字体。
+      const fontWidths = fitWidths(
+        block.cells.map((c) => twip(c.width)),
+        Math.min(CONTENT_W, PAGE_W * TABLE_FONT_PAGE_SHARE),
       );
       // 最后一栏的原图宽只到文字的右边，不一定是可用空间的右边。
       // 原图单行的左对齐段落、居中标题按导出字号量字宽、加内边距，借用右侧空白；前面的栏不动。
@@ -640,32 +1114,79 @@ export function writeDocx(
       }
       const spare = Math.max(0, CONTENT_W - widths.reduce((a, b) => a + b, 0));
       widths[widths.length - 1]! += Math.min(spare, needed - widths.at(-1)!);
+      // 整行被缩小时，右侧一个不可断开的短标签也要留够字宽和内边距。
+      // 只从前一栏可折行的正文借最少的宽度，不扩大页面，也不压缩标题、表格或图片。
+      const labels = last.blocks.filter((b) => b.kind === 'paragraph');
+      const previousCell = block.cells.at(-2);
+      const prose = previousCell?.blocks.filter((b) => b.kind === 'paragraph') ?? [];
+      if (
+        labels.length > 0 &&
+        labels.length === last.blocks.length &&
+        labels.every(
+          (b) =>
+            b.align === 'right' &&
+            !b.heading &&
+            !b.tab &&
+            !/[\n\t]/.test(b.text) &&
+            b.text.trim().split(/\s+/).length <= 3 &&
+            b.text.length <= 32,
+        ) &&
+        previousCell &&
+        prose.length === previousCell.blocks.length &&
+        prose.every((b) => !b.heading && !b.tab) &&
+        prose.some((b) => /\s/.test(b.text))
+      ) {
+        const minimum = (b: (typeof labels)[number]) =>
+          Math.ceil(longestWordEm(b.text) * (b.size ?? bodySize) * 20 * WIDTH_SLACK + 2 * CELL_PAD);
+        const labelWidth = Math.max(
+          ...labels.map((b) =>
+            Math.ceil(textEm(b.text) * (b.size ?? bodySize) * 20 * WIDTH_SLACK + 2 * CELL_PAD),
+          ),
+        );
+        const proseWidth = Math.max(...prose.map(minimum));
+        if (labelWidth <= CONTENT_W / 5) {
+          const borrowed = Math.max(
+            0,
+            Math.min(labelWidth - widths.at(-1)!, widths[widths.length - 2]! - proseWidth),
+          );
+          widths[widths.length - 1]! += borrowed;
+          widths[widths.length - 2]! -= borrowed;
+        }
+      }
       // 格子里留一点边距，里面的表格、图片按格子的宽缩小；格子里的位置从这一格的左上角算。
       const cells = block.cells.map((cell, i) => {
-        const inner: Flow = { top: block.box.y, bottom: block.box.y, height: 0 };
-        const from = Math.min(...cell.blocks.map((b) => b.box.x));
         const max = widths[i]! - 2 * CELL_PAD;
-        return cell.blocks
-          .flatMap((b) => {
-            const before = beforeOf(b, inner);
-            advance(inner, b);
-            return leafXml(b, max, {
-              ...(before !== undefined ? { before } : {}),
-              left: leftOf(b, from, max),
-            });
-          })
-          .join('');
+        return cellXml(cell.blocks, max, block.box.y, fontWidths[i]! - 2 * CELL_PAD);
       });
-      body.push(layoutTableXml(widths, [cells], bodySize), blankXml(bodySize));
+      body.push(layoutTableXml(widths, [cells], bodySize), blankXml(1));
+    }
+    // 只把锚点放进表格外已有的段落；不增加正文行，也不让竖排单元格把底图参与测高。
+    const drawings = page.blocks
+      .filter((b) => b.kind === 'image' && b.background)
+      .flatMap((b) => {
+        if (b.kind !== 'image') return [];
+        return leafXml(b, CONTENT_W, { left: 0 }).map((xml) =>
+          xml.slice(xml.indexOf('<w:r>'), xml.lastIndexOf('</w:p>')),
+        );
+      })
+      .join('');
+    if (drawings) {
+      const at = body.findIndex((xml, i) => i >= pageStart && xml.startsWith('<w:p>'));
+      if (at >= 0) body[at] = body[at]!.replace('</w:p>', drawings + '</w:p>');
+      else
+        body.splice(
+          pageStart,
+          0,
+          `<w:p><w:pPr>${pageBreak() ? '<w:pageBreakBefore/>' : ''}<w:spacing w:before="0" w:after="0" w:line="1" w:lineRule="exact"/><w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr></w:pPr>${drawings}</w:p>`,
+        );
     }
   });
   const documentXml =
     `${HEAD}<w:document xmlns:w="${W_NS}" xmlns:r="${R_NS}" ` +
     'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">' +
     `<w:body>${body.join('')}` +
-    `<w:sectPr><w:pgSz w:w="${PAGE_W}" w:h="${PAGE_H}"/>` +
-    `<w:pgMar w:top="${MARGIN}" w:right="${MARGIN}" w:bottom="${MARGIN}" w:left="${MARGIN}" w:header="567" w:footer="567" w:gutter="0"/>` +
-    '</w:sectPr></w:body></w:document>';
+    sectionXml(doc.pages.at(-1)) +
+    '</w:body></w:document>';
   const files: Zippable = {
     '[Content_Types].xml': strToU8(
       HEAD +

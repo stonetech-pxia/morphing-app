@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildDocPage, leafBlocks } from './doc';
+import { arrangeUnits, buildDocPage, leafBlocks, insertWordFigures } from './doc';
 import type { LayoutRegion } from './layout';
 import { fakeLine, gridRects, renderPage, type Rect } from './test-helpers';
 import type { OcrBox } from './types';
+import { restoreWordCellSpans } from './word-cell-spans';
 
 const size = { width: 1000, height: 1400 };
 const hint = (
@@ -54,6 +55,474 @@ function fixture() {
 }
 
 describe('Word figure ownership', () => {
+  it('keeps a tall margin graphic beside the complete figure-caption-body band', () => {
+    const figure = { x: 100, y: 200, width: 800, height: 250 },
+      margin = { x: 60, y: 180, width: 35, height: 600 };
+    const caption = {
+      kind: 'paragraph' as const,
+      text: 'Caption',
+      box: { x: 100, y: 470, width: 800, height: 30 },
+    };
+    const body = {
+      kind: 'paragraph' as const,
+      text: 'Body',
+      box: { x: 100, y: 520, width: 800, height: 400 },
+    };
+    const next = insertWordFigures(
+      { source: 'p.jpg', width: 1000, height: 1400, bodySize: 11, blocks: [caption, body] },
+      [margin, figure],
+    );
+    expect(next.blocks).toHaveLength(1);
+    const row = next.blocks[0]!;
+    expect(
+      row.kind === 'row' &&
+        row.cells[1]!.blocks.map((b) => (b.kind === 'paragraph' ? b.text : b.kind)),
+    ).toEqual(['image', 'Caption', 'Body']);
+  });
+  it('places a wide figure before its caption when a stale model row still starts above the figure', () => {
+    const figure = { x: 100, y: 200, width: 800, height: 250 };
+    const caption = {
+      kind: 'paragraph' as const,
+      text: 'Figure caption',
+      box: { x: 100, y: 470, width: 800, height: 30 },
+    };
+    const body = {
+      kind: 'paragraph' as const,
+      text: 'Editable body',
+      box: { x: 100, y: 550, width: 800, height: 300 },
+    };
+    const next = insertWordFigures(
+      {
+        source: 'p.jpg',
+        width: 1000,
+        height: 1400,
+        bodySize: 11,
+        blocks: [
+          {
+            kind: 'row',
+            box: { x: 80, y: 180, width: 840, height: 600 },
+            cells: [{ width: 840, blocks: [{ kind: 'image', box: figure }, caption] }],
+          },
+          {
+            kind: 'row',
+            box: { x: 80, y: 180, width: 840, height: 800 },
+            cells: [{ width: 840, blocks: [body] }],
+          },
+        ],
+      },
+      [figure],
+    );
+    expect(leafBlocks(next).map((b) => (b.kind === 'paragraph' ? b.text : b.kind))).toEqual([
+      'image',
+      'Figure caption',
+      'Editable body',
+    ]);
+    expect(next.blocks[1]!.box.y).toBe(caption.box.y);
+  });
+  it('restores adjacent labels together when a coarse grid splits both labels in one shared cell', () => {
+    const box = { x: 100, y: 100, width: 800, height: 40 };
+    const xs = [100, 400, 500, 600, 700, 900];
+    const block = {
+      kind: 'table' as const,
+      box,
+      colWidths: xs.slice(1).map((x, i) => x - xs[i]!),
+      table: {
+        kind: 'table' as const,
+        box,
+        col: 0,
+        rows: 1,
+        cols: 5,
+        cells: xs.slice(0, -1).map((x, i) => ({
+          row: 0,
+          col: i,
+          rowSpan: 1,
+          colSpan: 1,
+          box: { ...box, x, width: xs[i + 1]! - x },
+          text: ['Vehicle identifi', 'cation number  Ge', 'nre', '  Other ', 'label'][i]!,
+        })),
+      },
+    };
+    const lines = [
+      fakeLine(
+        'Vehicle identification number',
+        { x: 110, y: 110, width: 480, height: 20 },
+        size,
+        true,
+      ),
+      fakeLine('Genre  Other label', { x: 580, y: 110, width: 300, height: 20 }, size, true),
+    ];
+    // 故意按粗网格分配原字，第二行的开头和第一行的末尾落在同一格。
+    for (const c of block.table.cells)
+      c.text = lines
+        .map((l) =>
+          l
+            .chars!.filter(
+              (ch) =>
+                l.x + ch.at * l.width >= c.box.x && l.x + ch.at * l.width < c.box.x + c.box.width,
+            )
+            .map((ch) => ch.text)
+            .join(''),
+        )
+        .filter(Boolean)
+        .join(' ');
+    restoreWordCellSpans(block, renderPage(1000, 1400, []), lines, (ls) =>
+      ls.map((l) => l.text).join(' '),
+    );
+    expect(block.table.cells.filter((c) => c.text.trim()).map((c) => c.text)).toEqual([
+      lines.map((l) => l.text).join('\t'),
+    ]);
+  });
+  it('separates a full-width label below writing fields from the preceding text in the same coarse row', () => {
+    const image = renderPage(1100, 1400, [
+      ...gridRects([100, 1000], [300, 550, 800], { thickness: 2 }),
+      ...[400, 700].flatMap((x) => [300, 550].map((y) => ({ x, y, width: 2, height: 180 }))),
+    ]);
+    const lines = [
+      fakeLine(
+        'Registration',
+        { x: 150, y: 440, width: 180, height: 24 },
+        { width: 1100, height: 1400 },
+        true,
+      ),
+      fakeLine(
+        'Vehicle identification number and category',
+        { x: 150, y: 510, width: 700, height: 24 },
+        { width: 1100, height: 1400 },
+        true,
+      ),
+      fakeLine(
+        'Owner',
+        { x: 150, y: 760, width: 180, height: 24 },
+        { width: 1100, height: 1400 },
+        true,
+      ),
+    ];
+    const table = leafBlocks(buildDocPage({ image, lines, source: 'form.jpg', skew: 0 })).find(
+      (b) => b.kind === 'table',
+    );
+    expect(
+      table?.kind === 'table' && table.table.cells.filter((c) => c.text.trim()).map((c) => c.text),
+    ).toEqual(lines.map((l) => l.text));
+  });
+  it('keeps a body line editable when only part of its OCR box overlaps a native figure', () => {
+    const f = fixture();
+    const body = line('Editable body continues below the diagram.', 100, 320, 500, 30);
+    const page = buildDocPage({
+      image: f.image,
+      lines: [...f.lines, body],
+      source: 'mixed.jpg',
+      nativeFigures: [f.picture.box],
+    });
+    expect(text(page)).toContain(body.text);
+  });
+  it('keeps complete pictures side by side even when crop margins narrow the white gutter', () => {
+    const a = { x: 20, y: 100, width: 200, height: 150 },
+      b = { ...a, x: 222 };
+    const result = arrangeUnits(
+      [a, b].map((box) => ({ box, blocks: [{ kind: 'image', box }] })),
+      20,
+    );
+    expect(result[0]?.kind === 'row' && result[0].cells).toHaveLength(2);
+  });
+  it('retains outside paragraph formatting when native figure labels leave the font statistics', () => {
+    const f = fixture();
+    const prior = buildDocPage({ image: f.image, lines: f.lines, source: 'same.jpg' });
+    const body = leafBlocks(prior).find(
+      (b) => b.kind === 'paragraph' && b.text.includes('Ordinary body'),
+    );
+    if (!body || body.kind !== 'paragraph') throw new Error('fixture');
+    body.size = 17.5;
+    body.bold = true;
+    body.color = '114477';
+    const next = buildDocPage({
+      image: f.image,
+      lines: f.lines,
+      source: 'same.jpg',
+      nativeFigures: [f.picture.box],
+      prior,
+    });
+    expect(next.bodySize).toBe(prior.bodySize);
+    expect(
+      leafBlocks(next).find((b) => b.kind === 'paragraph' && b.text === body.text),
+    ).toMatchObject({ size: 17.5, bold: true, color: '114477' });
+    expect(leafBlocks(next).filter((b) => b.kind === 'image')).toHaveLength(1);
+  });
+  it('retains distinct table values when the OCR character gaps already prove separate columns', () => {
+    const image = renderPage(1100, 1400, [
+      ...gridRects([100, 1000], [300, 550, 800], { thickness: 2 }),
+      ...[400, 700].flatMap((x) => [300, 550].map((y) => ({ x, y, width: 2, height: 180 }))),
+    ]);
+    const text = 'Alpha Beta Gamma';
+    const xs = [150, 170, 190, 210, 230, 350, 450, 470, 490, 510, 650, 750, 770, 790, 810, 830];
+    const lines = [
+      {
+        text,
+        x: 150,
+        y: 510,
+        width: 700,
+        height: 24,
+        chars: [...text].map((text, i) => ({ text, at: (xs[i]! - 150) / 700 })),
+      },
+      fakeLine(
+        'Owner',
+        { x: 150, y: 760, width: 180, height: 24 },
+        { width: 1100, height: 1400 },
+        true,
+      ),
+    ];
+    const table = leafBlocks(buildDocPage({ image, lines, source: 'values.jpg', skew: 0 })).find(
+      (b) => b.kind === 'table',
+    );
+    expect(
+      table?.kind === 'table' && table.table.cells.filter((c) => c.text.trim()).map((c) => c.text),
+    ).toEqual(['Alpha', 'Beta', 'Gamma', 'Owner']);
+  });
+  it('keeps a form label across short field dividers that end above the text', () => {
+    const image = renderPage(1100, 1400, [
+      ...gridRects([100, 1000], [300, 550, 800], { thickness: 2 }),
+      ...[400, 700].flatMap((x) => [300, 550].map((y) => ({ x, y, width: 2, height: 180 }))),
+    ]);
+    const lines = [
+      fakeLine(
+        'Vehicle identification number and category',
+        { x: 150, y: 510, width: 700, height: 24 },
+        { width: 1100, height: 1400 },
+        true,
+      ),
+      fakeLine(
+        'Owner',
+        { x: 150, y: 760, width: 180, height: 24 },
+        { width: 1100, height: 1400 },
+        true,
+      ),
+    ];
+    const page = buildDocPage({ image, lines, source: 'form.jpg', skew: 0 });
+    const table = leafBlocks(page).find((b) => b.kind === 'table');
+    expect(
+      table?.kind === 'table' && table.table.cells.filter((c) => c.text.trim()).map((c) => c.text),
+    ).toEqual(lines.map((l) => l.text));
+  });
+  it('keeps parallel form-header paragraphs side by side when their OCR boxes barely overlap', () => {
+    const blocks = [
+      {
+        kind: 'paragraph' as const,
+        text: 'Ministry',
+        box: { x: 20, y: 50, width: 140, height: 60 },
+      },
+      {
+        kind: 'paragraph' as const,
+        text: 'Application title',
+        box: { x: 145, y: 40, width: 600, height: 25 },
+      },
+    ];
+    const result = arrangeUnits([{ box: { x: 20, y: 40, width: 725, height: 70 }, blocks }], 20);
+    expect(result[0]?.kind).toBe('row');
+    expect(result[0]?.kind === 'row' && result[0].cells).toHaveLength(2);
+    expect(leafBlocks({ blocks: result }).map((b) => b.kind === 'paragraph' && b.text)).toEqual([
+      'Ministry',
+      'Application title',
+    ]);
+  });
+  it('places a source-PDF diagram in flow before its editable caption, even when its grid fooled table detection', () => {
+    const f = fixture();
+    const page = buildDocPage({
+      image: f.image,
+      lines: f.lines,
+      source: 'diagram.jpg',
+      // 原始 PDF 已证明这些像素是图；不能再次被表格/短标签的启发式否决。
+      nativeFigures: [f.picture.box],
+    } as Parameters<typeof buildDocPage>[0]);
+    const blocks = leafBlocks(page);
+    expect(blocks.filter((b) => b.kind === 'image')).toHaveLength(1);
+    expect(blocks.find((b) => b.kind === 'image')).toMatchObject({ box: f.picture.box });
+    expect(text(page)).toContain('Figure 1: Pipeline overview.');
+    expect(text(page)).toContain('Ordinary body text');
+    expect(text(page)).not.toContain('Encoder');
+    expect(blocks.every((b) => b.kind !== 'image' || !b.background)).toBe(true);
+  });
+  it('retains existing vertical-text crops while adapting the writing direction of a landscape page', () => {
+    const image = renderPage(1400, 1000, gridRects([700, 850, 1000, 1150], [100, 500, 900]));
+    const lines = [700, 850, 1000].flatMap((x, c) =>
+      [100, 500].map((y, r) => ({
+        text: `Vertical ${r}-${c}`,
+        x: x + 35,
+        y: y + 30,
+        width: 24,
+        height: 180,
+      })),
+    );
+    lines.push(
+      ...[180, 230, 280, 1300].map((x, i) => ({
+        text: `Long header number ${i}`,
+        x,
+        y: 100,
+        width: 24,
+        height: 280,
+      })),
+    );
+    const before = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const after = buildDocPage({
+      image,
+      lines,
+      paper: { width: 840, height: 600 },
+      source: 's',
+      skew: 0,
+    });
+    const pictures = (page: typeof before) =>
+      leafBlocks(page)
+        .filter((b) => b.kind === 'image')
+        .map((b) => b.box);
+    expect(pictures(before).length).toBeGreaterThan(0);
+    expect(pictures(after)).toEqual(pictures(before));
+  });
+
+  it('keeps predominantly rotated table text editable in its source direction', () => {
+    const image = renderPage(1400, 1000, gridRects([100, 240, 380, 520], [100, 360, 620, 880]));
+    const lines = [100, 240, 380].flatMap((x, c) =>
+      [100, 360, 620].map((y, r) => ({
+        text: `Vertical ${r + 1}-${c + 1}`,
+        x: x + 40,
+        y: y + 30,
+        width: 24,
+        height: 180,
+      })),
+    );
+    const page = buildDocPage({
+      image,
+      lines,
+      paper: { width: 840, height: 600 },
+      source: 's',
+      skew: 0,
+    });
+    const table = leafBlocks(page).find((b) => b.kind === 'table');
+    expect(table && 'direction' in table && table.direction).toBe('tbRl');
+    expect(text(page)).toContain('Vertical 3-3');
+  });
+
+  it('centers a symmetric source heading over two lines on known paper', () => {
+    const heading = [
+      line('A source title', 200, 100, 600, 80),
+      line('Over two lines', 200, 180, 600, 80),
+    ];
+    const body = Array.from({ length: 5 }, (_, i) =>
+      line('Editable body text.', 100, 400 + i * 30, 600, 20),
+    );
+    const page = buildDocPage({
+      image: renderPage(size.width, size.height, []),
+      lines: [...heading, ...body],
+      regions: [hint('title', 'doc_title', 200, 100, 600, 160)],
+      paper: { width: 600, height: 840 },
+      source: 's',
+      skew: 0,
+    });
+    const title = leafBlocks(page).find((b) => b.kind === 'paragraph' && b.heading === 1);
+    expect(title && 'align' in title && title.align).toBe('center');
+  });
+
+  it('separates a chart from a false ruled grid while retaining the real data below it', () => {
+    const picture = hint('image', 'chart', 100, 100, 700, 240);
+    const rows = [460, 510, 560].flatMap((y, i) => [
+      line(`Service ${i + 1}`, 120, y, 150),
+      line(`${20 + i}`, 350, y, 80),
+      line(`${40 + i}.50`, 600, y, 90),
+    ]);
+    const image = renderPage(size.width, size.height, [
+      ...gridRects([100, 300, 550, 800], [80, 350, 450, 500, 550, 600]),
+      ...[150, 300, 450, 600].map((x) => ({ x, y: 120, width: 100, height: 180 })),
+    ]);
+    const page = buildDocPage({
+      image,
+      lines: rows,
+      regions: [picture, hint('table', 'table', 100, 450, 700, 150)],
+      source: 's',
+      skew: 0,
+    });
+    expect(leafBlocks(page).filter((b) => b.kind === 'image')).toHaveLength(1);
+    expect(text(page)).toContain('Service 1');
+    expect(text(page)).toContain('42.50');
+    const tables = leafBlocks(page).filter((b) => b.kind === 'table');
+    expect(tables).toHaveLength(1);
+    expect(tables[0]!.box.y).toBeGreaterThanOrEqual(picture.box.y + picture.box.height);
+  });
+
+  it('keeps many short fields editable on a colorful form with an uncaptioned image proposal', () => {
+    const box = { x: 50, y: 100, width: 900, height: 1000 };
+    const fields = Array.from({ length: 18 }, (_, i) =>
+      line(`Field ${i + 1}: ${100 + i}`, 100 + (i % 3) * 260, 150 + Math.floor(i / 3) * 100, 200),
+    );
+    const page = buildDocPage({
+      image: renderPage(size.width, size.height, [box]),
+      lines: fields,
+      regions: [{ kind: 'image', label: 'image', score: 0.95, box }],
+      source: 's',
+      skew: 0,
+    });
+    expect(text(page)).toContain('Field 1: 100');
+    expect(text(page)).toContain('Field 18: 117');
+    expect(leafBlocks(page).filter((b) => b.kind === 'image')).toHaveLength(0);
+  });
+
+  it('uses known paper geometry to keep a clamped body font from inflating a source heading', () => {
+    const page = buildDocPage({
+      image: renderPage(size.width, size.height, []),
+      lines: [
+        line('A large source heading', 100, 100, 700, 40),
+        ...Array.from({ length: 5 }, (_, i) =>
+          line('Ordinary body text on a short line.', 100, 250 + i * 20, 300, 10),
+        ),
+      ],
+      paper: { width: 600, height: 840 },
+      source: 's',
+      skew: 0,
+    });
+    const title = leafBlocks(page).find(
+      (b) => b.kind === 'paragraph' && b.text === 'A large source heading',
+    );
+    expect(title?.kind).toBe('paragraph');
+    expect(title && 'size' in title && title.size).toBeLessThanOrEqual(22);
+  });
+
+  it.each([false, true])('keeps an uncaptioned large illustration whole (fused=%s)', (fused) => {
+    const b = { x: 30, y: 350, width: 940, height: 850 };
+    const image = renderPage(size.width, size.height, [b]);
+    const page = buildDocPage({
+      image,
+      lines: [line('Editable report title', 100, 80, 500)],
+      regions: [{ kind: 'image', label: 'image', score: 0.9, box: b, ...(fused ? { fused } : {}) }],
+      source: 's',
+      skew: 0,
+    });
+    const pictures = leafBlocks(page).filter((b) => b.kind === 'image');
+    expect(pictures).toHaveLength(1);
+    expect(pictures[0]!.box.height).toBeGreaterThanOrEqual(850);
+    expect(text(page)).toContain('Editable report title');
+  });
+
+  it('keeps a confirmed diagram when its grid contributed shared columns to a separate table', () => {
+    const f = fixture();
+    const image = renderPage(size.width, size.height, [
+      ...gridRects([110, 300, 520, 790], [110, 180, 250, 330]),
+      ...gridRects([100, 450, 800], [600, 650, 700, 750]),
+    ]);
+    const data = [610, 660, 710].flatMap((y, i) => [
+      line(`Entry ${i + 1}`, 120, y, 120),
+      line(`${100 + i}`, 480, y, 80),
+    ]);
+    const page = buildDocPage({
+      image,
+      lines: [...f.lines, ...data],
+      regions: [f.picture, f.caption],
+      source: 's',
+      skew: 0,
+    });
+    expect(leafBlocks(page).filter((b) => b.kind === 'image')).toHaveLength(1);
+    expect(text(page)).not.toContain('Encoder');
+    expect(text(page)).toContain('Entry 1');
+    expect(text(page)).toContain('102');
+    const table = leafBlocks(page).find((b) => b.kind === 'table');
+    expect(table?.box.y).toBeGreaterThan(590);
+  });
+
   it('preserves a captioned sparse diagram with long labels before its grid becomes a table', () => {
     const f = fixture();
     const original = f.image.data.slice();

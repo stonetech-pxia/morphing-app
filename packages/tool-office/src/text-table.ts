@@ -227,6 +227,7 @@ function lockedRows(
   spans: readonly { s: Segment; span: [number, number] }[][],
   k: number,
   lineHeight: number,
+  textColumns = false,
 ): boolean {
   const mid = (seg: Segment) => median(seg.lines.map((l) => l.y + l.height / 2));
   const right = spans.filter((row) => row.some((x) => x.span[0] > k));
@@ -239,7 +240,7 @@ function lockedRows(
   return (
     both.length >= MIN_ROWS &&
     both.length >= LOCKED_SHARE * right.length &&
-    segs.filter(isNumber).length >= LOCKED_SHARE * segs.length
+    (textColumns || segs.filter(isNumber).length >= LOCKED_SHARE * segs.length)
   );
 }
 
@@ -284,11 +285,13 @@ export function findTextTables(
   lines: readonly OcrBox[],
   lineHeight: number,
   original: (l: OcrBox) => OcrBox = (l) => l,
+  /** 已被可信表格区域圈定：仍要求多排对齐，但隔得远的列也可以是姓名、状态等文字。 */
+  textColumns = false,
 ): TextTable[] {
   const rows = textRows(lines, lineHeight);
   // 先找三列以上的表，再在剩下的排里找两列的清单（D-503）：两列的「项目 → 金额」不能抢三列的表的排
   // （小票的合计把下面的 GST 汇总吞进一张两列的表、压成两列，或者先拿走汇总上面的几排、汇总凑不成表）。
-  const wide = runTables(rows, lineHeight, original, false);
+  const wide = runTables(rows, lineHeight, original, false, textColumns);
   const used = new Set(wide.flatMap(({ from, to }) => rows.slice(from, to + 1)));
   // 三列以上的表下面紧挨着的一两排、自己凑不成表（小票的 GST 汇总：表头一排、数一排）：
   // 能按这张表的列排（每段从不同的列开始），就接到这张表下面，列不重算（D-503）。
@@ -323,6 +326,7 @@ function runTables(
   lineHeight: number,
   original: (l: OcrBox) => OcrBox,
   twoColumns: boolean,
+  textColumns = false,
 ): { table: TextTable; bands: Band[]; from: number; to: number }[] {
   const out: { table: TextTable; bands: Band[]; from: number; to: number }[] = [];
   let i = 0;
@@ -363,7 +367,14 @@ function runTables(
         if (!close(rows[k]!.top - rows[k - 1]!.bottom)) break;
         near.push(rows[k]!);
       }
-      const hit = tableOf(rows.slice(i, end + 1), lineHeight, original, near, twoColumns);
+      const hit = tableOf(
+        rows.slice(i, end + 1),
+        lineHeight,
+        original,
+        near,
+        twoColumns,
+        textColumns,
+      );
       if (hit) found = { ...hit, end };
     }
     if (found) {
@@ -380,6 +391,7 @@ function tableOf(
   original: (l: OcrBox) => OcrBox,
   near: readonly TextRow[] = [],
   twoColumns = false,
+  textColumns = false,
 ): { table: TextTable; bands: Band[] } | null {
   const bands = columnBands(run);
   if (bands.length < 2) return null;
@@ -391,7 +403,7 @@ function tableOf(
     .slice(1)
     .map((b, k) => k)
     .filter((k) => bands[k + 1]!.x - bands[k]!.right > MAX_COL_GAP * lineHeight);
-  if (far.some((k) => !lockedRows(spans, k, lineHeight))) return null;
+  if (far.some((k) => !lockedRows(spans, k, lineHeight, textColumns))) return null;
   // 表上下紧挨着有只在远处那几列、左边没字的数：数列整体错开了几排（拍得很斜、没拉平的照片，
   // 碰巧对齐的是别的项目），按排配会配错，不成表（D-502）。
   const stray = (row: TextRow, k: number) =>
@@ -515,6 +527,7 @@ export function findBarcodes(
   image: RgbaImage,
   lines: readonly OcrBox[],
   lineHeight: number,
+  localText = false,
 ): Box[] {
   const { width, height, data } = image;
   const step = Math.max(2, Math.round(lineHeight / 4));
@@ -526,7 +539,7 @@ export function findBarcodes(
   for (let y = 0; y < height; y += step) {
     if (covered(y)) {
       skipped.add(y);
-      continue;
+      if (!localText) continue;
     }
     // 这一行的亮度，用这一行的平均值分黑白。
     const lum = new Float32Array(width);
@@ -534,8 +547,16 @@ export function findBarcodes(
     for (let x = 0; x < width; x++) {
       const o = (y * width + x) * 4;
       lum[x] = 0.299 * data[o]! + 0.587 * data[o + 1]! + 0.114 * data[o + 2]!;
-      sum += lum[x]!;
     }
+    if (localText)
+      for (const l of lines)
+        if (y >= l.y - pad && y <= l.y + l.height + pad)
+          lum.fill(
+            255,
+            Math.max(0, Math.floor(l.x - pad)),
+            Math.min(width, Math.ceil(l.x + l.width + pad)),
+          );
+    for (const v of lum) sum += v;
     const mean = sum / width;
     let prev = lum[0]! < mean;
     let count = 0;
@@ -559,7 +580,21 @@ export function findBarcodes(
       min = Math.min(min, lum[x]!);
       max = Math.max(max, lum[x]!);
     }
-    if (count >= BAR_TRANSITIONS && max - min > 80) hits.push({ y, x0, x1, edges });
+    if (count >= BAR_TRANSITIONS && max - min > 80) {
+      if (!localText) hits.push({ y, x0, x1, edges });
+      else {
+        // 零星页框不能把裁图拉到旁边的字段；分开的两组竖条也各自保留。
+        const clusters: number[][] = [];
+        for (const x of edges) {
+          const last = clusters.at(-1);
+          if (last && x - last.at(-1)! <= Math.max(lineHeight, width / 100)) last.push(x);
+          else clusters.push([x]);
+        }
+        for (const group of clusters)
+          if (group.length >= BAR_TRANSITIONS)
+            hits.push({ y, x0: group[0]!, x1: group.at(-1)!, edges: group });
+      }
+    }
   }
   // 竖条上下是同一根：相邻两条横线上的黑白交替大多在同样的位置（字的笔画、照片的纹理不会）。
   const sameBars = (a: number[], b: number[]) => {
@@ -574,6 +609,29 @@ export function findBarcodes(
   };
   // 连着的几条横线合成一片。
   const out: Box[] = [];
+  if (localText) {
+    const groups: (typeof hits)[] = [];
+    for (const hit of hits) {
+      const group = groups.find((g) => {
+        const last = g.at(-1)!;
+        return hit.y > last.y && hit.y - last.y <= 2 * step && sameBars(last.edges, hit.edges);
+      });
+      if (group) group.push(hit);
+      else groups.push([hit]);
+    }
+    for (const group of groups) {
+      if (group.length < 2 || group.at(-1)!.y - group[0]!.y + step < lineHeight) continue;
+      const x0 = median(group.map((g) => g.x0)),
+        x1 = median(group.map((g) => g.x1));
+      out.push({
+        x: Math.round(x0),
+        y: group[0]!.y,
+        width: Math.round(x1 - x0),
+        height: Math.min(height, group.at(-1)!.y + step) - group[0]!.y,
+      });
+    }
+    return out;
+  }
   let group: typeof hits = [];
   const flush = () => {
     if (group.length >= 2 && group.at(-1)!.y - group[0]!.y + step >= lineHeight) {

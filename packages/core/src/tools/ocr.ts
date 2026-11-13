@@ -156,7 +156,7 @@ export const OCR_ACTIONS: readonly ActionDefinition[] = [
     ],
     // 要每行文字的位置：只用本机的识别（和转 Excel 一样）；版面分析模型由 App 另外问（可选）。
     requires: [],
-    ai: '"Photo / scan of a document, letter or book page to Word, 拍文档转 Word, 图片转 Word" → in.photos (source "scanner" for paper, then scan.detect → scan.enhance mode "auto"; library photos and screenshots go straight in) → ocr.toWord; lang "auto" unless they name the language. A scanned PDF: in.files accept "pdf" → pdf.toImages first. It makes one .docx (a page per image) that the user can check and edit on the result page. A digital PDF to an editable Word file keeping its layout is not supported.',
+    ai: '"Photo / scan of a document, letter or book page to Word, 拍文档转 Word, 图片转 Word" → in.photos (source "scanner" for paper, then scan.detect → scan.enhance mode "auto"; library photos and screenshots go straight in) → ocr.toWord; lang "auto" unless they name the language. A scanned PDF: in.files accept "pdf" → pdf.toImages first. It makes one .docx (a page per image) that the user can check and edit on the result page. For a digital PDF, use in.files accept "pdf" → pdf.toImages → ocr.toWord too: available source graphics and paper size are retained locally, while body text is reconstructed as editable paragraphs and tables. Exact fonts and reading order are not guaranteed.',
     phrases: [
       {
         match:

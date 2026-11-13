@@ -4,6 +4,7 @@ import {
   decodeUtf8,
   type RunItem,
   type RunResult,
+  type RunValue,
   type Workflow,
 } from '@morph/core';
 import { parseDocDoc, type LayoutRegion } from '@morph/tool-office';
@@ -13,7 +14,8 @@ import { strFromU8, unzipSync } from 'fflate';
 import type { RecognizedLine } from '../runtime/platform';
 import { devicePack, startRun } from '../runtime/runner';
 import { MemoryWorkspaceRepo } from '../storage/memory';
-import { FakeFiles, FakeVision } from '../test-utils/fake-files';
+import { FakeFiles, FakeVision, makePng, makePdf } from '../test-utils/fake-files';
+import type { PackRuntime } from '../packs/bridge';
 
 // 扫描件转 Word（D-328）的执行：像素只解码一次（认字、找线、版面分析共用）；版面分析模型没装或出错时
 // 只按位置分段；图片区域按比例从原图剪下来嵌进 docx；结果是一个 docx，旁边存一份 DocDoc。
@@ -48,7 +50,12 @@ const regions: LayoutRegion[] = [
 ];
 
 let ids = 0;
-function setup(steps: Workflow['steps'], visionOn = true) {
+function setup(
+  steps: Workflow['steps'],
+  visionOn = true,
+  input?: () => RunValue | null,
+  pack?: PackRuntime,
+) {
   const files = new FakeFiles();
   const vision = new FakeVision(files);
   if (visionOn) files.vision = vision;
@@ -65,7 +72,8 @@ function setup(steps: Workflow['steps'], visionOn = true) {
         now: () => new Date(2026, 9, 29),
         newId: () => `id${++ids}`,
         ui: { confirm: async () => false, choose: async () => null, open: async () => null },
-        packs: null,
+        packs: pack ? { runtime: pack, isInstalled: async () => true } : null,
+        handed: input?.() ?? null,
         askParams: async (request) => request.params,
       })
     ).result;
@@ -94,6 +102,135 @@ function onePage(vision: FakeVision) {
 }
 
 describe('ocr.toWord (D-328)', () => {
+  it('keeps only an explicit decorative background behind editable body text', async () => {
+    let input: RunValue | null = null;
+    const png = await makePng(100, 140);
+    const calls: { method: string; files: Record<string, string> }[] = [];
+    const pack: PackRuntime = {
+      call: async <T>(
+        _page: 'pdfview' | 'scan' | 'ocr',
+        method: string,
+        _args: Record<string, unknown>,
+        files: Record<string, string> = {},
+      ) => {
+        calls.push({ method, files });
+        return {
+          applicable: true,
+          paper: { width: 595.3, height: 841.9 },
+          width: 100,
+          height: 140,
+          backgroundPng: btoa(String.fromCharCode(...png)),
+          crops: [],
+          owned: [],
+          colors: [],
+        } as T;
+      },
+    };
+    const { files, vision, run } = setup([word()], true, () => input, pack);
+    const photo = files.offerImage('page.jpg', W, H),
+      pdf = files.offer('source.pdf', await makePdf(1));
+    input = {
+      type: 'images',
+      items: [
+        {
+          uri: photo.uri,
+          name: 'page',
+          ext: 'jpg',
+          mimeType: 'image/jpeg',
+          size: photo.size ?? 0,
+          pdfSource: { for: photo.uri, uri: pdf.uri, page: 0 },
+        },
+      ],
+    };
+    onePage(vision);
+    const item = resultItem(await run());
+    const { xml, names } = await documentXml(files, item);
+    expect(xml).toContain('年度报告');
+    expect(xml).toContain('behindDoc="1"');
+    expect(xml).toContain('relativeFrom="page"');
+    expect(names).toContain('word/media/image1.png');
+    expect(calls).toEqual([{ method: 'graphics', files: { input: pdf.uri } }]);
+  });
+  it('does not read a stale PDF source after an image was changed', async () => {
+    let input: RunValue | null = null;
+    const pack: PackRuntime = {
+      call: jest.fn(async () => {
+        throw Error('stale source must not be read');
+      }),
+    };
+    const { files, vision, run } = setup([word()], true, () => input, pack);
+    const photo = files.offerImage('edited.jpg', W, H);
+    input = {
+      type: 'images',
+      items: [
+        {
+          uri: photo.uri,
+          name: 'edited',
+          ext: 'jpg',
+          mimeType: 'image/jpeg',
+          size: 0,
+          pdfSource: { for: 'original.jpg', uri: 'source.pdf', page: 0 },
+        },
+      ],
+    };
+    onePage(vision);
+    const { xml } = await documentXml(files, resultItem(await run()));
+    expect(xml).toContain('年度报告');
+    expect(pack.call).not.toHaveBeenCalled();
+  });
+  it('does not reuse paper metadata belonging to an earlier image URI', async () => {
+    let input: RunValue | null = null;
+    const { files, vision, run } = setup([word()], true, () => input);
+    const photo = files.offerImage('edited.jpg', W, H);
+    input = {
+      type: 'images',
+      items: [
+        {
+          uri: photo.uri,
+          name: photo.name,
+          width: W,
+          height: H,
+          ext: 'jpg',
+          mimeType: 'image/jpeg',
+          size: photo.size ?? 0,
+          pageSize: { for: 'file:///previous.jpg', width: 595, height: 255 },
+        },
+      ],
+    };
+    onePage(vision);
+    const item = resultItem(await run());
+    const doc = parseDocDoc(decodeUtf8(await files.readUri(item.docDoc!.uri)))!;
+    expect(doc.pages[0]!.paper).toEqual({ width: 595.3, height: 841.9 });
+  });
+
+  it('carries an authoritative source page size from the current image to its editable Word and export', async () => {
+    let input: RunValue | null = null;
+    const { files, vision, run } = setup([word()], true, () => input);
+    const photo = files.offerImage('ticket.jpg', W, H);
+    input = {
+      type: 'images',
+      items: [
+        {
+          uri: photo.uri,
+          name: photo.name,
+          width: W,
+          height: H,
+          ext: 'jpg',
+          mimeType: 'image/jpeg',
+          size: photo.size ?? 0,
+          pageSize: { for: photo.uri, width: 595.28, height: 255.12 },
+        },
+      ],
+    };
+    onePage(vision);
+    const item = resultItem(await run());
+    const doc = parseDocDoc(decodeUtf8(await files.readUri(item.docDoc!.uri)))!;
+    expect(doc.version).toBe(5);
+    expect(doc.pages[0]!.paper).toEqual({ width: 595.28, height: 255.12 });
+    const { xml } = await documentXml(files, item);
+    expect(xml).toContain('w:h="5102" w:orient="landscape"');
+  });
+
   it('exports a wrapped reference range as one editable paragraph without a forced line break', async () => {
     const { files, vision, run } = setup([pick, word('eng')]);
     files.nextPhotos = [files.offerImage('reference.jpg', W, H)];
@@ -204,7 +341,8 @@ describe('ocr.toWord (D-328)', () => {
     const item = resultItem(await run());
     expect(item).toMatchObject({ name: '文档-2026-10-29', ext: 'docx' });
     const { xml } = await documentXml(files, item);
-    expect(xml.match(/<w:pageBreakBefore\/>/g)).toHaveLength(1);
+    expect(xml.match(/<w:sectPr>/g)).toHaveLength(2);
+    expect(xml.match(/<w:type w:val="nextPage"\/>/g)).toHaveLength(1);
   });
 
   it('says so when the device can’t read that language, and fails when nothing was read', async () => {

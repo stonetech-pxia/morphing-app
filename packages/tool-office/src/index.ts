@@ -4,6 +4,7 @@
 export * from './build';
 export * from './doc';
 export * from './doc-edit';
+export * from './doc-native';
 export * from './doc-runs';
 export * from './docx';
 export * from './docx-import';

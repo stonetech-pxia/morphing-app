@@ -1,7 +1,7 @@
 import { strFromU8, unzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 
-import type { DocDoc, DocPage, DocTable } from './doc';
+import { textEm, type DocDoc, type DocPage, type DocTable } from './doc';
 import { writeDocx } from './docx';
 
 const box = { x: 100, y: 100, width: 400, height: 40 };
@@ -20,6 +20,369 @@ const unzip = (bytes: Uint8Array) => {
 };
 
 describe('writeDocx', () => {
+  it('includes source label insets when measuring the content that can enlarge a table row', () => {
+    const b = { x: 50, y: 100, width: 800, height: 20 };
+    const table: DocTable = {
+      kind: 'table',
+      box: b,
+      colWidths: [800],
+      cellLayout: [{ row: 0, col: 0, lines: [{ x: 50, y: 119, width: 100, height: 1 }] }],
+      table: {
+        kind: 'table',
+        box: b,
+        col: 0,
+        rows: 1,
+        cols: 1,
+        cells: [{ row: 0, col: 0, rowSpan: 1, colSpan: 1, box: b, text: 'Label' }],
+      },
+    };
+    const xml = unzip(
+      writeDocx({ version: 4, pages: [{ ...page([table]), paper: { width: 600, height: 840 } }] }),
+    ).text('word/document.xml');
+    const cell = xml.slice(xml.indexOf('<w:tc>'));
+    const gap = Number(cell.match(/<w:spacing w:before="(\d+)"/)?.[1]);
+    const row = Number(xml.match(/<w:trHeight w:val="(\d+)"/)?.[1]);
+    expect(gap).toBeGreaterThan(0);
+    expect(row).toBeGreaterThanOrEqual(gap + Math.round(10 * 1.18 * 20));
+  });
+  it('uses spare width for a short label in the last column of a nested layout row', () => {
+    const p: DocPage = {
+      ...page(
+        [
+          {
+            kind: 'row',
+            box: { x: 50, y: 100, width: 850, height: 80 },
+            cells: [
+              {
+                width: 450,
+                blocks: [
+                  {
+                    kind: 'paragraph',
+                    text: 'Passenger',
+                    box: { x: 50, y: 100, width: 150, height: 20 },
+                  },
+                  {
+                    kind: 'paragraph',
+                    text: 'FLIGHT',
+                    box: { x: 360, y: 100, width: 40, height: 20 },
+                  },
+                  {
+                    kind: 'paragraph',
+                    text: 'Name and flight number',
+                    box: { x: 50, y: 135, width: 350, height: 20 },
+                  },
+                ],
+              },
+              {
+                width: 400,
+                blocks: [
+                  {
+                    kind: 'paragraph',
+                    text: 'Date and destination',
+                    box: { x: 500, y: 100, width: 350, height: 20 },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        10,
+      ),
+      paper: { width: 600, height: 840 },
+    };
+    const xml = unzip(writeDocx({ version: 4, pages: [p] })).text('word/document.xml');
+    const grids = xml.match(/<w:tblGrid>.*?<\/w:tblGrid>/g)!;
+    const widths = [...grids[1]!.matchAll(/w:w="(\d+)"/g)].map((m) => Number(m[1]));
+    expect(widths.at(-1)).toBeGreaterThanOrEqual(Math.ceil(textEm('FLIGHT') * 10 * 20 + 160));
+  });
+  it('reserves the painted border in the minimum height of a tightly packed text row', () => {
+    const b = { x: 50, y: 100, width: 800, height: 2 };
+    const t: DocTable = {
+      kind: 'table',
+      box: b,
+      colWidths: [800],
+      table: {
+        kind: 'table',
+        box: b,
+        col: 0,
+        cols: 1,
+        rows: 1,
+        cells: [{ row: 0, col: 0, rowSpan: 1, colSpan: 1, box: b, text: 'Label' }],
+      },
+    };
+    const xml = unzip(
+      writeDocx({ version: 4, pages: [{ ...page([t]), paper: { width: 600, height: 840 } }] }),
+    ).text('word/document.xml');
+    expect(Number(xml.match(/<w:trHeight w:val="(\d+)"/)?.[1])).toBeGreaterThanOrEqual(246);
+  });
+  it('uses the physical vertical scale after OCR padded the raster to another aspect ratio', () => {
+    const p: DocPage = {
+      ...page([
+        { kind: 'paragraph', text: 'Body', box: { x: 20, y: 1000, width: 500, height: 30 } },
+      ]),
+      height: 1500,
+      paper: { width: 600, height: 840 },
+      margins: { top: 0, left: 0, right: 0, bottom: 0 },
+    };
+    expect(unzip(writeDocx({ version: 4, pages: [p] })).text('word/document.xml')).toContain(
+      '<w:spacing w:before="11200"',
+    );
+  });
+  it('does not charge the full vertical gap of a merged cell to its first row', () => {
+    const b = { x: 50, y: 100, width: 800, height: 200 };
+    const t: DocTable = {
+      kind: 'table',
+      box: b,
+      colWidths: [400, 400],
+      cellLayout: [
+        {
+          row: 0,
+          col: 0,
+          lines: [
+            { x: 70, y: 110, width: 200, height: 20 },
+            { x: 70, y: 270, width: 200, height: 20 },
+          ],
+        },
+      ],
+      table: {
+        kind: 'table',
+        box: b,
+        col: 0,
+        cols: 2,
+        rows: 2,
+        cells: [
+          {
+            row: 0,
+            col: 0,
+            rowSpan: 2,
+            colSpan: 1,
+            box: { ...b, width: 400 },
+            text: 'Top\nBottom',
+          },
+          ...[0, 1].map((row) => ({
+            row,
+            col: 1,
+            rowSpan: 1,
+            colSpan: 1,
+            box: { x: 450, y: 100 + 100 * row, width: 400, height: 100 },
+            text: 'Value',
+          })),
+        ],
+      },
+    };
+    const xml = unzip(
+      writeDocx({ version: 4, pages: [{ ...page([t]), paper: { width: 600, height: 840 } }] }),
+    ).text('word/document.xml');
+    const cell = xml.slice(xml.indexOf('<w:tc>'), xml.indexOf('</w:tc>'));
+    expect(cell.match(/w:before="0"/g)).toHaveLength(2);
+    expect(cell).toContain('<w:vAlign w:val="center"/>');
+    expect(cell).not.toContain('w:lineRule="exact"');
+  });
+  it('keeps a form label below its empty writing area using normal cell paragraph spacing', () => {
+    const table: DocTable = {
+      kind: 'table',
+      box: { x: 50, y: 100, width: 800, height: 100 },
+      colWidths: [800],
+      cellLayout: [{ row: 0, col: 0, lines: [{ x: 70, y: 160, width: 300, height: 20 }] }],
+      table: {
+        kind: 'table',
+        col: 0,
+        cols: 1,
+        rows: 1,
+        box: { x: 50, y: 100, width: 800, height: 100 },
+        cells: [
+          {
+            row: 0,
+            col: 0,
+            rowSpan: 1,
+            colSpan: 1,
+            text: 'Label',
+            box: { x: 50, y: 100, width: 800, height: 100 },
+          },
+        ],
+      },
+    } as DocTable;
+    const xml = unzip(
+      writeDocx({ version: 3, pages: [{ ...page([table]), paper: { width: 600, height: 840 } }] }),
+    ).text('word/document.xml');
+    const before = Number(
+      xml.slice(xml.indexOf('<w:tc>')).match(/<w:spacing w:before="(\d+)"/)?.[1],
+    );
+    expect(before).toBeGreaterThan(600);
+    expect(before).toBeLessThan(720);
+    expect(xml).toContain('<w:ind w:left="240"');
+    expect(xml).not.toContain('<w:txbxContent>');
+  });
+  it('keeps editable table rows at their source heights using the vertical paper scale', () => {
+    const table: DocTable = {
+      kind: 'table',
+      box: { x: 50, y: 100, width: 800, height: 200 },
+      colWidths: [800],
+      table: {
+        kind: 'table',
+        col: 0,
+        cols: 1,
+        rows: 2,
+        box: { x: 50, y: 100, width: 800, height: 200 },
+        cells: [0, 1].map((row) => ({
+          row,
+          col: 0,
+          rowSpan: 1,
+          colSpan: 1,
+          text: 'Label',
+          box: { x: 50, y: 100 + row * 100, width: 800, height: 100 },
+        })),
+      },
+    };
+    const xml = unzip(
+      writeDocx({ version: 3, pages: [{ ...page([table]), paper: { width: 600, height: 840 } }] }),
+    ).text('word/document.xml');
+    expect(xml.match(/<w:trHeight w:val="1190" w:hRule="atLeast"\/>/g)).toHaveLength(2);
+  });
+  it('gives required table separator paragraphs an explicit one-point line height', () => {
+    const table: DocTable = {
+      kind: 'table',
+      box,
+      colWidths: [400],
+      table: {
+        kind: 'table',
+        box,
+        col: 0,
+        cols: 1,
+        rows: 1,
+        cells: [{ row: 0, col: 0, rowSpan: 1, colSpan: 1, text: 'Editable value' }],
+      },
+    };
+    const xml = unzip(writeDocx({ version: 3, pages: [page([table])] })).text('word/document.xml');
+    expect(xml).toContain('<w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/>');
+  });
+  it('preserves a blank source page between two populated pages', () => {
+    const paper = { width: 595.3, height: 841.9 };
+    const first = {
+      ...page([{ kind: 'paragraph' as const, text: 'First source page', box }]),
+      paper,
+    };
+    const blank = { ...page([]), paper };
+    const third = {
+      ...page([{ kind: 'paragraph' as const, text: 'Third source page', box }]),
+      paper,
+    };
+    const xml = unzip(writeDocx({ version: 2, pages: [first, blank, third] })).text(
+      'word/document.xml',
+    );
+    expect(xml.match(/<w:sectPr>/g)).toHaveLength(3);
+    expect(xml.match(/<w:type w:val="nextPage"\/>/g)).toHaveLength(2);
+    expect(xml).toContain('First source page');
+    expect(xml).toContain('Third source page');
+  });
+
+  it('gives rotated table cells their source text direction and vertical writing room', () => {
+    const table: DocTable = {
+      kind: 'table',
+      direction: 'tbRl',
+      box,
+      colWidths: [200, 200],
+      size: 12,
+      table: {
+        kind: 'table',
+        box,
+        col: 0,
+        cols: 2,
+        rows: 1,
+        cells: [0, 1].map((col) => ({
+          row: 0,
+          col,
+          rowSpan: 1,
+          colSpan: 1,
+          text: 'Vertical label',
+          box: { x: 100 + col * 200, y: 100, width: 200, height: 400 },
+        })),
+      },
+    };
+    const xml = unzip(
+      writeDocx({ version: 2, pages: [{ ...page([table]), paper: { width: 840, height: 600 } }] }),
+    ).text('word/document.xml');
+    expect(xml.match(/<w:textDirection w:val="tbRl"\/>/g)).toHaveLength(2);
+    expect(xml).toContain('<w:trHeight w:val="6710" w:hRule="atLeast"/>');
+  });
+
+  it('does not enlarge recognized table fonts when source margins make more horizontal room', () => {
+    const tables: DocTable[] = Array.from({ length: 4 }, (_, i) => ({
+      kind: 'table',
+      box: { x: 40 + i * 230, y: 200, width: 230, height: 80 },
+      colWidths: [230],
+      size: 12,
+      table: {
+        kind: 'table',
+        col: 0,
+        cols: 1,
+        rows: 1,
+        box,
+        cells: [{ row: 0, col: 0, rowSpan: 1, colSpan: 1, text: `Field ${i + 1}` }],
+      },
+    }));
+    const sheet = {
+      ...page([
+        {
+          kind: 'row',
+          box: { x: 40, y: 200, width: 920, height: 80 },
+          cells: tables.map((t) => ({ width: 230, blocks: [t] })),
+        },
+      ]),
+      paper: { width: 595.3, height: 841.9 },
+    };
+    const sizes = (margins?: DocPage['margins']) => {
+      const xml = unzip(
+        writeDocx({ version: 2, pages: [{ ...sheet, ...(margins ? { margins } : {}) }] }),
+      ).text('word/document.xml');
+      return [...xml.matchAll(/<w:sz w:val="(\d+)"\/>/g)].map((m) => m[1]);
+    };
+    expect(sizes({ top: 10, left: 10, right: 10, bottom: 10 })).toEqual(sizes());
+  });
+
+  it('preserves the smaller label and larger value sizes carried by cells', () => {
+    const table: DocTable = {
+      kind: 'table',
+      box,
+      colWidths: [200, 200],
+      size: 12,
+      table: {
+        kind: 'table',
+        box,
+        col: 0,
+        cols: 2,
+        rows: 1,
+        cells: [
+          { row: 0, col: 0, rowSpan: 1, colSpan: 1, text: 'Label', size: 9 },
+          { row: 0, col: 1, rowSpan: 1, colSpan: 1, text: '118.40', size: 18 },
+        ],
+      },
+    };
+    const xml = unzip(writeDocx({ version: 1, pages: [page([table])] })).text('word/document.xml');
+    expect(xml).toMatch(/<w:sz w:val="18"\/>[^]*?>Label<\/w:t>/);
+    expect(xml).toMatch(/<w:sz w:val="36"\/>[^]*?>118.40<\/w:t>/);
+    expect(xml).toMatch(
+      /<\/w:tbl><w:p><w:pPr>(?:<w:spacing[^>]*\/>)?<w:rPr>[^]*?<w:sz w:val="2"\/>/,
+    );
+  });
+
+  it('writes per-page source paper sizes, including a small landscape ticket, without extra page breaks', () => {
+    const first = {
+      ...page([{ kind: 'paragraph' as const, text: 'Ticket', box }]),
+      paper: { width: 595.28, height: 255.12 },
+    };
+    const second = {
+      ...page([{ kind: 'paragraph' as const, text: 'Letter', box }]),
+      paper: { width: 612, height: 792 },
+    };
+    const xml = unzip(writeDocx({ version: 1, pages: [first, second] })).text('word/document.xml');
+    expect(xml).toContain('<w:pgSz w:w="11906" w:h="5102" w:orient="landscape"/>');
+    expect(xml).toContain('<w:pgSz w:w="12240" w:h="15840"/>');
+    expect(xml.match(/<w:sectPr>/g)).toHaveLength(2);
+    expect(xml).not.toContain('<w:pageBreakBefore/>');
+    expect(xml).toContain('<w:type w:val="nextPage"/>');
+  });
+
   it('writes explicit data-table cell margins consistent with its text-width budget, including nested tables', () => {
     const table: DocTable = {
       kind: 'table',
@@ -229,6 +592,101 @@ describe('writeDocx', () => {
     expect(widths[1]! - 160).toBeGreaterThanOrEqual(103.3 * 20);
     expect(widths.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(9638);
     expect(xml).toContain('>Bill to: Elena Martin</w:t>');
+  });
+
+  it('keeps a short right-aligned page label on one line even when it contains a space', () => {
+    const p: DocPage = {
+      ...page(
+        [
+          {
+            kind: 'row',
+            box: { x: 80, y: 90, width: 1370, height: 34 },
+            cells: [
+              {
+                width: 1295,
+                blocks: [
+                  {
+                    kind: 'paragraph',
+                    text: 'Form title',
+                    size: 7.5,
+                    box: { x: 80, y: 90, width: 140, height: 27 },
+                  },
+                ],
+              },
+              {
+                width: 73,
+                blocks: [
+                  {
+                    kind: 'paragraph',
+                    text: 'Page 5',
+                    align: 'right',
+                    box: { x: 1377, y: 90, width: 73, height: 34 },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        12,
+      ),
+      width: 1536,
+      height: 2016,
+      paper: { width: 612, height: 792 },
+      margins: { left: 33, right: 33, top: 34, bottom: 20 },
+    };
+    const xml = unzip(writeDocx({ version: 4, pages: [p] })).text('word/document.xml');
+    const widths = [...xml.matchAll(/<w:gridCol w:w="(\d+)"/g)].map((m) => Number(m[1]));
+    expect(widths.at(-1)).toBeGreaterThanOrEqual(Math.ceil(textEm('Page 5') * 12 * 20 + 160));
+    expect(widths.reduce((n, w) => n + w, 0)).toBeLessThanOrEqual((612 - 66) * 20);
+  });
+  it('keeps a short right-aligned label unbroken when a prose row must shrink to the page', () => {
+    const doc: DocDoc = {
+      version: 1,
+      pages: [
+        {
+          source: 's',
+          width: 1408,
+          height: 2016,
+          bodySize: 12,
+          blocks: [
+            {
+              kind: 'row',
+              box: { x: 116, y: 847, width: 1177, height: 72 },
+              cells: [
+                {
+                  width: 1126,
+                  blocks: [
+                    {
+                      kind: 'paragraph',
+                      text: 'Calculate the height reached by the object and explain the answer.',
+                      box: { x: 116, y: 851, width: 1020, height: 30 },
+                    },
+                  ],
+                },
+                {
+                  width: 51,
+                  blocks: [
+                    {
+                      kind: 'paragraph',
+                      text: '[6]',
+                      align: 'right',
+                      box: { x: 1242, y: 847, width: 51, height: 42 },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const zip = unzipSync(writeDocx(doc));
+    const xml = strFromU8(zip['word/document.xml']!);
+    const widths = [...xml.matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].map((m) => Number(m[1]));
+    // Arial 12 pt 的 [6] 约 13.35 pt，加左右各 4 pt 的格内边距。
+    expect(widths[1]! - 160).toBeGreaterThanOrEqual(13.35 * 20);
+    expect(widths.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(9638);
+    expect(xml).toContain('[6]');
   });
 
   it('preserves a table’s horizontal position and keeps its width inside the page', () => {
@@ -479,6 +937,95 @@ describe('writeDocx', () => {
     expect(xml).not.toContain('<w:p/>');
   });
 
+  it('retains source picture size when even the smallest picture cannot fit overflowing editable text', () => {
+    const image = {
+      kind: 'image' as const,
+      src: 'picture',
+      box: { x: 50, y: 50, width: 600, height: 200 },
+    };
+    const images = new Map([
+      ['picture', { bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), width: 600, height: 200 }],
+    ]);
+    const extent = (blocks: DocPage['blocks']) =>
+      Number(
+        unzip(
+          writeDocx(
+            { version: 4, pages: [{ ...page(blocks), paper: { width: 600, height: 840 } }] },
+            images,
+          ),
+        )
+          .text('word/document.xml')
+          .match(/<wp:extent cx="(\d+)"/)?.[1],
+      );
+    expect(
+      extent([
+        image,
+        {
+          kind: 'paragraph',
+          box: { x: 50, y: 270, width: 800, height: 1000 },
+          text: 'Editable body text '.repeat(2000),
+        },
+      ]),
+    ).toBe(extent([image]));
+  });
+  it('shrinks flowing pictures only after source whitespace cannot fit normal editable text on the page', () => {
+    const image = {
+      kind: 'image' as const,
+      src: 'picture',
+      box: { x: 0, y: 0, width: 900, height: 1200 },
+    };
+    const images = new Map([
+      ['picture', { bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), width: 900, height: 1200 }],
+    ]);
+    const extent = (blocks: DocPage['blocks']) =>
+      Number(
+        unzip(
+          writeDocx(
+            { version: 4, pages: [{ ...page(blocks), paper: { width: 600, height: 840 } }] },
+            images,
+          ),
+        )
+          .text('word/document.xml')
+          .match(/<wp:extent cx="(\d+)"/)?.[1],
+      );
+    expect(
+      extent([
+        image,
+        {
+          kind: 'paragraph',
+          box: { x: 0, y: 1210, width: 900, height: 180 },
+          text: 'Large editable heading spans several normal text lines',
+          size: 48,
+        },
+      ]),
+    ).toBeLessThan(extent([image]));
+  });
+  it('keeps inline image line metrics independent of the surrounding body font', () => {
+    for (const bodySize of [8, 24]) {
+      const xml = unzip(
+        writeDocx(
+          {
+            version: 4,
+            pages: [
+              {
+                ...page([{ kind: 'image', src: 'picture', box }], bodySize),
+                paper: { width: 600, height: 840 },
+              },
+            ],
+          },
+          new Map([
+            [
+              'picture',
+              { bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), width: 400, height: 40 },
+            ],
+          ]),
+        ),
+      ).text('word/document.xml');
+      expect(xml).toContain(
+        '<w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr><w:drawing><wp:inline',
+      );
+    }
+  });
   it('embeds cropped images and skips image blocks without one; each page starts on a new page', () => {
     const jpg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
     const doc: DocDoc = {

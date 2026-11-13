@@ -21,12 +21,16 @@ import {
 const MIN_PX = 7;
 
 /** 字号（磅）在宽 pageWidth 点的一页上画多大（点）。 */
-const fontPx = (size: number, pageWidth: number) =>
-  Math.max(MIN_PX, Math.round((size * pageWidth) / A4_WIDTH_PT));
+const fontPx = (size: number, pageWidth: number, paperWidth = A4_WIDTH_PT) =>
+  Math.max(MIN_PX, Math.round((size * pageWidth) / paperWidth));
 
 /** 段落、列表整块的字画多大（点）：识别出字号的标题照它的大小（D-463）；没有字号时（旧的结果）照旧放大。 */
 function blockFontPx(block: DocLeaf, page: DocPage, pageWidth: number): number {
-  const px = fontPx(('size' in block ? block.size : undefined) ?? page.bodySize, pageWidth);
+  const px = fontPx(
+    ('size' in block ? block.size : undefined) ?? page.bodySize,
+    pageWidth,
+    page.paper?.width,
+  );
   if (block.kind === 'paragraph' && block.heading && !block.size) {
     return Math.max(px, block.heading === 1 ? 22 : 18);
   }
@@ -45,7 +49,7 @@ const SIDE_MIN = 8;
 /** 一整块（不分截时）画成的样子：编辑页交回来和它一样的不写进 runs。 */
 export function blockBase(block: DocParagraph | DocList, page: DocPage, pageWidth: number) {
   return {
-    size: blockFontPx(block, page, pageWidth) / ptPx(pageWidth),
+    size: blockFontPx(block, page, pageWidth) / ptPx(pageWidth, page.paper?.width),
     docSize: block.size ?? page.bodySize,
     bold: !!(block.bold || (block.kind === 'paragraph' && block.heading)),
     italic: !!block.italic,
@@ -57,7 +61,7 @@ export function blockBase(block: DocParagraph | DocList, page: DocPage, pageWidt
 export const paperWidth = (width: number) => width - 20;
 
 /** 1 磅在宽 pageWidth 点的一页上是多少点（按 A4 的宽换算）。 */
-const ptPx = (pageWidth: number) => pageWidth / A4_WIDTH_PT;
+const ptPx = (pageWidth: number, paperWidth = A4_WIDTH_PT) => pageWidth / paperWidth;
 
 type Unit = 'px' | 'pt';
 
@@ -85,6 +89,7 @@ function runsHtml(
   px: number,
   pageWidth: number,
   u: Unit,
+  paperWidth = A4_WIDTH_PT,
 ): string {
   return runs
     .map((run) => {
@@ -94,7 +99,8 @@ function runsHtml(
       if (run.bold ?? base.bold) html = `<b>${html}</b>`;
       if (run.size !== undefined) {
         // 比整段大几磅就画大几磅（整段按整点画，和文档里的字号差一点，读回来时按差多少算，见 mergeEdited）。
-        const own = Math.round((px + (run.size - base.docSize) * ptPx(pageWidth)) * 10) / 10;
+        const own =
+          Math.round((px + (run.size - base.docSize) * ptPx(pageWidth, paperWidth)) * 10) / 10;
         if (own !== px) html = `<span style="font-size:${own}${u}">${html}</span>`;
       }
       return html;
@@ -125,11 +131,19 @@ function leafHtml(
         margin,
         `font-size:${px}${u}`,
         ...(block.color ? [`color:#${block.color}`] : []),
+        ...(block.fill ? [`background-color:#${block.fill}`] : []),
         ...(block.align && block.align !== 'left' ? [`text-align:${block.align}`] : []),
         // 表单的标签和值（D-332）：值从原图里的位置开始。
         ...(block.tab ? [`tab-size:${Math.round(block.tab * k)}${u}`] : []),
       ].join(';');
-      const html = runsHtml(block.runs ?? [{ text: block.text }], base, px, pageWidth, u);
+      const html = runsHtml(
+        block.runs ?? [{ text: block.text }],
+        base,
+        px,
+        pageWidth,
+        u,
+        page.paper?.width,
+      );
       return `<p data-ref="${ref}" style="${style}">${orBreak(html)}</p>`;
     }
     case 'list': {
@@ -139,17 +153,17 @@ function leafHtml(
       const items = block.items
         .map(
           (item, i) =>
-            `<li>${orBreak(runsHtml(block.itemRuns?.[i] ?? [{ text: item }], base, px, pageWidth, u))}</li>`,
+            `<li>${orBreak(runsHtml(block.itemRuns?.[i] ?? [{ text: item }], base, px, pageWidth, u, page.paper?.width))}</li>`,
         )
         .join('');
-      const color = block.color ? `;color:#${block.color}` : '';
+      const color = `${block.color ? `;color:#${block.color}` : ''}${block.fill ? `;background-color:#${block.fill}` : ''}`;
       const start = block.ordered ? `;counter-reset:n ${(block.start ?? 1) - 1}` : '';
       return `<${tag} data-ref="${ref}" class="${listClass(block)}" style="${margin};font-size:${px}${u}${color}${start}">${items}</${tag}>`;
     }
     case 'table': {
       const { table, colWidths } = block;
       const total = colWidths.reduce((a, b) => a + b, 0) || 1;
-      const px = fontPx(block.size ?? page.bodySize, pageWidth);
+      const px = fontPx(block.size ?? page.bodySize, pageWidth, page.paper?.width);
       const rows = Array.from({ length: table.rows }, (_, r) => {
         const cells = table.cells
           .map((c, i) => ({ c, i }))
@@ -161,7 +175,65 @@ function leafHtml(
               (c.colSpan > 1 ? ` colspan="${c.colSpan}"` : '') +
               (c.rowSpan > 1 ? ` rowspan="${c.rowSpan}"` : '');
             const align = c.align && c.align !== 'left' ? `;text-align:${c.align}` : '';
-            return `<td data-i="${i}"${span} style="width:${w.toFixed(2)}%${align}">${orBreak(textHtml(c.text))}</td>`;
+            const direction = block.direction
+              ? `;writing-mode:vertical-rl;text-orientation:mixed${c.box ? `;height:${c.box.height * k}${u}` : ''}`
+              : '';
+            const positions =
+              !block.direction && c.box
+                ? block.cellLayout?.find((p) => p.row === c.row && p.col === c.col)?.lines
+                : undefined;
+            const sourceLines =
+              positions?.length === c.text.split('\n').length ? positions : undefined;
+            const ky = page.paper
+              ? ((pageWidth / page.paper.width) * page.paper.height) / page.height
+              : k;
+            const ownPx = fontPx(
+              c.size ?? block.size ?? page.bodySize,
+              pageWidth,
+              page.paper?.width,
+            );
+            const body = sourceLines
+              ? c.text
+                  .split('\n')
+                  .map((line, j) => {
+                    const box = sourceLines[j]!,
+                      previous = sourceLines[j - 1];
+                    const top =
+                      c.rowSpan > 1
+                        ? 0
+                        : Math.max(
+                            0,
+                            (box.y - (previous?.y ?? c.box!.y)) * ky -
+                              (previous ? ownPx * 1.12 : ownPx * 0.2),
+                          );
+                    const left = Math.max(0, (box.x - c.box!.x) * k);
+                    const paint = `${box.color ? `;color:#${box.color}` : ''}${box.fill ? `;background-color:#${box.fill}` : ''}`;
+                    const parts = line.split('\t');
+                    const text =
+                      box.tabs?.length === parts.length - 1 && parts.length > 1
+                        ? parts
+                            .map((part, at) => {
+                              const x = at ? box.tabs![at - 1]! : box.x;
+                              const width =
+                                at < parts.length - 1
+                                  ? `;width:${Math.max(0, (box.tabs![at]! - x) * k)}${u}`
+                                  : '';
+                              return `<span style="display:inline-block;vertical-align:top${width}">${orBreak(textHtml(part))}</span>${at < parts.length - 1 ? '<span style="font-size:0">\t</span>' : ''}`;
+                            })
+                            .join('')
+                        : orBreak(textHtml(line));
+                    return `<p style="margin-top:${top.toFixed(2)}${u};margin-left:${left.toFixed(2)}${u};text-align:left${paint}">${text}</p>`;
+                  })
+                  .join('')
+              : orBreak(textHtml(c.text));
+            const cellFill = block.cellLayout?.find(
+              (p) => p.row === c.row && p.col === c.col,
+            )?.fill;
+            const paint = cellFill ? `;background-color:#${cellFill}` : '';
+            const positioning = sourceLines
+              ? `;padding:0 1${u};height:${c.box!.height * ky}${u}`
+              : '';
+            return `<td data-i="${i}"${span} style="width:${w.toFixed(2)}%;font-size:${ownPx}${u}${align}${direction}${positioning}${paint}">${body}</td>`;
           })
           .join('');
         return `<tr>${cells}</tr>`;
@@ -173,6 +245,8 @@ function leafHtml(
       const cols = colWidths.map((w) => `<col style="width:${((w / total) * 100).toFixed(2)}%">`);
       return `<table data-ref="${ref}"${cls} style="margin-top:${place.top}${u};font-size:${px}${u}"><colgroup>${cols.join('')}</colgroup><tbody>${rows}</tbody></table>`;
     }
+    case 'space':
+      return `<div data-ref="${ref}" data-kind="space" contenteditable="false" style="${margin};height:${block.box.height * k}${u}"></div>`;
     case 'image': {
       // 按原来占页宽的比例。图片不能在页面上改，只能连同它所在的地方一起删掉（打印的版面用 pt，不用标）。
       const width = Math.min(100, (block.box.width / page.width) * 100);
@@ -180,6 +254,8 @@ function leafHtml(
       const inner = src
         ? `<img src="${src}" style="width:100%">`
         : `<div class="noimg" style="aspect-ratio:${block.box.width}/${Math.max(1, block.box.height)}"></div>`;
+      if (block.background)
+        return `<div data-ref="${ref}" data-kind="image" contenteditable="false" style="position:absolute;inset:0;pointer-events:none;z-index:-1">${inner}</div>`;
       return `<div data-ref="${ref}" data-kind="image"${u === 'px' ? ' contenteditable="false"' : ''} style="${margin};width:${width.toFixed(2)}%">${inner}</div>`;
     }
   }
@@ -196,7 +272,7 @@ function previewBoxes(doc: DocDoc): Record<string, [number, number, number, numb
     out[key] = [p, b.x, b.y, b.width, b.height];
   };
   const leaf = (block: DocLeaf, ref: string, p: number) => {
-    if (block.kind === 'image') return;
+    if (block.kind === 'image' || block.kind === 'space') return;
     add(ref, p, block.box);
     if (block.kind === 'table') {
       block.table.cells.forEach((c, i) => c.box && add(`${ref}#${i}`, p, c.box));
@@ -263,10 +339,11 @@ export function wordPageHtml(
   const pages = doc.pages
     .map((page, p) => {
       const k = pageWidth / Math.max(1, page.width);
-      const leaves = leafBlocks(page);
+      const foreground = page.blocks.filter((b) => !(b.kind === 'image' && b.background));
+      const leaves = leafBlocks({ blocks: foreground });
       const minX = Math.min(...leaves.map((b) => b.box.x), page.width);
       const side = Math.max(SIDE_MIN, Math.round(minX * k));
-      const top = Math.min(...page.blocks.map((b) => b.box.y), page.height);
+      const top = Math.min(...foreground.map((b) => b.box.y), page.height);
       const inner = pageWidth - 2 * side;
       const place = (block: DocLeaf, gap: number) => ({
         top: gap,
@@ -278,7 +355,8 @@ export function wordPageHtml(
       });
       const blocks = page.blocks
         .map((block, b) => {
-          const gap = gapOf(block, page.blocks[b - 1], k, top);
+          const i = foreground.indexOf(block);
+          const gap = gapOf(block, i >= 0 ? foreground[i - 1] : undefined, k, top);
           if (block.kind !== 'row') {
             return leafHtml(
               block,
@@ -317,7 +395,10 @@ export function wordPageHtml(
         })
         .join('');
       const editable = print || readOnly ? '' : ' contenteditable="true"';
-      return `<div class="paper"${editable} data-page="${p}" style="padding:16${u} ${side}${u} 24${u}">${blocks || '<p><br></p>'}</div>`;
+      const sheet = page.paper
+        ? `;min-height:${(pageWidth * page.paper.height) / page.paper.width}${u}`
+        : '';
+      return `<div class="paper"${editable} data-page="${p}" style="position:relative;isolation:isolate;padding:16${u} ${side}${u} 24${u}${sheet}">${blocks || '<p><br></p>'}</div>`;
     })
     .join('');
   // 光标上方的原图小窗（D-468）：每一块（表格是每一格）在原图里的位置，和每页的原图。
@@ -327,6 +408,7 @@ export function wordPageHtml(
     swap,
     pages: doc.pages.map((page) => ({
       w: page.width,
+      ptPx: ptPx(pageWidth, page.paper?.width),
       img: page.source ? (images[page.source] ?? null) : null,
     })),
   });
@@ -372,6 +454,11 @@ ${readOnly ? '' : `<script>window.WORD=${config};${WORD_PAGE_SCRIPT}</script>`}<
 export const WORD_PAGE_SCRIPT = String.raw`
 (function () {
   var PT = (window.WORD && window.WORD.ptPx) || 1;
+  function ptOf(el) {
+    var sheet = el && el.closest && el.closest('.paper');
+    var page = sheet && window.WORD.pages[Number(sheet.dataset.page)];
+    return (page && page.ptPx) || PT;
+  }
   function send(msg) {
     if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(msg));
   }
@@ -415,7 +502,7 @@ export const WORD_PAGE_SCRIPT = String.raw`
   }
   function styleAt(el, stop) {
     return {
-      size: Math.round((nearest(el, stop, px, 11 * PT) / PT) * 100) / 100,
+      size: Math.round((nearest(el, stop, px, 11 * ptOf(stop)) / ptOf(stop)) * 100) / 100,
       bold: nearest(el, stop, weight, false),
       italic: nearest(el, stop, slant, false),
       underline: nearest(el, stop, line, false),
@@ -469,7 +556,7 @@ export const WORD_PAGE_SCRIPT = String.raw`
   function leaf(el) {
     var ref = el.getAttribute && el.getAttribute('data-ref');
     var kind = el.getAttribute && el.getAttribute('data-kind');
-    if (kind === 'image') return { kind: 'image', ref: ref };
+    if (kind === 'image' || kind === 'space') return { kind: kind, ref: ref };
     if (el.tagName === 'TABLE') {
       var cells = [];
       var tds = el.querySelectorAll('td[data-i]');
@@ -523,7 +610,7 @@ export const WORD_PAGE_SCRIPT = String.raw`
   function bump(el, d) {
     var now = px(el);
     if (now === null) return;
-    el.style.fontSize = Math.max(4, Math.round((now + d * PT) * 10) / 10) + 'px';
+    el.style.fontSize = Math.max(4, Math.round((now + d * ptOf(el)) * 10) / 10) + 'px';
   }
   function size(d) {
     var sel = window.getSelection();
@@ -564,7 +651,7 @@ export const WORD_PAGE_SCRIPT = String.raw`
       var t = texts[j];
       var now = parseFloat(getComputedStyle(t.parentElement).fontSize);
       var span = document.createElement('span');
-      span.style.fontSize = Math.max(4, Math.round((now + d * PT) * 10) / 10) + 'px';
+      span.style.fontSize = Math.max(4, Math.round((now + d * ptOf(t.parentElement)) * 10) / 10) + 'px';
       t.parentNode.insertBefore(span, t);
       span.appendChild(t);
       if (!first) first = span;

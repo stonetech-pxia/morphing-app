@@ -13,6 +13,32 @@ import { blockBase, paperWidth, wordPageHtml } from '../desk/word-page';
 // 这里用 jsdom 跑真的页面脚本（没有排版，也没有 execCommand：改 DOM 的地方照浏览器会做的那样手动改）。
 
 const WIDTH = 412;
+it('shows a landscape source sheet and scales editable point sizes by its physical width', () => {
+  const d: DocDoc = {
+    version: 2,
+    pages: [
+      {
+        source: '',
+        width: 2000,
+        height: 850,
+        paper: { width: 600, height: 255 },
+        bodySize: 12,
+        blocks: [
+          {
+            kind: 'paragraph',
+            text: 'Ticket',
+            size: 12,
+            box: { x: 100, y: 100, width: 500, height: 40 },
+          },
+        ],
+      },
+    ],
+  };
+  const dom = new JSDOM(wordPageHtml(d, 620));
+  const sheet = dom.window.document.querySelector('.paper') as HTMLElement;
+  expect(sheet.style.minHeight).toBe('255px');
+  expect((sheet.querySelector('p') as HTMLElement).style.fontSize).toBe('12px');
+});
 const box = (x: number, y: number, width = 100, height = 20) => ({ x, y, width, height });
 const doc: DocDoc = {
   version: 1,
@@ -82,6 +108,81 @@ function open(d: DocDoc = doc) {
 }
 
 describe('Word page layout like the original (D-464, D-465)', () => {
+  it('paints the full cell and preserves its background when the user edits its text', () => {
+    const d = structuredClone(doc);
+    d.version = 5;
+    const table = d.pages[0]!.blocks.find((b) => b.kind === 'table')!;
+    table.cellLayout = [{ row: 0, col: 0, fill: 'CCD7FF', lines: [] }];
+    const { q, merge } = open(d);
+    expect(q('td[data-i="0"]').style.backgroundColor).toBe('rgb(204, 215, 255)');
+    q('td[data-i="0"]').textContent = 'Edited field';
+    const next = merge().pages[0]!.blocks.find((b) => b.kind === 'table')!;
+    expect(next.table.cells[0]!.text).toBe('Edited field');
+    expect(next.cellLayout).toEqual(table.cellLayout);
+  });
+  it('round-trips positioned cell paragraphs and tab-separated labels without losing the spacing metadata', () => {
+    const d = structuredClone(doc);
+    d.version = 4;
+    const table = d.pages[0]!.blocks.find((b) => b.kind === 'table')!;
+    table.table.cells[0]!.text = 'Label\tValue';
+    table.table.cells[0]!.box = box(150, 900, 400, 40);
+    table.cellLayout = [{ row: 0, col: 0, lines: [{ ...box(160, 910, 300, 20), tabs: [350] }] }];
+    const { q, merge } = open(d);
+    expect(q('td[data-i="0"]').textContent).toBe('Label\tValue');
+    expect(q('td[data-i="0"] p').style.marginTop).not.toBe('');
+    expect(merge()).toEqual(d);
+  });
+  it('keeps source graphics and figure spaces when editing body text', () => {
+    const d: DocDoc = {
+      version: 3,
+      pages: [
+        {
+          ...doc.pages[0]!,
+          blocks: [
+            { kind: 'image', background: true, src: 'graphics.png', box: box(0, 0, 1000, 1400) },
+            { kind: 'space', box: box(100, 100, 400, 120) },
+            { kind: 'paragraph', text: 'Editable body', box: box(100, 300, 400, 30) },
+          ],
+        },
+      ],
+    };
+    const { q, merge } = open(d);
+    expect(q('[data-kind="image"]').style.position).toBe('absolute');
+    expect(q('[data-kind="space"]').getAttribute('contenteditable')).toBe('false');
+    q('p[data-ref="0-2"]').textContent = 'Revised body';
+    const next = merge();
+    expect(next.pages[0]!.blocks[0]).toEqual(d.pages[0]!.blocks[0]);
+    expect(next.pages[0]!.blocks[1]).toEqual(d.pages[0]!.blocks[1]);
+    expect(next.pages[0]!.blocks[2]).toMatchObject({ text: 'Revised body' });
+  });
+
+  it('shows the source direction of a rotated editable table', () => {
+    const table = doc.pages[0]!.blocks.find((b) => b.kind === 'table')!;
+    const d: DocDoc = {
+      version: 2,
+      pages: [
+        {
+          ...doc.pages[0]!,
+          paper: { width: 600, height: 400 },
+          blocks: [
+            {
+              ...table,
+              direction: 'tbRl',
+              table: {
+                ...table.table,
+                cells: table.table.cells.map((c) => ({ ...c, box: box(100, 100, 200, 400) })),
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const { q } = open(d);
+    expect(q('td').style.writingMode).toBe('vertical-rl');
+    expect(q('td').style.textOrientation).toBe('mixed');
+    expect(q('td').style.height).toBe('156.8px');
+  });
+
   it('indents left-aligned blocks by their position, centred ones not', () => {
     const { q } = open();
     expect(q('[data-ref="0-0"]').style.marginLeft).toBe('0px');
@@ -369,6 +470,30 @@ describe('reading the page back (D-465)', () => {
     expect(merged.runs![1]!.size).toBe(base.docSize + 2);
     // 段落自己的字号还在。
     expect(p.style.fontSize).not.toBe('');
+  });
+
+  it('uses the current paper scale when enlarging a selected word on a landscape page', () => {
+    const d: DocDoc = {
+      version: 2,
+      pages: [
+        {
+          ...doc.pages[0]!,
+          paper: { width: 1000, height: 600 },
+          bodySize: 20,
+          blocks: [{ kind: 'paragraph', text: 'Docteur', box: box(100, 100, 300, 40) }],
+        },
+      ],
+    };
+    const { q, window, merge } = open(d);
+    const range = window.document.createRange();
+    range.setStart(q('p').firstChild!, 3);
+    range.setEnd(q('p').firstChild!, 7);
+    window.getSelection()!.addRange(range);
+    const w = window as unknown as Window & { __wordCommand: (name: string) => void };
+    w.__wordCommand('bigger');
+    w.__wordCommand('bigger');
+    const paragraph = merge().pages[0]!.blocks[0] as DocParagraph;
+    expect(paragraph.runs?.at(-1)).toEqual({ text: 'teur', size: 22 });
   });
 
   it('A+ with no selection makes the whole paragraph bigger', () => {

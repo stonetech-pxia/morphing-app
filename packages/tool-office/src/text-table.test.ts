@@ -158,6 +158,30 @@ describe('barcodes (D-471)', () => {
     expect(found[0]!.x + found[0]!.width).toBeGreaterThanOrEqual(690);
   });
 
+  it('keeps a Word barcode beside text without swallowing that text', () => {
+    const beside = Array.from({ length: 5 }, (_, i) => ({
+      text: `Address ${i + 1}`,
+      x: 5,
+      y: 300 + i * 24,
+      width: 70,
+      height: 20,
+    }));
+    const framed = renderPage(800, 500, [
+      ...bars,
+      ...text,
+      { x: 1, y: 300, width: 2, height: 120 },
+      { x: 797, y: 300, width: 2, height: 120 },
+    ]);
+    const doc = buildDocPage({ image: framed, lines: beside, source: 's', skew: 0 });
+    const pictures = leafBlocks(doc).filter((b) => b.kind === 'image');
+    expect(pictures).toHaveLength(1);
+    expect(pictures[0]!.box.x).toBeGreaterThanOrEqual(90);
+    expect(pictures[0]!.box.x + pictures[0]!.box.width).toBeLessThanOrEqual(710);
+    expect(pictures[0]!.box.height).toBeGreaterThanOrEqual(100);
+    expect(JSON.stringify(doc)).toContain('Address 1');
+    expect(JSON.stringify(doc)).toContain('Address 5');
+  });
+
   it('the barcode is kept as a picture and the stray digits in it are dropped', () => {
     const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
     expect(doc.blocks.some((b) => b.kind === 'image')).toBe(true);

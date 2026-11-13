@@ -129,7 +129,7 @@ export function originalArea(doc: DocDoc, page: number, boxes: readonly Box[]): 
   const pg = doc.pages[page];
   if (!pg || !boxes.length) return null;
   let area = boxes.map((b) => originalBox(b, pg)).reduce(union);
-  const images = leafBlocks(pg).filter((b) => b.kind === 'image');
+  const images = leafBlocks(pg).filter((b) => b.kind === 'image' && !b.background);
   for (let grew = true; grew;) {
     grew = false;
     for (const image of images) {
@@ -160,7 +160,7 @@ export function swapToOriginal(
   const goes = (leaf: DocLeaf) =>
     ((leaf.kind === 'paragraph' || leaf.kind === 'list') &&
       boxes.some((b) => sameBox(b, leaf.box))) ||
-    (leaf.kind === 'image' && overlaps(leaf.box, image.box));
+    (leaf.kind === 'image' && !leaf.background && overlaps(leaf.box, image.box));
   const keep = (leaves: readonly DocLeaf[]): DocLeaf[] =>
     leaves.flatMap((leaf) => {
       if (!goes(leaf)) return [leaf];
@@ -216,6 +216,17 @@ export function setTableFrom(doc: DocDoc, at: DocRef, edited: TableDoc): DocDoc 
     table: { ...table, col: 0 },
     colWidths: page.colWidths.slice(table.col, table.col + table.cols),
   };
+  const geometry = (t: TableBlock) =>
+    JSON.stringify([
+      t.rows,
+      t.cols,
+      t.cells.map((c) => [c.row, c.col, c.rowSpan, c.colSpan, c.box]),
+    ]);
+  if (
+    geometry(block.table) !== geometry(table) ||
+    JSON.stringify(block.colWidths) !== JSON.stringify(next.colWidths)
+  )
+    delete next.cellLayout;
   return replaceBlock(doc, at, next);
 }
 
@@ -234,9 +245,90 @@ export function editDocTable(doc: DocDoc, at: DocRef, fn: (table: TableDoc) => T
 export function parseDocDoc(json: string): DocDoc | null {
   try {
     const doc = JSON.parse(json) as DocDoc;
-    if (doc?.version !== 1 || !Array.isArray(doc.pages)) return null;
+    if (
+      (doc?.version !== 1 &&
+        doc?.version !== 2 &&
+        doc?.version !== 3 &&
+        doc?.version !== 4 &&
+        doc?.version !== 5) ||
+      !Array.isArray(doc.pages)
+    )
+      return null;
     if (!doc.pages.every((p) => Array.isArray(p?.blocks))) return null;
-    return doc;
+    if (
+      !doc.pages.every((p) =>
+        leafBlocks(p).every((b) => {
+          if (
+            (b.kind === 'paragraph' || b.kind === 'list') &&
+            b.fill !== undefined &&
+            !/^[0-9A-F]{6}$/i.test(b.fill)
+          )
+            return false;
+          if (b.kind !== 'table' || b.cellLayout === undefined) return true;
+          return (
+            Array.isArray(b.cellLayout) &&
+            b.cellLayout.every(
+              (c) =>
+                Number.isInteger(c.row) &&
+                c.row >= 0 &&
+                c.row < b.table.rows &&
+                Number.isInteger(c.col) &&
+                c.col >= 0 &&
+                c.col < b.table.cols &&
+                (c.fill === undefined || /^[0-9A-F]{6}$/i.test(c.fill)) &&
+                Array.isArray(c.lines) &&
+                c.lines.every(
+                  (l) =>
+                    [l.x, l.y, l.width, l.height].every(Number.isFinite) &&
+                    l.width > 0 &&
+                    l.height > 0 &&
+                    [l.color, l.fill].every(
+                      (color) => color === undefined || /^[0-9A-F]{6}$/i.test(color),
+                    ) &&
+                    (l.tabs === undefined ||
+                      (Array.isArray(l.tabs) &&
+                        l.tabs.every(
+                          (x, i) => Number.isFinite(x) && (i === 0 || x > l.tabs![i - 1]!),
+                        ))),
+                ),
+            )
+          );
+        }),
+      )
+    )
+      return null;
+    if (
+      !doc.pages.every(
+        (p) =>
+          !p.paper || [p.paper.width, p.paper.height].every((v) => Number.isFinite(v) && v > 0),
+      )
+    )
+      return null;
+    if (
+      !doc.pages.every(
+        (p) =>
+          !p.margins ||
+          ([p.margins.top, p.margins.right, p.margins.bottom, p.margins.left].every(
+            (v) => Number.isFinite(v) && v >= 0,
+          ) &&
+            p.margins.left + p.margins.right < (p.paper?.width ?? 595.3) &&
+            p.margins.top + p.margins.bottom < (p.paper?.height ?? 841.9)),
+      )
+    )
+      return null;
+    return doc.version !== 5
+      ? {
+          ...doc,
+          version: 5,
+          pages:
+            doc.version === 4
+              ? doc.pages
+              : doc.pages.map((p) => ({
+                  ...p,
+                  paper: p.paper ?? { width: 595.3, height: 841.9 },
+                })),
+        }
+      : doc;
   } catch {
     return null;
   }

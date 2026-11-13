@@ -1,4 +1,5 @@
 import { packPage, PDFJS_POLYFILLS } from './common';
+import { PDF_GRAPHICS_SCRIPT } from './pdf-graphics';
 
 // PDF 预览包页面：pdf.js（legacy ESM 版本）从 blob: 地址加载，worker 失败时 pdf.js 自己退回主线程。
 // cmap、字体和解码器通过 BinaryDataFactory 按需向 App 要（只送这个文件用到的）。
@@ -64,6 +65,7 @@ async function renderList(doc, list, maxSide, quality) {
       index,
       width: canvas.width,
       height: canvas.height,
+      paper: { width: base.width, height: base.height },
       data: canvas.toDataURL('image/jpeg', quality).split(',')[1],
     });
     page.cleanup();
@@ -140,6 +142,7 @@ handlers.lines = async ({ file, pages }) => {
     await doc.close();
   }
 };
+${PDF_GRAPHICS_SCRIPT}
 handlers.ping = async () => ({ ok: true });
 `;
 
