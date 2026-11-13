@@ -452,6 +452,9 @@ export const custom = (name: string, run: (c: Converted) => string | null): Chec
 
 // ── 每个用例都跑的通用检查 ─────────────────────────────
 
+/** 不超过这么多个字（规范化以后）的词不按子串补数。 */
+const SHORT_WORD = 3;
+
 const words = (s: string) =>
   s
     .normalize('NFKC')
@@ -474,6 +477,7 @@ export function textKept(minRecall = 0.97, maxExtra = 0.02): Check {
       // docx 里换行连字符、断词会合起来：两个识别出的词在 docx 里可能是一个词，所以按子串补数。
       for (const w of words(fullText(c))) got.set(w, (got.get(w) ?? 0) + 1);
       const glued = norm(fullText(c));
+      const docWords = [...got.keys()];
       let total = 0;
       let kept = 0;
       let extra = 0;
@@ -482,7 +486,15 @@ export function textKept(minRecall = 0.97, maxExtra = 0.02): Check {
       for (const [w, n] of want) {
         total += n;
         const k = got.get(w) ?? 0;
-        const found = Math.min(n, k >= n ? n : Math.max(k, count(glued, norm(w))));
+        // 短词（「n.a.」「2/2」「Art」）几乎总能在别的词里找到同样的几个字，子串补数会把它的丢失盖住：
+        // 只认接在 docx 某个词头上或尾巴上的（换行连字符、断词合起来的就是这样）。
+        const loose =
+          norm(w).length <= SHORT_WORD
+            ? docWords
+                .filter((d) => d !== w && (d.startsWith(w) || d.endsWith(w)))
+                .reduce((sum, d) => sum + got.get(d)!, k)
+            : count(glued, norm(w));
+        const found = Math.min(n, k >= n ? n : Math.max(k, loose));
         kept += found;
         if (found < n) lost.push(w);
         if (k > n) {
