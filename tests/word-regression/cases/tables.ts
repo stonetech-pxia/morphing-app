@@ -407,7 +407,7 @@ export const TABLES: Case[] = [
   {
     id: 'tbl-narrow-column-font',
     suite: 'tables',
-    fix: 'EU sample 020, 018, 016',
+    fix: '2493f8ae; EU sample 020, 018, 016',
     what: 'A ruled 10 pt table with one very narrow "%" column: the narrowest cell set the scale of the whole table, and the 8 pt cell padding left almost nothing of that column, so every cell (long descriptions included) was written at the 5 pt floor.',
     checks: [
       table({ containing: ['Składnik', 'Opis', 'Netto', 'Brutto'], rows: 3, cols: 5 }),
@@ -424,7 +424,7 @@ export const TABLES: Case[] = [
   {
     id: 'tbl-dashed-double-rule',
     suite: 'tables',
-    fix: 'EU sample 020',
+    fix: 'fd28491f; EU sample 020',
     what: 'Scanned utility-bill table drawn with dashed rules and a doubled dashed line under the header: OCR reads the dashes of the double rule as "==" text (with a stray letter), which ended up in the header cells or as a junk row between the header and the first item.',
     // 识别把挨着的「0,00」「23」读成一行「0,0023」，表把它按列线分开：多出来的是这些，不是重复。
     extra: 0.03,

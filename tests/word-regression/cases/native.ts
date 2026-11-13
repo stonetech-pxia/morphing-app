@@ -135,7 +135,7 @@ export const NATIVE: Case[] = [
   {
     id: 'narrow-cell-dark-edge',
     suite: 'native',
-    fix: 'EU sample 016',
+    fix: 'ab1fc2c7; EU sample 016',
     what: 'Digital payslip table with a narrow number column and a thick black left edge drawn one cell at a time: the edge pieces (boxes padded by a few pixels) overlap each other, their areas were added up as if they did not overlap, so the edge counted as the fill of the narrow column and its cells came out solid black in Word.',
     lang: 'spa',
     checks: [

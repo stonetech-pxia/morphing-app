@@ -214,7 +214,7 @@ export const GEOMETRY: Case[] = [
   {
     id: 'landscape-text-size',
     suite: 'geometry',
-    fix: 'EU sample 017, 019',
+    fix: '9faa4b23; EU sample 017, 019',
     what: 'Landscape A4 notice with a 14 pt heading and 11 pt body: the page width was read as 595 pt (portrait A4) while the Word page is 842 pt wide, so all text came out at 0.71× its source size (14 → 10 pt, 11 → 8 pt).',
     lang: 'deu',
     checks: [

@@ -178,7 +178,7 @@ export const FORMS: Case[] = [
     id: 'framed-section-checkboxes',
     suite: 'forms',
     fix: 'guard for 85529b71, 9f3747d6 (batch-02 problem 1 shape)',
-    what: 'Guard: framed form sections (a cerfa-like vehicle transfer form) with checkboxes, fill-in field boxes with end ticks and a SIRET comb must stay text; checkbox sides, comb ticks and field-box edges must not become the columns of a fake grid. This page does not reproduce the 37×3 grid of EU sample 014, which is still open.',
+    what: 'Guard: framed form sections (a cerfa-like vehicle transfer form) with checkboxes, fill-in field boxes with end ticks and a SIRET comb must stay text; checkbox sides, comb ticks and field-box edges must not become the columns of a fake grid. This page does not reproduce the 37×3 grid of EU sample 014; three-framed-sections does.',
     lang: 'fra',
     checks: [
       custom('no table with more than 3 columns', (c) => {
@@ -205,7 +205,7 @@ export const FORMS: Case[] = [
   {
     id: 'three-framed-sections',
     suite: 'forms',
-    fix: 'EU sample 014',
+    fix: 'ed970802; EU sample 014',
     what: 'Three stacked framed sections (cerfa-like vehicle transfer form) whose top rules are broken by the section titles: the frames were not grids, but their three full-width bottom rules (and three fill-in underlines with aligned ends) chained into one horizontal-rules-only table, so two whole sections became one page-tall grid with one row per text line.',
     lang: 'fra',
     checks: [
