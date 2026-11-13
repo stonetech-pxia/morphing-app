@@ -726,34 +726,47 @@ export function isRuleGrid(table: TableBlock, lineCount = 0): boolean {
 
 /** 一排的编号格（表单左边的「Lfd. Nr.」列里的 1、2、3）：很短。 */
 const ROW_NUMBER_CHARS = 4;
+/** 空白表格的表头最多这么多排。 */
+const HEADER_ROWS_MAX = 2;
 
 /**
- * 留给人填的空白表格（EU 样本 001、004、006）：横竖线画满、没有合并格（每排的格子在同样的列线上分开），
- * 字只在表头一排（下面至少两排空着，最多每排第一格有个编号），或者只在第一列（标签），
+ * 留给人填的空白表格（EU 样本 001、004、006）：横竖线画满，下面的排没有合并格（每排的格子在同样的列线上分开），
+ * 字只在表头（一两排，格子可以横跨几列；下面至少两排空着，最多每排第一格有个编号），或者只在第一列（标签），
  * 右边空着的格子至少和标签一样宽（议程、奖状边框、试卷的答题线空着的列比有字的窄，见 isSparseColumnLayout）。
  * 这样的表不按「空格子太多」当成表单的画线丢掉。
  */
 export function isBlankFormGrid(table: TableBlock): boolean {
-  if (table.rows < 2 || table.cells.some((c) => c.rowSpan !== 1)) return false;
+  if (table.rows < 2) return false;
   const rows = Array.from({ length: table.rows }, (_, r) =>
     table.cells.filter((c) => c.row === r).sort((a, b) => a.col - b.col),
   );
   const starts = (row: readonly TableCell[]) => row.map((c) => c.col).join(',');
-  if (rows[0]!.length < 2 || rows.some((row) => starts(row) !== starts(rows[0]!))) return false;
+  /** 从第 from 排起每排的格子都在同样的列线上分开、不跨排。 */
+  const regular = (from: number) =>
+    rows[from]!.length >= 2 &&
+    rows
+      .slice(from)
+      .every((row) => row.every((c) => c.rowSpan === 1) && starts(row) === starts(rows[from]!));
   const has = (c: TableCell) => c.text.trim() !== '';
-  const [head, ...body] = rows;
-  // 表头一排有字，下面的排空着（第一格可以是编号）。
-  const headFilled = head!.filter(has).length;
-  if (
-    headFilled >= 2 &&
-    headFilled * 2 >= head!.length &&
-    body.length >= 2 &&
-    body.every((row) =>
-      row.every((c, i) => !has(c) || (i === 0 && c.text.trim().length <= ROW_NUMBER_CHARS)),
+  // 表头一排（或两排：表头里的短横线把它分成了两排）有字、格子可以横跨几列，
+  // 下面至少两排一样的空格子（第一格可以是编号）。
+  for (let k = 1; k <= HEADER_ROWS_MAX && k + 2 <= table.rows; k++) {
+    const head = rows.slice(0, k).flat();
+    if (head.some((c) => c.row + c.rowSpan > k) || !regular(k)) continue;
+    const filled = head.filter(has).length;
+    if (
+      filled >= 2 &&
+      filled * 2 >= head.length &&
+      rows
+        .slice(k)
+        .every((row) =>
+          row.every((c, i) => !has(c) || (i === 0 && c.text.trim().length <= ROW_NUMBER_CHARS)),
+        )
     )
-  )
-    return true;
+      return true;
+  }
   // 第一列是标签，右边的格子空着、至少和标签一样宽。
+  if (!regular(0)) return false;
   const widthOf = (cells: readonly TableCell[]) =>
     cells.reduce((sum, c) => sum + (c.box?.width ?? 0), 0);
   return rows.every(
@@ -1364,34 +1377,34 @@ function buildPage(
   // 横竖线画满的网格（格子都是线分出来的），只有这样的才可能是留给人填的空白表格。
   const ruledGrids = new Set<TableBlock>();
   const blankForm = (t: TableBlock) => ruledGrids.has(t) && isBlankFormGrid(t);
-  const sheet = buildTablePage(
-    {
-      image: working,
-      lines: available,
-      name: '',
-      source: input.source,
-      ...(tableSkew !== undefined ? { skew: tableSkew } : {}),
+  const tableInput = {
+    image: working,
+    lines: available,
+    name: '',
+    source: input.source,
+    ...(tableSkew !== undefined ? { skew: tableSkew } : {}),
+  };
+  // 格子里的字按原图一排一行（D-333）：表单一格里的地址、日期各占一行，不接成一段（Word 里格子宽按原图，字号按比例）。
+  // 没有线的表在下面去掉竖排、零星的字以后再认（D-471）。
+  const tableOptions = (splitStacked: boolean): BuildOptions => ({
+    ...options,
+    textTables: false,
+    // 电子版模板常用很浅的灰线画表（EU 样本 001、006），转 Word 时也找。
+    lightRules: true,
+    // 空白的商品栏：表头写在网格上面（EU 样本 001）。
+    headerAbove: true,
+    splitStacked,
+    joinLines: (cell) =>
+      rowsOf(cell)
+        .map((r) => join(r.lines).trim())
+        .join('\n'),
+    onTable: (table, placed, { chopped, ruled }) => {
+      placedIn.set(table, placed);
+      choppedIn.set(table, chopped);
+      if (ruled) ruledGrids.add(table);
     },
-    // 格子里的字按原图一排一行（D-333）：表单一格里的地址、日期各占一行，不接成一段（Word 里格子宽按原图，字号按比例）。
-    // 没有线的表在下面去掉竖排、零星的字以后再认（D-471）。
-    {
-      ...options,
-      textTables: false,
-      // 电子版模板常用很浅的灰线画表（EU 样本 001、006），转 Word 时也找。
-      lightRules: true,
-      // 空白的商品栏：表头写在网格上面（EU 样本 001）。
-      headerAbove: true,
-      joinLines: (cell) =>
-        rowsOf(cell)
-          .map((r) => join(r.lines).trim())
-          .join('\n'),
-      onTable: (table, placed, { chopped, ruled }) => {
-        placedIn.set(table, placed);
-        choppedIn.set(table, chopped);
-        if (ruled) ruledGrids.add(table);
-      },
-    },
-  );
+  });
+  const sheet = buildTablePage(tableInput, tableOptions(false));
   const tol = lineHeight * 0.3;
   const inBox = (l: Box, box: Box) => {
     const cx = l.x + l.width / 2;
@@ -1409,24 +1422,52 @@ function buildPage(
     const chopped = choppedIn.get(t) ?? 0;
     return chopped >= CHOP_MIN && chopped >= CHOP_SHARE * (placedIn.get(t)?.length ?? 0);
   };
-  const ruledCandidates = sheet.blocks.filter(
-    (b): b is TableBlock =>
-      b.kind === 'table' &&
-      // 图内的网格（表大半在图里）不要；图跨过表的好几格时（整页的版式框把图表框在里面，D-533）也不要。
-      // 图在表的一格里（表单的证件照占着合并的一格）时表照样要。
-      !figures.some(
-        (f) =>
-          lineShareIn(b.box, f.box) >= 0.5 ||
-          (lineShareIn(f.box, b.box) >= 0.2 &&
-            !b.cells.some((c) => c.box && lineShareIn(f.box, c.box) >= 0.8)),
-      ) &&
+  // 图内的网格（表大半在图里）不要；图跨过表的好几格时（整页的版式框把图表框在里面，D-533）也不要。
+  // 图在表的一格里（表单的证件照占着合并的一格）时表照样要。
+  const outsideFigures = (b: TableBlock) =>
+    !figures.some(
+      (f) =>
+        lineShareIn(b.box, f.box) >= 0.5 ||
+        (lineShareIn(f.box, b.box) >= 0.2 &&
+          !b.cells.some((c) => c.box && lineShareIn(f.box, c.box) >= 0.8)),
+    );
+  const sheetTables = sheet.blocks.filter((b): b is TableBlock => b.kind === 'table');
+  const ruledCandidates = sheetTables.filter(
+    (b) =>
+      outsideFigures(b) &&
       (blankForm(b) || !isRuleGrid(b, lines.filter((l) => inBox(l, b.box)).length)) &&
       !chopsMuch(b),
   );
-  const rejected = repairTables
-    ? ruledCandidates.filter((t) => !blankForm(t) && isSparseColumnLayout(t))
-    : [];
-  const ruled = ruledCandidates.filter((t) => !rejected.includes(t));
+  const sparse = (t: TableBlock) => repairTables && !blankForm(t) && isSparseColumnLayout(t);
+  const colWidthsOf = new Map(sheetTables.map((t) => [t, sheet.colWidths] as const));
+  // 共用一个外框、上下叠着的几张表（EU 样本 004 的登记表）连成了一张：在列线换了的横线处分开（findTables 的
+  // splitStacked），每张各自判断。原来要当表的，分开后能当表的部分当表（都不能时照旧整张）；原来被当成表单画线
+  // 丢掉、或者太空被拆开的，只把其中的空白表格（isBlankFormGrid）留下当表，别的部分照旧排成文字。
+  const stacked = buildTablePage(tableInput, tableOptions(true));
+  const stackedTables = stacked.blocks.filter((b): b is TableBlock => b.kind === 'table');
+  const ruled: TableBlock[] = [];
+  const rejected: TableBlock[] = [];
+  for (const t of sheetTables) {
+    const kept = ruledCandidates.includes(t) && !sparse(t);
+    const parts = stackedTables.filter((p) => lineShareIn(p.box, t.box) >= 0.9);
+    const keep =
+      parts.length < 2
+        ? []
+        : parts.filter(
+            (p) =>
+              outsideFigures(p) &&
+              !chopsMuch(p) &&
+              (blankForm(p) ||
+                (kept &&
+                  !isRuleGrid(p, lines.filter((l) => inBox(l, p.box)).length) &&
+                  !sparse(p))),
+          );
+    if (keep.length) {
+      for (const p of keep) colWidthsOf.set(p, stacked.colWidths);
+      ruled.push(...keep);
+    } else if (kept) ruled.push(t);
+    else if (ruledCandidates.includes(t)) rejected.push(t);
+  }
   const tables: DocTable[] = ruled.map((table) => {
     // 表里的字号按表里文字的行高（D-335），和正文分开算。
     const h = median(lines.filter((l) => inBox(l, table.box)).map((l) => l.height));
@@ -1435,7 +1476,7 @@ function buildPage(
       ...(rotated ? { direction: 'tbRl' as const } : {}),
       // 空着的列够写字（填写栏）时不并：只并双线之间、细缝那样的窄列。
       table: foldEmptyColumns({ ...table, col: 0 }, FILL_IN_LINES * lineHeight),
-      colWidths: sheet.colWidths.slice(table.col, table.col + table.cols),
+      colWidths: colWidthsOf.get(table)!.slice(table.col, table.col + table.cols),
       ...(h ? { size: Math.min(BODY_MAX, Math.max(FORM_MIN, fontSizeOf(h, fontWidthPx))) } : {}),
       box: table.box,
     };

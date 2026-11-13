@@ -49,6 +49,8 @@ export interface BuildOptions {
   arrange?: boolean;
   /** 很浅的表格线也找（findLines 的 light）：只给转 Word，转 Excel 不变。 */
   lightRules?: boolean;
+  /** 共用外框、上下叠着的几张表分开（findTables 的 splitStacked）：只给转 Word。 */
+  splitStacked?: boolean;
   /** 横竖线画满、里面一个字也没有的网格，紧挨在上面的一排字是它的表头（转 Word 用，withHeaderAbove）。 */
   headerAbove?: boolean;
 }
@@ -599,6 +601,17 @@ export function sharedColumns(
   return { pos: groups.map((g) => g.sum / g.members.length), maps };
 }
 
+/** 同一张图、同样的参数找过的线（转 Word 会对同一页组两次表：分不分开叠着的表）。 */
+const linesCache = new WeakMap<RgbaImage, Map<string, PageLines>>();
+function cachedLines(image: RgbaImage, options: { skew?: number; light?: boolean }): PageLines {
+  const key = JSON.stringify(options);
+  let byOptions = linesCache.get(image);
+  if (!byOptions) linesCache.set(image, (byOptions = new Map()));
+  let found = byOptions.get(key);
+  if (!found) byOptions.set(key, (found = findLines(image, options)));
+  return found;
+}
+
 /** 空白网格至少要有这么多排、这么多列，才去找它上面的表头。 */
 const HEADER_GRID_MIN_ROWS = 3;
 const HEADER_GRID_MIN_COLS = 2;
@@ -663,7 +676,7 @@ function withHeaderAbove(
 export function buildTablePage(input: PageInput, options: BuildOptions = {}): TablePage {
   const join = options.joinLines ?? defaultJoin;
   const { image } = input;
-  const page = findLines(image, {
+  const page = cachedLines(image, {
     ...(input.skew !== undefined ? { skew: input.skew } : {}),
     ...(options.lightRules ? { light: true } : {}),
   });
@@ -736,7 +749,10 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     /** 每条行线、列线都是画出来的（不是按文字空隙分的）。 */
     ruled: boolean;
   }[] = [];
-  for (const found of findTables(dropTextStrokes(page, flat))) {
+  for (const found of findTables(
+    dropTextStrokes(page, flat),
+    options.splitStacked ? { splitStacked: true } : {},
+  )) {
     let table = found;
     let { box } = table;
     // 大半在图片区域里的「表」是图里的线（示意图、图表的网格）。

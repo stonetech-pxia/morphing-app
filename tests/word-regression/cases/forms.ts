@@ -2,11 +2,13 @@
 import {
   apart,
   custom,
+  differentTables,
   exactParagraph,
   leaves,
   notInRow,
   inRow,
   notInTable,
+  order,
   pairedRows,
   sideBySide,
   table,
@@ -146,6 +148,30 @@ export const FORMS: Case[] = [
       }),
       notInTable('Complétez les champs ci-dessous'),
       notInTable('Veuillez libeller votre chèque'),
+    ],
+  },
+  {
+    id: 'stacked-form-subtables',
+    suite: 'forms',
+    fix: 'TBD; EU sample 004',
+    what: 'A registration form whose person tables share one outer frame chained into one page-wide grid, rejected as form ruling: the row numbers 1–4 of every sub-table were printed first in one column and the column headers afterwards, with nowhere to fill in.',
+    lang: 'deu',
+    checks: [
+      table({
+        containing: ['Lfd. Nr.', 'Familienname', 'Frühere Namen', 'Vorname(n)', '4'],
+        rows: 5,
+      }),
+      table({
+        containing: ['Doktorgrad', 'Geburtsdatum', 'Geschlecht', 'Geburtsort', '4'],
+        rows: 5,
+      }),
+      table({
+        containing: ['Staatsangehörigkeit', 'Familienstand', 'Religionsgesellschaft'],
+        rows: 5,
+      }),
+      differentTables('Familienname', 'Doktorgrad'),
+      order('Familienname', 'Doktorgrad', 'Staatsangehörigkeit', 'Mit Ihrer Unterschrift'),
+      notInTable('Mit Ihrer Unterschrift versichern Sie'),
     ],
   },
 ];

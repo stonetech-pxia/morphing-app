@@ -81,3 +81,31 @@ describe('findTables: rules above a grid', () => {
     }
   });
 });
+
+describe('findTables: stacked tables in one frame (Word)', () => {
+  // 登记表（EU 样本 004）：一个外框里上下两张表，列线不一样，编号列线上下连着。
+  const rects = [
+    ...gridRects([100, 160, 500, 900], [100, 140, 180, 220]),
+    ...gridRects([100, 160, 300, 650, 900], [220, 260, 300, 340]),
+  ];
+
+  it('splits where the column lines change', () => {
+    const page = findLines(renderPage(W, H, rects), { skew: 0 });
+    expect(findTables(page)).toHaveLength(1);
+    const parts = findTables(page, { splitStacked: true });
+    expect(parts).toHaveLength(2);
+    expect(parts.map((t) => [t.hs.length, t.vs.length])).toEqual([
+      [4, 4],
+      [4, 5],
+    ]);
+  });
+
+  it('does not split a table under a title row that spans all columns', () => {
+    const titled = [
+      ...gridRects([100, 900], [60, 100]),
+      ...gridRects([100, 300, 650, 900], [100, 140, 180, 220]),
+    ];
+    const page = findLines(renderPage(W, H, titled), { skew: 0 });
+    expect(findTables(page, { splitStacked: true })).toHaveLength(1);
+  });
+});

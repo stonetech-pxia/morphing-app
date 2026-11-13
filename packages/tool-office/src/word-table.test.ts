@@ -344,6 +344,36 @@ describe('Word table evidence', () => {
     expect(tables[0]!.table.cols).toBe(3);
   });
 
+  it('splits a framed registration form into its blank sub-tables', () => {
+    // 登记表（EU 样本 004）：外框里两张表上下叠着、列不一样，连成一张又空又大的网格；分开以后各是一张空白表格。
+    const lines = [
+      word('No.', 108, 108, 40),
+      word('Family name', 180, 108, 150),
+      word('First names', 520, 108, 150),
+      word('No.', 108, 268, 40),
+      word('Degree', 180, 268, 90),
+      word('Born on', 320, 268, 100),
+      word('Place of birth', 670, 268, 180),
+      ...[1, 2, 3].map((n) => word(String(n), 112, 108 + n * 40, 14)),
+      ...[1, 2, 3].map((n) => word(String(n), 112, 268 + n * 40, 14)),
+    ];
+    const page = buildDocPage({
+      image: image(lines, [
+        ...gridRects([100, 160, 500, 900], [100, 140, 180, 220, 260]),
+        ...gridRects([100, 160, 300, 650, 900], [260, 300, 340, 380, 420, 460]),
+      ]),
+      lines,
+      source: 'stacked-form',
+      skew: 0,
+    });
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
+    const tables = leafBlocks(page).filter((b) => b.kind === 'table');
+    expect(tables.map((t) => t.table.cells.filter((c) => c.row === 0).map((c) => c.text))).toEqual([
+      ['No.', 'Family name', 'First names'],
+      ['No.', 'Degree', 'Born on', 'Place of birth'],
+    ]);
+  });
+
   const prose = (n: number) =>
     Array.from({ length: n }, (_, i) =>
       word(

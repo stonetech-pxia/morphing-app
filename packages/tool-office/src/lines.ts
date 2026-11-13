@@ -515,11 +515,61 @@ export function findLines(
 const touches = (h: RuleLine, v: RuleLine, tol: number) =>
   v.pos >= h.from - tol && v.pos <= h.to + tol && h.pos >= v.from - tol && h.pos <= v.to + tol;
 
+/** 一条竖线在 [lo, hi] 里的那一段。 */
+function clip(v: RuleLine, lo: number, hi: number): RuleLine {
+  if (v.from >= lo && v.to <= hi) return v;
+  const from = Math.max(v.from, lo);
+  const to = Math.min(v.to, hi);
+  return {
+    ...v,
+    from,
+    to,
+    spans: v.spans
+      .map(([a, b]) => [Math.max(a, from), Math.min(b, to)] as [number, number])
+      .filter(([a, b]) => b > a),
+  };
+}
+
+/**
+ * 叠着的几张表的分界（转 Word）：一条横贯整张表的横线，上面有里面的竖线（不算左右外框）止于它、
+ * 下面有里面的竖线从它开始，而且上下的列线不一样（上面止的那条下面没有接着，下面起的那条上面没有）。
+ * 表头一排横跨所有列（上面没有竖线）、列线一直往下的普通表都不分。
+ */
+function stackedCuts(hs: readonly RuleLine[], vs: readonly RuleLine[], tol: number): number[] {
+  const left = Math.min(...hs.map((h) => h.from), ...vs.map((v) => v.pos));
+  const right = Math.max(...hs.map((h) => h.to), ...vs.map((v) => v.pos));
+  const inner = vs.filter((v) => v.pos > left + tol && v.pos < right - tol);
+  const cuts: number[] = [];
+  for (const h of hs) {
+    if (h.from > left + tol || h.to < right - tol) continue;
+    const ending = inner.filter((v) => Math.abs(v.to - h.pos) <= tol && v.from < h.pos - tol);
+    const starting = inner.filter((v) => Math.abs(v.from - h.pos) <= tol && v.to > h.pos + tol);
+    const at = (list: readonly RuleLine[], x: number) =>
+      list.some((v) => Math.abs(v.pos - x) <= tol);
+    if (
+      ending.some((v) => !at(starting, v.pos)) &&
+      starting.some((v) => !at(ending, v.pos)) &&
+      cuts.every((c) => Math.abs(c - h.pos) > tol)
+    )
+      cuts.push(h.pos);
+  }
+  return cuts;
+}
+
 /**
  * 只有和别的线连在一起的线才算表格线，连在一起的线组成一张表：
  * 横线至少碰到 2 条竖线、竖线至少碰到 2 条横线；或者至少 3 条左右两端对齐、上下挨得不远的横线（只有横线的表）。
  */
-export function findTables(page: PageLines): TableLines[] {
+export function findTables(
+  page: PageLines,
+  options: {
+    /**
+     * 转 Word：上下叠着的几张表共用外框（表单的整页大框里一节一张表，EU 样本 004）时，在列线换了的横线处分开，
+     * 见 stackedCuts。转 Excel 不分（整页共用列线）。
+     */
+    splitStacked?: boolean;
+  } = {},
+): TableLines[] {
   const long = Math.max(page.width, page.height);
   const tol = Math.max(4, long * TOUCH_SHARE);
   const hs = page.horizontal;
@@ -721,19 +771,23 @@ export function findTables(page: PageLines): TableLines[] {
     const allV = members.filter((i) => i >= hs.length).map((i) => vs[i - hs.length]!);
     // 表中间的实心横条（D-501）：上面有竖线止于它的上边，它是下面另一张表的表头
     // （工资单的明细表下面接着汇总表，两张表的列不一样），在它的上边分成两张。
-    const cuts = allH
+    const cuts: number[] = allH
       .filter(
         (h) =>
           h.band === 'top' &&
           allV.some((v) => Math.abs(v.to - h.pos) <= tol && v.from < h.pos - tol),
       )
-      .map((h) => h.pos)
-      .sort((a, b) => a - b);
+      .map((h) => h.pos);
+    if (options.splitStacked) cuts.push(...stackedCuts(allH, allV, tol));
+    cuts.sort((a, b) => a - b);
     const bounds = [-Infinity, ...cuts, Infinity];
     for (let k = 0; k + 1 < bounds.length; k++) {
       const [lo, hi] = [bounds[k]!, bounds[k + 1]!];
       const th = allH.filter((h) => h.pos >= lo - tol && h.pos <= hi + tol);
-      const tv = allV.filter((v) => (v.from + v.to) / 2 > lo && (v.from + v.to) / 2 < hi);
+      // 分开叠着的表时，穿过分界线的竖线（外框的左右两边、上下共用的编号列线）两边各有一段。
+      const tv = options.splitStacked
+        ? allV.filter((v) => v.from < hi - tol && v.to > lo + tol).map((v) => clip(v, lo, hi))
+        : allV.filter((v) => (v.from + v.to) / 2 > lo && (v.from + v.to) / 2 < hi);
       if (th.length < 2) continue;
       const left = Math.min(...th.map((h) => h.from), ...tv.map((v) => v.pos));
       const right = Math.max(...th.map((h) => h.to), ...tv.map((v) => v.pos));
