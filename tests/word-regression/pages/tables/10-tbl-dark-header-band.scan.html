@@ -1,0 +1,114 @@
+<!doctype html><meta charset="utf-8" /><style>
+  @page {
+    size: A4;
+    margin: 16mm;
+  }
+  body {
+    font:
+      9.5pt/1.3 Arial,
+      sans-serif;
+    margin: 0;
+  }
+  h1 {
+    font-size: 14pt;
+    margin: 0 0 4pt;
+  }
+  .who {
+    margin: 0 0 8mm;
+  }
+  /* 工资单：表头是一整条深色底条（白字），列线从底条下沿才开始；下面的汇总表也有自己的底条，
+     上面那张表的列线一直画到它的上沿（D-501 ① ②）。 */
+  .t {
+    position: relative;
+    border-left: 1.2px solid #000;
+    border-right: 1.2px solid #000;
+  }
+  .band {
+    background: #2b2b2b;
+    color: #fff;
+    font-weight: bold;
+    height: 7mm;
+    position: relative;
+  }
+  .band span,
+  .row span {
+    position: absolute;
+    top: 1.6mm;
+  }
+  .row {
+    position: relative;
+    height: 6mm;
+  }
+  .row span {
+    top: 1mm;
+  }
+  .row span.n {
+    text-align: right;
+  }
+  .col {
+    position: absolute;
+    width: 1.2px;
+    background: #000;
+  }
+  .bottom {
+    border-bottom: 1.2px solid #000;
+  }
+  p {
+    margin: 8mm 0 0;
+  }
+</style>
+<h1>Payslip — October 2026</h1>
+<div class="who">
+  Employee: Ingrid Solberg · Position: laboratory technician · Employee no. 40217
+</div>
+<div class="t">
+  <div class="band">
+    <span style="left: 2mm">Item</span><span style="left: 74mm">Base</span
+    ><span style="left: 101mm">Rate</span><span style="left: 128mm">Employee</span
+    ><span style="left: 155mm">Employer</span>
+  </div>
+  <div class="row">
+    <span style="left: 2mm">Base salary</span><span style="left: 74mm">151.67</span
+    ><span style="left: 101mm">18.4200</span><span style="left: 128mm">2 793.76</span>
+  </div>
+  <div class="row">
+    <span style="left: 2mm">Overtime 25 %</span><span style="left: 74mm">8.00</span
+    ><span style="left: 101mm">23.0250</span><span style="left: 128mm">184.20</span>
+  </div>
+  <div class="row">
+    <span style="left: 2mm">Health insurance</span><span style="left: 74mm">2 977.96</span
+    ><span style="left: 101mm">7.0000</span><span style="left: 155mm">208.46</span>
+  </div>
+  <div class="row">
+    <span style="left: 2mm">Old-age pension</span><span style="left: 74mm">2 977.96</span
+    ><span style="left: 101mm">6.9000</span><span style="left: 128mm">205.48</span
+    ><span style="left: 155mm">255.50</span>
+  </div>
+  <div class="row">
+    <span style="left: 2mm">Unemployment insurance</span><span style="left: 74mm">2 977.96</span
+    ><span style="left: 101mm">4.0500</span><span style="left: 155mm">120.61</span>
+  </div>
+  <div class="row">
+    <span style="left: 2mm">Supplementary pension</span><span style="left: 74mm">2 977.96</span
+    ><span style="left: 101mm">4.0100</span><span style="left: 128mm">119.42</span
+    ><span style="left: 155mm">179.87</span>
+  </div>
+  <div class="col" style="left: 72mm; top: 7mm; height: 36mm"></div>
+  <div class="col" style="left: 99mm; top: 7mm; height: 36mm"></div>
+  <div class="col" style="left: 126mm; top: 7mm; height: 36mm"></div>
+  <div class="col" style="left: 153mm; top: 7mm; height: 36mm"></div>
+</div>
+<div class="t bottom">
+  <div class="band">
+    <span style="left: 2mm">Gross pay</span><span style="left: 46mm">Total deductions</span
+    ><span style="left: 90mm">Taxable income</span><span style="left: 134mm">Net pay</span>
+  </div>
+  <div class="row">
+    <span style="left: 2mm">2 977.96</span><span style="left: 46mm">324.90</span
+    ><span style="left: 90mm">2 712.33</span><span style="left: 134mm">2 653.06</span>
+  </div>
+  <div class="col" style="left: 44mm; top: 7mm; height: 6mm"></div>
+  <div class="col" style="left: 88mm; top: 7mm; height: 6mm"></div>
+  <div class="col" style="left: 132mm; top: 7mm; height: 6mm"></div>
+</div>
+<p>Paid by bank transfer on 30 October 2026. Keep this payslip without time limit.</p>

@@ -1,0 +1,99 @@
+<!doctype html><meta charset="utf-8" /><style>
+  @page {
+    size: A4;
+    margin: 20mm;
+  }
+  body {
+    font:
+      11pt/1.4 'Courier New',
+      monospace;
+    margin: 0;
+  }
+  /* 小票：两列的合计清单，金额隔得远；下面隔一行发票号，是三列的 GST 汇总（D-503 ①）。 */
+  .r {
+    width: 120mm;
+    margin: 0 auto;
+  }
+  .c {
+    text-align: center;
+  }
+  h1 {
+    font-size: 14pt;
+    text-align: center;
+    margin: 0 0 2mm;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+  td {
+    padding: 0.4mm 0;
+  }
+  td.n {
+    text-align: right;
+  }
+  .items {
+    margin: 6mm 0 4mm;
+  }
+  .gap {
+    margin: 3mm 0;
+  }
+</style>
+<div class="r">
+  <h1>KEDAI RUNCIT SETIA</h1>
+  <div class="c">No. 18, Jalan Mawar 3, 81200 Johor Bahru</div>
+  <div class="c">GST Reg No: 001234567890</div>
+  <table class="items">
+    <tr>
+      <td>Teh tarik powder 500g</td>
+      <td class="n">1</td>
+      <td class="n">5.90</td>
+    </tr>
+  </table>
+  <table>
+    <tr>
+      <td style="width: 75%">Sub-total</td>
+      <td class="n">5.90</td>
+    </tr>
+    <tr>
+      <td>Total Sales Incl GST</td>
+      <td class="n">5.90</td>
+    </tr>
+    <tr>
+      <td>Total After Adj Incl GST</td>
+      <td class="n">5.90</td>
+    </tr>
+    <tr>
+      <td>CASH</td>
+      <td class="n">10.00</td>
+    </tr>
+    <tr>
+      <td>Change</td>
+      <td class="n">4.10</td>
+    </tr>
+  </table>
+  <div class="gap">Invoice No: 2026111203154</div>
+  <table>
+    <tr>
+      <td style="width: 40%">GST Summary</td>
+      <td style="width: 35%">Amount</td>
+      <td class="n">Tax</td>
+    </tr>
+    <tr>
+      <td>SR @ 6%</td>
+      <td>5.57</td>
+      <td class="n">0.33</td>
+    </tr>
+    <tr>
+      <td>ZR @ 0%</td>
+      <td>0.00</td>
+      <td class="n">0.00</td>
+    </tr>
+    <tr>
+      <td>Total</td>
+      <td>5.57</td>
+      <td class="n">0.33</td>
+    </tr>
+  </table>
+  <div class="c" style="margin-top: 6mm">Thank you. Please come again.</div>
+</div>
