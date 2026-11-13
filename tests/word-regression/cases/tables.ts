@@ -55,10 +55,20 @@ export const TABLES: Case[] = [
       differentTables('Count started', 'Differences 3'),
       differentTables('Steel brackets', 'Rhône Express'),
       notInTable('Carrier returns'),
-      table({ containing: ['Carrier', 'Savoie Logistique'], rows: 4, cols: 3 }),
+      // 列数按每排的格子数：整页共用列线（D-272），上面网格的列线也算在这张表的 gridCol 里，格子跨过去。
+      table({ containing: ['Carrier', 'Savoie Logistique'], rows: 4 }),
+      custom('the three-line table has 3 cells in every row', (c) => {
+        const t = leaves(c.doc)
+          .map((l) => l.leaf)
+          .find((b) => b.kind === 'table' && b.table.cells.some((x) => /Savoie/.test(x.text)));
+        if (!t || t.kind !== 'table') return 'no table';
+        const counts = Array.from(
+          { length: t.table.rows },
+          (_, r) => t.table.cells.filter((x) => x.row === r).length,
+        );
+        return counts.every((n) => n === 3) ? null : `cells per row: ${counts.join(', ')}`;
+      }),
     ],
-    knownFailure:
-      'the three-line table (top, header and bottom rules only) under the ruled grid is chained into the grid: one 9×6 table that also swallows the "Carrier returns" heading between them (already so at 5332f69c^, the first commit with ocr.toWord)',
   },
   {
     id: 'tbl-bold-strokes-and-short-rows',

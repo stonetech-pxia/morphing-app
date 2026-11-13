@@ -300,6 +300,30 @@ describe('tables with only horizontal lines (D-272)', () => {
     expect(page.blocks.map((b) => b.kind)).toEqual(['table', 'text', 'table']);
   });
 
+  it('keeps a three-line table apart from a ruled grid above it although the heading gap is under two grid rows', () => {
+    // 网格每行 50；中间的标题和留白只有 80（不到两行）。竖线画满了网格的三行才停：网格到这里就完了，
+    // 不是「只有表头有竖线、下面只有横线」的表。
+    const xs = [100, 500, 900];
+    const ys = [60, 110, 160, 210];
+    const grid = cellTexts(xs, ys);
+    const rects = [
+      ...gridRects(xs, ys),
+      ...[290, 330, 500].map((y) => ({ x: 100, y, width: 802, height: 2 })),
+    ];
+    const lines = [
+      ...grid.lines,
+      fakeLine('Contacts', { x: 100, y: 240, width: 200, height: 24 }, page1),
+      ...row(0, 300, ['Name', 'Phone', 'Days']),
+      ...[0, 1, 2].flatMap((r) => row(r, 345 + r * 50, [`n${r}`, `p${r}`, `d${r}`])),
+    ];
+    const page = build([...rects, ...grid.marks], lines);
+    expect(tablesOf(page).map(shapeOf)).toEqual([
+      [3, 2],
+      [4, 3],
+    ]);
+    expect(page.blocks.map((b) => b.kind)).toEqual(['table', 'text', 'table']);
+  });
+
   it('does not make a table out of aligned fill-in blanks with nothing inside', () => {
     const rects = [200, 250, 300].map((y) => ({ x: 300, y, width: 400, height: 2 }));
     const lines = [200, 250, 300].map((y, i) =>

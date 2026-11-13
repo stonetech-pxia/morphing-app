@@ -550,6 +550,10 @@ export function findTables(page: PageLines): TableLines[] {
       // 从网格的线接到不在网格里的线（或反过来）：只有间距和上一格差不多（不到 2 倍）时才接，
       // 例如表头有竖线、下面只有横线的表；网格下面隔着标题的另一张只有横线的表不接上去。
       if (hOk[i] !== hOk[lastIndex]) {
+        // 竖线画满了网格的好几行才停（超过两行，不像表头）：网格到这里就完了，下面只有横线的是另一张表
+        // （中间的标题加留白可能不到两行高）。
+        if (hOk[lastIndex] && c.filter((k) => hOk[k] && find(k) === find(lastIndex)).length > 3)
+          return false;
         const prev = c.length >= 2 ? last.pos - hs[c.at(-2)!]!.pos : null;
         return prev !== null && gap <= 2 * prev;
       }
