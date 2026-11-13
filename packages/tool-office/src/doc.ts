@@ -1451,6 +1451,8 @@ function buildPage(
         fontSizeOf(bodyH, fontWidthPx),
       ),
     );
+  // 正文行高按纸宽换算、还没限制范围的字号。
+  const rawBodySize = (bodyH * A4_WIDTH_PT * BOX_TO_FONT) / fontWidthPx;
   // 按字宽估字号（D-463）：正文行的估计够一致时才用。
   const bodyWidths = groups
     .filter((g) => !g.title)
@@ -1488,8 +1490,13 @@ function buildPage(
     const snap = byWidth ? WIDTH_SNAP : BODY_SNAP;
     if (short || Math.abs(size - bodySize) <= snap * bodySize) size = bodySize;
     // 已知纸张尺寸时，不能让正文的最小字号把大标题按比例再次放大。
-    if (input.paper && !short && size >= HEADING_RATIO * bodySize)
-      size = Math.min(size, fontSizeOf(h, fontWidthPx));
+    if (input.paper && !short && size >= HEADING_RATIO * bodySize) {
+      // 全大写的行没有下伸的字母，框比同字号的行矮，按自己的框高会读小（16.3 磅读成 13 磅）：
+      // 保留按字宽的比例，只去掉正文被最小字号抬高的那一截。
+      if (/\p{Lu}/u.test(text) && !/\p{Ll}/u.test(text))
+        size = Math.min(size, Math.max(6, Math.round(((size * rawBodySize) / bodySize) * 2) / 2));
+      else size = Math.min(size, fontSizeOf(h, fontWidthPx));
+    }
     const bold =
       pageStroke > 0 && median(paraLines.map((l) => strokes.get(l) ?? 0)) > BOLD_RATIO * pageStroke;
     const color = textColor(image, orig(paraLines[0]!));

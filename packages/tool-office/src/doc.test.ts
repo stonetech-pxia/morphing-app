@@ -779,6 +779,35 @@ describe('buildDocPage', () => {
     expect(sizeOf(big)).toBeCloseTo((doc.bodySize * 22) / 17, 0);
   });
 
+  it('keeps the letter-width size of an all-capitals heading on known paper, only removing the body-minimum inflation', () => {
+    // 全大写的行没有上下伸的字母，识别框比同字号的正文矮：框高只说 1.2 倍，字宽说 1.41 倍（D-463 按字宽）。
+    const px = (text: string, size: number) => Math.round(textEm(text) * size);
+    const body = [
+      'Docteur Claire FONTAINE',
+      'Ophtalmologiste diplômée',
+      'Ancienne assistante des hôpitaux',
+      'Réf. cabinet 2026-0417',
+      'Vallon le 11/05/2026',
+    ];
+    const title = 'ORDONNANCE DE LUNETTES';
+    const rows = [
+      ...body.map((text, i) => ({ text, x: 100, y: 100 + i * 60, width: px(text, 17) })),
+      { text: title, x: 300, y: 500, width: px(title, 24), h: 24 },
+    ];
+    const { image, lines } = textPage(rows);
+    const sizes = (paper: { width: number; height: number }) => {
+      const doc = buildDocPage({ image, lines, source: 's', paper, skew: 0 });
+      const para = (doc.blocks as DocParagraph[]).find((p) => p.text === title)!;
+      return { body: doc.bodySize, title: para.size ?? doc.bodySize };
+    };
+    const a4 = sizes({ width: 595.3, height: 841.9 });
+    expect(a4.title / a4.body).toBeCloseTo(24 / 17, 1);
+    // 窄纸（D-533）：正文按物理宽度约 5.4 磅，被抬到最小字号 6 磅；标题按原图约 7.6 磅，不跟着这次抬高再放大。
+    const narrow = sizes({ width: 300, height: 420 });
+    expect(narrow.body).toBe(6);
+    expect(narrow.title).toBeLessThanOrEqual(8);
+  });
+
   it('does not make same-size, regular lines in a title region headings; headings keep their size (D-463)', () => {
     // 版面模型把整个页眉（机构名 + 地址、电话）框成一个标题区域。
     const { image, lines } = textPage([

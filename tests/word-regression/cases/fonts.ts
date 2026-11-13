@@ -153,8 +153,6 @@ export const FONTS: Case[] = [
     suite: 'fonts',
     fix: '0fcb9def D-463 (regressed by 261a67d4 D-533)',
     what: 'An all-capitals 16.3 pt title over 11.5 pt text on known A4 paper must keep its source size ratio (D-463 headings carry their own estimated size).',
-    knownFailure:
-      'since 261a67d4 (D-533) a heading on known paper is capped at its box-height estimate (doc.ts: input.paper && size >= HEADING_RATIO * bodySize), which under-reads capitals-only lines: ORDONNANCE DE LUNETTES comes out 13 pt for 16.3 pt (ratio 1.13 instead of 1.42); 0fcb9def–46abc3ba gave the source ratio',
     checks: [sizeRatio('ORDONNANCE DE LUNETTES', '14 allée des Tilleuls', 16.3 / 11.5)],
   },
   {
