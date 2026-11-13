@@ -177,4 +177,16 @@ export const GEOMETRY: Case[] = [
       table({ rows: 3, cols: 3, containing: ['Forfait mobile 20 Go', '12,99 €'] }),
     ],
   },
+  {
+    id: 'short-edge-cell-one-line',
+    suite: 'geometry',
+    fix: 'EU sample 005, 010',
+    what: 'Header and footer rows wider than the content area with a short text at the right page edge ("Page 2 of 5", "Rev. 4b"; EU samples: "1/3", "AUTRE TOTAL"): the last cell was only as wide as its source ink, so the text wrapped one or two characters per line; it borrows the unused width of the cell to its left.',
+    checks: [
+      fitsOneLine('Page 2 of 5'),
+      fitsOneLine('Rev. 4b'),
+      fitsOneLine('Diploma Supplement – Specimen'),
+      fitsOneLine('http://www.example.org/atti/stampa/serie_generale/originario'),
+    ],
+  },
 ];

@@ -1,0 +1,51 @@
+<!doctype html><meta charset="utf-8" /><style>
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  body {
+    font:
+      10pt/1.45 Arial,
+      sans-serif;
+    margin: 0;
+    position: relative;
+    width: 210mm;
+    height: 297mm;
+  }
+  .bar {
+    position: absolute;
+    left: 8mm;
+    right: 5mm;
+    display: flex;
+    justify-content: space-between;
+    font-size: 9pt;
+  }
+  .text {
+    position: absolute;
+    left: 25mm;
+    top: 40mm;
+    width: 160mm;
+  }
+  p {
+    margin: 0 0 9pt;
+  }
+</style>
+<!-- 页眉、页脚右边贴着页边的短字（「Page 2 of 5」「Rev. 4b」）：整行比内容区宽，最后一格只有字那么宽，导出的字一个字一行地折。 -->
+<div class="bar" style="top: 7mm">
+  <span>Diploma Supplement – Specimen</span><span>Page 2 of 5</span>
+</div>
+<div class="text">
+  <p><b>Information on the programme completed</b></p>
+  <p>
+    The programme combines the contents of experimental biology with the methods of the
+    laboratory sciences. Students complete block practicals and internships in research
+    laboratories and in commercial application areas.
+  </p>
+  <p>
+    Graduates can use their qualification as a prerequisite for a master's programme or start
+    work directly in industry or public research.
+  </p>
+</div>
+<div class="bar" style="bottom: 6mm">
+  <span>http://www.example.org/atti/stampa/serie_generale/originario</span><span>Rev. 4b</span>
+</div>

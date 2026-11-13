@@ -738,6 +738,50 @@ export function writeDocx(
       bottom: number;
       height: number;
     }
+    const sizeOf = (b: DocParagraph) =>
+      b.size ?? (b.heading ? bodySize * HEADING_SCALE[`Heading${b.heading}`]! : bodySize);
+    // 原图里只有一行的段落；它在 Word 里一行要多宽（导出字号量字宽，加余量和格子的内边距）。
+    const oneLine = (b: DocParagraph) =>
+      !/[\n\t]/.test(b.text) && twip(b.box.height) <= 1.5 * LINE_HEIGHT * sizeOf(b) * 20;
+    const lineWidth = (b: DocParagraph, em = textEm(b.text)) =>
+      Math.ceil(em * sizeOf(b) * 20 * WIDTH_SLACK + 2 * CELL_PAD);
+    /**
+     * 最后一格只有原图里那几个字宽（贴着右边的页码「1/3」「Page 2 of 5」、标签「AUTRE TOTAL」）：
+     * Word 的 Arial 比原字宽，放不下就一个字一行地折。右边没有空白可借时，从前面各格没用到的宽度里借，
+     * 借到一行的放得下一行、别的（几行的、标题、居中的：往左借会挪动它们的位置，D-526）最长的词不断开；
+     * 前面的格子不缩到比它们自己的字还窄。
+     */
+    const lendToLast = (row: DocRow, widths: number[]) => {
+      const last = row.cells.at(-1)!;
+      const texts = last.blocks.filter((b): b is DocParagraph => b.kind === 'paragraph' && !b.tab);
+      if (!texts.length || texts.length !== last.blocks.length) return;
+      const wanted = Math.max(
+        ...texts.map((b) =>
+          oneLine(b) && !b.heading && b.align !== 'center'
+            ? lineWidth(b)
+            : lineWidth(b, longestWordEm(b.text)),
+        ),
+      );
+      let deficit = wanted - widths.at(-1)!;
+      for (let i = widths.length - 2; i >= 0 && deficit > 0; i--) {
+        const blocks = row.cells[i]!.blocks;
+        const from = Math.min(...blocks.map((b) => b.box.x));
+        const own = Math.max(
+          2 * CELL_PAD,
+          ...blocks.map(
+            (b) =>
+              twip(b.box.x - from) +
+              (b.kind === 'paragraph' && !b.tab && oneLine(b)
+                ? lineWidth(b)
+                : twip(b.box.width) + 2 * CELL_PAD),
+          ),
+        );
+        const lend = Math.min(deficit, Math.max(0, widths[i]! - own));
+        widths[i]! -= lend;
+        widths[widths.length - 1]! += lend;
+        deficit -= lend;
+      }
+    };
     const nestedWidths = (row: DocRow, max: number) => {
       const widths = fitWidths(
         row.cells.map((c) => twip(c.width)),
@@ -756,6 +800,7 @@ export function writeDocx(
       );
       const spare = Math.max(0, max - widths.reduce((n, w) => n + w, 0));
       widths[widths.length - 1]! += Math.min(spare, needed - widths.at(-1)!);
+      lendToLast(row, widths);
       return widths;
     };
     // 一块在 Word 里大概多高：文字按原图里有几行 × 行高，表格、图片按原图里的高。
@@ -1172,6 +1217,7 @@ export function writeDocx(
           widths[widths.length - 2]! -= borrowed;
         }
       }
+      lendToLast(block, widths);
       // 格子里留一点边距，里面的表格、图片按格子的宽缩小；格子里的位置从这一格的左上角算。
       const cells = block.cells.map((cell, i) => {
         const max = widths[i]! - 2 * CELL_PAD;

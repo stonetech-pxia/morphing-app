@@ -95,6 +95,50 @@ describe('writeDocx', () => {
     const widths = [...grids[1]!.matchAll(/w:w="(\d+)"/g)].map((m) => Number(m[1]));
     expect(widths.at(-1)).toBeGreaterThanOrEqual(Math.ceil(textEm('FLIGHT') * 10 * 20 + 160));
   });
+  it('borrows unused width from earlier cells so a short last cell stays on one line', () => {
+    // 页脚：左边一个网址，右边贴着页边的「1/3」；整行比内容区宽，右边没空白可借，格子只有「1/3」那么宽。
+    const footer = (last: string, lastWidth: number) => ({
+      kind: 'row' as const,
+      box: { x: 40, y: 1350, width: 950, height: 20 },
+      cells: [
+        {
+          width: 950 - lastWidth,
+          blocks: [
+            {
+              kind: 'paragraph' as const,
+              text: 'http://www.example.org/atto/stampa/originario',
+              box: { x: 40, y: 1350, width: 380, height: 18 },
+            },
+          ],
+        },
+        {
+          width: lastWidth,
+          blocks: [
+            {
+              kind: 'paragraph' as const,
+              text: last,
+              box: { x: 990 - lastWidth, y: 1350, width: lastWidth, height: 18 },
+            },
+          ],
+        },
+      ],
+    });
+    for (const [text, width] of [
+      ['1/3', 24],
+      ['Page 2 of 5', 62],
+      ['AUTRE TOTAL', 46],
+    ] as const) {
+      const p: DocPage = { ...page([footer(text, width)], 9), paper: { width: 595, height: 842 } };
+      const xml = unzip(writeDocx({ version: 4, pages: [p] })).text('word/document.xml');
+      const grid = xml.match(/<w:tblGrid>.*?<\/w:tblGrid>/)![0];
+      const widths = [...grid.matchAll(/w:w="(\d+)"/g)].map((m) => Number(m[1]));
+      expect(widths.at(-1)).toBeGreaterThanOrEqual(Math.ceil(textEm(text) * 9 * 20 + 160));
+      // 借的只是左边没用到的宽：网址还放得下一行。
+      expect(widths[0]).toBeGreaterThanOrEqual(
+        Math.ceil(textEm('http://www.example.org/atto/stampa/originario') * 9 * 20 + 160),
+      );
+    }
+  });
   it('reserves the painted border in the minimum height of a tightly packed text row', () => {
     const b = { x: 50, y: 100, width: 800, height: 2 };
     const t: DocTable = {

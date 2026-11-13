@@ -46,5 +46,11 @@
     "id": "oversized-scan-paper",
     "source": "08-oversized-scan-paper.html",
     "sha256": "cf019d4879531e3af96fb03118e22943817352fec77707eb954e6c89d7a24eb6"
+  },
+  {
+    "page": 9,
+    "id": "short-edge-cell-one-line",
+    "source": "09-short-edge-cell-one-line.html",
+    "sha256": "54331f04da399fb134a26dfa2a03ba4506709db026437248ec57fbcf0fe650dd"
   }
 ]
