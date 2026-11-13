@@ -6,6 +6,7 @@ import {
   leaves,
   notInRow,
   inRow,
+  notInTable,
   pairedRows,
   sideBySide,
   table,
@@ -103,6 +104,48 @@ export const FORMS: Case[] = [
       }),
       inRow('IBAN', 'FR76 3000 4000 0312 3456 7890 143'),
       inRow('Référence à rappeler', 'FAC-2026-0415'),
+    ],
+  },
+  {
+    id: 'blank-invoice-grids',
+    suite: 'forms',
+    fix: 'TBD; EU samples 001, 006',
+    what: 'Blank invoice template: the empty item grid (headers printed above it) vanished, leaving only the header words over a gap, and the label | empty answer box table lost its answer column, so there was nothing left to fill in.',
+    lang: 'fra',
+    checks: [
+      table({
+        containing: ['RÉFÉRENCE', 'DÉSIGNATION', 'QTÉ', 'PRIX UNITAIRE', 'TOTAL HT'],
+        rows: 9,
+        cells: [{ row: 0, col: 0, text: 'RÉFÉRENCE' }],
+      }),
+      custom('the item grid has 5 cells in every row, all empty below the header', (c) => {
+        const t = leaves(c.doc)
+          .map((l) => l.leaf)
+          .find((b) => b.kind === 'table' && b.table.cells.some((x) => /DÉSIGNATION/.test(x.text)));
+        if (!t || t.kind !== 'table') return 'no item table';
+        const rows = Array.from({ length: t.table.rows }, (_, r) =>
+          t.table.cells.filter((x) => x.row === r),
+        );
+        if (rows.some((r) => r.length !== 5)) return `cells per row: ${rows.map((r) => r.length)}`;
+        return rows.slice(1).some((r) => r.some((x) => x.text.trim())) ? 'body not empty' : null;
+      }),
+      custom('each label keeps an empty answer cell beside it', (c) => {
+        const t = leaves(c.doc)
+          .map((l) => l.leaf)
+          .find(
+            (b) => b.kind === 'table' && b.table.cells.some((x) => /Nom du client/.test(x.text)),
+          );
+        if (!t || t.kind !== 'table') return 'no label table';
+        if (t.table.rows !== 3) return `${t.table.rows} rows`;
+        for (let r = 0; r < 3; r++) {
+          const row = t.table.cells.filter((x) => x.row === r).sort((a, b) => a.col - b.col);
+          if (row.length !== 2 || !row[0]!.text.trim() || row[1]!.text.trim())
+            return `row ${r}: ${JSON.stringify(row.map((x) => x.text))}`;
+        }
+        return null;
+      }),
+      notInTable('Complétez les champs ci-dessous'),
+      notInTable('Veuillez libeller votre chèque'),
     ],
   },
 ];

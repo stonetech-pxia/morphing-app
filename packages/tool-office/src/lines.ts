@@ -628,6 +628,23 @@ export function findTables(page: PageLines): TableLines[] {
       const gap = h.pos - last.pos;
       if (gap > maxGap || Math.abs(h.from - last.from) > align || Math.abs(h.to - last.to) > align)
         return false;
+      // 隔着一大段（比这一串的间距大一倍以上）、中间压着另一张网格的横线：上下是两串，不跨过网格接起来
+      // （发票右边的填写横线，中间隔着整张商品栏，EU 样本 001）。一串紧挨着穿过网格的线照旧接
+      // （IRS Schedule B 金额栏的横线一格一条，中间的分节线也是网格的线）。
+      const step = c.length >= 2 ? last.pos - hs[c.at(-2)!]!.pos : null;
+      if (
+        !hOk[i] &&
+        step !== null &&
+        gap > 2 * step &&
+        hs.some(
+          (g, k) =>
+            hOk[k] &&
+            g.pos > last.pos + tol &&
+            g.pos < h.pos - tol &&
+            Math.min(g.to, h.to) - Math.max(g.from, h.from) > 0.5 * (h.to - h.from),
+        )
+      )
+        return false;
       // 两张网格（各自有竖线）宽度一样、上下排着，不接成一张（中间常隔着一段文字）。
       if (hOk[i] && hOk[lastIndex]) return find(i) === find(lastIndex);
       // 从网格的线接到不在网格里的线（或反过来）：只有间距和上一格差不多（不到 2 倍）时才接，

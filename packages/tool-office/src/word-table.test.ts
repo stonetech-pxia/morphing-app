@@ -243,7 +243,81 @@ describe('Word table evidence', () => {
     const tables = leafBlocks(page).filter((b) => b.kind === 'table');
     expect(tables).toHaveLength(1);
     expect(tables[0]!.table.rows).toBe(4);
+    // 右边空着的填写栏留着，不并进标签格（EU 样本 006）。
+    for (let r = 0; r < 4; r++) {
+      const row = tables[0]!.table.cells.filter((c) => c.row === r).sort((a, b) => a.col - b.col);
+      expect(row.map((c) => c.text)).toEqual([lines[r]!.text, '']);
+    }
     expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
+  });
+
+  it('keeps a blank item grid whose headers are printed above it, with the headers as its first row', () => {
+    // 发票模板的商品栏（EU 样本 001）：网格里一个字也没有，表头在网格上边线的上面。
+    const headers = [
+      word('Ref', 130, 76, 60),
+      word('Description', 330, 76, 160),
+      word('Qty', 640, 76, 50),
+      word('Total', 790, 76, 80),
+    ];
+    const lines = [word('Please fill in the items below', 100, 20, 400), ...headers];
+    const page = buildDocPage({
+      image: image(lines, gridRects([100, 250, 600, 720, 900], [100, 140, 180, 220, 260, 300])),
+      lines,
+      source: 'blank-items',
+      skew: 0,
+    });
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
+    const tables = leafBlocks(page).filter((b) => b.kind === 'table');
+    expect(tables).toHaveLength(1);
+    const table = tables[0]!.table;
+    expect(table.rows).toBe(6);
+    const rows = Array.from({ length: 6 }, (_, r) =>
+      table.cells
+        .filter((c) => c.row === r)
+        .sort((a, b) => a.col - b.col)
+        .map((c) => c.text),
+    );
+    expect(rows[0]).toEqual(['Ref', 'Description', 'Qty', 'Total']);
+    for (const row of rows.slice(1)) expect(row).toEqual(['', '', '', '']);
+  });
+
+  it('does not take a sentence above an empty grid for its header', () => {
+    const lines = [word('Please list every item you return in the grid below', 110, 76, 700)];
+    const page = buildDocPage({
+      image: image(lines, gridRects([100, 250, 600, 720, 900], [100, 140, 180, 220, 260])),
+      lines,
+      source: 'grid-under-sentence',
+      skew: 0,
+    });
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
+    expect(leafBlocks(page).filter((b) => b.kind === 'table')).toHaveLength(0);
+  });
+
+  it('keeps a numbered blank grid with a header row as a table (registration form)', () => {
+    // 德国的登记表（EU 样本 004）：表头一排，下面每排只有左边的编号 1–4。
+    const lines = [
+      word('No.', 110, 112, 30),
+      word('Family name', 180, 112, 160),
+      word('Previous names', 480, 112, 200),
+      word('First names', 730, 112, 150),
+      ...[1, 2, 3, 4].map((n) => word(String(n), 115, 112 + n * 50, 14)),
+    ];
+    const page = buildDocPage({
+      image: image(lines, gridRects([100, 160, 460, 710, 900], [100, 150, 200, 250, 300, 350])),
+      lines,
+      source: 'numbered-blank-grid',
+      skew: 0,
+    });
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
+    const tables = leafBlocks(page).filter((b) => b.kind === 'table');
+    expect(tables).toHaveLength(1);
+    expect(tables[0]!.table.rows).toBe(5);
+    expect(tables[0]!.table.cells.filter((c) => c.row === 2).map((c) => c.text)).toEqual([
+      '2',
+      '',
+      '',
+      '',
+    ]);
   });
 
   it('keeps a sign-up sheet with a header row and empty rows as a table', () => {

@@ -34,5 +34,11 @@
     "id": "light-grey-ruled-table",
     "source": "06-light-grey-ruled-table.html",
     "sha256": "be2ed5850873c393ed911997a55ba0df410679ba184e82822cf9967a77158124"
+  },
+  {
+    "page": 7,
+    "id": "blank-invoice-grids",
+    "source": "07-blank-invoice-grids.html",
+    "sha256": "a5e471c084a07278152e454af6d506696b1d62767bab0bf8a257ebeec5ddb92d"
   }
 ]

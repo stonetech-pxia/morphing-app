@@ -32,7 +32,11 @@ export interface BuildOptions {
    * 每张表放进格子的识别行（传进来的对象）：转 Word 时没放进表的行照样排成正文（D-501）。
    * chopped 是被列线从一个词中间切开的行数（D-502）：真的表里字不跨列线，跨了多半是网格认错了。
    */
-  onTable?: (table: TableBlock, lines: readonly OcrBox[], check: { chopped: number }) => void;
+  onTable?: (
+    table: TableBlock,
+    lines: readonly OcrBox[],
+    check: { chopped: number; ruled: boolean },
+  ) => void;
   /**
    * 带线的表以外也认没有线的表（D-506：和转 Word 同一套规则，D-471、D-502、D-503），默认认。
    * 转 Word 自己在去掉竖排、零星的字以后再认，不在这里认。
@@ -45,6 +49,8 @@ export interface BuildOptions {
   arrange?: boolean;
   /** 很浅的表格线也找（findLines 的 light）：只给转 Word，转 Excel 不变。 */
   lightRules?: boolean;
+  /** 横竖线画满、里面一个字也没有的网格，紧挨在上面的一排字是它的表头（转 Word 用，withHeaderAbove）。 */
+  headerAbove?: boolean;
 }
 
 export interface PageInput {
@@ -593,6 +599,66 @@ export function sharedColumns(
   return { pos: groups.map((g) => g.sum / g.members.length), maps };
 }
 
+/** 空白网格至少要有这么多排、这么多列，才去找它上面的表头。 */
+const HEADER_GRID_MIN_ROWS = 3;
+const HEADER_GRID_MIN_COLS = 2;
+/** 表头那排字的底边离网格的上边不超过这么多个行高。 */
+const HEADER_GAP_LINES = 1.5;
+
+/**
+ * 横竖线画满、里面没有字的网格（留着填的商品栏）：紧挨在上面、一列一个的那排字是表头。
+ * 找到时在表头上面补一条横线、把竖线往上接到它，表头成为网格的第一排；
+ * 表头的字至少落在一半的列里（至少两列），而且每段字都在一列里面（不跨列线）。
+ */
+function withHeaderAbove(
+  table: TableLines,
+  lines: readonly OcrBox[],
+  tol: number,
+  lineHeight: number,
+): { table: TableLines; lines: OcrBox[] } | null {
+  const { box, hs, vs } = table;
+  const top = box.y;
+  const bottom = box.y + box.height;
+  const cols = vs.length - 1;
+  if (hs.length - 1 < HEADER_GRID_MIN_ROWS || cols < HEADER_GRID_MIN_COLS) return null;
+  // 每条竖线都从上到下画满（是一张规整的网格，不是框里的几条线）。
+  if (vs.some((v) => v.from > top + tol || v.to < bottom - tol)) return null;
+  const near = lines.filter(
+    (l) =>
+      centerX(l) > box.x &&
+      centerX(l) < box.x + box.width &&
+      l.y + l.height <= top + tol &&
+      l.y + l.height >= top - HEADER_GAP_LINES * lineHeight,
+  );
+  if (!near.length) return null;
+  // 只取最下面那一排（中心和最下面的一段差不到半个行高）。
+  const lowest = Math.max(...near.map(centerY));
+  const row = near.filter((l) => lowest - centerY(l) <= 0.5 * lineHeight);
+  const inner = vs.slice(1, -1).map((v) => v.pos);
+  const pad = 0.25 * lineHeight;
+  if (row.some((l) => inner.some((x) => x > l.x + pad && x < l.x + l.width - pad))) return null;
+  const hit = new Set(
+    row.map((l) => vs.findIndex((v, i) => i < cols && centerX(l) < vs[i + 1]!.pos)),
+  );
+  if (hit.size < HEADER_GRID_MIN_COLS || hit.size * 2 < cols) return null;
+  const pos = Math.min(...row.map((l) => l.y)) - 0.3 * lineHeight;
+  const ruleAbove: RuleLine = {
+    pos,
+    from: box.x,
+    to: box.x + box.width,
+    thickness: 1,
+    spans: [[box.x, box.x + box.width]],
+  };
+  return {
+    table: {
+      hs: [ruleAbove, ...hs],
+      vs: vs.map((v) => ({ ...v, from: pos, spans: [[pos, v.to] as [number, number]] })),
+      box: { ...box, y: pos, height: bottom - pos },
+    },
+    lines: row,
+  };
+}
+
 /** 一页的 TablePage：找线、组表、填字、表外文字分段。 */
 export function buildTablePage(input: PageInput, options: BuildOptions = {}): TablePage {
   const join = options.joinLines ?? defaultJoin;
@@ -667,9 +733,12 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     xs: number[];
     lines: OcrBox[];
     chopped: number;
+    /** 每条行线、列线都是画出来的（不是按文字空隙分的）。 */
+    ruled: boolean;
   }[] = [];
-  for (const table of findTables(dropTextStrokes(page, flat))) {
-    const { box } = table;
+  for (const found of findTables(dropTextStrokes(page, flat))) {
+    let table = found;
+    let { box } = table;
     // 大半在图片区域里的「表」是图里的线（示意图、图表的网格）。
     if (
       figures.some((f) => {
@@ -679,7 +748,7 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
       })
     )
       continue;
-    const members = flat.filter(
+    let members = flat.filter(
       (l) =>
         !placed.has(l) &&
         centerX(l) >= box.x - tol &&
@@ -687,6 +756,20 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
         centerY(l) >= box.y - tol &&
         centerY(l) <= box.y + box.height + tol,
     );
+    // 空白表格的表头写在网格上面（发票模板的商品栏，EU 样本 001）：表头那一排算进表里。
+    if (!members.length && options.headerAbove) {
+      const headed = withHeaderAbove(
+        table,
+        flat.filter((l) => !placed.has(l)),
+        tol,
+        lineHeight,
+      );
+      if (headed) {
+        table = headed.table;
+        box = table.box;
+        members = headed.lines;
+      }
+    }
     // 里面没有字的不算表（例如表单里几条对齐的填空横线）。
     if (!members.length) continue;
     const built = buildGrid(table, members, tol, lineHeight);
@@ -780,6 +863,7 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
       xs: grid.xs.map((x) => x.pos),
       lines: inside.map((l) => sourceOf.get(l)!),
       chopped,
+      ruled: grid.xs.every((x) => x.lined) && grid.ys.every((y) => y.lined),
       block: {
         kind: 'table',
         rows: grid.ys.length - 1,
@@ -822,6 +906,7 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
         xs,
         lines: members.map((l) => sourceOf.get(l)!),
         chopped: 0,
+        ruled: false,
         block: {
           ...found.table,
           cells: found.table.cells.map((c) => ({
@@ -880,7 +965,8 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
       colSpan: map[cell.col + cell.colSpan]! - map[cell.col]!,
     }));
   });
-  for (const tb of tables) options.onTable?.(tb.block, tb.lines, { chopped: tb.chopped });
+  for (const tb of tables)
+    options.onTable?.(tb.block, tb.lines, { chopped: tb.chopped, ruled: tb.ruled });
   const colWidths =
     tables.length || ranged.length
       ? shared.pos.slice(1).map((x, c) => Math.round(x - shared.pos[c]!))

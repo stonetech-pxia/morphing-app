@@ -62,4 +62,22 @@ describe('findTables: rules above a grid', () => {
     expect(tables).toHaveLength(1);
     expect(Math.abs(tables[0]!.box.y - 480)).toBeLessThan(4);
   });
+
+  it('does not chain fill-in rules across a grid between them', () => {
+    // 发票右边一列填写横线：上面三条、隔着整张商品栏、下面三条（EU 样本 001），是上下两串，不是一张高高的表。
+    const fills: Rect[] = [100, 160, 220, 600, 660, 720].map((y) => ({
+      x: 700,
+      y,
+      width: 202,
+      height: 2,
+    }));
+    const image = renderPage(W, H, [
+      ...fills,
+      ...gridRects([100, 400, 700, 900], [300, 360, 420, 480, 540]),
+    ]);
+    const tables = findTables(findLines(image, { skew: 0 }));
+    for (const t of tables.filter((x) => !x.vs.length)) {
+      expect(t.box.y + t.box.height < 300 || t.box.y > 540).toBe(true);
+    }
+  });
 });
