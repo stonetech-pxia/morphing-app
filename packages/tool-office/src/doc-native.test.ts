@@ -88,6 +88,44 @@ describe('local source PDF graphics', () => {
     expect(stripeXml.match(/<w:tcPr>[^]*?<\/w:tcPr>/)?.[0]).not.toContain('CCD7FF');
     expect(stripeXml).toContain('w:fill="CCD7FF"');
   });
+  it('counts overlapping pieces of one thick edge once, so a narrow cell beside it stays unfilled (EU sample 016)', () => {
+    // 25 像素宽的编号列；它左边的粗黑边画了两遍（每格一段、整张表一段），框各往外放宽了几个像素，
+    // 各盖住这一格的一半多一点：加起来过了八成，其实合起来只盖住一半。
+    const cell = { x: 132, y: 100, width: 25, height: 30 };
+    const p: DocPage = {
+      ...page(),
+      blocks: [
+        {
+          kind: 'table',
+          box: cell,
+          colWidths: [25],
+          table: {
+            kind: 'table',
+            box: cell,
+            col: 0,
+            cols: 1,
+            rows: 1,
+            cells: [{ row: 0, col: 0, rowSpan: 1, colSpan: 1, text: '1.', box: cell }],
+          },
+        },
+      ],
+    };
+    const fill = (boxes: (typeof cell)[]) => {
+      const fills = boxes.map((b) => ({ box: b, color: '000000' }));
+      const out = applyNativeGraphics(p, { owned: [], colors: [], fills }, []).blocks[0]!;
+      return out.kind === 'table' ? out.cellLayout?.[0]?.fill : undefined;
+    };
+    const edge = { x: 127, y: 95, width: 17, height: 40 };
+    expect(fill([edge, { ...edge, y: 98 }])).toBeUndefined();
+    // 两块同色的底并排盖满这一格：照旧是这一格的底色。
+    expect(
+      fill([
+        { x: 120, y: 90, width: 26, height: 50 },
+        { x: 146, y: 90, width: 20, height: 50 },
+      ]),
+    ).toBe('000000');
+  });
+
   it('moves a dark header band with its white editable text, rather than leaving white text on white paper', () => {
     const body = { x: 20, y: 120, width: 200, height: 20 };
     const p = applyNativeGraphics(

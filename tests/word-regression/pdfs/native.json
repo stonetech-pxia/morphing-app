@@ -40,5 +40,11 @@
     "id": "chart-label-run",
     "source": "07-chart-label-run.pdf",
     "sha256": "3ec0169cd56aed077644abeb5ae63d538c20b54d9d81c27e4f7da7a89c38e4ef"
+  },
+  {
+    "page": 8,
+    "id": "narrow-cell-dark-edge",
+    "source": "08-narrow-cell-dark-edge.html",
+    "sha256": "58c41cbcbaa1c2bc0fb16ee58d4d47d7221946b4b44e9af99c271fbe369a27ab"
   }
 ]

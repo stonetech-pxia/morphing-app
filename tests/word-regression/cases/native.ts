@@ -132,4 +132,18 @@ export const NATIVE: Case[] = [
       images({ min: 1, max: 1 }),
     ],
   },
+  {
+    id: 'narrow-cell-dark-edge',
+    suite: 'native',
+    fix: 'EU sample 016',
+    what: 'Digital payslip table with a narrow number column and a thick black left edge drawn one cell at a time: the edge pieces (boxes padded by a few pixels) overlap each other, their areas were added up as if they did not overlap, so the edge counted as the fill of the narrow column and its cells came out solid black in Word.',
+    lang: 'spa',
+    checks: [
+      table({ containing: ['Percepciones salariales', 'Salario base', '1.250,00'], minRows: 6 }),
+      custom('no table cell is filled black', (c) => {
+        const black = (c.xml.match(/<w:shd [^>]*w:fill="000000"/g) ?? []).length;
+        return black ? `${black} black cells` : null;
+      }),
+    ],
+  },
 ];

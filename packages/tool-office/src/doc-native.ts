@@ -19,6 +19,43 @@ const overlap = (a: Box, b: Box) =>
   Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) *
   Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
 
+/**
+ * 几个框在 box 里一共盖住多大面积，重叠的地方只算一次：PDF 常把同一条粗边画好几遍（每格一段，再按整张表画一段），
+ * 框还都往外放宽了几个像素；按面积直接相加，一条边就「盖满」了旁边很窄的一格（EU 样本 016 的整列黑格子）。
+ */
+function coveredArea(box: Box, rects: readonly Box[]): number {
+  const parts = rects
+    .map((r) => {
+      const x = Math.max(box.x, r.x);
+      const y = Math.max(box.y, r.y);
+      return {
+        x,
+        y,
+        right: Math.min(box.x + box.width, r.x + r.width),
+        bottom: Math.min(box.y + box.height, r.y + r.height),
+      };
+    })
+    .filter((r) => r.right > r.x && r.bottom > r.y);
+  const xs = [...new Set(parts.flatMap((r) => [r.x, r.right]))].sort((a, b) => a - b);
+  let total = 0;
+  for (let i = 0; i + 1 < xs.length; i++) {
+    const [x0, x1] = [xs[i]!, xs[i + 1]!];
+    const spans = parts
+      .filter((r) => r.x <= x0 && r.right >= x1)
+      .map((r) => [r.y, r.bottom] as const)
+      .sort((a, b) => a[0] - b[0]);
+    let length = 0;
+    let end = -Infinity;
+    for (const [y0, y1] of spans) {
+      if (y1 <= end) continue;
+      length += y1 - Math.max(y0, end);
+      end = y1;
+    }
+    total += (x1 - x0) * length;
+  }
+  return total;
+}
+
 /** 给已隔离、参与正文排版的整图接上原生剪图；只有纯装饰可以留在页底。 */
 export function applyNativeGraphics(
   page: DocPage,
@@ -57,11 +94,12 @@ export function applyNativeGraphics(
   // 合起来算（不然会落到卡片下面整页的深色底上，深色字写在深色底上看不见）。
   const bySize = [...fills].sort((a, b) => area(a.box) - area(b.box));
   const fillOf = (box: Box) => {
-    const covered = new Map<string, number>();
+    const covered = new Map<string, Box[]>();
     for (const f of bySize) {
-      const n = (covered.get(f.color) ?? 0) + overlap(box, f.box);
-      if (n >= area(box) * 0.8) return f.color;
-      covered.set(f.color, n);
+      if (overlap(box, f.box) <= 0) continue;
+      const rects = [...(covered.get(f.color) ?? []), f.box];
+      if (coveredArea(box, rects) >= area(box) * 0.8) return f.color;
+      covered.set(f.color, rects);
     }
     return undefined;
   };

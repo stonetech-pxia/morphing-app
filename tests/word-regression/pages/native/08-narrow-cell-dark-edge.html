@@ -1,0 +1,66 @@
+<!doctype html>
+<meta charset="utf-8" />
+<style>
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  body {
+    margin: 0;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 10pt;
+  }
+  .page {
+    padding: 20mm;
+  }
+  h1 {
+    font-size: 14pt;
+    margin: 0 0 6mm;
+  }
+  .wrap {
+    position: relative;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  td {
+    border: 0.6pt solid #222;
+    padding: 2mm 2mm;
+  }
+  /* 很窄的编号列，左边是粗黑边（每格一段，上下相接） */
+  td.k {
+    width: 2.2mm;
+    padding: 2mm 0.6mm;
+    border-left: 2.5pt solid #000;
+    font-size: 7pt;
+  }
+  /* 同一条粗边又按整张表的高画了一遍（PDF 里常见：边框和外框各画一次） */
+  .bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2.5pt;
+    background: #000;
+  }
+</style>
+<div class="page">
+  <svg width="120" height="80" viewBox="0 0 120 80" style="display: block; margin-bottom: 6mm">
+    <rect x="2" y="2" width="116" height="76" rx="8" fill="#1f4e8c" />
+    <circle cx="40" cy="40" r="24" fill="#f2c230" />
+    <path d="M70 60 L90 18 L110 60 Z" fill="#c8102e" />
+  </svg>
+  <h1>I. DEVENGOS</h1>
+  <div class="wrap">
+    <table>
+      <tr><td class="k">1.</td><td>Percepciones salariales</td><td>Importe</td></tr>
+      <tr><td class="k"></td><td>Salario base</td><td>1.250,00</td></tr>
+      <tr><td class="k"></td><td>Complementos salariales</td><td>180,00</td></tr>
+      <tr><td class="k">2.</td><td>Percepciones no salariales</td><td>Importe</td></tr>
+      <tr><td class="k"></td><td>Indemnizaciones o suplidos</td><td>45,00</td></tr>
+      <tr><td class="k"></td><td>Prestaciones de la Seguridad Social</td><td>0,00</td></tr>
+    </table>
+    <div class="bar"></div>
+  </div>
+</div>
