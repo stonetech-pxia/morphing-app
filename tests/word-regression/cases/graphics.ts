@@ -35,8 +35,6 @@ export const GRAPHICS: Case[] = [
     suite: 'graphics',
     fix: 'bf491a83 D-471 ③',
     what: 'Receipt EAN barcode with the digits set between the guard bars: the bars must be one picture and the digits read inside them must not become text.',
-    knownFailure:
-      'the barcode is written twice: the layout model detects it as an image (0.73) and findBarcodes adds a second crop of the bars under it. Introduced by bf491a83 itself (852f085a had one picture here); this page does not show the original bug (layout missing the barcode)',
     checks: [
       images({ min: 1, max: 1 }),
       imageCovers({ x: 0.33, y: 0.355, width: 0.35, height: 0.06 }),

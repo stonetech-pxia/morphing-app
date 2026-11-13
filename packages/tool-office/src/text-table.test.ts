@@ -7,6 +7,7 @@ import { RECEIPT } from './fixtures/receipt-ocr';
 import { writeDocx } from './docx';
 import { renderPage, type Rect } from './test-helpers';
 import { findBarcodes, levelLines, pageSlope } from './text-table';
+import type { LayoutRegion } from './layout';
 import type { OcrBox } from './types';
 
 // 转 Word 的通用版面修正（D-471）。小票是创始人 2026-11-06 发来的一张（Lidl，拍得有点斜、纸是弯的），
@@ -197,6 +198,20 @@ describe('barcodes (D-471)', () => {
     expect(pictures[0]!.box.height).toBeGreaterThanOrEqual(100);
     expect(JSON.stringify(doc)).toContain('Address 1');
     expect(JSON.stringify(doc)).toContain('Address 5');
+  });
+
+  it('writes the barcode once when the layout model also found it as a picture', () => {
+    const regions: LayoutRegion[] = [
+      {
+        kind: 'image',
+        label: 'image',
+        score: 0.73,
+        box: { x: 90, y: 290, width: 620, height: 140 },
+      },
+    ];
+    const doc = buildDocPage({ image, lines, regions, source: 's', skew: 0 });
+    expect(leafBlocks(doc).filter((b) => b.kind === 'image')).toHaveLength(1);
+    expect(JSON.stringify(doc)).not.toContain('7.00');
   });
 
   it('the barcode is kept as a picture and the stray digits in it are dropped', () => {

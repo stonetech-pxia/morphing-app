@@ -1406,7 +1406,9 @@ function buildPage(
   ).filter((b) => !tables.some((t) => !t.borderless && inBox(b, t.box)));
   if (repairBarcodes && protectFigures && repairTables && !oldBarcodes.length && barcodes.length) {
     const baseline = buildPage(input, options, protectFigures, repairTables, false);
-    return insertWordFigures(baseline, barcodes);
+    const pictures = leafBlocks(baseline).filter((b) => b.kind === 'image');
+    const missing = barcodes.filter((b) => !pictures.some((p) => lineShareIn(b, p.box) >= 0.8));
+    return missing.length ? insertWordFigures(baseline, missing) : baseline;
   }
   const inBarcode = (l: OcrBox) => {
     const cx = l.x + l.width / 2;
@@ -1451,7 +1453,12 @@ function buildPage(
   const labelSplit = splitLabelColumn(free, lineHeight);
   // 区域里的行；页码区域的字不要；图片区域里的少量字（标志、照片里的字）也不要。
   let groups: Group[] = [];
-  const images: DocImage[] = [...barcodes, ...verticals].map((box) => ({ kind: 'image', box }));
+  // 版面模型也把条形码认成了图片区域时，只用区域那一张（不然同一个条形码出现两次）。
+  const pictured = regions.filter((r) => r.kind === 'image').map((r) => r.box);
+  const images: DocImage[] = [
+    ...barcodes.filter((b) => !pictured.some((r) => lineShareIn(b, r) >= 0.8)),
+    ...verticals,
+  ].map((box) => ({ kind: 'image', box }));
   for (const [i, region] of regions.entries()) {
     const members = free.filter((_, k) => owner[k] === i);
     if (region.kind === 'image') {
