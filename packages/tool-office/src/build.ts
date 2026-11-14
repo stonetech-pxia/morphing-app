@@ -225,6 +225,19 @@ const indexOf = (bounds: readonly Boundary[], v: number) => {
   return i;
 };
 
+/** 框里的字至少这么多排、至少这么多排是一整行宽的字（一个识别框占框宽的这么多），才算一段正文。 */
+const PROSE_MIN_ROWS = 2;
+const PROSE_WIDE_SHARE = 2 / 3;
+const PROSE_LINE_WIDTH = 0.6;
+
+/** 框里的字是正文：一排就是一个很宽的识别框（几栏、键值对的一排是隔开的几块）。 */
+function isProse(lines: readonly OcrBox[], width: number): boolean {
+  const rows = textRows(lines);
+  if (rows.length < PROSE_MIN_ROWS) return false;
+  const wide = rows.filter((row) => row.length === 1 && row[0]!.width >= PROSE_LINE_WIDTH * width);
+  return wide.length >= PROSE_WIDE_SHARE * rows.length;
+}
+
 /** 一张表的网格：横线定行，竖线定列（没有中间的竖线时按文字空隙分列），边上线不够的两格合并。 */
 function buildGrid(
   table: TableLines,
@@ -264,7 +277,12 @@ function buildGrid(
   const covered = ys.slice(0, -1).map((y, r) => bandCovered(y.pos, ys[r + 1]!.pos));
   const firstCovered = covered.indexOf(true);
   const lastCovered = covered.lastIndexOf(true);
-  const isOpen = (r: number) => firstCovered < 0 || r < firstCovered || r > lastCovered;
+  // 四边有框、里面没有列线、字是一段一段的正文（Cerfa 表格上的提示框，EU 样本 038）：是框起来的一段话，
+  // 不按排分成一行一格（一行字一格，改一个字整段就乱了），也不按字的空隙分列。
+  const framedProse =
+    !inner.length && xs[0]!.lined && xs.at(-1)!.lined && isProse(lines, right - left);
+  const isOpen = (r: number) =>
+    !framedProse && (firstCovered < 0 || r < firstCovered || r > lastCovered);
   const split: Boundary[] = [ys[0]!];
   const open: boolean[] = [];
   // 按排分出来的行，竖线够不够长按分之前的那一段算（弯的线、断线在一小行里容易不够一半）。
@@ -317,7 +335,7 @@ function buildGrid(
     parentBand.push(bySplit ? [a, b] : null);
   }
   ys = split;
-  if (!inner.length) {
+  if (!inner.length && !framedProse) {
     const gaps = gapColumns(lines, left, right, lineHeight);
     xs = [xs[0]!, ...gaps.map((pos) => ({ pos, lined: false })), xs.at(-1)!];
   }
@@ -573,8 +591,18 @@ function alignOf(
   lineHeight: number,
   text: string,
 ): CellAlign | undefined {
+  const rows = textRows(pieces);
+  // 好几排左边对齐的字是左对齐的一段（框起来的正文左右留的空一样宽，每排看着都像居中，EU 样本 038）。
+  // 只看每排都是字的：一列一样宽的金额左边也对齐，但它们靠右。
+  const lefts = rows.map((row) => Math.min(...row.map((p) => p.x)));
+  if (
+    rows.length > PROSE_MIN_ROWS &&
+    rows.every((row) => row.some((p) => /\p{L}{3}/u.test(p.text))) &&
+    Math.max(...lefts) - Math.min(...lefts) <= 0.5 * lineHeight
+  )
+    return 'left';
   const votes: Record<CellAlign, number> = { left: 0, center: 0, right: 0 };
-  for (const row of textRows(pieces)) {
+  for (const row of rows) {
     const l = Math.min(...row.map((p) => p.x)) - left;
     const r = right - Math.max(...row.map((p) => p.x + p.width));
     const slack = l + r;

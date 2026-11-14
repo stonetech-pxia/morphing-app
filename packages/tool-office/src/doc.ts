@@ -486,6 +486,24 @@ function justifiedWords(pieces: readonly (readonly OcrBox[])[]): boolean {
   return gaps.every((g) => Math.abs(g - mid) <= JUSTIFIED_GAP_SPREAD * mid);
 }
 
+/** 一格里至少这么多排、除了最后一排每排至少这么多个字、宽度和最宽的一排差不多，才是一段正文。 */
+const CELL_PROSE_ROWS = 3;
+const CELL_PROSE_CHARS = 40;
+const CELL_PROSE_WIDTH = 0.85;
+
+/**
+ * 格子里的几排字是一段折行的正文（每排很长、除了最后一排都写到头），不是一排一项（地址、日期，D-333）。
+ */
+function proseRows(rows: readonly Row[]): boolean {
+  if (rows.length < CELL_PROSE_ROWS) return false;
+  const widest = Math.max(...rows.map((r) => r.box.width));
+  return rows
+    .slice(0, -1)
+    .every(
+      (r) => [...r.text].length >= CELL_PROSE_CHARS && r.box.width >= CELL_PROSE_WIDTH * widest,
+    );
+}
+
 /** 一排里隔得很远的几块分开（左右两栏、信头左右两边）。 */
 function splitRow(row: Row, lineHeight: number): Row[] {
   const out: OcrBox[][] = [[row.lines[0]!]];
@@ -1449,10 +1467,12 @@ function buildPage(
     // 空白的商品栏：表头写在网格上面（EU 样本 001）。
     headerAbove: true,
     splitStacked,
-    joinLines: (cell) =>
-      rowsOf(cell)
-        .map((r) => join(r.lines).trim())
-        .join('\n'),
+    joinLines: (cell) => {
+      const rows = rowsOf(cell);
+      // 一格里是一段正文（框起来的提示，EU 样本 038）：接成一段，在 Word 里能重新折行。
+      if (proseRows(rows)) return joinParagraph(rows.flatMap((r) => r.lines)).trim();
+      return rows.map((r) => join(r.lines).trim()).join('\n');
+    },
     onTable: (table, placed, { chopped, ruled }) => {
       placedIn.set(table, placed);
       choppedIn.set(table, chopped);

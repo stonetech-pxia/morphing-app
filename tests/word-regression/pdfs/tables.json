@@ -154,5 +154,11 @@
     "id": "tbl-header-bar-top-edge",
     "source": "26-tbl-header-bar-top-edge.html",
     "sha256": "06124c088dafcca42f8095fda097a28479e09e659f2fa123e504cf39fc1c33de"
+  },
+  {
+    "page": 27,
+    "id": "tbl-framed-prose-callout",
+    "source": "27-tbl-framed-prose-callout.html",
+    "sha256": "e42983105cfa6bae09625e5af0df570a1a54712847de3bb6052cf96961193804"
   }
 ]

@@ -477,4 +477,20 @@ export const TABLES: Case[] = [
       }),
     ],
   },
+  {
+    id: 'tbl-framed-prose-callout',
+    suite: 'tables',
+    fix: 'EU sample 038',
+    what: 'A framed bold notice (one thin frame around a justified paragraph, no inner rules) became a bordered table with one row per text line, so the paragraph could not reflow; it must be one framed cell holding one paragraph.',
+    lang: 'fra',
+    checks: [
+      table({
+        containing: ['En utilisant ce formulaire', 'conditions de droit commun'],
+        rows: 1,
+        cols: 1,
+      }),
+      together('En utilisant ce formulaire', 'pendant lesquels', 'conditions de droit commun'),
+      notInTable('Complétez les rubriques'),
+    ],
+  },
 ];

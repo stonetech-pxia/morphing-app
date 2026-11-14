@@ -72,6 +72,27 @@ describe('table structure from ruled lines (D-272)', () => {
     expect(page.blocks.some((b) => b.kind === 'text' && b.text.includes('01 02 04 06'))).toBe(true);
   });
 
+  it('keeps a framed paragraph (no inner rules) as one left-aligned cell, not one row per line (EU sample 038)', () => {
+    // Cerfa 表格上的提示框：四边一条细框，里面是一段两端对齐的正文，左右留的空一样宽。
+    const texts = [
+      'When you use this specific form your doctor lets you be paid for your sick leave',
+      'without the usual waiting days at the start, during which nothing is normally paid',
+      'to you. If your employer keeps paying your salary during the leave, the employer',
+      'is paid instead of you for every prescribed day of the leave.',
+    ];
+    const lines: OcrBox[] = [];
+    const marks: Rect[] = [];
+    texts.forEach((text, i) => {
+      const box = { x: 130, y: 120 + i * 30, width: i < 3 ? 740 : 480, height: 22 };
+      lines.push(fakeLine(text, box, { width: W, height: H }));
+      marks.push(...glyphs(box.x + 4, box.y + 4, box.width - 8, 14));
+    });
+    const [table] = tablesOf(build([...gridRects([100, 900], [100, 250]), ...marks], lines));
+    expect(shapeOf(table!)).toEqual([1, 1]);
+    expect(table!.cells[0]!.text.split('\n')).toHaveLength(4);
+    expect(table!.cells[0]!.align).toBe('left');
+  });
+
   it('reads a fully ruled 3 × 4 table and puts each text line in its cell', () => {
     const { lines, marks } = cellTexts(xs, ys);
     const page = build([...gridRects(xs, ys), ...marks], lines);

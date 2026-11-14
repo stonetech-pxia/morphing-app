@@ -356,6 +356,41 @@ describe('Word table evidence', () => {
     ]);
   });
 
+  it('writes a framed paragraph as one paragraph in one cell (EU sample 038)', () => {
+    const lines = [
+      word(
+        'When you use this specific form your doctor lets you be paid for your sick leave',
+        130,
+        120,
+        740,
+      ),
+      word(
+        'without the usual waiting days at the start, during which nothing is normally paid',
+        130,
+        150,
+        740,
+      ),
+      word(
+        'to you. If your employer keeps paying your salary during the leave, the employer',
+        130,
+        180,
+        740,
+      ),
+      word('is paid instead of you for every prescribed day of the leave.', 130, 210, 480),
+    ];
+    const page = buildDocPage({
+      image: image(lines, gridRects([100, 900], [100, 250])),
+      lines,
+      source: 'framed-paragraph',
+      skew: 0,
+    });
+    const tables = leafBlocks(page).filter((b) => b.kind === 'table');
+    expect(tables).toHaveLength(1);
+    expect(tables[0]!.table.cells).toHaveLength(1);
+    expect(tables[0]!.table.cells[0]!.text).not.toContain('\n');
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
+  });
+
   it('keeps a sign-up sheet with a header row and empty rows as a table', () => {
     const lines = [
       word('Name', 120, 120, 100),
