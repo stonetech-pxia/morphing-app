@@ -247,7 +247,7 @@ export const GEOMETRY: Case[] = [
   {
     id: 'wrapped-paragraph-indent',
     suite: 'geometry',
-    fix: 'EU sample 053, 057',
+    fix: '950912d4; EU sample 053, 057',
     what: 'A letter whose text block starts right of the page margin: every paragraph got its indent cut to the room left beside its own width, so the wide justified paragraphs got 0–250 twips and the heading and short lines 280: a stepped left edge.',
     lang: 'deu',
     checks: [

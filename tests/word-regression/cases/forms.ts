@@ -366,7 +366,7 @@ export const FORMS: Case[] = [
   {
     id: 'framed-header-row-answer-lines',
     suite: 'forms',
-    fix: 'EU sample 016 p3 (regression after 43ffdafc)',
+    fix: 'e082ade1; EU sample 016 p3 (regression after 43ffdafc)',
     what: 'A framed contribution form with the column captions "CONCEPTO  BASE  TIPO  APORTACIÓN EMPRESA" over items with answer lines: with the frame not kept as a table, the right-hand captions had no text below them and were read as a column after all the items.',
     lang: 'spa',
     checks: [

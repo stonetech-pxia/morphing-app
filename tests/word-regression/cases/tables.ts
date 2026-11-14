@@ -496,7 +496,7 @@ export const TABLES: Case[] = [
   {
     id: 'tbl-yellow-row-span-label',
     suite: 'tables',
-    fix: 'EU sample 057',
+    fix: '0b0ec30b; EU sample 057',
     what: 'Dark-ruled tariff tables whose first column is one yellow cell spanning all rows: the yellow fill counted as ink, so every rule touching it was dropped as a colour block and the tables became one row per text line or zipped prose; once found, the text rows of the spanning cell also split each label row into several.',
     lang: 'ita',
     checks: [
@@ -525,7 +525,7 @@ export const TABLES: Case[] = [
   {
     id: 'tbl-invoice-subtables-close-below',
     suite: 'tables',
-    fix: 'EU sample 054',
+    fix: '0ffa7f8a; EU sample 054',
     what: 'A tax table and a totals box, each with its own frame, about 10 px under an invoice item table: their side lines lie on the item table\'s column lines, so they were joined across the white gap and all three became one 9-column grid with filler cells, the tax header as an item row and "Reste dû" beside the payment.',
     lang: 'fra',
     checks: [
@@ -541,7 +541,7 @@ export const TABLES: Case[] = [
   {
     id: 'tbl-receipt-vat-block-thanks',
     suite: 'tables',
-    fix: 'EU sample 003 (regression after ecdb14ce)',
+    fix: '16a13edc; EU sample 003 (regression after ecdb14ce)',
     what: 'Restaurant bill (scan) whose VAT block sits between dashed separators: once the dashes were found as light rules the block became its own table (wanted), but the two item lines above it were joined into one line with their amounts in a separate block, and the centred "Vielen Dank / Auf Wiedersehen" under the totals became full-width rows of the VAT table.',
     lang: 'deu',
     checks: [
