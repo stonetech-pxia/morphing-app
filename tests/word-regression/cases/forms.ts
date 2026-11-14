@@ -402,4 +402,12 @@ export const FORMS: Case[] = [
       ),
     ],
   },
+  {
+    id: 'label-frame',
+    suite: 'forms',
+    fix: 'EU sample 061 (regression after 42115fb8)',
+    what: 'A framed insurance box of short labels and values whose inner rules were not found (only its outer frame): the plain-frame rule for letters took it for framed text and dropped the table, so the labels became loose lines.',
+    lang: 'deu',
+    checks: [table({ containing: ['Krankenkasse bzw. Kostenträger', 'AOK Rheinland/Hamburg'] })],
+  },
 ];

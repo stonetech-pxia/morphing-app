@@ -242,18 +242,25 @@ const indexOf = (bounds: readonly Boundary[], v: number) => {
 
 /** 只有四条边的框里至少这么多排字，才是框着一段文字的框（一行字的填写框、带底色的格子照旧当表）。 */
 const FRAME_TEXT_ROWS = 3;
+/** 其中至少这么多排是一整行宽的字（折行的正文）。 */
+const FRAME_WIDE_ROWS = 2;
 
 /** 框里的字至少这么多排、至少这么多排是一整行宽的字（一个识别框占框宽的这么多），才算一段正文。 */
 const PROSE_MIN_ROWS = 2;
 const PROSE_WIDE_SHARE = 2 / 3;
 const PROSE_LINE_WIDTH = 0.6;
 
-/** 框里的字是正文：一排就是一个很宽的识别框（几栏、键值对的一排是隔开的几块）。 */
+/** 一排就是一个很宽的识别框（几栏、键值对的一排是隔开的几块）：有几排。 */
+function wideRows(lines: readonly OcrBox[], width: number): number {
+  return textRows(lines).filter(
+    (row) => row.length === 1 && row[0]!.width >= PROSE_LINE_WIDTH * width,
+  ).length;
+}
+
+/** 框里的字是正文：大多数排是一整行宽的字。 */
 function isProse(lines: readonly OcrBox[], width: number): boolean {
-  const rows = textRows(lines);
-  if (rows.length < PROSE_MIN_ROWS) return false;
-  const wide = rows.filter((row) => row.length === 1 && row[0]!.width >= PROSE_LINE_WIDTH * width);
-  return wide.length >= PROSE_WIDE_SHARE * rows.length;
+  const rows = textRows(lines).length;
+  return rows >= PROSE_MIN_ROWS && wideRows(lines, width) >= PROSE_WIDE_SHARE * rows;
 }
 
 /** 一张表的网格：横线定行，竖线定列（没有中间的竖线时按文字空隙分列），边上线不够的两格合并。 */
@@ -299,8 +306,9 @@ function buildGrid(
   // 不按排分成一行一格（一行字一格，改一个字整段就乱了），也不按字的空隙分列。
   const framedProse =
     !inner.length && xs[0]!.lined && xs.at(-1)!.lined && isProse(lines, right - left);
-  // 只有四条边的框（里面没有一条线），字也不是一排一排对成几列的（一封信：地址、称呼、几段正文，EU 样本 075）：
-  // 这只是个框，不是表。照旧按排分好交出去，转 Word 不当表，字放回正文（见 framedText）。
+  // 只有四条边的框（里面没有一条线），框着折行的正文（至少两排是一整行宽的字），字也不是一排一排对成几列的
+  // （一封信：地址、称呼、几段正文，EU 样本 075）：这只是个框，不是表。照旧按排分好交出去，转 Word 不当表，
+  // 字放回正文（见 framedText）。只有短标签的框（病假单上没认出里面细线的「Krankenkasse」框，EU 样本 061）照旧。
   const framedText =
     !framedProse &&
     !inner.length &&
@@ -308,6 +316,7 @@ function buildGrid(
     xs.at(-1)!.lined &&
     ys.filter((y) => y.lined).length <= 2 &&
     textRows(lines).length >= FRAME_TEXT_ROWS &&
+    wideRows(lines, right - left) >= FRAME_WIDE_ROWS &&
     !alignedRows(lines, left, right, lineHeight);
   const isOpen = (r: number) =>
     !framedProse && (firstCovered < 0 || r < firstCovered || r > lastCovered);

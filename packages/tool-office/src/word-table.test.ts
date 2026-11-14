@@ -442,6 +442,27 @@ describe('Word table evidence', () => {
     expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
   });
 
+  it('keeps a frame of short form labels as a table, not as loose text (EU sample 061)', () => {
+    // 病假单上的「Krankenkasse」框：里面的细线没认出来，只剩外框；字都是短标签，不是折行的正文。
+    const lines = [
+      word('Krankenkasse bzw. Kostenträger', 110, 110, 260),
+      word('AOK Rheinland/Hamburg', 120, 140, 230),
+      word('38', 560, 140, 25),
+      word('Name, Vorname des Versicherten', 110, 180, 270),
+      word('D 50823 Köln', 120, 240, 130),
+      word('Kostenträgerkennung', 110, 280, 180),
+      word('Status', 520, 280, 60),
+    ];
+    const page = buildDocPage({
+      image: image(lines, gridRects([100, 600], [100, 310])),
+      lines,
+      source: 'label-frame',
+      skew: 0,
+    });
+    expect(leafBlocks(page).filter((b) => b.kind === 'table')).toHaveLength(1);
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
+  });
+
   it('keeps a sign-up sheet with a header row and empty rows as a table', () => {
     const lines = [
       word('Name', 120, 120, 100),

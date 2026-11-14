@@ -100,5 +100,11 @@
     "id": "ruled-field-boxes",
     "source": "17-ruled-field-boxes.html",
     "sha256": "195cc20c0611001c91bd7e2fd3ddf955dc7c2b29a0f4ada083047b8125088b67"
+  },
+  {
+    "page": 18,
+    "id": "label-frame",
+    "source": "18-label-frame.html",
+    "sha256": "739d54588faee53c7419df98e7949391cf2f0a983265297c357d4fbcdedd22aa"
   }
 ]
