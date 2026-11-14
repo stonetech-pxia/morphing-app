@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { buildDocPage, leafBlocks } from './doc';
 import { findLines } from './lines';
 import { fakeLine, glyphs, renderPage, type Rect } from './test-helpers';
-import { findFillIns, leaderDots, withFillIns } from './word-fill-ins';
+import { findFillIns, joinShadedBlanks, leaderDots, withFillIns } from './word-fill-ins';
 
 const W = 1000;
 const H = 1400;
@@ -188,5 +188,20 @@ describe('fill-in lines of forms (EU sample 021, 030)', () => {
     expect(texts[0]).toMatch(
       /^PRIMERO\.- El arrendamiento por un plazo de _{4,} a contar desde el día _{4,}\. De acuerdo con/,
     );
+  });
+
+  it('does not join a label and its value on a shaded row band (EU sample 025)', () => {
+    // 账单的一行浅绿底：标签和金额都压在底纹上，中间的空隙也是底纹，不是要填的空格。
+    const green: [number, number, number] = [214, 230, 200];
+    const lines = [
+      fakeLine('Konzessionsabgabe', { x: 100, y: 300, width: 220, height: 24 }, page, true),
+      fakeLine('19,50 EUR', { x: 600, y: 300, width: 110, height: 24 }, page, true),
+    ];
+    const image = renderPage(W, H, [
+      { x: 90, y: 296, width: 640, height: 32, color: green },
+      ...lines.flatMap((l) => glyphs(l.x, l.y + 4, l.width, 16)),
+    ]);
+    const { lines: out } = joinShadedBlanks(image, lines, 24);
+    expect(out.map((l) => l.text)).toEqual(['Konzessionsabgabe', '19,50 EUR']);
   });
 });

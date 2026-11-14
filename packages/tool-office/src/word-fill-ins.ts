@@ -574,6 +574,8 @@ const BOX_GAP_MAX = 12;
 const BOX_FILLED = 0.85;
 /** 和底色差多少以内（0–255，每个通道）算同一个颜色。 */
 const BOX_TOLERANCE = 40;
+/** 两段字底下有这么多是这个底色：字压在底纹上，不是空格。 */
+const ON_FILL = 0.3;
 /** 底色最多这么多个行高高：上下两行的空格对齐时会挨成一块（EU 样本 082），再高是整片的色块。 */
 const BOX_MAX_HEIGHT = 2.3;
 /** 比这更亮（每个通道都是）的是白纸，不是底色。 */
@@ -627,6 +629,24 @@ export function joinShadedBlanks(
       }
     }
     if (!best || best[1] - best[0] < Math.max(BOX_MIN * lineHeight, BOX_SHARE * gap)) return null;
+    // 两段字本身在白纸上：字底下也是这个底色时，是整行的底纹（账单上一行一行的浅绿底，EU 样本 025），
+    // 不是句子里要填的空格。
+    const under = (l: OcrBox, from: number, to: number) => {
+      let n = 0;
+      let all = 0;
+      for (let x = Math.round(from); x < Math.round(to); x += 2)
+        for (let y = y0; y < y1; y++) {
+          all++;
+          if (near(at(x, y), color)) n++;
+        }
+      return all ? n / all : 0;
+    };
+    const reach = Math.min(2 * lineHeight, a.width, b.width);
+    if (
+      under(a, a.x + a.width - reach, a.x + a.width) > ON_FILL ||
+      under(b, b.x, b.x + reach) > ON_FILL
+    )
+      return null;
     // 一行高：在底色的几处往上、往下量它有多高，取最矮的（上下两行的空格常常挨着，连成两行高；
     // 整片的色块哪里都高得多）。
     const cy = Math.round((y0 + y1) / 2);
