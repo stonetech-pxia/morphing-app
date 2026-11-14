@@ -58,6 +58,16 @@ describe('highlights touching a rule', () => {
   });
 });
 
+describe('number badges on box corners', () => {
+  it('does not cut a rule out of a box whose corner badge sits on its end (EU sample 068)', () => {
+    // 事故报告的编号方块（青色实心，24 像素见方）贴在框的左上角：和顶边连成一块，照旧不当成单独的线。
+    const top: Rect = { x: 100, y: 300, width: 400, height: 2 };
+    const badge: Rect = { x: 100, y: 300, width: 26, height: 26, color: [0, 170, 230] };
+    const found = findLines(renderPage(W, H, [top, badge]), { skew: 0 });
+    expect(found.horizontal.filter((h) => Math.abs(h.pos - 301) < 4)).toHaveLength(0);
+  });
+});
+
 describe('colour-filled cells', () => {
   it('finds the rules around a yellow cell spanning all rows (EU sample 057)', () => {
     // 电费单的价目表：左边一格黄底（#FFCB35，最暗的通道很暗）跨三排，深灰的线围着它。

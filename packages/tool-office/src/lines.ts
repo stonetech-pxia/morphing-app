@@ -240,6 +240,8 @@ interface Building {
   spans: [number, number][];
   /** 每一行（从 first 起）的段长之和。 */
   lengths: number[];
+  /** 每一行（从 first 起）有墨的左右范围。 */
+  ends: [number, number][];
 }
 
 /**
@@ -248,6 +250,10 @@ interface Building {
  */
 const CORE_SHARE = 0.8;
 const CORE_REST = 0.5;
+/** 标记离线的两头至少这么多像素（荧光笔标的金额在格子里，离右边的线还有几个像素）。 */
+const CORE_END_MARGIN = 3;
+/** 贴着线头的行至少这么多才是一块（不是线边上毛糙的一两行）。 */
+const CORE_END_ROWS = 3;
 
 /**
  * 太粗的一块里贴着色块的细线（CORE_SHARE、CORE_REST）。色块从一条线连到下一条线时（上一排底下、下一排顶上都有标记），
@@ -259,6 +265,14 @@ function thinCores(l: Building, maxThickness: number): Building[] {
   const longest = Math.max(...lengths);
   const isCore = lengths.map((n) => n >= CORE_SHARE * longest);
   if (lengths.some((n, i) => !isCore[i] && n > CORE_REST * longest)) return [];
+  // 贴在线头上的一块（框角上的编号方块，EU 样本 068）是框的一部分，不当成线上的标记。
+  const from = Math.min(...l.ends.filter((_, i) => isCore[i]).map((e) => e[0]));
+  const to = Math.max(...l.ends.filter((_, i) => isCore[i]).map((e) => e[1]));
+  // 线边上毛糙的一两行（稍斜的线在上下一行只有一截）不算。
+  const atEnd = l.ends.filter(
+    (e, i) => e && !isCore[i] && (e[0] - from < CORE_END_MARGIN || to - e[1] < CORE_END_MARGIN),
+  ).length;
+  if (atEnd >= CORE_END_ROWS) return [];
   const runs: [number, number][] = [];
   isCore.forEach((c, i) => {
     if (!c) return;
@@ -276,6 +290,7 @@ function thinCores(l: Building, maxThickness: number): Building[] {
       posSum: rows.reduce((sum, n, i) => sum + (l.first + first + i) * n, 0),
       weight: rows.reduce((a, b) => a + b, 0),
       lengths: rows,
+      ends: l.ends.slice(first, last + 1),
     };
   });
 }
@@ -365,6 +380,8 @@ function scan(
         target.to = Math.max(target.to, b);
         addSpan(target.spans, a, b, MAX_GAP);
         target.lengths[r - target.first] = (target.lengths[r - target.first] ?? 0) + length;
+        const end = target.ends[r - target.first];
+        target.ends[r - target.first] = end ? [Math.min(end[0], a), Math.max(end[1], b)] : [a, b];
       } else {
         open.push({
           first: r,
@@ -375,6 +392,7 @@ function scan(
           to: b,
           spans: [[a, b]],
           lengths: [length],
+          ends: [[a, b]],
         });
       }
     }
