@@ -316,7 +316,19 @@ const BULLET = /^\s*(?:[•·*▪●○◦■□]|[-–—](?!\d))\s*/;
  */
 const DECORATED =
   /^\s*(?:([*•·▪●○◦■□])\s*\1|[-–—]\s*[-–—])|^\s*(?:([*•·▪●○◦■□]).*\2|[-–—].*[-–—])\s*$/;
-const listStart = (text: string) => LIST_ITEM.test(text) && !DECORATED.test(text);
+/**
+ * 行首的日期（「21. APR. 2006」「1. Januar 2024」「15. März」「3. 4. 2025」）：德、奥、北欧的写法，日后面也是一个点，
+ * 不是编号（EU 样本 076 的日期章读成了从 21 开始的列表）。月份按德法意西葡英的名字和缩写认。
+ */
+const MONTHS =
+  'jan|jän|feb|fév|fev|mär|mar|apr|avr|abr|mai|may|mag|jun|juin|giu|jul|juil|lug|aug|aoû|aou|ago|' +
+  'sep|set|okt|oct|ott|out|nov|dez|dec|déc|dic|ene|gen';
+const DATE_START = new RegExp(
+  `^\\s*\\d{1,2}\\.\\s*(?:\\d{1,2}\\.\\s*\\d{2,4}\\b|(?:${MONTHS})\\p{L}{0,7}\\.?\\s*(?:\\d{2,4}\\b|$))`,
+  'iu',
+);
+const listStart = (text: string) =>
+  LIST_ITEM.test(text) && !DECORATED.test(text) && !DATE_START.test(text);
 
 const median = (values: readonly number[]) => {
   const sorted = [...values].sort((a, b) => a - b);

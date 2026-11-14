@@ -124,5 +124,11 @@
     "id": "framed-letter-ticks",
     "source": "21-framed-letter-ticks.html",
     "sha256": "dafa5a57be34455a9b8d10af6d17b0171e8dd98202d997c55844f9e1b2f20527"
+  },
+  {
+    "page": 22,
+    "id": "date-at-line-start",
+    "source": "22-date-at-line-start.html",
+    "sha256": "ab4086f06e1a9cf9dcb322729ff05fe37defaa33046b59f3469b673e5e75304e"
   }
 ]

@@ -3,6 +3,7 @@ import {
   aligned,
   apart,
   custom,
+  exactParagraph,
   firstLineIndent,
   flowing,
   images,
@@ -402,6 +403,20 @@ export const TEXT_FLOW: Case[] = [
       together('Ich fordere Sie deshalb auf', 'die Verbraucherzentrale einschalten'),
       apart('Sehr geehrte Damen und Herren', 'das Landgericht'),
       apart('zurückfordere', 'Ich fordere Sie deshalb auf'),
+    ],
+  },
+  {
+    id: 'date-at-line-start',
+    suite: 'text-flow',
+    fix: 'EU sample 076',
+    what: 'A date stamp "21. APR. 2006" and German dates such as "1. Januar 2024" at the start of a line: the day and its dot were read as a list number, so the date became an ordered list starting at 21.',
+    lang: 'deu',
+    checks: [
+      exactParagraph('21. APR. 2006'),
+      exactParagraph('1. Januar 2024 bis 31. März 2024'),
+      exactParagraph('3. Mai 2025'),
+      numbered('Erstens wird der Antrag gestellt.', 1),
+      numbered('Zweitens kommt der Bescheid per Post.', 2),
     ],
   },
 ];

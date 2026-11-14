@@ -584,6 +584,32 @@ describe('buildDocPage', () => {
     ]);
   });
 
+  it('does not take a date at the start of a line for a numbered item (EU sample 076)', () => {
+    const { image, lines } = textPage([
+      { text: '21. APR. 2006', x: 100, y: 100, width: 180 },
+      { text: 'Gültig vom', x: 100, y: 200, width: 140 },
+      { text: '1. Januar 2024 bis 31. März 2024', x: 100, y: 260, width: 400 },
+      { text: 'Termin', x: 100, y: 360, width: 100 },
+      { text: '3. 4. 2025', x: 100, y: 420, width: 130 },
+      { text: 'Ablauf', x: 100, y: 520, width: 100 },
+      { text: '1. Erstens kommt der Antrag.', x: 100, y: 580, width: 380 },
+      { text: '2. Zweitens kommt der Bescheid.', x: 100, y: 605, width: 400 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const leaves = leafBlocks(doc);
+    const paragraphs = leaves.flatMap((b) => (b.kind === 'paragraph' ? [b.text] : []));
+    expect(paragraphs).toContain('21. APR. 2006');
+    expect(paragraphs).toContain('1. Januar 2024 bis 31. März 2024');
+    expect(paragraphs).toContain('3. 4. 2025');
+    expect(leaves.filter((b) => b.kind === 'list')).toMatchObject([
+      {
+        ordered: true,
+        start: 1,
+        items: ['Erstens kommt der Antrag.', 'Zweitens kommt der Bescheid.'],
+      },
+    ]);
+  });
+
   it('without layout regions still makes paragraphs and numbered lists from positions', () => {
     const { image, lines } = textPage([
       { text: 'Conditions', x: 100, y: 60, width: 300, h: 40 },
