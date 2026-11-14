@@ -289,7 +289,7 @@ export const FORMS: Case[] = [
   {
     id: 'answer-lines-gap',
     suite: 'forms',
-    fix: 'EU sample 041',
+    fix: '22fea454, 0a2aa82e; EU sample 041',
     what: 'Two runs of evenly spaced grey answer lines (a label under each) with a bold "erteile hiermit Vollmacht an" between them, and a last lone line far below a section of clauses: all were chained into one rules-only table that swallowed the bold line, the section heading and the clauses, one bordered row per text line.',
     lang: 'deu',
     checks: [
@@ -309,7 +309,7 @@ export const FORMS: Case[] = [
   {
     id: 'framed-row-last-fill',
     suite: 'forms',
-    fix: 'EU sample 046',
+    fix: '204ab1d3; EU sample 046',
     what: 'Rows of a framed form section ("Localidad …… C.P. …… Provincia ……") whose last dotted fill-in line runs into the right side of the frame: that line was taken for an edge of the frame and dropped, so the row ended in a bare label and was joined with the next row.',
     lang: 'spa',
     checks: [
@@ -330,7 +330,7 @@ export const FORMS: Case[] = [
   {
     id: 'yes-no-answer-column',
     suite: 'forms',
-    fix: 'EU sample 041',
+    fix: '29f0d2ff; EU sample 041',
     what: 'Clauses of 1–3 lines with a "○ ja ○ nein" pair beside the last line of each, two of them one-line clauses 1 line apart: the clauses and the answers became one side-by-side row whose answer cell drifted away from its clauses in Word, and two answer pairs were joined into one heading-size paragraph.',
     lang: 'deu',
     checks: [

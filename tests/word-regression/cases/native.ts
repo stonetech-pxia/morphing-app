@@ -149,7 +149,7 @@ export const NATIVE: Case[] = [
   {
     id: 'translucent-tints',
     suite: 'native',
-    fix: 'EU sample 048',
+    fix: 'd18002a3; EU sample 048',
     what: 'Digital fee statement whose heading bars and total band are brand colours at 20 % opacity (one inside a transparency group, one as an rgba fill): they were written as solid saturated green and orange fills behind black text; they must stay pale tints.',
     lang: 'fra',
     checks: [

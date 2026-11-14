@@ -243,7 +243,7 @@ export const FONTS: Case[] = [
   {
     id: 'skewed-scan-long-lines',
     suite: 'fonts',
-    fix: 'EU sample 050',
+    fix: '6de41568; EU sample 050',
     what: 'A scan with a slight residual skew: the boxes of the longest lines (a 9 pt footer across the page, a centred thank-you sentence) are taller than their text by width × slope, so the footer came out at 18 pt and the sentence as a 15 pt heading.',
     lang: 'deu',
     checks: [

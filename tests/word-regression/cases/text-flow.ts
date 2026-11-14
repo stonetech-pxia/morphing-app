@@ -332,7 +332,7 @@ export const TEXT_FLOW: Case[] = [
   {
     id: 'two-up-forms',
     suite: 'text-flow',
-    fix: 'EU sample 044',
+    fix: '07cefd79; EU sample 044',
     what: 'A gazette page printing two columns of small blank invoice forms whose label lines sit at the same heights on both sides, with a grey seal behind each form: the lines of the two columns were interleaved one by one and same-height labels joined into "left<tab>right" paragraphs, and the page ran onto several pages; each column must be read on its own.',
     lang: 'por',
     checks: [
@@ -364,7 +364,7 @@ export const TEXT_FLOW: Case[] = [
   {
     id: 'square-bullets',
     suite: 'text-flow',
-    fix: 'EU sample 041',
+    fix: '9329c328; EU sample 041',
     what: 'Clauses marked with small grey "■" squares that OCR leaves out of the text but includes in the line boxes: the bullet recovery looked only left of the boxes, so every square was lost and the clauses became plain paragraphs.',
     lang: 'deu',
     checks: [
