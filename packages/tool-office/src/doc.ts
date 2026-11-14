@@ -907,6 +907,8 @@ const FIELD_LABEL_LINES = 2;
 const FIELD_LABEL_SHARE = 0.5;
 /** 至少这么多个有标签的填写框连在一起，才拿出来当表。 */
 const FIELD_MIN_BOXES = 2;
+/** 至少这么多列。 */
+const FIELD_MIN_COLS = 2;
 
 /**
  * 横线画满的申报表（波兰 PIT-37、德国的 Antrag，EU 样本 062）：一节一节的方框，每个框左上角一个短标签
@@ -991,6 +993,9 @@ export function fieldBoxTables(
     const edges = [...new Set(cells.flatMap((c) => [c.col, c.col + c.colSpan]))].sort(
       (a, b) => a - b,
     );
+    // 只有一列、上下叠着的框（处方上只有横线的「Patient/in」「Anschrift」，EU 样本 076）：多半只是填写的横线，
+    // 当成表反而丢了写字的地方，照旧排成文字。
+    if (edges.length - 1 < FIELD_MIN_COLS) continue;
     const at = (col: number) => edges.indexOf(col);
     const boxes = cells.map((c) => c.box!);
     const x = Math.min(...boxes.map((b) => b.x));

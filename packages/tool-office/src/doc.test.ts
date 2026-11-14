@@ -1865,20 +1865,36 @@ describe('ruled field boxes in a rejected form grid (EU sample 062)', () => {
   });
 
   it('leaves out the empty frame space beside the boxes (EU sample 004)', () => {
-    // 地址框只占外框的左半边：右边的空地也被线分成了格子，整列空着。
-    const side = (row: number, y: number, label: string) => [
-      cell(row, 0, 6, label, y),
+    // 两个框只占外框的左半边：右边的空地也被线分成了格子，整列空着。
+    const side = (row: number, y: number, a: string, b: string) => [
+      cell(row, 0, 3, a, y),
+      cell(row, 3, 3, b, y),
       cell(row, 6, 3, '', y),
       cell(row, 9, 3, '', y),
     ];
     const framed: TableBlock = {
       ...table,
       rows: 2,
-      cells: [...side(0, 40, '10. Nazwisko'), ...side(1, 100, '13. Kraj')],
+      cells: [...side(0, 40, '10. Nazwisko', '11. Imię'), ...side(1, 100, '13. Kraj', '14. Gmina')],
     };
-    const labels = placed.filter((l) => /^1[03]\./.test(l.text));
+    const labels = [
+      line('10. Nazwisko', 10, 45, 150, 16),
+      line('11. Imię', 310, 45, 150, 16),
+      line('13. Kraj', 10, 105, 80, 16),
+      line('14. Gmina', 310, 105, 100, 16),
+    ];
     const found = fieldBoxTables(framed, colWidths, labels, 20);
-    expect(found.map((f) => [f.table.cols, f.colWidths])).toEqual([[1, [600]]]);
+    expect(found.map((f) => [f.table.cols, f.colWidths])).toEqual([[2, [300, 300]]]);
+  });
+
+  it('does not take one column of stacked boxes (EU sample 076)', () => {
+    const stacked: TableBlock = {
+      ...table,
+      rows: 2,
+      cells: [cell(0, 0, 12, 'Patient/in', 40), cell(1, 0, 12, 'Anschrift', 100)],
+    };
+    const labels = [line('Patient/in', 10, 45, 150, 16), line('Anschrift', 10, 105, 150, 16)];
+    expect(fieldBoxTables(stacked, colWidths, labels, 20)).toEqual([]);
   });
 
   it('does not take a single field box on its own', () => {
