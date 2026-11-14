@@ -150,6 +150,51 @@ describe('Word figure ownership', () => {
       ['Right start', 'image', 'Figure 1', 'Right end'],
     ]);
   });
+  it('keeps a row of three pictures in one row when neighbouring boxes overlap by a few pixels', () => {
+    // 商品目录的卡片图：剪出的图带一点留边，相邻两张的框互相压了 4–6 像素。
+    // 中间那张和左右两张都「重叠」，曾被单独放在这一排上面，三排图成了六排。
+    const figures = [
+      { x: 33, y: 165, width: 451, height: 331 },
+      { x: 478, y: 165, width: 456, height: 331 },
+      { x: 930, y: 165, width: 456, height: 331 },
+    ];
+    const label = (text: string, x: number) => ({
+      kind: 'paragraph' as const,
+      text,
+      box: { x, y: 496, width: 250, height: 28 },
+    });
+    const next = insertWordFigures(
+      {
+        source: 'p.pdf',
+        width: 1408,
+        height: 2016,
+        bodySize: 11,
+        blocks: [
+          {
+            kind: 'row',
+            box: { x: 54, y: 496, width: 1165, height: 28 },
+            cells: [
+              { width: 450, blocks: [label('Backpack', 55)] },
+              { width: 449, blocks: [label('Bottle', 506)] },
+              { width: 266, blocks: [label('Socks', 955)] },
+            ],
+          },
+        ],
+      },
+      figures,
+    );
+    const shape = next.blocks.map((b) =>
+      b.kind === 'row'
+        ? b.cells.map((c) =>
+            c.blocks.map((x) => (x.kind === 'paragraph' ? x.text : `${x.kind}@${x.box.x}`)),
+          )
+        : b.kind,
+    );
+    expect(shape).toEqual([
+      [['image@33'], ['image@478'], ['image@930']],
+      [['Backpack'], ['Bottle'], ['Socks']],
+    ]);
+  });
   it('places a wide figure before its caption when a stale model row still starts above the figure', () => {
     const figure = { x: 100, y: 200, width: 800, height: 250 };
     const caption = {

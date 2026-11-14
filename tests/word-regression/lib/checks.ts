@@ -644,6 +644,32 @@ export const imagesSideBySide = (n = 2): Check => ({
   },
 });
 
+/**
+ * 上下范围大半重叠、左右基本不重叠的两张图（一排并排的图）都在同一个并排行的不同格里：
+ * 没有哪一张被拿出这一排、单独放在上面或下面。
+ */
+export const picturesInRows = (): Check => ({
+  name: 'pictures beside each other share one row',
+  run(c) {
+    const all = pictures(c);
+    for (const a of all) {
+      for (const b of all) {
+        if (a === b || a.page !== b.page) continue;
+        const y =
+          Math.min(a.box.y + a.box.height, b.box.y + b.box.height) - Math.max(a.box.y, b.box.y);
+        const x =
+          Math.min(a.box.x + a.box.width, b.box.x + b.box.width) - Math.max(a.box.x, b.box.x);
+        if (y < 0.5 * Math.min(a.box.height, b.box.height)) continue;
+        if (x > 0.2 * Math.min(a.box.width, b.box.width)) continue;
+        if (a.row && b.row && a.row.block === b.row.block && a.row.cell !== b.row.cell) continue;
+        const at = (p: typeof a) => `(${Math.round(p.box.x)}, ${Math.round(p.box.y)})`;
+        return `pictures at ${at(a)} and ${at(b)} are not in one row`;
+      }
+    }
+    return null;
+  },
+});
+
 /** 整页底图（DocImage.background）的个数在范围里。 */
 export const backgrounds = (range: { min?: number; max?: number }): Check => ({
   name: `background images ${JSON.stringify(range)}`,

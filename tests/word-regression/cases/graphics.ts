@@ -10,6 +10,7 @@ import {
   noTables,
   notInTable,
   order,
+  picturesInRows,
   table,
   times,
 } from '../lib/checks';
@@ -181,9 +182,12 @@ export const GRAPHICS: Case[] = [
     id: 'picture-cards',
     suite: 'graphics',
     fix: '261a67d4, 5bbd80a0 D-533; 202a26be D-534',
-    what: 'Catalog page with nine ruled picture cards and no image-model proposals: the pictures used to be lost; each card keeps its picture and its editable label.',
+    what: 'Catalog page with nine ruled picture cards and no image-model proposals: the pictures used to be lost; each card keeps its picture and its editable label. Neighbouring picture boxes overlapped by a few pixels, so the middle picture of every row was taken out of the row and written on its own above it.',
     checks: [
       images({ min: 9, max: 9 }),
+      // 相邻两张图的框互相压了 4–6 像素：中间那张被拿出这一排，单独放在左右两张上面，三排图成了六排。
+      picturesInRows(),
+      imagesSideBySide(3),
       times('Trail backpack 28 L', 2),
       times('$129.00', 1),
       times('SKU CS-0090', 1),

@@ -1508,6 +1508,9 @@ export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {})
   return next;
 }
 
+/** 补回的图和旁边的块左右重叠不超过窄的那个宽的这么多，仍算并排。 */
+const FIGURE_EDGE_OVERLAP = 0.05;
+
 /** 补回原生整图时保留文字与来源顺序；跨多个横带的页边图与这些横带共用一张排版表。 */
 export function insertWordFigures(page: DocPage, boxes: readonly Box[]): DocPage {
   const owned = (b: DocLeaf) => boxes.some((box) => lineShareIn(b.box, box) >= 0.8);
@@ -1577,9 +1580,15 @@ export function insertWordFigures(page: DocPage, boxes: readonly Box[]): DocPage
     const index = blocks.findIndex((b) => {
       const overlap =
         Math.min(b.box.y + b.box.height, box.y + box.height) - Math.max(b.box.y, box.y);
+      // 并排行按格子里的块看（中间那张图可能落在行的范围里、两格之间）。剪图带一点留边，
+      // 相邻两张的框常互相压几个像素，这不算挡住，不能因此把一张图拿出这一排。
       return (
         overlap >= 0.3 * Math.min(b.box.height, box.height) &&
-        (box.x >= b.box.x + b.box.width || box.x + box.width <= b.box.x)
+        leafBlocks({ blocks: [b] }).every((x) => {
+          const across =
+            Math.min(x.box.x + x.box.width, box.x + box.width) - Math.max(x.box.x, box.x);
+          return across <= FIGURE_EDGE_OVERLAP * Math.min(x.box.width, box.width);
+        })
       );
     });
     if (index >= 0) {
