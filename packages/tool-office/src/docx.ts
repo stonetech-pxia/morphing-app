@@ -912,6 +912,7 @@ export function writeDocx(
     // 左缩进（twip）：居中、靠右的段落没有；一行的段落放得下才缩进（不让它折到下一行）。
     // 在 Word 里顶格也一行放不下的段落反正要折行，缩进不让给剩下的空间：和同一左边的标题、短段落对齐
     // （不然越宽的段落缩进越少，左边参差不齐，EU 样本 053、057）。
+    let wrappedIndent = true;
     const leftOf = (block: DocLeaf, from: number, maxWidth: number): number => {
       if (block.kind === 'paragraph' && block.tab) return 0;
       if (
@@ -925,6 +926,7 @@ export function writeDocx(
       const room = maxWidth - twip(block.box.width) * (block.kind === 'table' ? 1 : WIDTH_SLACK);
       const offset = twip((snap.get(block.box.x) ?? block.box.x) - from);
       const wraps =
+        wrappedIndent &&
         block.kind === 'paragraph' &&
         !/[\n\t]/.test(block.text) &&
         textEm(block.text) * sizeOf(block) * 20 * WIDTH_SLACK > maxWidth;
@@ -1103,6 +1105,8 @@ export function writeDocx(
           // 空白压到零、图缩到最小也放不进这一页时（正文本来就要续页），不压空白：段落之间照样空开，正常分页。
           fit = 0;
           pictureScale = leaves.some((b) => b.kind === 'image') ? 0.25 : 1;
+          // 折行的段落保留原来的缩进会多折几行：这样一页放不下时，缩进照旧让给剩下的空间（不多出一页）。
+          if (measure() > CONTENT_H - Math.round(leading * bodySize * 20)) wrappedIndent = false;
           const fits = measure() <= CONTENT_H - Math.round(leading * bodySize * 20);
           fit = 1;
           pictureScale = 1;

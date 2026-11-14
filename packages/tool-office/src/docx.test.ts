@@ -1302,6 +1302,37 @@ describe('writeDocx', () => {
     expect(lefts[1]).toBe(lefts[0]);
   });
 
+  it('gives up the indent of wrapped paragraphs when keeping it would push a full page onto two (EU sample 038)', () => {
+    // 一页排满的说明：每段在 Word 里顶格两行、保留缩进要三行。段少时保留缩进，段多到放不下时缩进让出来。
+    let text = 'Vous devez indiquer';
+    while (textEm(text) < 72) text += ' la date de début';
+    const doc = (n: number): DocDoc => ({
+      version: 1,
+      pages: [
+        {
+          ...page(
+            Array.from({ length: n }, (_, i) => ({
+              kind: 'paragraph' as const,
+              text,
+              box: { x: 200, y: 100 + i * 60, width: 800, height: 40 },
+            })),
+          ),
+          height: 1414,
+          paper: { width: 595, height: 842 },
+          margins: { left: 56.7, right: 56.7, top: 56.7, bottom: 56.7 },
+        },
+      ],
+    });
+    const lefts = (n: number) =>
+      [
+        ...unzip(writeDocx(doc(n)))
+          .text('word/document.xml')
+          .matchAll(/<w:p>.*?<\/w:p>/g),
+      ].map((m) => /<w:ind w:left="(\d+)"/.exec(m[0])?.[1] ?? '0');
+    expect(new Set(lefts(5))).not.toContain('0');
+    expect(new Set(lefts(20))).toEqual(new Set(['0']));
+  });
+
   it('places each paragraph at its left edge and keeps the vertical gaps, as plain paragraphs (D-463)', () => {
     // 原图宽 1000 像素 = A4 宽 11906 twip；左页边距 1134 twip = 95 像素，左缩进从那里算。
     const at = (x: number, y: number, width: number) => ({ x, y, width, height: 30 });
