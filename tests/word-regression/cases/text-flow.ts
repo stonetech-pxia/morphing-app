@@ -441,4 +441,17 @@ export const TEXT_FLOW: Case[] = [
       together('La renta mensual será de', 'euros, pagaderos'),
     ],
   },
+  {
+    id: 'bracketed-field-codes',
+    suite: 'text-flow',
+    fix: 'EU sample 089',
+    what: 'Field codes of the EU vehicle registration form such as "(12) (13)" and "(24)" at the start of a line were read as list numbers, so the code became list numbering that cannot be edited.',
+    lang: 'spa',
+    checks: [
+      exactParagraph('(12) (13)'),
+      exactParagraph('(22) (23)'),
+      numbered('Compruebe que los datos del titular son correctos.', 1),
+      numbered('Conserve el documento en el vehículo.', 2),
+    ],
+  },
 ];

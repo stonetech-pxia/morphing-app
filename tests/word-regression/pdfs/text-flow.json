@@ -136,5 +136,11 @@
     "id": "shaded-blanks-in-sentences",
     "source": "23-shaded-blanks-in-sentences.html",
     "sha256": "3c42e25eb0896846eb38eeb8220a981571b49d6b754e0f38c281dc98fe368525"
+  },
+  {
+    "page": 24,
+    "id": "bracketed-field-codes",
+    "source": "24-bracketed-field-codes.html",
+    "sha256": "0ee5cd53addb29fd1fb26f886a511106a5dc34923b4858dac06d4be9e2d33d10"
   }
 ]

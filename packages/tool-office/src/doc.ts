@@ -334,8 +334,13 @@ const DATE_START = new RegExp(
   `^\\s*\\d{1,2}\\.\\s*(?:\\d{1,2}\\.\\s*\\d{2,4}\\b|(?:${MONTHS})\\p{L}{0,7}\\.?\\s*(?:\\d{2,4}\\b|$))`,
   'iu',
 );
+/**
+ * 括号里的编号后面什么都没有、或者又是一个括号里的代码（「(12) (13)」「(6)」「(22) (D.1)」）：表单的字段代码
+ * （欧盟统一的行驶证，EU 样本 089），不是列表的编号。
+ */
+const FIELD_CODE = /^\s*[(（]\d{1,3}[)）]\s*(?:[(（][\p{L}\p{N}.]{1,6}[)）]\s*)*$/u;
 const listStart = (text: string) =>
-  LIST_ITEM.test(text) && !DECORATED.test(text) && !DATE_START.test(text);
+  LIST_ITEM.test(text) && !DECORATED.test(text) && !DATE_START.test(text) && !FIELD_CODE.test(text);
 
 const median = (values: readonly number[]) => {
   const sorted = [...values].sort((a, b) => a - b);

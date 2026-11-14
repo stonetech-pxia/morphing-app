@@ -610,6 +610,30 @@ describe('buildDocPage', () => {
     ]);
   });
 
+  it('does not take bracketed field codes for numbered items (EU sample 089)', () => {
+    // 欧盟统一的行驶证：每一格的编号「(12)」「(13)」只是字段代码，不是列表的编号。
+    const { image, lines } = textPage([
+      { text: '(12) (13)', x: 100, y: 100, width: 120 },
+      { text: 'Masse', x: 100, y: 200, width: 100 },
+      { text: '(6)', x: 100, y: 300, width: 45 },
+      { text: 'Bemerkungen', x: 100, y: 400, width: 160 },
+      { text: '(1) Erstens kommt der Antrag.', x: 100, y: 500, width: 380 },
+      { text: '(2) Zweitens kommt der Bescheid.', x: 100, y: 525, width: 400 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const leaves = leafBlocks(doc);
+    const paragraphs = leaves.flatMap((b) => (b.kind === 'paragraph' ? [b.text] : []));
+    expect(paragraphs).toContain('(12) (13)');
+    expect(paragraphs).toContain('(6)');
+    expect(leaves.filter((b) => b.kind === 'list')).toMatchObject([
+      {
+        ordered: true,
+        start: 1,
+        items: ['Erstens kommt der Antrag.', 'Zweitens kommt der Bescheid.'],
+      },
+    ]);
+  });
+
   it('without layout regions still makes paragraphs and numbered lists from positions', () => {
     const { image, lines } = textPage([
       { text: 'Conditions', x: 100, y: 60, width: 300, h: 40 },
