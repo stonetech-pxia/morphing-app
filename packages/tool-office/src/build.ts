@@ -330,7 +330,9 @@ function buildGrid(
         if (cols.size >= 2) wide++;
       }
       const multi = [...rowsByCol.values()].filter((g) => g.size >= 2).length;
-      if (multi >= 2 && multi > rowsByCol.size / 2 && wide >= rows.length / 2) {
+      // 有字的列按整段的字数（跨排的大格那一列也算，只是不按它分排）。
+      const used = new Set(inBand.map((l) => indexOf(xs, centerX(l)))).size;
+      if (multi >= 2 && multi > used / 2 && wide >= rows.length / 2) {
         for (let i = 1; i < rows.length; i++) {
           split.push({ pos: between(i), lined: false });
           open.push(false);

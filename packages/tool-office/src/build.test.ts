@@ -596,6 +596,29 @@ describe('cases from real scans (D-272)', () => {
     ]);
   });
 
+  it('keeps a boxed field of several lines whole beside label columns that span past it (EU sample 018)', () => {
+    // 文凭附录：「3.1」「3.2」两个编号在框外的列里（上下的横线只画在两个框上），左框四行字、右框两行字。
+    // 外面一个大框，里面两个小框；编号在小框左边。
+    const rects = [
+      ...gridRects([60, 940], [60, 260]),
+      ...gridRects([160, 600], [100, 210]),
+      ...gridRects([660, 900], [100, 210]),
+    ];
+    const words = [
+      word('3.1', 110, 145, 40),
+      word('Studii universitare de licenta', 170, 108, 400),
+      word('al calificarilor CNC', 170, 132, 400),
+      word('Bachelor Studies Level 6', 170, 156, 400),
+      word('European Framework', 170, 180, 400),
+      word('3.2', 610, 145, 40),
+      word('3 ani 180 credite', 670, 130, 200),
+      word('3 years 180 credits', 670, 154, 200),
+    ];
+    const [table] = tablesOf(page(rects, words));
+    const cell = table!.cells.find((c) => c.text.includes('Studii'))!;
+    expect(cell.text.split('\n')).toHaveLength(4);
+  });
+
   it('keeps column lines that start below an unruled header', () => {
     // 物业账单的批次表：表头有底色、下面没有横线，表头里的竖线断了，只从表身开始。
     const xs = [100, 300, 500, 700, 900];
