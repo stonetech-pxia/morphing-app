@@ -350,6 +350,12 @@ describe('readingOrder', () => {
     ]);
   });
 
+  it('does not loop when every block is in the caption row (EU sample 077)', () => {
+    // 两栏都只有一块，矮的一栏整块在「表头」那一排里，高的一栏的底也在那一排的空隙以内：没有剩下的字。
+    const items = [item('left', 0, 0, 50, 25), item('right', 100, 0, 50, 40)];
+    expect(readingOrder(items, 20, 10).map((i) => i.id)).toEqual(['left', 'right']);
+  });
+
   it('reads blocks on the same band left to right (letter head: address left, date right)', () => {
     const items = [item('date', 600, 100, 300, 30), item('address', 80, 90, 300, 90)];
     expect(readingOrder(items).map((i) => i.id)).toEqual(['address', 'date']);

@@ -381,7 +381,10 @@ function headerRow<T extends { box: Box }>(
   const row = Math.max(...short);
   const inRow = (it: T) => bottomOf(it) <= row + gap;
   if (groups.filter((g) => g.some((i) => inRow(items[i]!))).length < 2) return null;
-  return [items.filter(inRow), items.filter((it) => !inRow(it))];
+  const head = items.filter(inRow);
+  // 所有的字都在这一排里（EU 样本 077）：没有表头和下面之分，照常按栏排；不然 readingOrder 原样递归下去。
+  if (head.length === items.length) return null;
+  return [head, items.filter((it) => !inRow(it))];
 }
 
 /**
