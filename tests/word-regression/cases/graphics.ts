@@ -241,7 +241,7 @@ export const GRAPHICS: Case[] = [
   {
     id: 'tiled-watermark',
     suite: 'graphics',
-    fix: 'EU sample 071',
+    fix: '56a3d18f; EU sample 071',
     what: 'A diagonal "MUSTER" watermark drawn as many small overlapping images across the body text: the pieces were merged into one picture that held the paragraphs and the table under it, so all of that text was lost into the picture and the lines crossing its edge were cut.',
     lang: 'deu',
     checks: [
@@ -255,7 +255,7 @@ export const GRAPHICS: Case[] = [
   {
     id: 'patterned-ticket',
     suite: 'graphics',
-    fix: 'EU sample 066',
+    fix: 'b061c5a0; EU sample 066',
     what: 'Scanned ticket printed on a security pattern of pale triangles: every row of the pattern alternates light and dark in the same places, so whole bands of the ticket were taken for barcodes and cut out as pictures, and the lines of text inside them ("Von: Fulda", "Nach: Bad Kissingen") were dropped.',
     lang: 'deu',
     checks: [

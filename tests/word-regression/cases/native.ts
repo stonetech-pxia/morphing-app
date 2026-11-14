@@ -168,7 +168,7 @@ export const NATIVE: Case[] = [
   {
     id: 'watermark-letter-colour',
     suite: 'native',
-    fix: 'EU sample 080',
+    fix: 'e4ebaf96; EU sample 080',
     what: 'A huge pale diagonal "PROJET" watermark lies across the contract details: its letters\' glyph boxes overlapped the short value "6 kVA" more than the value\'s own glyphs did, so the value was written in the watermark grey and could not be read.',
     lang: 'fra',
     checks: [

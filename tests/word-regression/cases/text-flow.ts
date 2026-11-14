@@ -390,7 +390,7 @@ export const TEXT_FLOW: Case[] = [
   {
     id: 'framed-letter-ticks',
     suite: 'text-flow',
-    fix: 'EU sample 075',
+    fix: '42115fb8; EU sample 075',
     what: 'A letter body in a light frame whose right edge has a small tick at every line: the ticks made a grid with one row per line, and after the grid was rejected each line stayed its own paragraph, so the letter could not reflow.',
     lang: 'deu',
     checks: [
@@ -408,7 +408,7 @@ export const TEXT_FLOW: Case[] = [
   {
     id: 'date-at-line-start',
     suite: 'text-flow',
-    fix: 'EU sample 076',
+    fix: '0f8b8ae7; EU sample 076',
     what: 'A date stamp "21. APR. 2006" and German dates such as "1. Januar 2024" at the start of a line: the day and its dot were read as a list number, so the date became an ordered list starting at 21.',
     lang: 'deu',
     checks: [
