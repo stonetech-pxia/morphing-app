@@ -333,3 +333,21 @@ describe('filled boxes are not tables', () => {
     expect(findTables(page)).toHaveLength(0);
   });
 });
+
+describe('skew next to a solid colour band', () => {
+  it('measures the tilt of a scan whose top is a wide dark band, so its ruled table is found', () => {
+    // 扫描件（转了 0.6°）的页眉是整页宽的深蓝色块：暗点里大半是色块。按扫描顺序每隔几个取一个点，
+    // 色块里取到的点排成斜的格子，投影在约 7° 处最整齐，估出的倾斜错成 −7°，下面带线的表全散了。
+    const band: Rect = { x: 0, y: 0, width: 1413, height: 420, color: [34, 96, 154] };
+    const xs = [170, 240, 440, 1290];
+    const ys = Array.from({ length: 10 }, (_, i) => 560 + i * 56);
+    const text = ys
+      .slice(0, -1)
+      .flatMap((y) => xs.slice(0, -1).map((x) => glyphs(x + 12, y + 18, 50)));
+    const image = renderPage(1413, 2000, [band, ...gridRects(xs, ys), ...text.flat()], 0.6);
+    const found = findLines(image);
+    expect(Math.abs(Math.abs(found.skew) - 0.6)).toBeLessThan(0.2);
+    const tables = findTables(found);
+    expect(tables.some((t) => t.hs.length === 10 && t.vs.length === 4)).toBe(true);
+  });
+});

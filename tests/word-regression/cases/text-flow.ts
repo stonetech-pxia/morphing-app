@@ -457,12 +457,26 @@ export const TEXT_FLOW: Case[] = [
   {
     id: 'wordmark-tagline-band',
     suite: 'text-flow',
-    fix: '4ac59c6d; EU sample 091',
-    what: "Payslip guide whose header is a blue band with a large white wordmark and a small tagline centred under it: the wordmark's tall box reached down over the tagline, so both were taken for one row and written as one heading paragraph at the wordmark's size, wrapping over several lines and pushing the table onto a second page.",
+    fix: '4ac59c6d; skew next to a solid band: EU sample 091',
+    what: "Payslip guide whose header is a blue band with a large white wordmark and a small tagline centred under it: the wordmark's tall box reached down over the tagline, so both were taken for one row and written as one heading paragraph at the wordmark's size, wrapping over several lines and pushing the table onto a second page. The dark band also made the skew estimate for the rule search come out at about −7° (the sampled band pixels lined up along a slant), so the fully ruled 9×3 table fell apart into a small two-column table, loose paragraphs and a borderless table.",
     lang: 'eng',
     checks: [
       apart('DOMO', 'FLEXIBEL WERK'),
       order('DOMO', 'FLEXIBEL WERK', 'Omschrijving loonstrook'),
+      // 页眉是整页宽的深蓝色块时，找线估出的倾斜错成 −7°（取样排成斜格子），这张 9×3 的带线表散成小表、散段和无线的表。
+      table({
+        rows: 9,
+        cols: 3,
+        cells: [
+          { row: 0, col: 2, text: 'Omschrijving' },
+          { row: 4, col: 0, text: '4' },
+          { row: 4, col: 1, text: 'Normale uren' },
+          { row: 6, col: 1, text: 'Vakantiegeld' },
+          { row: 8, col: 0, text: '8' },
+          { row: 8, col: 1, text: 'Netto loon' },
+          { row: 8, col: 2, text: 'Het bedrag dat op je rekening wordt gestort' },
+        ],
+      }),
     ],
   },
 ];
