@@ -95,11 +95,13 @@ export function applyNativeGraphics(
   const fills = (graphics.fills ?? [])
     .filter((c) => /^[0-9A-F]{6}$/i.test(c.color))
     .map((c) => ({ ...c, box: pixel(c.box) }));
+  // 按重叠面积投票，再乘上这个字框有多大一部分在这里：斜着压在页上的大水印字（「PROJET」，EU 样本 080）
+  // 框很大，和一小行字重叠的面积比这行字自己的字还多，但它几乎全在别处，不能让这行字变成水印的浅灰。
   const colorOf = (box: Box) => {
     const votes = new Map<string, number>();
     for (const c of colors) {
       const n = overlap(box, c.box);
-      if (n > 0) votes.set(c.color, (votes.get(c.color) ?? 0) + n);
+      if (n > 0) votes.set(c.color, (votes.get(c.color) ?? 0) + (n * n) / (area(c.box) || 1));
     }
     const entries = [...votes].sort((a, b) => b[1] - a[1]);
     return entries[0] && entries[0][1] >= entries.reduce((n, c) => n + c[1], 0) * 0.8

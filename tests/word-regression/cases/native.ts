@@ -165,4 +165,29 @@ export const NATIVE: Case[] = [
       }),
     ],
   },
+  {
+    id: 'watermark-letter-colour',
+    suite: 'native',
+    fix: 'EU sample 080',
+    what: 'A huge pale diagonal "PROJET" watermark lies across the contract details: its letters\' glyph boxes overlapped the short value "6 kVA" more than the value\'s own glyphs did, so the value was written in the watermark grey and could not be read.',
+    lang: 'fra',
+    checks: [
+      times('6 kVA', 1),
+      custom('no text is written in a colour that is unreadable on white', (c) => {
+        const pale: string[] = [];
+        // 有底色的段落（色条上的白字）不算。
+        for (const p of c.xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)) {
+          if (/<w:shd [^>]*w:fill="(?!FFFFFF|auto)/i.test(p[0])) continue;
+          for (const r of p[0].matchAll(/<w:r>[\s\S]*?<\/w:r>/g)) {
+            const text = [...r[0].matchAll(/<w:t[^>]*>([^<]*)/g)].map((m) => m[1]).join('');
+            const color = /<w:color w:val="([0-9A-Fa-f]{6})"/.exec(r[0])?.[1];
+            if (!text.trim() || !color) continue;
+            const channels = [0, 2, 4].map((k) => parseInt(color.slice(k, k + 2), 16));
+            if (Math.min(...channels) >= 0xc0) pale.push(`"${text.slice(0, 20)}" ${color}`);
+          }
+        }
+        return pale.length ? `pale text: ${pale.slice(0, 4).join('; ')}` : null;
+      }),
+    ],
+  },
 ];

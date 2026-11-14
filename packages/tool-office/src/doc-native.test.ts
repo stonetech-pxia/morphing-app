@@ -31,6 +31,25 @@ describe('local source PDF graphics', () => {
     expect(p.blocks[0]).not.toHaveProperty('background');
     expect(p.blocks[1]).toMatchObject({ text: 'Editable body', color: '114477' });
   });
+  it('does not take the colour of a big watermark letter lying across a short line (EU sample 080)', () => {
+    // 「6 kVA」是黑字；斜着的大水印字母（浅灰）的框把它整个盖住，重叠面积比黑字自己的框大。
+    const line = { x: 300, y: 300, width: 60, height: 14 };
+    const p = applyNativeGraphics(
+      {
+        ...page(),
+        blocks: [{ kind: 'paragraph', box: line, text: '6 kVA' }],
+      },
+      {
+        owned: [],
+        colors: [
+          { box: { x: 302, y: 301, width: 40, height: 12 }, color: '000000' },
+          { box: { x: 150, y: 100, width: 400, height: 500 }, color: 'D9DFDE' },
+        ],
+      },
+      [],
+    );
+    expect(p.blocks[0]).toMatchObject({ text: '6 kVA', color: '000000' });
+  });
   it('maps native boxes by the source PDF page size when the Word paper was fitted to A4', () => {
     // PDF 页是 2400 × 3200 点，Word 的纸缩成了 600 × 800（fitPaper）：原生框仍按 PDF 的点换成像素。
     const p = applyNativeGraphics(

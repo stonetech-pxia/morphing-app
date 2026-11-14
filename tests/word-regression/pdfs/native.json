@@ -52,5 +52,11 @@
     "id": "translucent-tints",
     "source": "09-translucent-tints.html",
     "sha256": "d7624521829f90a3b773318f0d89d8af4a670eae3c60371a4cc700afbe824b5a"
+  },
+  {
+    "page": 10,
+    "id": "watermark-letter-colour",
+    "source": "10-watermark-letter-colour.pdf",
+    "sha256": "af3188523d0738d15fd07ca4049fb51c406bc105c2fc018dd2ab6847fe69e31f"
   }
 ]
