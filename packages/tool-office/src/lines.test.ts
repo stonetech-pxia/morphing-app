@@ -58,6 +58,19 @@ describe('colour-filled cells', () => {
   });
 });
 
+describe('pale coloured rules', () => {
+  it('still finds rules in a pale blue that is bright but not a saturated fill (EU sample 040)', () => {
+    // 老发票纸上印的浅蓝格线：亮度 0.76，颜色不浓，按最暗的通道算仍是线；只有又亮又浓的黄底才按亮度算。
+    const rules = gridRects([100, 400, 900], [300, 360, 420, 480]).map((r) => ({
+      ...r,
+      color: [170, 200, 235] as const,
+    }));
+    const tables = findTables(findLines(renderPage(W, H, rules), { skew: 0 }));
+    expect(tables).toHaveLength(1);
+    expect(tables[0]!.hs).toHaveLength(4);
+  });
+});
+
 describe('boxes stacked a few pixels apart', () => {
   it('does not join an invoice item table with the tables a few pixels under it (EU sample 054)', () => {
     // 商品表下面隔一条窄窄的白缝：左边一张税额表、右边一个合计框，各有自己的框，

@@ -148,10 +148,12 @@ function addThinLight(
  * 最暗的通道很暗，按它算会和旁边的表格线连成一大块，整条线被当成色块丢掉，表格认不出来。
  */
 const FILL_LUMA = 0.7;
+/** 而且颜色很浓（最亮和最暗的通道差这么多）：浅蓝的格线、浅灰的底纹、字边上的杂色不算，照旧按最暗的通道。 */
+const FILL_CHROMA = 0.3;
 
 /**
  * 墨水深浅：三个通道里最暗的那个（0 黑 – 1 白），红字、蓝字的线也算；
- * 很亮的颜色（FILL_LUMA）按亮度算，浅的彩色线在 light 里照样当浅线找。
+ * 又亮又浓的颜色（FILL_LUMA、FILL_CHROMA：黄、橙黄的底）按亮度算，浅的彩色线在 light 里照样当浅线找。
  */
 function inkOf(image: RgbaImage): Float32Array {
   const { width, height, data } = image;
@@ -160,8 +162,10 @@ function inkOf(image: RgbaImage): Float32Array {
     const r = data[i]!;
     const g = data[i + 1]!;
     const b = data[i + 2]!;
+    const min = r < g ? (r < b ? r : b) : g < b ? g : b;
+    const max = r > g ? (r > b ? r : b) : g > b ? g : b;
     const luma = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    out[p] = luma >= FILL_LUMA ? luma : (r < g ? (r < b ? r : b) : g < b ? g : b) / 255;
+    out[p] = luma >= FILL_LUMA && (max - min) / 255 >= FILL_CHROMA ? luma : min / 255;
   }
   return out;
 }
