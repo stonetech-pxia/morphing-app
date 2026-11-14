@@ -1892,3 +1892,48 @@ describe('ruled field boxes in a rejected form grid (EU sample 062)', () => {
     ]);
   });
 });
+
+describe('side-by-side boxes with a different line pitch (EU sample 070)', () => {
+  const unit = (text: string, x: number, y: number, width: number, height = 26) => {
+    const box = { x, y, width, height };
+    return { box, blocks: [{ kind: 'paragraph' as const, text, box }] };
+  };
+  const texts = (bs: readonly DocBlock[]) =>
+    bs.map((b) => (b.kind === 'paragraph' ? b.text : b.kind));
+
+  it('reads the conditions box and the totals beside it as two cells', () => {
+    // 左边的说明每条折成两行（行距 30），右边的合计每排隔 80：按高度连成带会把它们配错。
+    const units = [
+      unit('Conditions.', 165, 1318, 190, 34),
+      unit('• Le choix definitif des finitions est valide avant lancement', 171, 1383, 630),
+      unit('en fabrication.', 171, 1413, 160),
+      unit('• Le bois massif et les quincailleries sont inclus selon la', 171, 1466, 600),
+      unit('selection mentionnee.', 171, 1496, 240),
+      unit('• Toute modification apres validation peut entrainer un', 171, 1550, 600),
+      unit('reajustement du montant.', 171, 1580, 280),
+      unit('Sous-total', 873, 1358, 130),
+      unit('1 680,00 EUR', 1230, 1358, 170),
+      unit('TVA (20 %)', 873, 1439, 140),
+      unit('336,00 EUR', 1255, 1439, 145),
+      unit('Total TTC', 873, 1527, 135),
+      unit('2 016,00 EUR', 1170, 1522, 230, 34),
+    ];
+    const out = arrangeUnits(units, 27);
+    expect(out).toHaveLength(1);
+    const row = out[0] as DocRow;
+    expect(row.kind).toBe('row');
+    expect(texts(row.cells[0]!.blocks)).toEqual(units.slice(0, 7).map((u) => u.blocks[0]!.text));
+    expect(texts(row.cells[1]!.blocks)).toContain('336,00 EUR');
+  });
+
+  it('keeps aligned label and value rows as rows', () => {
+    // 工资单的抬头：每个标签右边对着一个值（一个标签没有值）。
+    const labels = ['DÉBUT DE PÉRIODE', 'FIN DE PÉRIODE', "DATE D'ENTRÉE", 'EMPLOI', 'COEFFICIENT'];
+    const units = labels.flatMap((t, k) => [
+      unit(t, 100, 200 + k * 40, 300),
+      ...(k === 3 ? [] : [unit(`valeur ${k}`, 700, 200 + k * 40, 200)]),
+    ]);
+    const rows = arrangeUnits(units, 27).filter((b) => b.kind === 'row');
+    expect(rows.length).toBeGreaterThanOrEqual(4);
+  });
+});

@@ -2869,7 +2869,10 @@ export function arrangeUnits(
       blocks: [block],
     }));
   });
-  const bands = mergeColumnRows(arrangeBands(separated, lineHeight), lineHeight);
+  const bands = splitMisalignedColumns(
+    mergeColumnRows(arrangeBands(separated, lineHeight), lineHeight),
+    lineHeight,
+  );
   return splitAnswerRows(
     options.dense ? bands : retainProseColumns(bands, lineHeight, options.onColumns),
     lineHeight,
@@ -2937,6 +2940,115 @@ function splitAnswerRows(blocks: readonly DocBlock[], lineHeight: number): DocBl
       };
     });
   });
+}
+
+/** 栏缝至少这么多个行高宽。 */
+const SPLIT_GAP_LINES = 1;
+/** 两边的行顶差不超过这么多个行高算对齐（同一排的标签和值）。 */
+const SPLIT_ALIGN = 0.3;
+/**
+ * 两边至少这么多比例、至少这么多个块和另一边的行对不齐，才是两栏各排各的；一排一排的标签和值
+ * （个别标签没有值）不算。
+ */
+const SPLIT_MISALIGNED = 0.25;
+const SPLIT_MIN_ALONE = 2;
+/** 一段里上下相邻的两块最远隔这么多个行高。 */
+const SPLIT_MAX_GAP = 1.5;
+
+/**
+ * 并排的两个框（报价单的「Conditions」说明框和右边的合计表、「Prestataire」「Client」两个地址框，EU 样本 070）：
+ * 两边的行距不一样，按高度连成的带把左边的第二行和右边的第一行配成一排，一句话被切到两排里，金额落在下一排。
+ * 连着的几块（并排行、单独的块）之间有一条竖着的空白（至少一个行高宽），两边各至少两块，少的那边至少三分之一的块
+ * 和另一边的行对不齐时，在这条空白处分成左右两格，各排各的。一排一排对齐的标签和值（工资单的抬头）不动。
+ * 有几条空白时（右边的合计表里标签和金额之间也有一条），取两边最对不齐的那条。
+ */
+function splitMisalignedColumns(blocks: readonly DocBlock[], h: number): DocBlock[] {
+  const leavesOf = (bs: readonly DocBlock[]) =>
+    bs.flatMap((b) => (b.kind === 'row' ? b.cells.flatMap((c) => c.blocks) : [b]));
+  /** 这些块左右范围里没有块盖住的空白（至少 SPLIT_GAP_LINES 个行高宽）。 */
+  const gapsOf = (leaves: readonly DocLeaf[]) => {
+    const spans = leaves
+      .map((b) => [b.box.x, b.box.x + b.box.width] as const)
+      .sort((a, b) => a[0] - b[0]);
+    const gaps: [number, number][] = [];
+    let end = spans[0]![1];
+    for (const [a, b] of spans.slice(1)) {
+      if (a - end >= SPLIT_GAP_LINES * h) gaps.push([end, a]);
+      end = Math.max(end, b);
+    }
+    return gaps;
+  };
+  /** 两边和另一边的行都对不齐的块有几个。 */
+  const misaligned = (left: readonly DocLeaf[], right: readonly DocLeaf[]) => {
+    const alone = (a: DocLeaf, other: readonly DocLeaf[]) =>
+      !other.some(
+        (b) =>
+          Math.abs(a.box.y - b.box.y) <= SPLIT_ALIGN * h &&
+          Math.min(a.box.y + a.box.height, b.box.y + b.box.height) > Math.max(a.box.y, b.box.y),
+      );
+    return left.filter((a) => alone(a, right)).length + right.filter((b) => alone(b, left)).length;
+  };
+  const out: DocBlock[] = [];
+  for (let i = 0; i < blocks.length;) {
+    const seed = blocks[i]!;
+    if (seed.kind !== 'row' || seed.cells.length < 2) {
+      out.push(seed);
+      i++;
+      continue;
+    }
+    // 往下接：空白还在、上下挨得近。
+    let end = i + 1;
+    let bottom = seed.box.y + seed.box.height;
+    while (end < blocks.length) {
+      const next = blocks[end]!;
+      if (next.box.y - bottom > SPLIT_MAX_GAP * h) break;
+      if (!gapsOf(leavesOf(blocks.slice(i, end + 1))).length) break;
+      bottom = Math.max(bottom, next.box.y + next.box.height);
+      end++;
+    }
+    // 往上接前面单独的块（左栏的标题「Conditions.」）。
+    let start = 0;
+    let top = seed.box.y;
+    while (start < out.length) {
+      const before = out[out.length - 1 - start]!;
+      if (before.kind === 'row' || top - (before.box.y + before.box.height) > SPLIT_MAX_GAP * h)
+        break;
+      const run = [...out.slice(out.length - 1 - start), ...blocks.slice(i, end)];
+      if (!gapsOf(leavesOf(run)).length) break;
+      top = before.box.y;
+      start++;
+    }
+    const run = [...out.slice(out.length - start), ...blocks.slice(i, end)];
+    const leaves = leavesOf(run);
+    // 有整段正文的双栏归 retainProseColumns 管。
+    const prose = leaves.some((b) => b.kind === 'paragraph' && b.box.height >= 3 * h);
+    let best: { left: DocLeaf[]; right: DocLeaf[]; score: number } | undefined;
+    for (const [a, b] of gapsOf(leaves)) {
+      const left = leaves.filter((l) => l.box.x + l.box.width <= a);
+      const right = leaves.filter((l) => l.box.x >= b);
+      if (left.length < 2 || right.length < 2) continue;
+      const off = misaligned(left, right);
+      const score = off >= SPLIT_MIN_ALONE ? off / (left.length + right.length) : 0;
+      if (!best || score > best.score) best = { left, right, score };
+    }
+    if (prose || !best || best.score < SPLIT_MISALIGNED) {
+      out.push(seed);
+      i++;
+      continue;
+    }
+    out.splice(out.length - start, start);
+    const byTop = (a: DocLeaf, b: DocLeaf) => a.box.y - b.box.y || a.box.x - b.box.x;
+    const sides = [best.left.sort(byTop), best.right.sort(byTop)];
+    const lefts = sides.map((s) => Math.min(...s.map((b) => b.box.x)));
+    const right = Math.max(...best.right.map((b) => b.box.x + b.box.width));
+    out.push({
+      kind: 'row',
+      cells: sides.map((s, k) => ({ width: (lefts[k + 1] ?? right) - lefts[k]!, blocks: s })),
+      box: unionBox(leaves.map((b) => b.box)),
+    });
+    i = end;
+  }
+  return out;
 }
 
 /**

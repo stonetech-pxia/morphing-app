@@ -12,6 +12,7 @@ import {
   notInRow,
   numbered,
   order,
+  sameCell,
   sideBySide,
   table,
   times,
@@ -385,5 +386,25 @@ export const TEXT_FLOW: Case[] = [
     fix: '69e553bf; EU sample 056',
     what: 'The form code "A1" printed in large white letters on a green header band, away from the page edge: being short, tall and isolated, it was dropped as a stray mark, so the one word that names the form was lost.',
     checks: [order('A1', 'Certificate concerning', 'INFORMATION FOR THE HOLDER')],
+  },
+  {
+    id: 'boxes-different-line-pitch',
+    suite: 'text-flow',
+    fix: 'EU sample 070',
+    what: 'Two boxes side by side whose lines have a different pitch (a conditions box beside a totals table, two address boxes): rows were formed band by band, so a wrapped bullet was cut between two rows, an amount landed one row below its label and the last lines of each box came out after both boxes.',
+    lang: 'fra',
+    checks: [
+      sameCell(
+        'Conditions.',
+        'Le choix définitif',
+        'Les ferrures',
+        'modèle retenu',
+        'nouveau devis',
+      ),
+      sameCell('Sous-total', 'TVA (20 %)', '430,00 EUR', 'Total TTC'),
+      sideBySide('Conditions.', 'Sous-total'),
+      sameCell('Prestataire.', 'Atelier Morel', '4 rue des Tanneurs', 'SIRET'),
+      sameCell('Client.', 'M. Paul Girard', '9 place du Marché'),
+    ],
   },
 ];
