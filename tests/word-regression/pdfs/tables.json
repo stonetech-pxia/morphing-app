@@ -190,5 +190,11 @@
     "id": "tbl-side-by-side-lab-tables",
     "source": "32-tbl-side-by-side-lab-tables.html",
     "sha256": "1ebf03eb5d84a233f586858f1b056adffa3499b7c57465524538a12cd82cc44a"
+  },
+  {
+    "page": 33,
+    "id": "tbl-three-line-table-vat-below",
+    "source": "33-tbl-three-line-table-vat-below.scan.html",
+    "sha256": "e27bc77bc6bd611bd9b167f4cd6b4d74bf3093fda57d724ff54e9799e07603b2"
   }
 ]

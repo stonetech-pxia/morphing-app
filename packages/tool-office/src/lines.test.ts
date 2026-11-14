@@ -265,6 +265,15 @@ describe('findTables: rules-only chains', () => {
     expect(tables.map((t) => t.hs.length)).toEqual([5]);
   });
 
+  it('ends a three-line table at its bottom rule when a header pair follows a gap (EU sample 050)', () => {
+    // 酒店账单：三线表（顶线、表头线、底线），底下隔着合计几行，再是税额栏的两条线（表头线、底线）。
+    const ys = [200, 236, 560, 760, 790];
+    const rules: Rect[] = ys.map((y) => ({ x: 60, y, width: 882, height: 2 }));
+    const tables = findTables(findLines(renderPage(W, H, rules), { skew: 0 }));
+    expect(tables.map((t) => t.hs.length)).toEqual([3]);
+    expect(tables[0]!.box.y + tables[0]!.box.height).toBeLessThan(600);
+  });
+
   it('still chains a ruled table with uneven rows', () => {
     // 每排一条横线、排高不一样（有的格子折成好几行）：照旧是一张表。
     const ys = [200, 240, 280, 420, 460, 640, 680];

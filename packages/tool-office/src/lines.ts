@@ -1039,6 +1039,21 @@ export function findTables(
     if (chain) chain.push(i);
     else chains.push([i]);
   }
+  // 三线表（顶线、紧挨着的表头线、表身下面的底线，表身里没有横线）到底线就完了：底线下面隔着一大段
+  // （合计、付款几行），又是挨得很近的两条线（另一张表的表头线和底线：酒店账单的税额栏，EU 样本 050），
+  // 是另一张表，不接上去。
+  for (let n = 0; n < chains.length; n++) {
+    const c = chains[n]!;
+    if (c.length < 5 || c.slice(0, 5).some((k) => hOk[k])) continue;
+    const [s1, s2, s3, s4] = [1, 2, 3, 4].map((k) => hs[c[k]!]!.pos - hs[c[k - 1]!]!.pos) as [
+      number,
+      number,
+      number,
+      number,
+    ];
+    if (s2 >= 3 * s1 && s3 > maxHeadGap && s3 >= 3 * s4 && s4 <= 2 * s1)
+      chains.splice(n, 1, c.slice(0, 3), c.slice(3));
+  }
   for (const chain of chains) {
     if (chain.length < RULED_MIN) continue;
     for (const i of chain) {

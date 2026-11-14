@@ -585,4 +585,19 @@ export const TABLES: Case[] = [
       notInTable('Barrare la casella'),
     ],
   },
+  {
+    id: 'tbl-three-line-table-vat-below',
+    suite: 'tables',
+    fix: 'EU sample 050 (regression after 2009761b)',
+    what: 'Hotel bill (scan): a three-line item table (top rule, header rule, bottom rule) with totals under it and, after a gap, a small VAT block between two more full-width rules. Once letter stems were no longer joined through the VAT rules into column lines, the five aligned rules were chained into one rules-only table that pulled the totals and the VAT block into the item table.',
+    lang: 'deu',
+    checks: [
+      table({ containing: ['Datum', 'Beschreibung', 'Bankomatkarte'] }),
+      inRow('Bankomatkarte', '112,90'),
+      notInTable('Rechnungsbetrag'),
+      notInTable('Saldo'),
+      notInTable('Steuer/Text'),
+      notInTable('MWST 10'),
+    ],
+  },
 ];
