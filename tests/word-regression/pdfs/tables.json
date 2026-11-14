@@ -202,5 +202,11 @@
     "id": "tbl-step-lists-in-cells",
     "source": "34-tbl-step-lists-in-cells.html",
     "sha256": "5534083507a9b0dfc565363bc5c321969710b3b55103c6374bc55f0c647b9638"
+  },
+  {
+    "page": 35,
+    "id": "tbl-lab-results-unit-column",
+    "source": "35-tbl-lab-results-unit-column.html",
+    "sha256": "18e261c3026a46b93f853d5c4761c91acfd08b6a7d29fea31ecd7bd739f80a64"
   }
 ]

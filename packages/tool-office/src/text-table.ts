@@ -218,6 +218,18 @@ const isNumber = (s: Segment) => {
 };
 
 /**
+ * 一段字是一个单位（化验单「U/l」「mg/dl」「mmol/l」「%」「sec」，EU 样本 098）：一个词，不超过 6 个字，
+ * 带「/」「%」或者不超过 3 个字母。数后面单独一列的单位和数一样，是数那几列的一部分。
+ */
+const isUnit = (s: Segment) => {
+  const text = s.lines.map((l) => l.text.trim()).join(' ');
+  return (
+    /^[\p{L}µ%°/.]{1,6}$/u.test(text) &&
+    (/[/%]/.test(text) || (text.match(/\p{L}/gu)?.length ?? 0) <= MAX_UNIT_LETTERS)
+  );
+};
+
+/**
  * 第 k 列和第 k + 1 列之间隔得很远时，右边是不是一列列的数、一排一排对着左边（D-502）：
  * 右边的段至少七成是数，右边有字的排至少七成在左边也有字、而且左右两边的高度差不到 1/4 个行高
  * （拍得很斜、没拉平的照片里，碰巧挨上的左右两段差得多，配成一排会把金额配到别的项目旁边），
@@ -240,7 +252,8 @@ function lockedRows(
   return (
     both.length >= MIN_ROWS &&
     both.length >= LOCKED_SHARE * right.length &&
-    (textColumns || segs.filter(isNumber).length >= LOCKED_SHARE * segs.length)
+    (textColumns ||
+      segs.filter((x) => isNumber(x) || isUnit(x)).length >= LOCKED_SHARE * segs.length)
   );
 }
 

@@ -276,6 +276,25 @@ describe('rows kept together when no table lines are found (D-502)', () => {
     expect(rowsOf(table!)).toEqual(items.map((row) => row.filter(Boolean)));
   });
 
+  it('a lab report (names far from value, unit and range columns) becomes one row per test (EU sample 098)', () => {
+    // 化验单：左边检验项目，隔得很远的右边是结果、单位、参考值三列；单位一列没有数字。
+    const items = [
+      ['GOT', '23', 'U/l', '<35'],
+      ['GPT', '35', 'U/l', '<45'],
+      ['Alk. Phosphatase', '98', 'U/l', '0-129'],
+      ['Bilirubin gesamt', '0.68', 'mg/dl', '<1.00'],
+      ['Gesamteiweiß', '+ 8.2', 'g/dl', '6.0-8.0'],
+      ['Natrium', '138', 'mmol/l', '135-150'],
+    ];
+    const lines = items.flatMap(([label, ...rest], r) => [
+      box(label!, 100, 100 + r * 30, 180),
+      ...rest.map((t, c) => box(t, 760 + c * 190, 100 + r * 30, 70)),
+    ]);
+    const [table, ...others] = tablesIn(lines);
+    expect(others).toHaveLength(0);
+    expect(rowsOf(table!)).toEqual(items);
+  });
+
   it('a list of labels with amounts far to the right becomes a two-column table', () => {
     // 小票的合计：两列，隔得很远，右边是数。
     const pairs = [

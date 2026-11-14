@@ -612,4 +612,18 @@ export const TABLES: Case[] = [
       notInTable('Alternativ siehe Punkt'),
     ],
   },
+  {
+    id: 'tbl-lab-results-unit-column',
+    suite: 'tables',
+    fix: 'EU sample 098',
+    what: 'Lab report: test names on the left and, far to the right under a ruled header box, value | unit | reference range columns with no row rules. The units ("U/l", "mg/dl") have no digits, so the far columns did not count as columns of numbers; the names and the values became two text columns and the values, units and ranges ran together as prose beside the wrong tests.',
+    lang: 'deu',
+    checks: [
+      inRow('GOT', '23', 'U/', '<35'),
+      inRow('Cholinesterase', '10835', 'U/', '5400-13200'),
+      inRow('Gesamteiweiß', '8.2', 'g/dl', '6.0-8.0'),
+      inRow('Kalium', '5.9', 'mmol/', '3.5-5.5'),
+      inRow('Thrombinzeit', '16.5', 'sec', '16.0-20.0'),
+    ],
+  },
 ];
