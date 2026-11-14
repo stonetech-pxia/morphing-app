@@ -333,6 +333,13 @@ function scan(
   horizontal: boolean,
   /** 给了就收集实心的横条（BAND_MAX_SHARE），不当成线。 */
   bands?: Band[],
+  /**
+   * 找竖线时：已经找到的横线压着的点。竖着扫过去，墨断开的地方只隔着横线（线和线交叉）不算断；
+   * 断口里有白纸又连着横线时，横线那几点也算进断口（见 markLines）。
+   */
+  crossing?: Uint8Array,
+  /** 找横线时：把找到的横线压着的点记在这里，给找竖线用。 */
+  marks?: Uint8Array,
 ): RuleLine[] {
   const along = horizontal ? width : height;
   const across = horizontal ? height : width;
@@ -348,18 +355,46 @@ function scan(
     const runs: [number, number][] = [];
     let start = -1;
     let lastDark = -1;
+    // 上一个不是横线的墨点，和从那以后有没有白纸：密排的表里，上下几排字的竖笔画中间只隔着「白缝 + 行线 +
+    // 白缝」，几个像素的断口会把它们接成一条竖线（EU 样本 090）。行线本身不算墨，断口从上一个笔画算起。
+    let lastInk = -1;
+    let white = false;
     for (let i = 0; i <= along; i++) {
       let dark = false;
+      let across_ = false;
       if (i < along) {
         const j = Math.round(r + i * slope);
-        if (j >= 0 && j < across) dark = mask[horizontal ? j * width + i : i * width + j] === 1;
+        if (j >= 0 && j < across) {
+          const p = horizontal ? j * width + i : i * width + j;
+          dark = mask[p] === 1;
+          across_ = dark && crossing?.[p] === 1;
+        }
       }
       if (dark) {
-        if (start < 0) start = i;
+        // 上一个笔画以后隔着白纸和横线，加起来超过断口：断开，从这里起新的一段。
+        if (start >= 0 && !across_ && white && i - lastInk - 1 > MAX_GAP) {
+          if (lastInk - start + 1 >= minLength) runs.push([start, lastInk]);
+          start = -1;
+        }
+        if (start < 0) {
+          start = i;
+          lastInk = i;
+          white = false;
+        }
         lastDark = i;
-      } else if (start >= 0 && (i - lastDark > MAX_GAP || i === along)) {
-        if (lastDark - start + 1 >= minLength) runs.push([start, lastDark]);
-        start = -1;
+        if (!across_) {
+          lastInk = i;
+          white = false;
+        }
+      } else {
+        if (start >= 0) white = true;
+        if (
+          start >= 0 &&
+          (i - lastDark > MAX_GAP || i === along || (white && i - lastInk > MAX_GAP))
+        ) {
+          if (lastDark - start + 1 >= minLength) runs.push([start, lastDark]);
+          start = -1;
+        }
       }
     }
     for (const [a, b] of runs) {
@@ -415,22 +450,29 @@ function scan(
     }
   }
   // 沿线方向的坐标也换到拉正后的：横线上 x' ≈ x + y'·t，竖线上 y' ≈ y − x'·t。
-  const lines = done
-    .flatMap((l) => {
-      if (l.last - l.first + 1 <= maxThickness) return [l];
-      return thinCores(l, maxThickness);
-    })
-    .map((l) => {
-      const pos = l.posSum / l.weight;
-      const shift = horizontal ? pos * t : -pos * t;
-      return {
-        pos,
-        from: l.from + shift,
-        to: l.to + shift,
-        thickness: l.last - l.first + 1,
-        spans: l.spans.map(([a, b]) => [a + shift, b + shift] as [number, number]),
-      };
-    });
+  const kept = done.flatMap((l) => {
+    if (l.last - l.first + 1 <= maxThickness) return [l];
+    return thinCores(l, maxThickness);
+  });
+  if (marks)
+    for (const l of kept)
+      for (let r = l.first; r <= l.last; r++)
+        for (const [a, b] of l.spans)
+          for (let i = Math.max(0, a); i <= Math.min(along - 1, b); i++) {
+            const j = Math.round(r + i * slope);
+            if (j >= 0 && j < across) marks[horizontal ? j * width + i : i * width + j] = 1;
+          }
+  const lines = kept.map((l) => {
+    const pos = l.posSum / l.weight;
+    const shift = horizontal ? pos * t : -pos * t;
+    return {
+      pos,
+      from: l.from + shift,
+      to: l.to + shift,
+      thickness: l.last - l.first + 1,
+      spans: l.spans.map(([a, b]) => [a + shift, b + shift] as [number, number]),
+    };
+  });
   return joinCollinear(
     lines,
     Math.max(2, Math.max(width, height) * MERGE_SHARE),
@@ -588,8 +630,17 @@ export function findLines(
     vMask = addThinLight(mask, ink, width, height, paper, max, false);
   }
   const candidates: Band[] = [];
-  const horizontal = scan(hMask, width, height, t, true, candidates);
-  let vertical = scan(eraseBands(vMask, width, height, t, candidates), width, height, t, false);
+  const crossing = new Uint8Array(width * height);
+  const horizontal = scan(hMask, width, height, t, true, candidates, undefined, crossing);
+  let vertical = scan(
+    eraseBands(vMask, width, height, t, candidates),
+    width,
+    height,
+    t,
+    false,
+    undefined,
+    crossing,
+  );
   const tol = Math.max(4, Math.max(width, height) * TOUCH_SHARE);
   const bands = candidates.filter(
     (b) =>
@@ -597,7 +648,15 @@ export function findLines(
   );
   // 不算的横条不抹（抹了会把穿过它的竖线切断）。
   if (bands.length < candidates.length)
-    vertical = scan(eraseBands(vMask, width, height, t, bands), width, height, t, false);
+    vertical = scan(
+      eraseBands(vMask, width, height, t, bands),
+      width,
+      height,
+      t,
+      false,
+      undefined,
+      crossing,
+    );
   if (bands.length) {
     const posTol = Math.max(2, Math.max(width, height) * MERGE_SHARE);
     horizontal.splice(
@@ -671,7 +730,7 @@ function splitAtBoxGaps(vs: readonly RuleLine[], hs: readonly RuleLine[], near: 
   });
 }
 
-/** 一条竖线在 [lo, hi] 里的那一段。 */
+/** 一条竖线（横线也一样）在 [lo, hi] 里的那一段。 */
 function clip(v: RuleLine, lo: number, hi: number): RuleLine {
   if (v.from >= lo && v.to <= hi) return v;
   const from = Math.max(v.from, lo);
@@ -710,6 +769,77 @@ function stackedCuts(hs: readonly RuleLine[], vs: readonly RuleLine[], tol: numb
       cuts.push(h.pos);
   }
   return cuts;
+}
+
+/**
+ * 并排的两张表（转 Word）：共用上面的表头（整页宽的标题框、「Dati paziente」一排），下面左右两张表中间隔着一道
+ * 白缝，两边的横线各自止于白缝的两边、行也对不齐（化验申请单，EU 样本 090）。连成一张网格时两边的行线、列线
+ * 交错，几十列的格子把字切碎。白缝两边各有一条竖线往下画满（至少三条横线止于它），白缝里没有竖线、没有字，
+ * 而且最后一条横穿白缝的横线以下再没有横线穿过：在那条横线处切开，上面一张，下面左右各一张。
+ * 底下又有横线把两边连起来（中间一列只是合并的一大格）不分。
+ */
+function sideBySide(
+  t: TableLines,
+  tol: number,
+  text: readonly { x: number; y: number; width: number; height: number }[],
+): TableLines[] | null {
+  const xs = [...new Set(t.vs.map((v) => Math.round(v.pos)))].sort((a, b) => a - b);
+  for (let k = 0; k + 1 < xs.length; k++) {
+    const [a, b] = [xs[k]!, xs[k + 1]!];
+    if (b - a < 2 * tol) continue;
+    const crossing = t.hs.filter((h) => h.from < a - tol && h.to > b + tol);
+    if (!crossing.length) continue;
+    const y = Math.max(...crossing.map((h) => h.pos));
+    const below = t.hs.filter((h) => h.pos > y + tol);
+    const ending = below.filter((h) => Math.abs(h.to - a) <= tol);
+    const starting = below.filter((h) => Math.abs(h.from - b) <= tol);
+    if (ending.length < 3 || starting.length < 3) continue;
+    const bottom = Math.max(...below.map((h) => h.pos));
+    // 白缝两边的竖线从切口往下画满两张表各自的大半。
+    const side = (x: number, lines: readonly RuleLine[]) =>
+      t.vs.some(
+        (v) =>
+          Math.abs(v.pos - x) <= tol &&
+          v.from <= y + tol &&
+          v.to >= Math.max(...lines.map((h) => h.pos)) - tol,
+      );
+    if (!side(a, ending) || !side(b, starting)) continue;
+    if (
+      text.some((l) => {
+        const cx = l.x + l.width / 2;
+        const cy = l.y + l.height / 2;
+        return cx > a + tol && cx < b - tol && cy > y && cy < bottom;
+      })
+    )
+      continue;
+    const top: TableLines['hs'] = t.hs.filter((h) => h.pos <= y + tol);
+    const topV = t.vs.filter((v) => v.from < y - tol).map((v) => clip(v, -Infinity, y));
+    const part = (hs: RuleLine[], vs: RuleLine[]): TableLines[] => {
+      if (hs.length < 2) return [];
+      const left = Math.min(...hs.map((h) => h.from), ...vs.map((v) => v.pos));
+      const right = Math.max(...hs.map((h) => h.to), ...vs.map((v) => v.pos));
+      const y0 = Math.min(...hs.map((h) => h.pos), ...vs.map((v) => v.from));
+      const y1 = Math.max(...hs.map((h) => h.pos), ...vs.map((v) => v.to));
+      return [
+        {
+          hs: hs.sort((p, q) => p.pos - q.pos),
+          vs: vs.sort((p, q) => p.pos - q.pos),
+          box: { x: left, y: y0, width: right - left, height: y1 - y0 },
+        },
+      ];
+    };
+    const lower = (lo: number, hi: number) => {
+      const hs = t.hs
+        .filter((h) => h.pos >= y - tol && h.to > lo + tol && h.from < hi - tol)
+        .map((h) => clip(h, lo, hi));
+      const vs = t.vs
+        .filter((v) => v.pos >= lo - tol && v.pos <= hi + tol && v.to > y + tol)
+        .map((v) => clip(v, y, Infinity));
+      return part(hs, vs);
+    };
+    return [...part(top, topV), ...lower(-Infinity, a), ...lower(b, Infinity)];
+  }
+  return null;
 }
 
 /**
@@ -1003,11 +1133,14 @@ export function findTables(
       const right = Math.max(...th.map((h) => h.to), ...tv.map((v) => v.pos));
       const top = Math.min(...th.map((h) => h.pos), ...tv.map((v) => v.from));
       const bottom = Math.max(...th.map((h) => h.pos), ...tv.map((v) => v.to));
-      tables.push({
+      const table = {
         hs: th.sort((a, b) => a.pos - b.pos),
         vs: tv.sort((a, b) => a.pos - b.pos),
         box: { x: left, y: top, width: right - left, height: bottom - top },
-      });
+      };
+      tables.push(
+        ...((options.splitStacked && sideBySide(table, tol, options.text ?? [])) || [table]),
+      );
     }
   }
   return tables.sort((a, b) => a.box.y - b.box.y);

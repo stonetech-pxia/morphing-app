@@ -568,4 +568,21 @@ export const TABLES: Case[] = [
       inRow('27.10.2026', 'Geschenk für Ida', '30,00'),
     ],
   },
+  {
+    id: 'tbl-side-by-side-lab-tables',
+    suite: 'tables',
+    fix: 'EU sample 090',
+    what: "Landscape lab request form: two dense ruled tables side by side under a shared header frame with a logo. The logo's picture box covered the header rules, so erasing it broke the header cells; the two tables were one grid with interleaved rows; and the stems of letters starting at the same place in rows only 17 px high were joined across the row rules into column lines. The grid was rejected and the page exploded into scattered fragments over several pages.",
+    lang: 'ita',
+    checks: [
+      table({ containing: ['P-Glucosio', 'P-Cloruri', 'P-Magnesio'] }),
+      table({ containing: ['Sg-Reticolociti', 'P-Paracetamolo'] }),
+      differentTables('P-Glucosio', 'Sg-Reticolociti'),
+      inRow('P-Glucosio', '65 - 100', '65 - 100', 'mg/dL'),
+      inRow('P-Aspartato amminotransferasi (AST)', '0 - 37', '0 - 31', 'U/L'),
+      inRow('P-Tempo di tromboplastina', '24,0 - 36,0', '24,0 - 36,0', 'secondi'),
+      images({ min: 1 }),
+      notInTable('Barrare la casella'),
+    ],
+  },
 ];

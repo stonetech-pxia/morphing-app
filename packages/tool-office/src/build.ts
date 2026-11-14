@@ -894,10 +894,16 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     ruled: boolean;
     framedText?: boolean;
   }[] = [];
-  for (const found of findTables(dropTextStrokes(page, flat), {
+  const foundTables = findTables(dropTextStrokes(page, flat), {
     ...(options.splitStacked ? { splitStacked: true } : {}),
     text: flat,
-  })) {
+  });
+  const within = (l: Box, b: Box) =>
+    centerX(l) >= b.x &&
+    centerX(l) <= b.x + b.width &&
+    centerY(l) >= b.y &&
+    centerY(l) <= b.y + b.height;
+  for (const found of foundTables) {
     let table = found;
     let { box } = table;
     // 大半在图片区域里的「表」是图里的线（示意图、图表的网格）。
@@ -915,7 +921,9 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
         centerX(l) >= box.x - tol &&
         centerX(l) <= box.x + box.width + tol &&
         centerY(l) >= box.y - tol &&
-        centerY(l) <= box.y + box.height + tol,
+        centerY(l) <= box.y + box.height + tol &&
+        // 挨着的另一张表（分开的上下、左右几张表共用一条边，EU 样本 090）框里的字是那张表的。
+        (within(l, box) || !foundTables.some((t) => t !== found && within(l, t.box))),
     );
     // 空白表格的表头写在网格上面（发票模板的商品栏，EU 样本 001）：表头那一排算进表里。
     if (!members.length && options.headerAbove) {

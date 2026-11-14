@@ -912,4 +912,46 @@ describe('Word figure ownership', () => {
     expect(tables[0]!.table.rows).toBe(3);
     expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
   });
+
+  it('keeps the rules a native logo overlaps, so its cell and the merged band below stay whole (EU sample 090)', () => {
+    // 表头左上格的标志：PDF 里的图框压过了这一格的上下两条横线。抹图时把横线也抹掉一截，
+    // 标志格和下面横跨整张表的「Dati paziente」一排连成不是长方形的一块，整张表退回不合并，标志跨了好几格。
+    const lines = [
+      line('MODULO RICHIESTA ESAMI', 450, 150, 350),
+      line('Dati paziente', 430, 232, 140),
+      line('Glucosio', 240, 290, 120),
+      line('mg/dL', 450, 290, 80),
+      line('65 - 100', 700, 290, 100),
+      line('Urea', 240, 350, 80),
+      line('mg/dL', 450, 350, 80),
+      line('10 - 50', 700, 350, 100),
+    ];
+    // 第一列（勾选框那一列，100–220）只在下面的数据行有竖线。
+    const grid = gridRects([100, 220, 400, 650, 900], [100, 220, 260, 320, 380], {
+      skipV: [
+        [1, 0],
+        [3, 0],
+        [1, 1],
+        [2, 1],
+        [3, 1],
+      ],
+    });
+    const logo: Rect[] = [{ x: 170, y: 120, width: 150, height: 80 }];
+    const page = buildDocPage({
+      image: renderPage(size.width, size.height, [
+        ...grid,
+        ...logo,
+        ...lines.flatMap((l) => glyphs(l.x, l.y + 4, l.width, 12)),
+      ]),
+      lines,
+      source: 'form.pdf',
+      skew: 0,
+      nativeFigures: [{ x: 150, y: 96, width: 200, height: 128 }],
+    });
+    const tables = leafBlocks(page).filter((b) => b.kind === 'table');
+    expect(tables).toHaveLength(1);
+    const band = tables[0]!.table.cells.find((c) => c.text === 'Dati paziente')!;
+    expect(band.colSpan).toBe(4);
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
+  });
 });

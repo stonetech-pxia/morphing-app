@@ -184,5 +184,11 @@
     "id": "tbl-highlighted-statement",
     "source": "31-tbl-highlighted-statement.html",
     "sha256": "625a55d1dddf11900e4ad08707d0287212046ed2a040ca025c9737843320da6a"
+  },
+  {
+    "page": 32,
+    "id": "tbl-side-by-side-lab-tables",
+    "source": "32-tbl-side-by-side-lab-tables.html",
+    "sha256": "1ebf03eb5d84a233f586858f1b056adffa3499b7c57465524538a12cd82cc44a"
   }
 ]

@@ -1954,7 +1954,12 @@ function buildPage(
     repairBarcodes && !oldBarcodes.length
       ? findBarcodes(working, available, lineHeight, true)
       : oldBarcodes
-  ).filter((b) => !tables.some((t) => !t.borderless && inBox(b, t.box)));
+  ).filter(
+    (b) =>
+      !tables.some((t) => !t.borderless && inBox(b, t.box)) &&
+      // 横跨并排的几张表（中间隔着白缝，EU 样本 090）的一条：大半在表里，也不是条形码。
+      tables.reduce((n, t) => n + (t.borderless ? 0 : lineShareIn(b, t.box)), 0) < 0.5,
+  );
   if (repairBarcodes && protectFigures && repairTables && !oldBarcodes.length && barcodes.length) {
     const baseline = buildPage(input, options, protectFigures, repairTables, false);
     const pictures = leafBlocks(baseline).filter((b) => b.kind === 'image');
@@ -1974,6 +1979,14 @@ function buildPage(
   const regions = cleanRegions(layout, free, size, image, protectedImages).filter(
     // 和表格重叠一大半的区域（表格的标题行、表格里认成正文的）不要。
     (r) => {
+      // 原生整图在表的一格里（表头一格里的标志、表单里的证件照，EU 样本 090）：格子里放不了图，
+      // 图留着，排在表的前面，不因为压着表就连整页的图一起撤销。
+      if (
+        r.kind === 'image' &&
+        protectedImages.has(r) &&
+        tables.some((t) => t.table.cells.some((c) => c.box && lineShareIn(r.box, c.box) >= 0.8))
+      )
+        return true;
       const overlaps = tables.map(({ box }) => {
         const ix = Math.min(box.x + box.width, r.box.x + r.box.width) - Math.max(box.x, r.box.x);
         const iy = Math.min(box.y + box.height, r.box.y + r.box.height) - Math.max(box.y, r.box.y);

@@ -185,6 +185,44 @@ describe('findTables: stacked tables in one frame (Word)', () => {
     const page = findLines(renderPage(W, H, titled), { skew: 0 });
     expect(findTables(page, { splitStacked: true })).toHaveLength(1);
   });
+
+  it('splits two tables side by side under a shared header band (EU sample 090)', () => {
+    // 化验申请单：上面整页宽的表头和「Dati paziente」一排，下面左右两张表隔着一道 30 像素的白缝，
+    // 两张表的横线各自止于白缝两边，行也对不齐。
+    const sideBySide = [
+      ...gridRects([50, 950], [60, 120, 150]),
+      ...gridRects([50, 100, 300, 420, 480], [150, 180, 210, 240, 270, 300, 330]),
+      ...gridRects([510, 700, 820, 950], [150, 185, 220, 255, 290]),
+    ];
+    const page = findLines(renderPage(W, H, sideBySide), { skew: 0 });
+    expect(findTables(page)).toHaveLength(1);
+    const parts = findTables(page, { splitStacked: true });
+    expect(
+      parts.map((t) => [
+        Math.round(t.box.x / 10) * 10,
+        Math.round(t.box.y / 10) * 10,
+        t.hs.length,
+        t.vs.length,
+      ]),
+    ).toEqual([
+      [50, 60, 3, 2],
+      [50, 150, 7, 5],
+      [510, 150, 5, 4],
+    ]);
+  });
+
+  it('does not split a table whose rows have a gap only in one column', () => {
+    // 表身的横线在中间一列断开（那一列是合并的一大格），左右两边的竖线照旧连着：一张表。
+    const gapped = [
+      ...gridRects([50, 950], [60, 150]),
+      ...gridRects([50, 480], [150, 180, 210, 240, 270]),
+      ...gridRects([510, 950], [150, 180, 210, 240, 270]),
+      { x: 480, y: 150, width: 32, height: 2 },
+      { x: 480, y: 270, width: 32, height: 2 },
+    ];
+    const page = findLines(renderPage(W, H, gapped), { skew: 0 });
+    expect(findTables(page, { splitStacked: true })).toHaveLength(1);
+  });
 });
 
 describe('findTables: rules-only chains', () => {

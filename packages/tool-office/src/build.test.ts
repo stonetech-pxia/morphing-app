@@ -642,6 +642,34 @@ describe('cases from real scans (D-272)', () => {
     expect(cellAt(table!, 0, 1)!.text).toBe('6 034,00');
   });
 
+  it('does not take letter stems stacked through a tight table’s row rules for column lines (EU sample 090)', () => {
+    // 化验单：一排 17 像素高，粗体字上下几乎碰到行线，同一列起头的字（「P-」）的竖笔画隔着行线连成了一条「竖线」。
+    const ys = Array.from({ length: 13 }, (_, r) => 100 + 17 * r);
+    const lines: OcrBox[] = [];
+    const marks: Rect[] = [];
+    for (let r = 0; r + 1 < ys.length; r++) {
+      const box = { x: 60, y: ys[r]! + 3, width: 210, height: 12 };
+      const text = `P-Analisi numero ${String(r).padStart(2, '0')}`;
+      lines.push(fakeLine(text, box, page1, true));
+      lines.push(
+        fakeLine(`${r} - ${r + 9}`, { x: 420, y: ys[r]! + 3, width: 60, height: 12 }, page1, true),
+      );
+      // 每个字（空格除外）一道竖笔画，在字的中间。
+      for (const [i, ch] of Array.from(text).entries())
+        if (ch !== ' ')
+          marks.push({
+            x: 60 + ((i + 0.5) / text.length) * 210,
+            y: ys[r]! + 3,
+            width: 2,
+            height: 12,
+          });
+    }
+    const page = build([...gridRects([40, 400, 600], ys), ...marks], lines);
+    const [table] = tablesOf(page);
+    expect([table!.rows, table!.cells.filter((c) => c.row === 0).length]).toEqual([12, 2]);
+    expect(cellAt(table!, 5, 0)!.text).toBe('P-Analisi numero 05');
+  });
+
   it('keeps a title whole above a column line that starts below it', () => {
     // 工资单的日历：标题横跨两列，竖线从第二行才开始。
     const words = [
