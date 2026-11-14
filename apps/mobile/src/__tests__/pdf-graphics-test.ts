@@ -294,4 +294,26 @@ describe('digital PDF graphics ownership', () => {
     expect(backgroundOperation(outside, box(0, 0, 600, 800))).toBe(false);
     expect(backgroundOperation({ i: 8, name: 'setFont' }, box(0, 0, 600, 800))).toBe(true);
   });
+  it('does not take a watermark pieced from small images over body text as a picture (EU sample 071)', () => {
+    // 斜着的「MUSTER」由二十条互相重叠的小位图拼成，压在 12 行原生正文上；右上角另有一个标志。
+    const body = Array.from({ length: 12 }, (_, k) =>
+      text(k + 1, box(60, 200 + 20 * k, 480, 12), 'Der Anhang enthält keine Werturteile über'),
+    );
+    const pieces = Array.from({ length: 20 }, (_, k) => ({
+      i: 100 + k,
+      image: true,
+      box: box(60 + 24 * k, 520 - 18 * k, 50, 50),
+    }));
+    const logo = { i: 200, image: true, box: box(440, 40, 120, 80) };
+    const junk = { ...box(300, 480, 40, 18), chars: 3 };
+    const result = plan([...body, ...pieces, logo], {
+      ...input,
+      lines: [...body.map((t) => ({ ...t.box, chars: 36 })), junk],
+    });
+    expect(result.owned).toEqual([logo.box]);
+    expect(result.watermarks).toHaveLength(1);
+    expect(result.keep.size).toBe(0);
+    // 水印笔画认出来的「字」不当正文；正文行都留着。
+    expect(result.watermarkInk).toEqual([12]);
+  });
 });

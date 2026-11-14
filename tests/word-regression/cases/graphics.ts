@@ -238,4 +238,18 @@ export const GRAPHICS: Case[] = [
       notInTable('Wniosek należy złożyć'),
     ],
   },
+  {
+    id: 'tiled-watermark',
+    suite: 'graphics',
+    fix: 'EU sample 071',
+    what: 'A diagonal "MUSTER" watermark drawn as many small overlapping images across the body text: the pieces were merged into one picture that held the paragraphs and the table under it, so all of that text was lost into the picture and the lines crossing its edge were cut.',
+    lang: 'deu',
+    checks: [
+      images({ max: 1 }),
+      times('folgt dem Muster, das die Hochschule', 1),
+      times('Gleichwertigkeit mit anderen Abschlüssen', 1),
+      times('Prüfungsamt zuständig', 1),
+      table({ containing: ['Familienname', 'Beispielfrau', 'Lebensmittelchemie'] }),
+    ],
+  },
 ];

@@ -100,5 +100,11 @@
     "id": "logo-over-table-top",
     "source": "19-logo-over-table-top.html",
     "sha256": "cf011915e605ef7c30935e9f96448d17383b9247617e39f9ab4b066771c3a6e4"
+  },
+  {
+    "page": 18,
+    "id": "tiled-watermark",
+    "source": "20-tiled-watermark.html",
+    "sha256": "15e3197e2ed2fe43892736491b0e5da45c7795f94a15fe8273569f94e31bdb97"
   }
 ]

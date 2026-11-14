@@ -404,21 +404,32 @@ function planNativeGraphics(records, input) {
       ...groups.map((b) => ({ x: b.x - 2, y: b.y - 2, width: b.width + 4, height: b.height + 4 })),
     );
   }
-  owned.splice(0, owned.length, ...mergeGraphicBoxes(owned));
-  const ocr = (input.lines || []).filter((l) => !owned.some((b) => covered(l, b) > 0.8));
-  const total = ocr.reduce((n, l) => n + l.chars, 0);
-  const matched = ocr.reduce(
-    (n, l) =>
-      n +
-      (texts.some((t) => overlap(l, t.box) / Math.max(1, Math.min(area(l), area(t.box))) > 0.35)
-        ? l.chars
-        : 0),
-    0,
+  // 拼起来的整图下面压着成段的原生正文（斜着的「MUSTER」水印由几百条细位图拼成，EU 样本 071）：
+  // 那是水印、底纹，不是图。接管了就把正文一起画进剪图、切掉跨出图边的字；不接管，字照常可编辑，水印不画。
+  const merged = mergeGraphicBoxes(owned);
+  const watermarks = merged.filter(
+    (b) =>
+      texts
+        .filter((t) => covered(t.box, b) >= 0.8)
+        .reduce((n, t) => n + t.text.replace(/\s/g, '').length, 0) >= 180,
   );
+  owned.splice(0, owned.length, ...merged.filter((b) => !watermarks.includes(b)));
+  const native = (l) =>
+    texts.some((t) => overlap(l, t.box) / Math.max(1, Math.min(area(l), area(t.box))) > 0.35);
+  // 水印自己的笔画被识别成的字（「XXxHXXXXI」）：在水印里，又没有原生字和它对得上。
+  const ink = (l) => watermarks.some((b) => covered(l, b) > 0.8) && !native(l);
+  const ocr = (input.lines || []).filter(
+    (l) => !owned.some((b) => covered(l, b) > 0.8) && !ink(l),
+  );
+  const total = ocr.reduce((n, l) => n + l.chars, 0);
+  const matched = ocr.reduce((n, l) => n + (native(l) ? l.chars : 0), 0);
   // 隐藏的 OCR 字层不算数字正文。混合扫描页不能叠一张含正文的扫描图。
   if (total && matched / total < 0.85) return null;
   return {
     owned,
+    watermarks,
+    // 识别行里哪些是水印的笔画（按传进来的 lines 的序号），转 Word 时不当字。
+    watermarkInk: (input.lines || []).flatMap((l, k) => (ink(l) ? [k] : [])),
     // 图里的字（连同没有 Unicode 的字形）跟着剪图画。
     keep: new Set(
       records
@@ -637,6 +648,8 @@ handlers.graphics = async ({ file, index, maxSide, figures, candidates, lines })
       crops,
       backgroundPng,
       owned: plan.owned,
+      watermarks: plan.watermarks,
+      watermarkInk: plan.watermarkInk,
       colors: plan.colors,
       fills: plan.fills,
     };

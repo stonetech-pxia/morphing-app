@@ -178,6 +178,13 @@ async function cropPictures(
 /** 机器起的名字：UUID 或一长串十六进制。 */
 const MACHINE_NAME = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16}/i;
 
+/** a 有多大一部分落在 b 里。 */
+function shareIn(a: Box, b: Box): number {
+  const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+  const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+  return w > 0 && h > 0 ? (w * h) / (a.width * a.height || 1) : 0;
+}
+
 export const OCR_IMPLS: Record<string, Impl> = {
   // 扫描件转 Excel（D-272）：每张图找表格线、认字、组表，做成一个 xlsx（每页一张工作表），
   // 旁边存一份 TableDoc 给结果页的「放到桌上」和文件房间的编辑用（D-366）。识别出的文字只在本机。
@@ -351,6 +358,8 @@ export const OCR_IMPLS: Record<string, Impl> = {
               height: number;
               crops: { png: string; width: number; height: number }[];
               backgroundPng?: string;
+              watermarks?: Box[];
+              watermarkInk?: number[];
             }
           >(
             'pdfview',
@@ -405,6 +414,17 @@ export const OCR_IMPLS: Record<string, Impl> = {
             page = buildDocPage(
               {
                 ...pageInput,
+                // 水印（EU 样本 071 的「MUSTER」）不是图：版面模型在那里找到的图片区域不要，水印笔画认出来的字也不是正文。
+                lines: found.lines.filter((_, k) => !native.watermarkInk?.includes(k)),
+                ...(regions
+                  ? {
+                      regions: regions.filter(
+                        (r) =>
+                          r.kind !== 'image' ||
+                          !native.watermarks?.some((w) => shareIn(r.box, toPixels(w)) >= 0.5),
+                      ),
+                    }
+                  : {}),
                 prior: page,
                 nativeFigures: native.owned.map(toPixels),
                 // 没画进剪图的原生字（colors 只列这些）：图里和它重叠的识别行留作正文。
