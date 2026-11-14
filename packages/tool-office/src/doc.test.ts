@@ -1943,6 +1943,19 @@ describe('side-by-side boxes with a different line pitch (EU sample 070)', () =>
     expect(texts(row.cells[1]!.blocks)).toContain('336,00 EUR');
   });
 
+  it('leaves a few loose lines beside a footer alone (EU sample 048)', () => {
+    // 图下面剩下的两三行和页脚的网址：两边不到三块，不是两个框。
+    const units = [
+      unit('Total des opérations 164,24', 420, 900, 260),
+      unit('18,40', 700, 905, 60),
+      unit('Ce document ne vaut pas facture.', 420, 960, 300),
+      unit('www.lafinancepourtous.com', 1100, 940, 240),
+      unit('© Tous droits réservés 2015', 1100, 970, 240),
+    ];
+    const rows = arrangeUnits(units, 27).filter((b): b is DocRow => b.kind === 'row');
+    expect(rows.every((r) => r.cells.every((c) => c.blocks.length <= 2))).toBe(true);
+  });
+
   it('keeps aligned label and value rows as rows', () => {
     // 工资单的抬头：每个标签右边对着一个值（一个标签没有值）。
     const labels = ['DÉBUT DE PÉRIODE', 'FIN DE PÉRIODE', "DATE D'ENTRÉE", 'EMPLOI', 'COEFFICIENT'];

@@ -2967,23 +2967,29 @@ function splitAnswerRows(blocks: readonly DocBlock[], lineHeight: number): DocBl
 
 /** 栏缝至少这么多个行高宽。 */
 const SPLIT_GAP_LINES = 1;
-/** 两边的行顶差不超过这么多个行高算对齐（同一排的标签和值）。 */
-const SPLIT_ALIGN = 0.3;
+/** 两边的块中线差不超过这么多个行高算对齐（同一排的标签和值）。 */
+const SPLIT_ALIGN = 0.35;
 /**
  * 两边至少这么多比例、至少这么多个块和另一边的行对不齐，才是两栏各排各的；一排一排的标签和值
  * （个别标签没有值）不算。
  */
 const SPLIT_MISALIGNED = 0.25;
 const SPLIT_MIN_ALONE = 2;
+/** 一句话折下来的一行离上一行最多这么多个行高。 */
+const SPLIT_CONTINUE = 0.6;
 /** 一段里上下相邻的两块最远隔这么多个行高。 */
 const SPLIT_MAX_GAP = 1.5;
+/** 两边各至少这么多块（两个框，不是零星的几行）。 */
+const SPLIT_MIN_SIDE = 3;
+/** 一段最多这么多块。 */
+const SPLIT_MAX_BLOCKS = 24;
 
 /**
  * 并排的两个框（报价单的「Conditions」说明框和右边的合计表、「Prestataire」「Client」两个地址框，EU 样本 070）：
  * 两边的行距不一样，按高度连成的带把左边的第二行和右边的第一行配成一排，一句话被切到两排里，金额落在下一排。
- * 连着的几块（并排行、单独的块）之间有一条竖着的空白（至少一个行高宽），两边各至少两块，少的那边至少三分之一的块
- * 和另一边的行对不齐时，在这条空白处分成左右两格，各排各的。一排一排对齐的标签和值（工资单的抬头）不动。
- * 有几条空白时（右边的合计表里标签和金额之间也有一条），取两边最对不齐的那条。
+ * 连着的几块（并排行、单独的块）之间有一条竖着的空白（至少一个行高宽），少的那边至少三分之一的块
+ * 和另一边的行对不齐，或者按高度连成的带把一边的一句话（列表项和它折下来的一行）切到了两排里时，在这条空白处分成左右两格，各排各的（两边各至少三块）。一排一排对齐的标签和值（工资单的抬头）不动。
+ * 有几条空白时（右边的合计表里标签和金额之间也有一条），取两边一样宽的那条。
  */
 function splitMisalignedColumns(blocks: readonly DocBlock[], h: number): DocBlock[] {
   const leavesOf = (bs: readonly DocBlock[]) =>
@@ -3003,14 +3009,35 @@ function splitMisalignedColumns(blocks: readonly DocBlock[], h: number): DocBloc
   };
   /** 两边和另一边的行都对不齐的块有几个。 */
   const misaligned = (left: readonly DocLeaf[], right: readonly DocLeaf[]) => {
+    const mid = (b: DocLeaf) => b.box.y + b.box.height / 2;
     const alone = (a: DocLeaf, other: readonly DocLeaf[]) =>
-      !other.some(
-        (b) =>
-          Math.abs(a.box.y - b.box.y) <= SPLIT_ALIGN * h &&
-          Math.min(a.box.y + a.box.height, b.box.y + b.box.height) > Math.max(a.box.y, b.box.y),
-      );
+      !other.some((b) => Math.abs(mid(a) - mid(b)) <= SPLIT_ALIGN * h);
     return left.filter((a) => alone(a, right)).length + right.filter((b) => alone(b, left)).length;
   };
+  /** 下一块接着上一块的那句话：挨着、左边差不多齐，上一块是列表项或者没有句末标点，下一块小写开头。 */
+  const continues = (upper: DocLeaf, lower: DocLeaf) => {
+    const text = (b: DocLeaf) =>
+      b.kind === 'paragraph' ? b.text : b.kind === 'list' ? b.items.join(' ') : '';
+    return (
+      lower.box.y - (upper.box.y + upper.box.height) <= SPLIT_CONTINUE * h &&
+      Math.abs(lower.box.x - upper.box.x) <= 2 * h &&
+      (upper.kind === 'list' || !/[.!?:]\s*$/.test(text(upper))) &&
+      /^\p{Ll}/u.test(text(lower).trim())
+    );
+  };
+  /** 按高度连成的相邻两带把一边的一句话切到了两排里（列表项和它折下来的一行）。 */
+  const cutsLine = (run: readonly DocBlock[], ...sides: (readonly DocLeaf[])[]) =>
+    run.slice(1).some((block, k) =>
+      sides.some((side) => {
+        const upper = leavesOf([run[k]!])
+          .filter((b) => side.includes(b))
+          .sort((a, b) => b.box.y - a.box.y)[0];
+        const lower = leavesOf([block])
+          .filter((b) => side.includes(b))
+          .sort((a, b) => a.box.y - b.box.y)[0];
+        return !!upper && !!lower && continues(upper, lower);
+      }),
+    );
   const out: DocBlock[] = [];
   for (let i = 0; i < blocks.length;) {
     const seed = blocks[i]!;
@@ -3043,18 +3070,24 @@ function splitMisalignedColumns(blocks: readonly DocBlock[], h: number): DocBloc
     }
     const run = [...out.slice(out.length - start), ...blocks.slice(i, end)];
     const leaves = leavesOf(run);
-    // 有整段正文的双栏归 retainProseColumns 管。
-    const prose = leaves.some((b) => b.kind === 'paragraph' && b.box.height >= 3 * h);
-    let best: { left: DocLeaf[]; right: DocLeaf[]; score: number } | undefined;
+    // 有整段正文的双栏归 retainProseColumns 管；只管两个框那么大的一段，不重排整页的几栏（EU 样本 025 的页边说明）。
+    const prose =
+      leaves.length > SPLIT_MAX_BLOCKS ||
+      leaves.some((b) => b.kind === 'paragraph' && b.box.height >= 3 * h);
+    // 几条空白里取两边一样宽的那条（两个框之间），不取框里标签和金额之间的。
+    let best: { left: DocLeaf[]; right: DocLeaf[]; balance: number } | undefined;
+    const width = (side: readonly DocLeaf[]) =>
+      Math.max(...side.map((l) => l.box.x + l.box.width)) - Math.min(...side.map((l) => l.box.x));
     for (const [a, b] of gapsOf(leaves)) {
       const left = leaves.filter((l) => l.box.x + l.box.width <= a);
       const right = leaves.filter((l) => l.box.x >= b);
-      if (left.length < 2 || right.length < 2) continue;
-      const off = misaligned(left, right);
-      const score = off >= SPLIT_MIN_ALONE ? off / (left.length + right.length) : 0;
-      if (!best || score > best.score) best = { left, right, score };
+      if (left.length < SPLIT_MIN_SIDE || right.length < SPLIT_MIN_SIDE) continue;
+      const balance = Math.min(width(left), width(right)) / Math.max(width(left), width(right));
+      if (!best || balance > best.balance) best = { left, right, balance };
     }
-    if (prose || !best || best.score < SPLIT_MISALIGNED) {
+    const off = best ? misaligned(best.left, best.right) : 0;
+    const score = best && off >= SPLIT_MIN_ALONE ? off / (best.left.length + best.right.length) : 0;
+    if (prose || !best || (score < SPLIT_MISALIGNED && !cutsLine(run, best.left, best.right))) {
       out.push(seed);
       i++;
       continue;
