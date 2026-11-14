@@ -50,6 +50,22 @@ describe('local source PDF graphics', () => {
     );
     expect(p.blocks[0]).toMatchObject({ text: '6 kVA', color: '000000' });
   });
+  it('keeps the colour of a text run that spans two lines over a small coloured badge in the line (EU sample 068)', () => {
+    // 「11 Dégâts apparents au / véhicule A」：深色字的字框跨两行，行首是一个蓝色的小编号框。
+    const line = { x: 85, y: 300, width: 170, height: 20 };
+    const p = applyNativeGraphics(
+      { ...page(), blocks: [{ kind: 'paragraph', box: line, text: '11 Dégâts apparents au' }] },
+      {
+        owned: [],
+        colors: [
+          { box: { x: 106, y: 300, width: 150, height: 40 }, color: '2C2E35' },
+          { box: { x: 85, y: 300, width: 20, height: 20 }, color: '0EB4E8' },
+        ],
+      },
+      [],
+    );
+    expect(p.blocks[0]).toMatchObject({ color: '2C2E35' });
+  });
   it('maps native boxes by the source PDF page size when the Word paper was fitted to A4', () => {
     // PDF 页是 2400 × 3200 点，Word 的纸缩成了 600 × 800（fitPaper）：原生框仍按 PDF 的点换成像素。
     const p = applyNativeGraphics(

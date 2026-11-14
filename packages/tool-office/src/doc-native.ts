@@ -58,6 +58,8 @@ function coveredArea(box: Box, rects: readonly Box[]): number {
 
 /** 底色和字至少差这么多（WCAG 的对比度，1 是一样，21 是黑白）。 */
 const MIN_FILL_CONTRAST = 2;
+/** 字框比这段字高这么多倍以上就是压在页上的大字（水印），不是这段字自己的字。 */
+const WATERMARK_HEIGHT = 3;
 
 /** 两种颜色（六位十六进制）的对比度。 */
 function contrast(a: string, b: string): number {
@@ -95,13 +97,15 @@ export function applyNativeGraphics(
   const fills = (graphics.fills ?? [])
     .filter((c) => /^[0-9A-F]{6}$/i.test(c.color))
     .map((c) => ({ ...c, box: pixel(c.box) }));
-  // 按重叠面积投票，再乘上这个字框有多大一部分在这里：斜着压在页上的大水印字（「PROJET」，EU 样本 080）
-  // 框很大，和一小行字重叠的面积比这行字自己的字还多，但它几乎全在别处，不能让这行字变成水印的浅灰。
+  // 按重叠面积投票。比这段字高出好几倍的字框（斜着压在页上的大水印字「PROJET」，EU 样本 080）和一小行字
+  // 重叠的面积比这行字自己的字还多，但它几乎全在别处：只按它有多大一部分在这里算，不能让这行字变成水印的浅灰。
+  // 跨两行的普通字框照常算（EU 样本 068）。
   const colorOf = (box: Box) => {
     const votes = new Map<string, number>();
     for (const c of colors) {
       const n = overlap(box, c.box);
-      if (n > 0) votes.set(c.color, (votes.get(c.color) ?? 0) + (n * n) / (area(c.box) || 1));
+      const weight = c.box.height > WATERMARK_HEIGHT * box.height ? n / (area(c.box) || 1) : 1;
+      if (n > 0) votes.set(c.color, (votes.get(c.color) ?? 0) + n * weight);
     }
     const entries = [...votes].sort((a, b) => b[1] - a[1]);
     return entries[0] && entries[0][1] >= entries.reduce((n, c) => n + c[1], 0) * 0.8
