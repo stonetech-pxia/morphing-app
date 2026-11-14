@@ -306,4 +306,25 @@ export const FORMS: Case[] = [
       ),
     ],
   },
+  {
+    id: 'framed-row-last-fill',
+    suite: 'forms',
+    fix: 'EU sample 046',
+    what: 'Rows of a framed form section ("Localidad …… C.P. …… Provincia ……") whose last dotted fill-in line runs into the right side of the frame: that line was taken for an edge of the frame and dropped, so the row ended in a bare label and was joined with the next row.',
+    lang: 'spa',
+    checks: [
+      custom('every label is followed by its fill-in line', (c) => {
+        const want = [
+          /Nombre\/Razón Social _{4,} DNI\/NIE\/PAS _{4,}/,
+          /Localidad _{4,} C\.P\. _{4,} Provincia _{4,}/,
+          /Teléfono móvil _{4,} E-mail _{4,}/,
+        ];
+        const texts = c.paras.map((p) => p.text);
+        const missing = want.filter((re) => texts.filter((t) => re.test(t)).length < 2);
+        return missing.length ? `no two paragraphs match ${missing.join(', ')}` : null;
+      }),
+      apart('Provincia', 'Teléfono móvil'),
+      apart('DNI/NIE/PAS', 'Domicilio de residencia'),
+    ],
+  },
 ];

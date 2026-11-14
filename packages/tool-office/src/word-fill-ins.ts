@@ -32,6 +32,8 @@ const BLANK_ABOVE = 0.8;
 const BLANK_SHARE = 0.9;
 /** 横线两头连着这么长（行高）以上的竖线，是框的边。 */
 const FRAME_SIDE = 1.5;
+/** 一头连着框边的横线，左头离同一排的标签不超过这么多个行高时，是画到框边的填写线。 */
+const LAST_FILL_GAP = 2;
 /** 横线上至少这么多的地方比线的上下两边深 LINE_CONTRAST 以上（0–255）。 */
 const RULE_INK_SHARE = 0.6;
 const LINE_CONTRAST = 30;
@@ -309,16 +311,28 @@ export function findFillIns(
       // 框的一条边（两头连着长的竖线：表单一节的外框，标题压在框的上边上）不是填写处；
       // L 形答题线、号码框的竖线都很短。
       const ends = [r.x, r.x + r.width];
-      const framed = rules.vertical.some((v) => {
-        const vx = v.pos - (r.y + r.height / 2) * t;
-        return (
-          ends.some((e) => Math.abs(vx - e) <= 0.3 * lineHeight) &&
-          v.from <= r.y + 0.3 * lineHeight &&
-          v.to >= r.y - 0.3 * lineHeight &&
-          v.to - v.from >= FRAME_SIDE * lineHeight
+      const framedAt = ends.map((e) =>
+        rules.vertical.some((v) => {
+          const vx = v.pos - (r.y + r.height / 2) * t;
+          return (
+            Math.abs(vx - e) <= 0.3 * lineHeight &&
+            v.from <= r.y + 0.3 * lineHeight &&
+            v.to >= r.y - 0.3 * lineHeight &&
+            v.to - v.from >= FRAME_SIDE * lineHeight
+          );
+        }),
+      );
+      // 只有右头连着框边、左边紧挨着同一排的标签：一排里最后一个标签后面的填写线一直画到框的右边
+      // （EU 样本 046 的「Provincia ……」「E-mail ……」），不是框的边。
+      const afterLabel =
+        !framedAt[0] &&
+        lines.some(
+          (l) =>
+            sameRow(l, r, lineHeight) &&
+            l.x + l.width <= r.x + 0.5 * lineHeight &&
+            r.x - (l.x + l.width) <= LAST_FILL_GAP * lineHeight,
         );
-      });
-      if (framed) return false;
+      if (framedAt.some(Boolean) && !afterLabel) return false;
       // 压着字的不算：字的下划线、填好了的答案（字在线上面一个多行高以内），
       // 粗体字的笔画连成的「线」（线在字的框里）。
       const covered = lines.some(

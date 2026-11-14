@@ -89,6 +89,32 @@ describe('fill-in lines of forms (EU sample 021, 030)', () => {
     expect(out[0]!.text).toMatch(/^Street _{10,}$/);
   });
 
+  it('takes the last answer line of a framed row that runs into the right side of the frame (EU sample 046)', () => {
+    // 一节表单的外框（左右两条竖边）；一排「Localidad ____ C.P. ____ Provincia ____」，最后一条线画到框的右边。
+    const rects: Rect[] = [
+      { x: 60, y: 150, width: 2, height: 200 },
+      { x: 940, y: 150, width: 2, height: 200 },
+      { x: 60, y: 150, width: 882, height: 2 },
+      { x: 60, y: 348, width: 882, height: 2 },
+      ...glyphs(80, 200, 100, 18),
+      { x: 200, y: 219, width: 300, height: 2 },
+      ...glyphs(520, 200, 50, 18),
+      { x: 590, y: 219, width: 120, height: 2 },
+      ...glyphs(730, 200, 100, 18),
+      { x: 850, y: 219, width: 91, height: 2 },
+    ];
+    const image = renderPage(W, H, rects);
+    const lines = [
+      fakeLine('Localidad', { x: 80, y: 198, width: 100, height: 22 }, page),
+      fakeLine('C.P.', { x: 520, y: 198, width: 50, height: 22 }, page),
+      fakeLine('Provincia', { x: 730, y: 198, width: 100, height: 22 }, page),
+    ];
+    const fills = findFillIns(image, [], findLines(image, { light: true }), lines, 22, []);
+    expect(fills.map((f) => Math.round(f.x / 10) * 10).sort((a, b) => a - b)).toEqual([
+      200, 590, 850,
+    ]);
+  });
+
   it('takes a light grey answer line, but not the edge of a shaded row (EU sample 001, 025)', () => {
     const rects: Rect[] = [
       // 浅灰（#bbb）的填写线，左边是标签。
