@@ -327,4 +327,35 @@ export const FORMS: Case[] = [
       apart('DNI/NIE/PAS', 'Domicilio de residencia'),
     ],
   },
+  {
+    id: 'yes-no-answer-column',
+    suite: 'forms',
+    fix: 'EU sample 041',
+    what: 'Clauses of 1–3 lines with a "○ ja ○ nein" pair beside the last line of each, two of them one-line clauses 1 line apart: the clauses and the answers became one side-by-side row whose answer cell drifted away from its clauses in Word, and two answer pairs were joined into one heading-size paragraph.',
+    lang: 'deu',
+    checks: [
+      custom('each answer pair is its own paragraph in the row of its clause', (c) => {
+        const ls = leaves(c.doc).filter((l) => l.leaf.kind === 'paragraph');
+        const answers = ls.filter((l) => l.leaf.kind === 'paragraph' && /nein/.test(l.leaf.text));
+        if (answers.length !== 6) return `${answers.length} answer paragraphs, want 6`;
+        const clauseOf = (re: RegExp) =>
+          ls.find((l) => l.leaf.kind === 'paragraph' && re.test(l.leaf.text));
+        const want: [RegExp, number][] = [
+          [/Patientenverfügung/, 0],
+          [/Schweigepflicht/, 1],
+          [/Unterbringung/, 2],
+          [/Bettgitter/, 3],
+          [/Zwangsmaßnahmen \(§ ?1832 Absatz 1/, 4],
+          [/Verbringung/, 5],
+        ];
+        for (const [re, k] of want) {
+          const clause = clauseOf(re);
+          if (!clause?.row) return `${re} is not in a side-by-side row`;
+          if (answers[k]!.row?.block !== clause.row.block)
+            return `answer ${k + 1} is not in the row of ${re}`;
+        }
+        return null;
+      }),
+    ],
+  },
 ];

@@ -74,6 +74,15 @@ describe('paragraphsOf', () => {
     expect(label[1]!.list).toBe(false);
   });
 
+  it('keeps two short lines apart when a blank line height separates them (EU sample 041, 049)', () => {
+    // 答案一列里上下两个「○ ja ○ nein」，中间空着将近一个行高：两行，不是一段折行。
+    const a = line('Oja Onein', 1140, 930, 165, 28);
+    const b = line('O ja O nein', 1140, 984, 165, 28);
+    expect(paragraphsOf([a, b])).toHaveLength(2);
+    // 平常行距的两行短行（窄栏里的折行）照样接成一段。
+    expect(paragraphsOf([a, { ...b, y: 962 }])).toHaveLength(1);
+  });
+
   it('joins wrapped lines, starts a paragraph after a gap, an indent or a list marker', () => {
     const lines = [
       line('First paragraph runs to the right edge and', 100, 100, 800),
@@ -1460,6 +1469,56 @@ describe('small layout fixes (D-473)', () => {
     const other = row(300, 'L2', 'R2');
     other.cells[1]!.blocks = [para('R2', 700, 300) as never];
     expect(mergeColumnRows([row(100, 'L1', 'R1'), other], 20)).toHaveLength(2);
+  });
+});
+
+describe('answer column beside clauses (EU sample 041)', () => {
+  const para = (text: string, x: number, y: number, width: number, height: number) => ({
+    kind: 'paragraph' as const,
+    text,
+    box: { x, y, width, height },
+  });
+
+  it('gives each short answer its own row with the clauses up to the one it stands beside', () => {
+    // 一个区域里四段条款（一段没有答案），右边一列「○ ja ○ nein」各对着一段条款的最后一行。
+    const clauses = [
+      para('Sie darf in allen Angelegenheiten entscheiden und befugt sein.', 150, 100, 850, 90),
+      para('Solange es erforderlich ist, darf sie', 150, 230, 400, 25),
+      para('über meine freiheitsentziehende Unterbringung', 190, 280, 700, 25),
+      para('über ärztliche Zwangsmaßnahmen nach dem Gesetz entscheiden.', 190, 330, 800, 60),
+    ];
+    const answers = [
+      para('○ ja ○ nein', 1140, 162, 165, 28),
+      para('○ ja ○ nein', 1140, 278, 165, 28),
+      para('○ ja ○ nein', 1140, 362, 165, 28),
+    ];
+    const units = [
+      { box: { x: 150, y: 100, width: 850, height: 290 }, blocks: clauses },
+      ...answers.map((a) => ({ box: a.box, blocks: [a] })),
+    ];
+    const out = arrangeUnits(units, 28);
+    const rows = out.filter((b): b is DocRow => b.kind === 'row');
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r.cells.map((c) => c.blocks.length))).toEqual([
+      [1, 1],
+      [2, 1],
+      [1, 1],
+    ]);
+    expect((rows[1]!.cells[0]!.blocks[0] as DocParagraph).text).toMatch(/^Solange/);
+  });
+
+  it('keeps a column of prose beside prose as one row', () => {
+    const left = [para('Lorem ipsum dolor sit amet, a long paragraph.', 100, 100, 500, 90)];
+    const right = [
+      para('Another long paragraph of prose in the right column here.', 700, 100, 500, 90),
+      para('And a second paragraph of prose in the right column here.', 700, 220, 500, 90),
+    ];
+    const units = [
+      { box: { x: 100, y: 100, width: 500, height: 90 }, blocks: left },
+      { box: { x: 700, y: 100, width: 500, height: 210 }, blocks: right },
+    ];
+    const rows = arrangeUnits(units, 28).filter((b) => b.kind === 'row');
+    expect(rows).toHaveLength(1);
   });
 });
 

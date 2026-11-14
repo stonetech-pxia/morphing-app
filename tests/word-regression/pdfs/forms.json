@@ -82,5 +82,11 @@
     "id": "framed-row-last-fill",
     "source": "14-framed-row-last-fill.html",
     "sha256": "b2fef49a860e85a51af3c2475f1884e37bef7fce14386fdb21525df3d1aede4c"
+  },
+  {
+    "page": 15,
+    "id": "yes-no-answer-column",
+    "source": "15-yes-no-answer-column.html",
+    "sha256": "09e5b120f6574a53412a6efd4a92fcd60fba9100416a52e5a56ac0210b19fdd1"
   }
 ]

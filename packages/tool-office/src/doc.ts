@@ -464,6 +464,9 @@ function clustersOf(
   ];
 }
 
+/** 两行短行之间至少空出这么多个行高（各自对着左边的一行字时这么多），是一行一行的。 */
+const SHORT_APART = 0.8;
+const SHORT_BESIDE = 0.5;
 /** 短行后面至少空出这么多个行高（加上下一行的第一个词）才算放得下：栏和栏之间的空隙不算空着。 */
 const ROOM_GUTTER = 3;
 /** 一排里两块字隔得超过这么多个行高，分成左右两块（一行里词与词的空隙远小于一个行高）。 */
@@ -658,11 +661,31 @@ export function paragraphsOf(
       [...prev.text].length <= LABEL_MAX &&
       [...row.text].length <= LABEL_MAX &&
       prev.box.x + prev.box.width + firstWordWidth(row) + ROOM_GUTTER * typical < roomRight;
+    // 两行短行中间空出将近一个行高（地址后面隔一个空行的「email:」），或者空出半个行高、各自对着
+    // 左边隔得很远的不同的一行字（条款右边一列「○ ja ○ nein」，EU 样本 041、049）：一行一行写的，
+    // 不是折行。正文的折行之间只有一点行距。
+    const facing = (r: Row) =>
+      peers.find(
+        (p) =>
+          p.x + p.width < left - ROW_SPLIT * typical &&
+          Math.min(p.y + p.height, r.box.y + r.box.height) - Math.max(p.y, r.box.y) >=
+            0.5 * Math.min(p.height, r.box.height),
+      );
+    const apart =
+      prev !== undefined &&
+      [...prev.text].length <= LABEL_MAX &&
+      [...row.text].length <= LABEL_MAX &&
+      (gap >= SHORT_APART * typical ||
+        (gap >= SHORT_BESIDE * typical &&
+          facing(prev) !== undefined &&
+          facing(row) !== undefined &&
+          facing(prev) !== facing(row)));
     const wrapped =
       prev !== undefined &&
       !centeredPair &&
       !fieldRow &&
       !roomy &&
+      !apart &&
       // 以填写处结尾的行（「Name ……」）是一行一行的，不是折行。
       !ENDS_WITH_FILL.test(prev.text) &&
       gap <= PARAGRAPH_GAP * typical &&
@@ -2673,7 +2696,73 @@ export function arrangeUnits(
     }));
   });
   const bands = mergeColumnRows(arrangeBands(separated, lineHeight), lineHeight);
-  return options.dense ? bands : retainProseColumns(bands, lineHeight, options.onColumns);
+  return splitAnswerRows(
+    options.dense ? bands : retainProseColumns(bands, lineHeight, options.onColumns),
+    lineHeight,
+  );
+}
+
+/**
+ * 答案一列：每块不超过这么多个字（「○ ja ○ nein」、金额、日期）、这么多个行高，上下至少一半对着左边的一块；
+ * 右格不到左格的这么宽。
+ */
+const ANSWER_MAX_CHARS = 30;
+const ANSWER_MAX_LINES = 3;
+const ANSWER_OVERLAP = 0.5;
+const ANSWER_WIDTH_SHARE = 0.5;
+
+/**
+ * 条款旁边一列短的答案（委托书每条后面的「○ ja ○ nein」，EU 样本 041）：一个区域里的几段条款和右边的几个答案
+ * 排成了一个两格的并排行，Word 里左边换了字体折行不一样，右边的答案一个个错开，对不上条款。
+ * 右格都是短的一块一块、每块对着左格的一块时，按答案拆成几行：每行是一个答案和它对着的那段条款
+ * （连同上面没有答案的几段）。右格是正文的（两栏正文）不拆。
+ */
+function splitAnswerRows(blocks: readonly DocBlock[], lineHeight: number): DocBlock[] {
+  return blocks.flatMap((block): DocBlock[] => {
+    if (block.kind !== 'row' || block.cells.length !== 2) return [block];
+    const [left, right] = block.cells as [DocRowCell, DocRowCell];
+    const answers = [...right.blocks].sort((a, b) => a.box.y - b.box.y);
+    const clauses = [...left.blocks].sort((a, b) => a.box.y - b.box.y);
+    if (answers.length < 2 || clauses.length < 2) return [block];
+    if (right.width > ANSWER_WIDTH_SHARE * left.width) return [block];
+    if (
+      !answers.every(
+        (a) =>
+          a.kind === 'paragraph' &&
+          [...a.text.trim()].length <= ANSWER_MAX_CHARS &&
+          a.box.height <= ANSWER_MAX_LINES * lineHeight,
+      )
+    )
+      return [block];
+    const overlap = (a: Box, b: Box) =>
+      Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+    // 每个答案对着的那段条款（重叠最多的）。
+    const owners = answers.map((a) => {
+      let best = -1;
+      for (const [k, c] of clauses.entries())
+        if (
+          overlap(a.box, c.box) >= ANSWER_OVERLAP * Math.min(a.box.height, c.box.height) &&
+          (best < 0 || overlap(a.box, c.box) > overlap(a.box, clauses[best]!.box))
+        )
+          best = k;
+      return best;
+    });
+    // 每个答案都要对着一段，而且顺序一致、不共用一段。
+    if (owners.some((k, i) => k < 0 || (i > 0 && k <= owners[i - 1]!))) return [block];
+    return answers.map((a, i): DocRow => {
+      const from = i ? owners[i - 1]! + 1 : 0;
+      const to = i === answers.length - 1 ? clauses.length : owners[i]! + 1;
+      const mine = clauses.slice(from, to);
+      return {
+        kind: 'row',
+        cells: [
+          { width: left.width, blocks: mine },
+          { width: right.width, blocks: [a] },
+        ],
+        box: unionBox([...mine.map((b) => b.box), a.box]),
+      };
+    });
+  });
 }
 
 /**
