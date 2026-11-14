@@ -159,6 +159,14 @@ describe('barcodes (D-471)', () => {
     expect(found[0]!.x + found[0]!.width).toBeGreaterThanOrEqual(690);
   });
 
+  it('does not take a security pattern carrying a line of text for a barcode (EU sample 066)', () => {
+    // 同样的竖条中间夹着一行认出来的正文：那是印着字的底纹，不是条形码，字不能被当成条形码里的杂字丢掉。
+    const words: OcrBox = { text: 'Nach: Bad Kissingen', x: 200, y: 350, width: 300, height: 20 };
+    expect(findBarcodes(image, [lines[0]!, words], 20)).toEqual([]);
+    // 条形码里认出来的零星数字照旧不算。
+    expect(findBarcodes(image, lines, 20)).toHaveLength(1);
+  });
+
   it('does not take a dashed connector on textured paper for a barcode next to text (D-533)', () => {
     // 斜的虚线（流程图的回流线）每行只有几段；纸面纹理在整行平均亮度上下跳，上下几行一样。
     const dashes: Rect[] = [];

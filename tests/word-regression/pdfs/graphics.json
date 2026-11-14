@@ -106,5 +106,11 @@
     "id": "tiled-watermark",
     "source": "20-tiled-watermark.html",
     "sha256": "15e3197e2ed2fe43892736491b0e5da45c7795f94a15fe8273569f94e31bdb97"
+  },
+  {
+    "page": 19,
+    "id": "patterned-ticket",
+    "source": "21-patterned-ticket.scan.html",
+    "sha256": "adb18e413cb35248923d7505ddf9a9d6100c0c92b9d3d0d12611e61dd2646c49"
   }
 ]

@@ -553,6 +553,13 @@ function barsFillHeight(image: RgbaImage, box: Box): boolean {
 }
 
 /**
+ * 一片「竖条」里认出来成词的字（三个以上的字母，不全是 I、l 这类竖笔），就不是条形码，是印着正文的底纹：
+ * 车票的防伪三角纹每行都黑白交替，上下又对得齐，夹着的「Von: Fulda」整片被当成条形码剪掉（EU 样本 066）。
+ * 条形码里认出来的零星的字是数字和竖笔。
+ */
+const wordy = (text: string) => (text.match(/\p{L}{3,}/gu) ?? []).some((w) => /[^IilL]/u.test(w));
+
+/**
  * 条形码这样的一片竖条：从上到下几条横线都有很多次黑白交替、而且那里没有认出来的字。
  * 返回它们的范围（原图像素）；高度不到一个行高的不要。
  */
@@ -562,6 +569,13 @@ export function findBarcodes(
   lineHeight: number,
   localText = false,
 ): Box[] {
+  const text = lines.filter((l) => wordy(l.text));
+  const barcode = (b: Box) =>
+    !text.some((l) => {
+      const cx = l.x + l.width / 2;
+      const cy = l.y + l.height / 2;
+      return cx >= b.x && cx <= b.x + b.width && cy >= b.y && cy <= b.y + b.height;
+    });
   const { width, height, data } = image;
   const step = Math.max(2, Math.round(lineHeight / 4));
   const pad = 0.3 * lineHeight;
@@ -662,7 +676,7 @@ export function findBarcodes(
         width: Math.round(x1 - x0),
         height: Math.min(height, group.at(-1)!.y + step) - group[0]!.y,
       };
-      if (barsFillHeight(image, box)) out.push(box);
+      if (barsFillHeight(image, box) && barcode(box)) out.push(box);
     }
     return out;
   }
@@ -693,5 +707,5 @@ export function findBarcodes(
     group.push(h);
   }
   flush();
-  return out;
+  return out.filter(barcode);
 }

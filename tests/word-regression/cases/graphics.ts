@@ -252,4 +252,17 @@ export const GRAPHICS: Case[] = [
       table({ containing: ['Familienname', 'Beispielfrau', 'Lebensmittelchemie'] }),
     ],
   },
+  {
+    id: 'patterned-ticket',
+    suite: 'graphics',
+    fix: 'EU sample 066',
+    what: 'Scanned ticket printed on a security pattern of pale triangles: every row of the pattern alternates light and dark in the same places, so whole bands of the ticket were taken for barcodes and cut out as pictures, and the lines of text inside them ("Von: Fulda", "Nach: Bad Kissingen") were dropped.',
+    lang: 'deu',
+    checks: [
+      times('Normalpreis', 1),
+      times('Von: Fulda', 1),
+      times('Nach: Bad Kissingen', 1),
+      times('Gemünden', 1),
+    ],
+  },
 ];
