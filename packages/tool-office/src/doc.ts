@@ -6,7 +6,14 @@ import { figureOwns, figureWorkingImage, planWordFigures } from './word-figures'
 import { recoverPictureCards } from './word-cards';
 import { restoreWordCellSpans } from './word-cell-spans';
 import { withBullets } from './word-bullets';
-import { ENDS_WITH_FILL, FILL_RUN, findFillIns, leaderDots, withFillIns } from './word-fill-ins';
+import {
+  ENDS_WITH_FILL,
+  FILL_RUN,
+  findFillIns,
+  joinShadedBlanks,
+  leaderDots,
+  withFillIns,
+} from './word-fill-ins';
 import { restoreWordFormRows } from './word-form-rows';
 import { findPageGutter, sideOfGutter, type PageGutter } from './word-gutter';
 import type { Box, OcrBox, RgbaImage, TableBlock, TableCell } from './types';
@@ -1846,7 +1853,12 @@ function buildPage(
     lineHeight,
     [...tables.map((t) => t.box), ...figures.map((f) => f.box)],
   );
-  const { lines: filled, source: fillSource } = withFillIns(upright, fills, lineHeight);
+  const withFills = withFillIns(upright, fills, lineHeight);
+  // 句子中间一块块要填的底色（EU 样本 082）：隔开的几段接回一行。
+  const shaded = joinShadedBlanks(image, withFills.lines, lineHeight);
+  const filled = shaded.lines;
+  const fillSource = new Map(withFills.source);
+  for (const [l, from] of shaded.source) fillSource.set(l, withFills.source.get(from) ?? from);
   const synthetic = new Set(filled.filter((l) => !fillSource.has(l) && !upright.includes(l)));
   // 识别漏了的列表记号（「•」「-」）补在行的前面（EU 样本 026、027）。
   const { lines: kept, source: bulletSource } = withBullets(image, filled);

@@ -955,6 +955,8 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     );
     // 里面没有字的不算表（例如表单里几条对齐的填空横线）。
     if (members.length === ruleText.size) continue;
+    // 只有一排，字都不在格子里（句子里要填的一块底色四边像线，旁边的字落在容差里，EU 样本 082）：不是表。
+    if (table.hs.length <= 2 && members.every((l) => ruleText.has(l) || !within(l, box))) continue;
     const built = buildGrid(
       table,
       members.filter((l) => !ruleText.has(l)),

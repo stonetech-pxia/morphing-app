@@ -670,6 +670,12 @@ describe('cases from real scans (D-272)', () => {
     expect(cellAt(table!, 5, 0)!.text).toBe('P-Analisi numero 05');
   });
 
+  it('does not take a framed blank with words just beside it for a one-cell table (EU sample 082)', () => {
+    // 句子里要填的一块底色，四边被找成线（一格的框）：紧挨在右边的「y」离它不到容差，以前被圈进一张 1×1 的表。
+    const words = [word('y', 475, 300, 12)];
+    expect(tablesOf(page(gridRects([400, 472], [298, 326]), words))).toHaveLength(0);
+  });
+
   it('keeps a title whole above a column line that starts below it', () => {
     // 工资单的日历：标题横跨两列，竖线从第二行才开始。
     const words = [

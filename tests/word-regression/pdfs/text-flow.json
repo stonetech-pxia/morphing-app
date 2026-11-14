@@ -130,5 +130,11 @@
     "id": "date-at-line-start",
     "source": "22-date-at-line-start.html",
     "sha256": "ab4086f06e1a9cf9dcb322729ff05fe37defaa33046b59f3469b673e5e75304e"
+  },
+  {
+    "page": 23,
+    "id": "shaded-blanks-in-sentences",
+    "source": "23-shaded-blanks-in-sentences.html",
+    "sha256": "3c42e25eb0896846eb38eeb8220a981571b49d6b754e0f38c281dc98fe368525"
   }
 ]

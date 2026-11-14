@@ -156,4 +156,37 @@ describe('fill-in lines of forms (EU sample 021, 030)', () => {
     expect(texts[1]).toBe('(first name, surname)');
     expect(texts[2]).toMatch(/^Born on \.{20,}$/);
   });
+
+  it('joins the pieces of a sentence cut by shaded blanks, in order (EU sample 082)', () => {
+    // 合同模板：要填的地方是一块块青色的底（约 70×25 像素），识别在每块那里断开，一行成了三段；
+    // 最后一段「De」比第一段高一个像素，排序时跑到了整段前面。
+    const teal: [number, number, number] = [0, 139, 139];
+    const rows = [
+      [
+        ['PRIMERO.- El arrendamiento por un plazo de', 100, 470],
+        ['a contar desde el día', 650, 230],
+        ['. De', 980, 50],
+      ],
+      [['acuerdo con la legislación vigente si la duración fuera inferior a cinco años', 100, 880]],
+      [['vencimiento del contrato, este se prorrogará por plazos anuales hasta que el', 100, 880]],
+    ] as const;
+    const lines = rows.flatMap((row, r) =>
+      row.map(([text, x, width], k) =>
+        fakeLine(text, { x, y: 200 + 32 * r - (k === 2 ? 1 : 0), width, height: 24 }, page, true),
+      ),
+    );
+    const rects: Rect[] = [
+      ...lines.flatMap((l) => glyphs(l.x, l.y + 4, l.width, 16)),
+      { x: 575, y: 199, width: 70, height: 26, color: teal },
+      { x: 885, y: 199, width: 90, height: 26, color: teal },
+    ];
+    const doc = buildDocPage({ image: renderPage(W, H, rects), lines, source: 'x' });
+    const blocks = leafBlocks(doc);
+    expect(blocks.filter((b) => b.kind === 'table')).toHaveLength(0);
+    const texts = blocks.flatMap((b) => (b.kind === 'paragraph' ? [b.text] : []));
+    expect(texts).toHaveLength(1);
+    expect(texts[0]).toMatch(
+      /^PRIMERO\.- El arrendamiento por un plazo de _{4,} a contar desde el día _{4,}\. De acuerdo con/,
+    );
+  });
 });

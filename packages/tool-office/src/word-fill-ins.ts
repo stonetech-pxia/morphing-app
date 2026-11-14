@@ -564,3 +564,142 @@ function mergeFills(line: OcrBox, fills: readonly FillIn[], lineHeight: number):
     chars: out,
   };
 }
+
+/** 一块要填的底色：至少这么多个行高宽，占两段字中间空隙的这么多。 */
+const BOX_MIN = 1.5;
+const BOX_SHARE = 0.5;
+/** 两段字中间的空隙最多这么多个行高。 */
+const BOX_GAP_MAX = 12;
+/** 空隙里一列算底色：这一列（行的中间那一截）至少这么多的点和底色差不多。 */
+const BOX_FILLED = 0.85;
+/** 和底色差多少以内（0–255，每个通道）算同一个颜色。 */
+const BOX_TOLERANCE = 40;
+/** 底色最多这么多个行高高：上下两行的空格对齐时会挨成一块（EU 样本 082），再高是整片的色块。 */
+const BOX_MAX_HEIGHT = 2.3;
+/** 比这更亮（每个通道都是）的是白纸，不是底色。 */
+const PAPER = 235;
+
+/**
+ * 句子中间要填的地方是一块底色（合同模板里青色、灰色的空格，Word 的表单域打成 PDF，EU 样本 082）：识别在那里断开，
+ * 一行成了好几段，后面一段还可能比第一段高一点、排序时跑到整段前面，或者几段被当成并排的几栏、几格。
+ * 同一排、隔着这样一块底色的几段接成一行，底色那里写一串「_」（和横线的填写处一样，Word 里看得出要填）。
+ * 底色只有一行高：整片的色块（栏的底色）上面隔开的两段不接。
+ */
+export function joinShadedBlanks(
+  image: RgbaImage,
+  input: readonly OcrBox[],
+  lineHeight: number,
+): { lines: OcrBox[]; source: Map<OcrBox, OcrBox> } {
+  const source = new Map<OcrBox, OcrBox>();
+  const { width, height, data } = image;
+  const at = (x: number, y: number) => {
+    const o =
+      (Math.min(height - 1, Math.max(0, y)) * width + Math.min(width - 1, Math.max(0, x))) * 4;
+    return [data[o]!, data[o + 1]!, data[o + 2]!] as const;
+  };
+  const paper = (c: readonly number[]) => c.every((v) => v >= PAPER);
+  const near = (a: readonly number[], b: readonly number[]) =>
+    a.every((v, i) => Math.abs(v - b[i]!) <= BOX_TOLERANCE);
+  /** a、b 中间的空隙里有一块一行高的底色：返回它的左右边。 */
+  const boxBetween = (a: OcrBox, b: OcrBox) => {
+    const x0 = Math.ceil(a.x + a.width);
+    const x1 = Math.floor(b.x);
+    const gap = x1 - x0;
+    if (gap < BOX_MIN * lineHeight || gap > BOX_GAP_MAX * lineHeight) return null;
+    const top = Math.max(a.y, b.y);
+    const bottom = Math.min(a.y + a.height, b.y + b.height);
+    const y0 = Math.round(top + 0.25 * (bottom - top));
+    const y1 = Math.round(bottom - 0.25 * (bottom - top));
+    if (y1 <= y0) return null;
+    // 底色：空隙正中那一点的颜色（不是白纸）。
+    const color = at(Math.round((x0 + x1) / 2), Math.round((y0 + y1) / 2));
+    if (paper(color)) return null;
+    let best: [number, number] | null = null;
+    let start = -1;
+    for (let x = x0; x <= x1; x++) {
+      let n = 0;
+      for (let y = y0; y < y1; y++) if (near(at(x, y), color)) n++;
+      const filled = x < x1 && n >= BOX_FILLED * (y1 - y0);
+      if (filled && start < 0) start = x;
+      if (!filled && start >= 0) {
+        if (!best || x - start > best[1] - best[0]) best = [start, x];
+        start = -1;
+      }
+    }
+    if (!best || best[1] - best[0] < Math.max(BOX_MIN * lineHeight, BOX_SHARE * gap)) return null;
+    // 一行高：在底色的几处往上、往下量它有多高，取最矮的（上下两行的空格常常挨着，连成两行高；
+    // 整片的色块哪里都高得多）。
+    const cy = Math.round((y0 + y1) / 2);
+    const limit = Math.ceil(BOX_MAX_HEIGHT * lineHeight);
+    const tall = (x: number) => {
+      let up = 0;
+      while (up <= limit && near(at(x, cy - up - 1), color)) up++;
+      let down = 0;
+      while (down <= limit && near(at(x, cy + down + 1), color)) down++;
+      return up + down + 1;
+    };
+    const span = best[1] - best[0];
+    const heights = [0.1, 0.3, 0.5, 0.7, 0.9].map((k) => tall(Math.round(best![0] + k * span)));
+    if (Math.min(...heights) > limit) return null;
+    return best;
+  };
+  const sameRow = (a: OcrBox, b: OcrBox) =>
+    Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y) >=
+      0.6 * Math.min(a.height, b.height) &&
+    Math.max(a.height, b.height) <= 2 * Math.min(a.height, b.height);
+  const lines = [...input];
+  const used = new Set<OcrBox>();
+  const out: OcrBox[] = [];
+  for (const first of [...lines].sort((a, b) => a.x - b.x)) {
+    if (used.has(first)) continue;
+    let line = first;
+    // 和刚接上的那一段比（接起来的行比一个字「y」高得多）。
+    let last = first;
+    for (;;) {
+      const right = last.x + last.width;
+      const next = lines
+        .filter((l) => !used.has(l) && l !== first && l.x >= right && sameRow(last, l))
+        .sort((a, b) => a.x - b.x)[0];
+      const box = next && boxBetween(last, next);
+      if (!next || !box) break;
+      used.add(next);
+      line = joinAcross(line, next, box);
+      last = next;
+    }
+    used.add(first);
+    if (line !== first) source.set(line, first);
+    out.push(line);
+  }
+  return { lines: out, source };
+}
+
+/** 两段字和中间的一块底色接成一行：底色那里一串「_」，后一段以标点开头时不空格。 */
+function joinAcross(a: OcrBox, b: OcrBox, box: [number, number]): OcrBox {
+  const x = a.x;
+  const right = b.x + b.width;
+  const w = right - x;
+  const fontPx = BOX_TO_FONT * a.height;
+  const run = runOf('rule', box[1] - box[0], fontPx);
+  const place = (l: OcrBox) =>
+    charsOf(l).map((c) => ({ text: c.text, at: (l.x + c.at * l.width - x) / w }));
+  const chars = [
+    ...place(a),
+    { text: ' ', at: (a.x + a.width - x) / w },
+    ...[...run].map((ch, i) => ({
+      text: ch,
+      at: (box[0] + ((i + 0.5) / run.length) * (box[1] - box[0]) - x) / w,
+    })),
+    ...(/^[.,;:)]/u.test(b.text) ? [] : [{ text: ' ', at: (box[1] - x) / w }]),
+    ...place(b),
+  ];
+  const y = Math.min(a.y, b.y);
+  return {
+    ...a,
+    text: chars.map((c) => c.text).join(''),
+    x,
+    y,
+    width: w,
+    height: Math.max(a.y + a.height, b.y + b.height) - y,
+    chars,
+  };
+}

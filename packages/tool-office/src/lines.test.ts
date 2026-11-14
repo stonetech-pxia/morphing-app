@@ -293,3 +293,21 @@ describe('findTables: rules-only chains', () => {
     expect(tables[0]!.vs.some((v) => Math.abs(v.pos - 151) < 4 && v.to > 490)).toBe(true);
   });
 });
+
+describe('filled boxes are not tables', () => {
+  it('does not read a solid shaded blank in a sentence as a one-cell table (EU sample 082)', () => {
+    // 合同里要填的地方：一块 72×25 的实心青色底，四条边都是「线」，围成了一张 1×1 的表。
+    const box = {
+      x: 400,
+      y: 300,
+      width: 72,
+      height: 25,
+      color: [0, 139, 139] as [number, number, number],
+    };
+    const page = findLines(renderPage(W, H, [box, ...glyphs(100, 304, 280, 18)]), {
+      skew: 0,
+      light: true,
+    });
+    expect(findTables(page)).toHaveLength(0);
+  });
+});
