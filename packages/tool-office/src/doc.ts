@@ -1,6 +1,6 @@
 import { buildTablePage, cachedLines, type BuildOptions } from './build';
 import { assignLines, cleanRegions, lineShareIn, readingOrder, type LayoutRegion } from './layout';
-import { findBarcodes, findTextTables, levelLines } from './text-table';
+import { findBarcodes, findTextTables, levelLines, pageSlope } from './text-table';
 import { findLines } from './lines';
 import { figureOwns, figureWorkingImage, planWordFigures } from './word-figures';
 import { recoverPictureCards } from './word-cards';
@@ -1817,9 +1817,15 @@ function buildPage(
   const strokes = new Map<OcrBox, number>();
   for (const l of free) strokes.set(l, synthetic.has(orig(l)) ? 0 : strokeRatio(image, orig(l)));
   const pageStroke = median([...strokes.values()].filter((v) => v > 0));
-  const bodyHeight = median(
-    groups.filter((g) => !g.title).flatMap((g) => g.lines.map((l) => l.height)),
+  // 估字号用的行高（同 D-521）：扫描件拉正以后还剩一点斜（0.3–1°），长行的识别框比字高出 宽 × 斜率 一截，
+  // 页脚这样的长行会被量成标题那么大（EU 样本 050），扣掉。按字估的斜率和按线估的都斜才算
+  // （两栏正文的基线错开时，按字估的斜率不准；没有线的页不扣）。
+  const tilt = Math.min(
+    Math.abs(pageSlope(lines, lineHeight)),
+    Math.abs(Math.tan(((tableSkew ?? findLines(image).skew) * Math.PI) / 180)),
   );
+  const sizeHeight = (l: OcrBox) => Math.max(0.6 * l.height, l.height - tilt * l.width);
+  const bodyHeight = median(groups.filter((g) => !g.title).flatMap((g) => g.lines.map(sizeHeight)));
   const bodyH = bodyHeight || lineHeight;
   // 正文页还是表单页（D-335）：数长行（至少四成页宽）里的字占整页（含表格）的多少。
   const charsOf = (ls: readonly OcrBox[]) => ls.reduce((n, l) => n + l.text.length, 0);
@@ -1864,7 +1870,7 @@ function buildPage(
   ];
   const alignment = new Map<DocParagraph, { h: number; rows: number }>();
   const styleOf = (paraLines: readonly OcrBox[], text: string, title: number) => {
-    const h = median(paraLines.map((l) => l.height));
+    const h = median(paraLines.map(sizeHeight));
     const short = (text.match(/[\p{L}\p{N}]/gu)?.length ?? 0) < SHORT_TEXT && !title;
     const byHeight = h / bodyH;
     const w = widthTrusted ? median(paraLines.map(widthSizeOf).filter((v) => v > 0)) : 0;

@@ -1440,6 +1440,31 @@ describe('small layout fixes (D-473)', () => {
     expect(texts.some((t) => t.includes('W-9') && t.includes('\t'))).toBe(false);
   });
 
+  it('sizes long lines of a slightly skewed scan by their text, not their taller box (EU sample 050)', () => {
+    // 斜 0.57°：左右两块同一排的字右边低 7 像素；很长的页脚行的框比字高出 宽 × 斜率。
+    const slope = 0.01;
+    const rows = [0, 1, 2, 3, 4, 5].flatMap((i) => [
+      { text: `Anreise ${i}`, x: 100, y: 200 + i * 40, width: 150 },
+      { text: `Datum ${i}`, x: 800, y: 200 + i * 40 + Math.round(700 * slope), width: 150 },
+    ]);
+    const footer = 'Hotel am See | Seestraße 12 | 5020 Salzburg | Austria | T: +43 662 000000';
+    const { image, lines } = textPage([
+      ...rows,
+      { text: footer, x: 150, y: 1200, width: 700, h: Math.round(20 + 700 * slope) },
+    ]);
+    const doc = buildDocPage({
+      image,
+      lines,
+      source: 's',
+      skew: (Math.atan(slope) * 180) / Math.PI,
+    });
+    const p = leafBlocks(doc).find(
+      (b): b is DocParagraph => b.kind === 'paragraph' && b.text.startsWith('Hotel'),
+    )!;
+    expect(p.heading).toBeUndefined();
+    expect(p.size ?? doc.bodySize).toBeLessThanOrEqual(doc.bodySize * 1.1);
+  });
+
   it('only calls letter-led, mostly-letter text a size-based heading', () => {
     expect(looksLikeHeading('Request for Taxpayer')).toBe(true);
     expect(looksLikeHeading('Displays (8) 40 Floor (40)')).toBe(false);
