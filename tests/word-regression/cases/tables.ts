@@ -588,7 +588,7 @@ export const TABLES: Case[] = [
   {
     id: 'tbl-three-line-table-vat-below',
     suite: 'tables',
-    fix: 'EU sample 050 (regression after 2009761b)',
+    fix: '82ef3d09; EU sample 050 (regression after 2009761b)',
     what: 'Hotel bill (scan): a three-line item table (top rule, header rule, bottom rule) with totals under it and, after a gap, a small VAT block between two more full-width rules. Once letter stems were no longer joined through the VAT rules into column lines, the five aligned rules were chained into one rules-only table that pulled the totals and the VAT block into the item table.',
     lang: 'deu',
     checks: [
@@ -603,7 +603,7 @@ export const TABLES: Case[] = [
   {
     id: 'tbl-step-lists-in-cells',
     suite: 'tables',
-    fix: 'EU sample 049 (regression after 2009761b)',
+    fix: '26e705ba; EU sample 049 (regression after 2009761b)',
     what: 'Manual with numbered steps in two stacked ruled tables (3 cells over 2), each cell holding a short bulleted list. The lines of the lists sit at the same heights in neighbouring cells, so every list line became its own table row and each list was cut into pieces.',
     lang: 'deu',
     checks: [
@@ -615,7 +615,7 @@ export const TABLES: Case[] = [
   {
     id: 'tbl-lab-results-unit-column',
     suite: 'tables',
-    fix: 'EU sample 098',
+    fix: '26763dde; EU sample 098',
     what: 'Lab report: test names on the left and, far to the right under a ruled header box, value | unit | reference range columns with no row rules. The units ("U/l", "mg/dl") have no digits, so the far columns did not count as columns of numbers; the names and the values became two text columns and the values, units and ranges ran together as prose beside the wrong tests.',
     lang: 'deu',
     checks: [

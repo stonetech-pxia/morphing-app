@@ -413,7 +413,7 @@ export const FORMS: Case[] = [
   {
     id: 'inline-underscore-blanks',
     suite: 'forms',
-    fix: 'EU sample 095',
+    fix: 'f80f9972; EU sample 095',
     what: 'Contract template with underscore blanks inside its sentences ("(DNI/NIE ______),"): the blanks are drawn as rules on the text baseline, and where their ends happened to line up down the page they were chained into a tall rules-only table at the right margin that pulled in pieces of the sentences around it.',
     lang: 'spa',
     checks: [
