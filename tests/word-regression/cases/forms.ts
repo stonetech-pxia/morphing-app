@@ -286,4 +286,24 @@ export const FORMS: Case[] = [
       notInTable('Seite 2 von 3'),
     ],
   },
+  {
+    id: 'answer-lines-gap',
+    suite: 'forms',
+    fix: 'EU sample 041',
+    what: 'Two runs of evenly spaced grey answer lines (a label under each) with a bold "erteile hiermit Vollmacht an" between them, and a last lone line far below a section of clauses: all were chained into one rules-only table that swallowed the bold line, the section heading and the clauses, one bordered row per text line.',
+    lang: 'deu',
+    checks: [
+      notInTable('erteile hiermit Vollmacht an'),
+      notInTable('Aufenthalt und Wohnungsangelegenheiten'),
+      notInTable('Sie darf meinen Aufenthalt bestimmen.'),
+      notInTable('Wohnungsmietvertrag'),
+      order(
+        'Ich,',
+        'Name, Vorname',
+        'erteile hiermit Vollmacht an',
+        'Aufenthalt und Wohnungs',
+        'Formular Vollmacht',
+      ),
+    ],
+  },
 ];

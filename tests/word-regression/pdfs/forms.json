@@ -70,5 +70,11 @@
     "id": "open-blank-grids",
     "source": "12-open-blank-grids.html",
     "sha256": "57c9075fe1031add498743479ec56912aa115d1457b446c621e7ab2957f5555a"
+  },
+  {
+    "page": 13,
+    "id": "answer-lines-gap",
+    "source": "13-answer-lines-gap.html",
+    "sha256": "3d1119f4a02949f0bbb029e229fd4115f27c8579dc5abee5912b8180c1c7429a"
   }
 ]

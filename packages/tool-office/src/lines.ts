@@ -80,6 +80,9 @@ const RULED_MIN = 3;
  * 一开始就隔着一大段的，是一节一节表单框的底线、各处填空的横线（EU 样本 014），不是一张表。
  */
 const RULED_HEAD_GAP_SHARE = 0.1;
+/** 等距的一串（最大间距不超过最小的 RULED_EVEN 倍）遇到超过间距 RULED_SPLIT_STEPS 倍的一段就断开。 */
+const RULED_EVEN = 1.3;
+const RULED_SPLIT_STEPS = 2.5;
 
 /**
  * 很浅的表格线（转 Word 用，findLines 的 light）：电子版的发票模板、表单常用浅灰的线（最暗的通道 0.75–0.86），
@@ -737,6 +740,14 @@ export function findTables(
         )
       )
         return false;
+      // 等距的一串填写横线（每条间距差不多）后面隔着一大段（超过间距的 RULED_SPLIT_STEPS 倍、页高的 10%）：
+      // 中间是标题、条款，不是表的一排（EU 样本 041 的委托书：两组填写线中间隔着粗体的「erteile hiermit
+      // Vollmacht an」）。排高本来就不一样的表（格子折成几行）照旧接。
+      if (!hOk[i] && !hOk[lastIndex] && c.length >= RULED_MIN && gap > maxHeadGap) {
+        const steps = c.slice(1).map((k, n) => hs[k]!.pos - hs[c[n]!]!.pos);
+        const lo = Math.min(...steps);
+        if (Math.max(...steps) <= RULED_EVEN * lo && gap > RULED_SPLIT_STEPS * lo) return false;
+      }
       // 两张网格（各自有竖线）宽度一样、上下排着，不接成一张（中间常隔着一段文字）。
       if (hOk[i] && hOk[lastIndex]) return find(i) === find(lastIndex);
       // 从网格的线接到不在网格里的线（或反过来）：只有间距和上一格差不多（不到 2 倍）时才接，

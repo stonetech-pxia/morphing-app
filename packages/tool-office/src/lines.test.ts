@@ -126,6 +126,24 @@ describe('findTables: rules-only chains', () => {
     expect(tables[0]!.hs).toHaveLength(3);
   });
 
+  it('does not chain evenly spaced answer lines across a large gap (EU sample 041)', () => {
+    // 两组填写横线，每组 5 条、间距 60，中间隔着 240（标题和留白）；再往下一大段以后还有一条。
+    const ys = [200, 260, 320, 380, 440, 680, 740, 800, 860, 920, 1300];
+    const rules: Rect[] = ys.map((y) => ({ x: 60, y, width: 882, height: 2 }));
+    const tables = findTables(findLines(renderPage(W, H, rules), { skew: 0 }));
+    expect(tables.map((t) => t.hs.length)).toEqual([5, 5]);
+    expect(tables[1]!.box.y).toBeGreaterThan(600);
+  });
+
+  it('still chains a ruled table with uneven rows', () => {
+    // 每排一条横线、排高不一样（有的格子折成好几行）：照旧是一张表。
+    const ys = [200, 240, 280, 420, 460, 640, 680];
+    const rules: Rect[] = ys.map((y) => ({ x: 60, y, width: 882, height: 2 }));
+    const tables = findTables(findLines(renderPage(W, H, rules), { skew: 0 }));
+    expect(tables).toHaveLength(1);
+    expect(tables[0]!.hs).toHaveLength(7);
+  });
+
   it('starts a rules-only table at the dark header bar on top of it, with its column rule (EU sample 024)', () => {
     // 时刻表：深色表头横条（白字）直接压在第一行上，中间没有横线；下面只有横线，钟点一列右边一条竖线，没有外框。
     const letters = glyphs(160, 310, 200).map((r) => ({ ...r, shade: 255 }));
