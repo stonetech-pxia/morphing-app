@@ -621,6 +621,43 @@ describe('buildDocPage', () => {
     expect(texts.some((t) => t.includes('Lindenhof Rechnung'))).toBe(false);
   });
 
+  it('keeps each number of a numbered item column with its own text (EU sample 032)', () => {
+    const items = [
+      'Name of the manufacturer:',
+      'Object of the declaration:',
+      'The object is in conformity with the following Directives:',
+      'References to the harmonised standards used:',
+      'Additional information:',
+    ];
+    const rows = items.flatMap((text, i) => [
+      { text: `${i + 2}.`, x: 100, y: 120 + i * 70, width: 24 },
+      { text, x: 190, y: 120 + i * 70, width: 14 * text.length },
+    ]);
+    const { image, lines } = textPage(rows);
+    // 版面模型把编号划进了一个大区域，第一项的条文另有一个小区域。
+    const doc = buildDocPage({
+      image,
+      lines,
+      source: 's',
+      skew: 0,
+      regions: regions([
+        ['text', 'text', { x: 95, y: 110, width: 800, height: 380 }],
+        ['text', 'text', { x: 105, y: 115, width: 500, height: 32 }],
+      ]),
+    });
+    // 编号写成列表的编号也行：按列表的起始编号算出显示的编号。
+    const texts = leafBlocks(doc).flatMap((b) =>
+      b.kind === 'paragraph'
+        ? [b.text]
+        : b.kind === 'list'
+          ? b.items.map((t, k) => `${(b.start ?? 1) + k}. ${t}`)
+          : [],
+    );
+    for (const [i, text] of items.entries())
+      expect(texts.some((t) => t.startsWith(`${i + 2}.`) && t.includes(text))).toBe(true);
+    expect(leafBlocks(doc).some((b) => b.kind === 'paragraph' && b.text === '2.')).toBe(false);
+  });
+
   it('treats a picture region full of body text as text, not as a picture', () => {
     const rows = Array.from({ length: 5 }, (_, i) => ({
       text: `Line ${i + 1} of a long paragraph that fills the page width`,

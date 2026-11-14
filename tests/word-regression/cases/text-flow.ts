@@ -309,4 +309,24 @@ export const TEXT_FLOW: Case[] = [
       order('Association (nom)', 'dont le siège', 'Le président expose'),
     ],
   },
+  {
+    id: 'numbered-items-number-column',
+    suite: 'text-flow',
+    fix: 'EU sample 032',
+    what: 'Numbered declaration items whose numbers stand a long gap left of the text, with rules under the text only: the numbers were taken for a label column (or put in a different layout region) and stacked in one cell beside the text, so "7." sat beside the previous item; each number must stay with its own item.',
+    checks: [
+      together('3.', 'This declaration of conformity is issued'),
+      together('6.', 'References to the relevant harmonised'),
+      together('7.', 'Where applicable, the notified body'),
+      together('9.', 'Additional information'),
+      order(
+        '5.',
+        'The object of the declaration',
+        '6.',
+        'References to the relevant',
+        '7.',
+        'Where applicable, the notified',
+      ),
+    ],
+  },
 ];

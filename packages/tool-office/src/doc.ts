@@ -430,6 +430,8 @@ export function splitLabelColumn(
   const contents = lines.filter((l) => l.x >= mid);
   const across = lines.filter((l) => !labels.includes(l) && !contents.includes(l));
   if (labels.length < LABEL_MIN_LINES || contents.length < LABEL_MIN_LINES) return null;
+  // 左边一列只有编号（「3.」「4.」）的是带编号的条文，编号属于右边那一项，不是标签列（EU 样本 032）。
+  if (labels.every((l) => listStart(l.text) && !stripMarker(l.text))) return null;
   return { across, labels, contents };
 }
 
@@ -466,6 +468,8 @@ const ROOM_GUTTER = 3;
 /** 一排里两块字隔得超过这么多个行高，分成左右两块（一行里词与词的空隙远小于一个行高）。 */
 const ROW_SPLIT = 1.6;
 
+/** 行首的编号和条文之间最多隔这么多个行高还算同一项。 */
+const MARKER_GAP = 6;
 /** 撑满的一行至少拆成这么多个词，词间空隙和中位数最多差这么多，才当成一行（不是几栏）。 */
 const JUSTIFIED_MIN_WORDS = 3;
 const JUSTIFIED_GAP_SPREAD = 0.2;
@@ -513,6 +517,17 @@ function splitRow(row: Row, lineHeight: number): Row[] {
     else out.at(-1)!.push(line);
   }
   if (justifiedWords(out)) return [row];
+  // 行首单独的编号（「3.」隔一大段才是条文，EU 样本 032 的符合性声明）和后面的字是同一项：分开了编号自成一栏，
+  // 和条文并排时对不上行（「7.」排到了第 6 项的末行旁边）。
+  const [first, second] = out;
+  if (
+    first?.length === 1 &&
+    second &&
+    listStart(first[0]!.text) &&
+    !stripMarker(first[0]!.text) &&
+    second[0]!.x - (first[0]!.x + first[0]!.width) <= MARKER_GAP * lineHeight
+  )
+    out.splice(0, 2, [...first, ...second]);
   return out.map((g) => ({
     lines: g,
     box: unionBox(g),
@@ -1681,6 +1696,21 @@ function buildPage(
   const merged = mergeTextRegions(regions, lineHeight);
   regions.splice(0, regions.length, ...merged);
   const owner = assignLines(free, regions);
+  // 行首单独的编号跟着同一排右边的条文进同一个区域（版面模型常把编号划进旁边的大区域，EU 样本 032）。
+  for (const [i, l] of free.entries()) {
+    if (!listStart(l.text) || stripMarker(l.text)) continue;
+    const next = free
+      .map((t, k) => ({ t, k }))
+      .filter(
+        ({ t }) =>
+          t.x > l.x + l.width &&
+          t.x - (l.x + l.width) <= MARKER_GAP * lineHeight &&
+          Math.min(t.y + t.height, l.y + l.height) - Math.max(t.y, l.y) >=
+            0.5 * Math.min(t.height, l.height),
+      )
+      .sort((a, b) => a.t.x - b.t.x)[0];
+    if (next && regions[owner[next.k]!]?.kind !== 'image') owner[i] = owner[next.k]!;
+  }
   if (native)
     for (const [i, l] of free.entries()) {
       const region = regions[owner[i] ?? -1];
