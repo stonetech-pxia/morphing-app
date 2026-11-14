@@ -56,6 +56,22 @@ function coveredArea(box: Box, rects: readonly Box[]): number {
   return total;
 }
 
+/** 底色和字至少差这么多（WCAG 的对比度，1 是一样，21 是黑白）。 */
+const MIN_FILL_CONTRAST = 2;
+
+/** 两种颜色（六位十六进制）的对比度。 */
+function contrast(a: string, b: string): number {
+  const luminance = (hex: string) => {
+    const [r, g, b] = [0, 2, 4].map((i) => {
+      const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+  };
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi! + 0.05) / (lo! + 0.05);
+}
+
 /** 给已隔离、参与正文排版的整图接上原生剪图；只有纯装饰可以留在页底。 */
 export function applyNativeGraphics(
   page: DocPage,
@@ -103,6 +119,12 @@ export function applyNativeGraphics(
     }
     return undefined;
   };
+  // 底色和字的颜色差不多（黑字落在 PDF 用黑色实心框画出来的边框上，EU 样本 062）：字会看不见，宁可不加底色。
+  // 不知道字的颜色时照旧。
+  const legibleFill = (fill: string | undefined, color: string | undefined) =>
+    fill && fill !== 'FFFFFF' && (!color || contrast(fill, color) >= MIN_FILL_CONTRAST)
+      ? fill
+      : undefined;
   const convert = (block: DocLeaf): DocLeaf => {
     if (block.kind === 'image') {
       const i = owned.findIndex(
@@ -115,7 +137,8 @@ export function applyNativeGraphics(
         ...block,
         cellLayout: block.table.cells.map((cell) => {
           const previous = block.cellLayout?.find((c) => c.row === cell.row && c.col === cell.col);
-          const fill = cell.box ? fillOf(cell.box) : undefined;
+          const found = cell.box ? fillOf(cell.box) : undefined;
+          const fill = cell.text.trim() && cell.box ? legibleFill(found, colorOf(cell.box)) : found;
           return {
             ...previous,
             row: cell.row,
@@ -123,11 +146,11 @@ export function applyNativeGraphics(
             ...(fill && fill !== 'FFFFFF' ? { fill } : {}),
             lines: (previous?.lines ?? []).map((line) => {
               const color = colorOf(line);
-              const fill = fillOf(line);
+              const fill = legibleFill(fillOf(line), color);
               return {
                 ...line,
                 ...(color && (color !== 'FFFFFF' || fill) ? { color } : {}),
-                ...(fill && fill !== 'FFFFFF' ? { fill } : {}),
+                ...(fill ? { fill } : {}),
               };
             }),
           };
@@ -135,7 +158,7 @@ export function applyNativeGraphics(
       };
     if (block.kind !== 'paragraph' && block.kind !== 'list') return block;
     const color = colorOf(block.box);
-    const fill = fillOf(block.box);
+    const fill = legibleFill(fillOf(block.box), color);
     return {
       ...block,
       ...(color ? { color: color === 'FFFFFF' && !fill && !background ? '000000' : color } : {}),

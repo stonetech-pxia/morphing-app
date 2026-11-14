@@ -165,6 +165,21 @@ describe('local source PDF graphics', () => {
     );
     expect(p.blocks[1]).toMatchObject({ color: '1B2A49', fill: 'FFC857' });
   });
+  it('does not shade black text with the black frame drawn around it (EU sample 062)', () => {
+    // 表单的边框是 PDF 里的黑色实心框，上面再盖白色的框；标签贴着边框，白框盖不到它的八成。
+    const label = { x: 60, y: 297, width: 120, height: 22 };
+    const fills = [
+      { box: { x: 50, y: 296, width: 500, height: 70 }, color: '000000' },
+      { box: { x: 52, y: 302, width: 496, height: 62 }, color: 'FFFFFF' },
+    ];
+    const p = applyNativeGraphics(
+      { ...page(), blocks: [{ kind: 'paragraph', box: label, text: '10. Nazwisko' }] },
+      { owned: [], colors: [{ box: label, color: '000000' }], fills },
+      [],
+    );
+    expect(p.blocks[0]).toMatchObject({ text: '10. Nazwisko', color: '000000' });
+    expect(p.blocks[0]).not.toHaveProperty('fill');
+  });
   it('retains the established editable layout for a rotated table', () => {
     const p = page();
     p.blocks = [
