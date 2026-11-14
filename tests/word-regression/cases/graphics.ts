@@ -265,4 +265,18 @@ export const GRAPHICS: Case[] = [
       times('Gemünden', 1),
     ],
   },
+  {
+    id: 'letterhead-logo-in-frame',
+    suite: 'graphics',
+    fix: 'EU sample 097',
+    what: "School report whose framed letterhead holds a small raster logo beside the school's address and the pupil's name, birth date and class: the layout model saw the whole header as one picture region and, because the logo proved a picture was there, the region (frames, address, pupil data and the title under it) became one picture with no editable text.",
+    lang: 'fra',
+    checks: [
+      times('Date de naissance', 1),
+      times('DUPONT Lina', 1),
+      times('47120 SAINTE-MARIE', 1),
+      times('BULLETIN DU PREMIER', 1),
+      images({ min: 1 }),
+    ],
+  },
 ];

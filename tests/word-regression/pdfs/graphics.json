@@ -112,5 +112,11 @@
     "id": "patterned-ticket",
     "source": "21-patterned-ticket.scan.html",
     "sha256": "adb18e413cb35248923d7505ddf9a9d6100c0c92b9d3d0d12611e61dd2646c49"
+  },
+  {
+    "page": 20,
+    "id": "letterhead-logo-in-frame",
+    "source": "22-letterhead-logo-in-frame.html",
+    "sha256": "cb83d4f032c05e3bde7f2b7019957df88ca322cff9a8d15150ed63499b2802f8"
   }
 ]

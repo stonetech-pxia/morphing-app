@@ -316,4 +316,28 @@ describe('digital PDF graphics ownership', () => {
     // 水印笔画认出来的「字」不当正文；正文行都留着。
     expect(result.watermarkInk).toEqual([12]);
   });
+  it('owns only the logo, not a letterhead region around it that holds stacked lines of text (EU sample 097)', () => {
+    // 成绩单的抬头：两个框，左边学校地址和一个小位图标志，右边四行「标签 : 值」；版面模型把整个抬头框成一张图。
+    const header = box(30, 30, 540, 110);
+    const logo = { i: 50, image: true, box: box(200, 45, 60, 50) };
+    const lines = [
+      text(1, box(45, 40, 110, 10), 'Collège Jean Moulinet'),
+      text(2, box(45, 65, 90, 10), '12 rue des Écoles'),
+      text(3, box(45, 80, 100, 10), '47120 SAINTE-MARIE'),
+      text(4, box(45, 95, 100, 10), 'tél : 05 53 00 11 22'),
+      text(5, box(310, 45, 80, 10), 'NOM – Prénom :'),
+      text(6, box(310, 62, 90, 10), 'Date de naissance :'),
+      text(7, box(310, 79, 40, 10), 'Classe :'),
+      text(8, box(310, 96, 80, 10), 'Année scolaire :'),
+      text(9, box(430, 45, 70, 10), 'DUPONT Lina'),
+      text(10, box(430, 62, 60, 10), '14/05/2011'),
+    ];
+    const result = plan([...lines, logo], {
+      ...input,
+      lines: lines.map((t) => ({ ...t.box, chars: t.text.replace(/\s/g, '').length })),
+      candidates: [header],
+    });
+    expect(result.owned).toEqual([logo.box]);
+    expect(result.keep.size).toBe(0);
+  });
 });

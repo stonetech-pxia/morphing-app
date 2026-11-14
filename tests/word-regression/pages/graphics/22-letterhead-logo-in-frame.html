@@ -1,0 +1,35 @@
+<!doctype html><meta charset="utf-8" /><style>
+  @page { size: A4; margin: 0; }
+  body { font: 11pt/1.35 Arial, Helvetica, sans-serif; margin: 0; padding: 10mm 10mm 0 10mm; width: 190mm; color: #111; }
+  .head { display: flex; border: 1px solid #555; }
+  .head > div { padding: 3mm 4mm; }
+  .school { width: 82mm; border-right: 1px solid #555; position: relative; height: 30mm; }
+  .school img { position: absolute; right: 2mm; top: 5mm; width: 30mm; }
+  .pupil { flex: 1; }
+  .pupil td { padding: 0 0 1.2mm; }
+  .pupil td:first-child { width: 58mm; }
+  .row2 { display: flex; margin-top: 5mm; align-items: center; }
+  .title { width: 92mm; text-align: center; font: bold 18pt/1.25 Arial, sans-serif; }
+  .box { flex: 1; height: 26mm; border: 1px solid #333; }
+  h3 { text-align: center; font-size: 12pt; margin: 6mm 0 3mm; }
+  table.c { border-collapse: collapse; width: 100%; font-size: 10pt; }
+  table.c td { border: 1px solid #333; padding: 1mm 2mm; }
+</style>
+<div class="head">
+  <div class="school"><b>Collège Jean Moulinet</b><br /><br />12 rue des Écoles<br />47120 SAINTE-MARIE<br />tél : 05 53 00 11 22<img src="data:image/png;base64,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" alt="" /></div>
+  <div class="pupil"><table>
+    <tr><td>NOM – Prénom :</td><td><b>DUPONT Lina</b></td></tr>
+    <tr><td>Date de naissance :</td><td>14/05/2011</td></tr>
+    <tr><td>Classe :</td><td>4°2</td></tr>
+    <tr><td>Année scolaire :</td><td>2025-2026</td></tr>
+  </table></div>
+</div>
+<div class="row2"><div class="title">BULLETIN DU PREMIER<br />TRIMESTRE</div><div class="box"></div></div>
+<h3>COMPÉTENCES PARTAGÉES</h3>
+<table class="c">
+  <tr><td>Respecter les règles de vie collective</td><td>J</td><td>J</td></tr>
+  <tr><td>Lire et comprendre un texte, un énoncé ou une consigne</td><td>V</td><td>J</td></tr>
+  <tr><td>Écrire correctement un texte ou une réponse</td><td>J</td><td>J</td></tr>
+  <tr><td>S'exprimer à l'oral avec un vocabulaire adapté</td><td>V</td><td>J</td></tr>
+</table>
+</body>

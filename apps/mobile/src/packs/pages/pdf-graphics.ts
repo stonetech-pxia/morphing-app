@@ -337,13 +337,30 @@ function planNativeGraphics(records, input) {
       24;
   // 模型找到了整幅示意图、原生图像证明其中确实有图时，把零散位图和矢量标签作为一张图。
   // 很大的表单区、长段正文和没有原生图像佐证的模型误报不接管。
+  // 区域里图外面有一叠左对齐、一行接一行的字（信头的地址、「NOM : / Date de naissance : / Classe :」，
+  // EU 样本 097）：那是框着的正文，不是图里零散的标注，区域不接管，只剪图自己。
+  const textStack = (items) =>
+    items.some((a) => {
+      const column = items
+        .filter((t) => Math.abs(t.box.x - a.box.x) <= Math.max(2, a.box.height * 0.3))
+        .sort((p, q) => p.box.y - q.box.y);
+      let run = 1;
+      for (let k = 1; k < column.length; k++) {
+        const gap = column[k].box.y - column[k - 1].box.y;
+        run = gap > 0 && gap <= 2.5 * column[k - 1].box.height ? run + 1 : 1;
+        if (run >= 4) return true;
+      }
+      return false;
+    });
   for (const b of input.candidates || []) {
     const inside = texts.filter((t) => covered(t.box, b) > 0.8);
     if (area(b) < area(full) * 0.7 &&
         owned.some((o) => covered(o, b) > 0.8) &&
         inside.every((t) => t.text.trim().length <= 72) &&
         inside.reduce((n, t) => n + t.text.trim().length, 0) < 180) {
-      owned.push(b); nativeArtwork = true;
+      if (!textStack(inside.filter((t) => !owned.some((o) => covered(t.box, o) > 0.8))))
+        owned.push(b);
+      nativeArtwork = true;
     }
   }
   const hasGraphic =
