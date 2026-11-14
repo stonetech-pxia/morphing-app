@@ -391,6 +391,57 @@ describe('Word table evidence', () => {
     expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
   });
 
+  it('reflows a letter in a plain frame instead of one paragraph per line (EU sample 075)', () => {
+    // 只有四条边的框里是一封信：地址一排一行，「Datum」在右边，下面两段折行的正文。
+    const lines = [
+      word('Absender:', 130, 120, 120),
+      word('Klara Beispiel', 130, 150, 170),
+      word('Lindenweg 7', 130, 180, 140),
+      word('Stadtwerke laut Liefervertrag', 130, 240, 330),
+      word('Datum', 800, 240, 70),
+      word(
+        'das Landgericht hat mit Urteil vom 12. März entschieden, dass die Gebühr',
+        130,
+        300,
+        740,
+      ),
+      word(
+        'für die Zusendung der Rechnung auf Papier nicht zulässig war, und das gilt',
+        130,
+        330,
+        730,
+      ),
+      word('auch für alle älteren Verträge.', 130, 360, 330),
+      word(
+        'Ich habe seit dem 1. Januar 2019 unter der Kundennummer 4711 jeden Monat',
+        130,
+        420,
+        735,
+      ),
+      word(
+        'zwei Euro für die Papierrechnung gezahlt und fordere den Betrag zurück von',
+        130,
+        450,
+        738,
+      ),
+      word('Ihnen bis zum Ende des Monats.', 130, 480, 320),
+    ];
+    const page = buildDocPage({
+      image: image(lines, gridRects([100, 900], [100, 520])),
+      lines,
+      source: 'framed-letter',
+      skew: 0,
+    });
+    expect(leafBlocks(page).filter((b) => b.kind === 'table')).toHaveLength(0);
+    const texts = leafBlocks(page).flatMap((b) => (b.kind === 'paragraph' ? [b.text] : []));
+    expect(texts.some((t) => t.includes('Gebühr') && t.includes('älteren Verträge'))).toBe(true);
+    expect(texts.some((t) => t.includes('Januar 2019') && t.includes('Ende des Monats'))).toBe(
+      true,
+    );
+    expect(texts.some((t) => t.includes('Klara Beispiel') && t.includes('Gebühr'))).toBe(false);
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
+  });
+
   it('keeps a sign-up sheet with a header row and empty rows as a table', () => {
     const lines = [
       word('Name', 120, 120, 100),

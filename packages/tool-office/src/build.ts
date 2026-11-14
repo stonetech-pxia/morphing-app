@@ -35,7 +35,7 @@ export interface BuildOptions {
   onTable?: (
     table: TableBlock,
     lines: readonly OcrBox[],
-    check: { chopped: number; ruled: boolean },
+    check: { chopped: number; ruled: boolean; framedText?: boolean },
   ) => void;
   /**
    * 带线的表以外也认没有线的表（D-506：和转 Word 同一套规则，D-471、D-502、D-503），默认认。
@@ -80,6 +80,8 @@ export interface Grid {
   /** 每个位置属于哪个格子（r * cols + c → cells 的下标）。 */
   owner: Int32Array;
   cells: TableCell[];
+  /** 只是一个框着几行字的框，不是表（EU 样本 075）。 */
+  framedText?: boolean;
 }
 
 /** 一个边上有线的长度不到一半就合并两边的格子。 */
@@ -219,11 +221,27 @@ function gapColumns(lines: readonly OcrBox[], left: number, right: number, lineH
   return out;
 }
 
+/**
+ * 框里的字按字的空隙能分成几列，而且至少一半的排在两列以上有字（键值对、一排一项的清单）：
+ * 这样才按排分成一行一格。
+ */
+function alignedRows(lines: readonly OcrBox[], left: number, right: number, lineHeight: number) {
+  const gaps = gapColumns(lines, left, right, lineHeight);
+  if (!gaps.length) return false;
+  const rows = textRows(lines);
+  const column = (x: number) => gaps.filter((g) => g < x).length;
+  const wide = rows.filter((row) => new Set(row.map((l) => column(centerX(l)))).size >= 2);
+  return wide.length >= rows.length / 2;
+}
+
 const indexOf = (bounds: readonly Boundary[], v: number) => {
   let i = 0;
   while (i < bounds.length - 2 && v >= bounds[i + 1]!.pos) i++;
   return i;
 };
+
+/** 只有四条边的框里至少这么多排字，才是框着一段文字的框（一行字的填写框、带底色的格子照旧当表）。 */
+const FRAME_TEXT_ROWS = 3;
 
 /** 框里的字至少这么多排、至少这么多排是一整行宽的字（一个识别框占框宽的这么多），才算一段正文。 */
 const PROSE_MIN_ROWS = 2;
@@ -281,6 +299,16 @@ function buildGrid(
   // 不按排分成一行一格（一行字一格，改一个字整段就乱了），也不按字的空隙分列。
   const framedProse =
     !inner.length && xs[0]!.lined && xs.at(-1)!.lined && isProse(lines, right - left);
+  // 只有四条边的框（里面没有一条线），字也不是一排一排对成几列的（一封信：地址、称呼、几段正文，EU 样本 075）：
+  // 这只是个框，不是表。照旧按排分好交出去，转 Word 不当表，字放回正文（见 framedText）。
+  const framedText =
+    !framedProse &&
+    !inner.length &&
+    xs[0]!.lined &&
+    xs.at(-1)!.lined &&
+    ys.filter((y) => y.lined).length <= 2 &&
+    textRows(lines).length >= FRAME_TEXT_ROWS &&
+    !alignedRows(lines, left, right, lineHeight);
   const isOpen = (r: number) =>
     !framedProse && (firstCovered < 0 || r < firstCovered || r > lastCovered);
   const split: Boundary[] = [ys[0]!];
@@ -423,7 +451,7 @@ function buildGrid(
   const remap = new Int32Array(cells.length);
   order.forEach(({ i }, k) => (remap[i] = k));
   for (let p = 0; p < owner.length; p++) owner[p] = remap[owner[p]!]!;
-  return { xs, ys, owner, cells: order.map((o) => o.cell) };
+  return { xs, ys, owner, cells: order.map((o) => o.cell), ...(framedText ? { framedText } : {}) };
 }
 
 /** 表格最上面至少这么多行、每行最多一格有字，才算表单的框（不是表的标题）。 */
@@ -855,6 +883,7 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     chopped: number;
     /** 每条行线、列线都是画出来的（不是按文字空隙分的）。 */
     ruled: boolean;
+    framedText?: boolean;
   }[] = [];
   for (const found of findTables(dropTextStrokes(page, flat), {
     ...(options.splitStacked ? { splitStacked: true } : {}),
@@ -917,6 +946,7 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     );
     if (!built) continue;
     let grid: Grid = built;
+    const { framedText } = built;
     // 中心在最外一条横线外面、又横跨了列线的字不是表里的（D-501：照片里弯的一行页脚压着表格的底线，
     // 放进表里会在列线处切碎）。只落在一列里的照旧放进表（表格底线下面的合计行）。
     const top = grid.ys[0]!;
@@ -1019,6 +1049,7 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
         grid.xs.length > 2 &&
         grid.xs.slice(1, -1).every((x) => x.lined) &&
         grid.ys.slice(1).every((y) => y.lined),
+      ...(framedText ? { framedText } : {}),
       block: {
         kind: 'table',
         rows: grid.ys.length - 1,
@@ -1121,7 +1152,11 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     }));
   });
   for (const tb of tables)
-    options.onTable?.(tb.block, tb.lines, { chopped: tb.chopped, ruled: tb.ruled });
+    options.onTable?.(tb.block, tb.lines, {
+      chopped: tb.chopped,
+      ruled: tb.ruled,
+      ...(tb.framedText ? { framedText: true } : {}),
+    });
   const colWidths =
     tables.length || ranged.length
       ? shared.pos.slice(1).map((x, c) => Math.round(x - shared.pos[c]!))

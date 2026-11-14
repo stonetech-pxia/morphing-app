@@ -1033,6 +1033,29 @@ export function fieldBoxTables(
 const FILL_IN_LINES = 3;
 
 /** 小装饰网格不靠总格数放行：反复出现的两列数据才是表格证据，空列不能算。 */
+/** 横线至少盖住格子宽的这么多。 */
+const RULE_ACROSS_SHARE = 0.5;
+
+/** 从 y0 到 y1 之间（两行字之间的白缝）有没有一条横穿 x0–x1 的线：某一排像素过半是深色的。 */
+function ruleAcross(image: RgbaImage, x0: number, x1: number, y0: number, y1: number): boolean {
+  const left = Math.max(0, Math.round(x0));
+  const right = Math.min(image.width, Math.round(x1));
+  if (right <= left) return false;
+  const step = Math.max(1, Math.round((right - left) / 200));
+  for (let y = Math.max(0, Math.round(y0)); y < Math.min(image.height, Math.round(y1)); y++) {
+    let dark = 0;
+    let total = 0;
+    for (let x = left; x < right; x += step) {
+      const o = (y * image.width + x) * 4;
+      total++;
+      if (0.299 * image.data[o]! + 0.587 * image.data[o + 1]! + 0.114 * image.data[o + 2]! < 200)
+        dark++;
+    }
+    if (dark >= RULE_ACROSS_SHARE * total) return true;
+  }
+  return false;
+}
+
 function isSparseColumnLayout(table: TableBlock): boolean {
   if (table.rows < 3 || table.cols < 2) return false;
   const filled = table.cells.filter((c) => c.text.trim());
@@ -1657,6 +1680,8 @@ function buildPage(
   // 横竖线画满的网格（格子都是线分出来的），只有这样的才可能是留给人填的空白表格。
   const ruledGrids = new Set<TableBlock>();
   const blankForm = (t: TableBlock) => ruledGrids.has(t) && isBlankFormGrid(t);
+  // 只是框着几行字的框（EU 样本 075 的信）：不当表，字放回正文。
+  const framedTexts = new Set<TableBlock>();
   const tableInput = {
     image: working,
     lines: available,
@@ -1680,10 +1705,11 @@ function buildPage(
       if (proseRows(rows)) return joinParagraph(rows.flatMap((r) => r.lines)).trim();
       return rows.map((r) => join(r.lines).trim()).join('\n');
     },
-    onTable: (table, placed, { chopped, ruled }) => {
+    onTable: (table, placed, { chopped, ruled, framedText }) => {
       placedIn.set(table, placed);
       choppedIn.set(table, chopped);
       if (ruled) ruledGrids.add(table);
+      if (framedText) framedTexts.add(table);
     },
   });
   const sheet = buildTablePage(tableInput, tableOptions(false));
@@ -1731,7 +1757,8 @@ function buildPage(
       (blankForm(b) || !isRuleGrid(b, lines.filter((l) => inBox(l, b.box)).length)) &&
       !chopsMuch(b),
   );
-  const sparse = (t: TableBlock) => repairTables && !blankForm(t) && isSparseColumnLayout(t);
+  const sparse = (t: TableBlock) =>
+    repairTables && !blankForm(t) && (isSparseColumnLayout(t) || framedTexts.has(t));
   const colWidthsOf = new Map(sheetTables.map((t) => [t, sheet.colWidths] as const));
   // 共用一个外框、上下叠着的几张表（EU 样本 004 的登记表）连成了一张：在列线换了的横线处分开（findTables 的
   // splitStacked），每张各自判断。原来要当表的，分开后能当表的部分当表（都不能时照旧整张）；原来被当成表单画线
@@ -1826,9 +1853,39 @@ function buildPage(
   };
   const releasedCells = new Map<OcrBox, TableCell>();
   for (const table of rejected) {
-    for (const l of placedIn.get(table) ?? []) {
-      const cell = table.cells.find((c) => c.box && lineShareIn(l, c.box) >= 0.5);
-      if (cell) releasedCells.set(l, cell);
+    const placed = placedIn.get(table) ?? [];
+    const cellOf = (l: OcrBox) => table.cells.find((c) => c.box && lineShareIn(l, c.box) >= 0.5);
+    // 上下两格之间没画横线（字之间是白纸）时算同一格：信的外框右边每行一个小刻度，网格一行字切一排，
+    // 去掉网格以后照样一行一段（EU 样本 075）。真画了横线的（议程的格子）仍是各自一条。
+    const same = new Map<TableCell, TableCell>();
+    for (const cell of [...table.cells].sort((a, b) => a.row - b.row)) {
+      const above = table.cells.find(
+        (c) =>
+          c.col === cell.col &&
+          c.colSpan === cell.colSpan &&
+          c.row + c.rowSpan === cell.row &&
+          c.box &&
+          cell.box,
+      );
+      const upper = placed.filter((l) => above && cellOf(l) === above);
+      const lower = placed.filter((l) => cellOf(l) === cell);
+      if (
+        above &&
+        upper.length &&
+        lower.length &&
+        !ruleAcross(
+          working,
+          cell.box!.x,
+          cell.box!.x + cell.box!.width,
+          Math.max(...upper.map((l) => l.y + l.height)),
+          Math.min(...lower.map((l) => l.y)),
+        )
+      )
+        same.set(cell, same.get(above) ?? above);
+    }
+    for (const l of placed) {
+      const cell = cellOf(l);
+      if (cell) releasedCells.set(l, same.get(cell) ?? cell);
     }
   }
   // 没有线的表（D-471）：几排按三列以上对齐的，排成没有边框的表，不接成一句话。

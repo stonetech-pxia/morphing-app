@@ -386,4 +386,22 @@ export const TEXT_FLOW: Case[] = [
     what: 'The form code "A1" printed in large white letters on a green header band, away from the page edge: being short, tall and isolated, it was dropped as a stray mark, so the one word that names the form was lost.',
     checks: [order('A1', 'Certificate concerning', 'INFORMATION FOR THE HOLDER')],
   },
+  {
+    id: 'framed-letter-ticks',
+    suite: 'text-flow',
+    fix: 'EU sample 075',
+    what: 'A letter body in a light frame whose right edge has a small tick at every line: the ticks made a grid with one row per line, and after the grid was rejected each line stayed its own paragraph, so the letter could not reflow.',
+    lang: 'deu',
+    checks: [
+      together(
+        'das Landgericht hat mit Urteil',
+        'nicht zulässig war',
+        'vor dem Urteil geschlossen wurden',
+      ),
+      together('Ich habe seit dem 1. Januar 2019', 'hiermit von Ihnen zurückfordere'),
+      together('Ich fordere Sie deshalb auf', 'die Verbraucherzentrale einschalten'),
+      apart('Sehr geehrte Damen und Herren', 'das Landgericht'),
+      apart('zurückfordere', 'Ich fordere Sie deshalb auf'),
+    ],
+  },
 ];

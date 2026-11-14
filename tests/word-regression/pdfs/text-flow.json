@@ -118,5 +118,11 @@
     "id": "form-code-on-band",
     "source": "20-form-code-on-band.html",
     "sha256": "5933c9d80c1b9264ab974b7a8fca00ac36f975c047f54d1cdae554f3b45d2c5c"
+  },
+  {
+    "page": 21,
+    "id": "framed-letter-ticks",
+    "source": "21-framed-letter-ticks.html",
+    "sha256": "dafa5a57be34455a9b8d10af6d17b0171e8dd98202d997c55844f9e1b2f20527"
   }
 ]
