@@ -480,7 +480,7 @@ export const TABLES: Case[] = [
   {
     id: 'tbl-framed-prose-callout',
     suite: 'tables',
-    fix: 'EU sample 038',
+    fix: 'd0be9fc5; EU sample 038',
     what: 'A framed bold notice (one thin frame around a justified paragraph, no inner rules) became a bordered table with one row per text line, so the paragraph could not reflow; it must be one framed cell holding one paragraph.',
     lang: 'fra',
     checks: [

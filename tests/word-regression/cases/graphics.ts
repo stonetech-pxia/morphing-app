@@ -215,7 +215,7 @@ export const GRAPHICS: Case[] = [
   {
     id: 'cover-page-text',
     suite: 'graphics',
-    fix: 'EU sample 036',
+    fix: '2c0e3e19; EU sample 036',
     what: 'Cover page whose photo, coloured panels and title band make one page-sized image proposal with no caption: the whole page used to become one picture and every word (title, programme name) was lost; the text must stay editable.',
     lang: 'spa',
     checks: [

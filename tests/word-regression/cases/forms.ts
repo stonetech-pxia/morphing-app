@@ -277,7 +277,7 @@ export const FORMS: Case[] = [
   {
     id: 'open-blank-grids',
     suite: 'forms',
-    fix: 'EU sample 031',
+    fix: 'd1bebd26; EU sample 031',
     what: 'Two blank "Lfd. Nr. / Datum von / Datum bis / Kalendertag(e)" grids side by side, with only horizontal rules and inner column lines (no outer verticals) and the header above the first rule: they were taken for form ruling, so the header became loose lines and the rows a two-column number list that swallowed the footer; each must be a fillable 12×4 table.',
     lang: 'deu',
     checks: [

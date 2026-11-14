@@ -231,7 +231,7 @@ export const GEOMETRY: Case[] = [
   {
     id: 'full-bleed-band-margins',
     suite: 'geometry',
-    fix: 'EU sample 036',
+    fix: 'd2f9fb94; EU sample 036',
     what: 'Ragged-right prose between a full-bleed header band and a full-bleed footer graphic: the margins were taken from the edge-to-edge pictures (0 pt) and the paragraphs, whose two sides looked equally empty, were centred, so they ran from paper edge to paper edge; margins come from the text and the paragraphs stay left-aligned.',
     checks: [
       custom('left and right page margins are at least 40 pt', (c) => {

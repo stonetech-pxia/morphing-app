@@ -285,7 +285,7 @@ export const TEXT_FLOW: Case[] = [
   {
     id: 'numbered-headings-after-list',
     suite: 'text-flow',
-    fix: 'EU sample 037',
+    fix: 'faa5c6fd; EU sample 037',
     what: 'Agenda list 1–6 followed by the numbered headings "1. Délibérations" and "1. A l’unanimité": they were joined into the list and renumbered 7 and 8, which changes what the minutes say; a number that does not continue the list starts a new one.',
     lang: 'fra',
     // Word 的自动编号不在正文里：九个编号数字算「丢了」。
@@ -301,7 +301,7 @@ export const TEXT_FLOW: Case[] = [
   {
     id: 'justified-line-word-gaps',
     suite: 'text-flow',
-    fix: 'EU sample 037',
+    fix: 'dabf6e80; EU sample 037',
     what: 'A short force-justified line ("dont le siège … (adresse précise)") whose huge word gaps make OCR return every word as its own box: each word became its own paragraph, in scrambled order; it must stay one line.',
     lang: 'fra',
     checks: [
@@ -312,7 +312,7 @@ export const TEXT_FLOW: Case[] = [
   {
     id: 'numbered-items-number-column',
     suite: 'text-flow',
-    fix: 'EU sample 032',
+    fix: '1192bf4f; EU sample 032',
     what: 'Numbered declaration items whose numbers stand a long gap left of the text, with rules under the text only: the numbers were taken for a label column (or put in a different layout region) and stacked in one cell beside the text, so "7." sat beside the previous item; each number must stay with its own item.',
     checks: [
       together('3.', 'This declaration of conformity is issued'),
