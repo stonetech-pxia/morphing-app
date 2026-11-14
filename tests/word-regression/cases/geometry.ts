@@ -1,5 +1,5 @@
 // geometry 套件：纸张大小、位置和缩进、栏宽、表格行高、图片大小。
-import { custom, leaves, sideBySide, table } from '../lib/checks';
+import { aligned, custom, leaves, sideBySide, table } from '../lib/checks';
 import type { Case } from '../lib/case';
 import {
   fitsOneLine,
@@ -226,6 +226,22 @@ export const GEOMETRY: Case[] = [
         const got = sizeOf(c, 'Muster einer Gebrauchsanweisung');
         return Math.abs(got - 14) <= 1.5 ? null : `${got} pt`;
       }),
+    ],
+  },
+  {
+    id: 'full-bleed-band-margins',
+    suite: 'geometry',
+    fix: 'EU sample 036',
+    what: 'Ragged-right prose between a full-bleed header band and a full-bleed footer graphic: the margins were taken from the edge-to-edge pictures (0 pt) and the paragraphs, whose two sides looked equally empty, were centred, so they ran from paper edge to paper edge; margins come from the text and the paragraphs stay left-aligned.',
+    checks: [
+      custom('left and right page margins are at least 40 pt', (c) => {
+        const m = c.doc.pages[0]?.margins;
+        if (!m) return 'no margins';
+        return m.left >= 40 && m.right >= 40 ? null : `left ${m.left}, right ${m.right}`;
+      }),
+      aligned('Dit modelcontract is opgesteld', 'left'),
+      aligned('Het programma ondersteunt partijen', 'left'),
+      aligned('We horen graag wat je vindt', 'left'),
     ],
   },
 ];

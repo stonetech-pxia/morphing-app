@@ -1979,9 +1979,19 @@ function buildPage(
         para.rows.length <= 2 &&
         Math.min(box.x, image.width - box.x - box.width) > PAGE_CENTER_MARGIN * image.width &&
         Math.abs(box.x - (image.width - box.x - box.width)) < PAGE_CENTER * image.width;
+      // 几行左边对齐、右边参差的是左对齐的段落，哪怕整段左右空得差不多（EU 样本 036：满版的图把页边压没了）。
+      const lefts = para.rows.map((r) => r.box.x);
+      const rights = para.rows.map((r) => r.box.x + r.box.width);
+      const raggedRight =
+        para.rows.length >= 2 &&
+        Math.max(...lefts) - Math.min(...lefts) <= 0.5 * h &&
+        Math.max(...rights) - Math.min(...rights) > 1.5 * h;
+      const boxAlign = alignmentIn(box, h, para.rows.length, textLeft, textRight, image.width);
       const align = pageCenteredHeading
         ? 'center'
-        : alignmentIn(box, h, para.rows.length, textLeft, textRight, image.width);
+        : boxAlign === 'center' && raggedRight
+          ? undefined
+          : boxAlign;
       const centered = align === 'center';
       const right = align === 'right';
       // 首行缩进：第一行的左边和其他行比，最多 4 个行高（D-330）。只有一行的段落不写首行缩进（D-463）：
@@ -2196,7 +2206,11 @@ function buildPage(
     )
       return previous;
   }
-  const content = leafBlocks(page);
+  // 页边距按字算：贴着纸边的图（满版的色带、页脚的花纹）会把边距压成 0，居中的段落就从纸边排到纸边（EU 样本 036）。
+  // 页上只有图时按图算。
+  const leaves = leafBlocks(page);
+  const texts = leaves.filter((b) => b.kind !== 'image');
+  const content = texts.length ? texts : leaves;
   if (content.length && paper) {
     // 横竖各用自己的比例（近似 A4 的照片按 A4 纸，两个比例只差一点点）。
     const k = paper.width / image.width;

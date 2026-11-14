@@ -715,7 +715,12 @@ export function writeDocx(
       : (margins.top / PAGE_W) * page.width;
     const foreground = page.blocks.filter((b) => !(b.kind === 'image' && b.background));
     const leaves = leafBlocks({ blocks: foreground });
-    const base = Math.min((margins.left / PAGE_W) * page.width, ...leaves.map((b) => b.box.x));
+    // 和页边距一样按字算（doc.ts）：贴着纸边的图不把所有字的缩进都往右推；比这更靠左的图缩进为 0。
+    const textLeaves = leaves.filter((b) => b.kind !== 'image');
+    const base = Math.min(
+      (margins.left / PAGE_W) * page.width,
+      ...(textLeaves.length ? textLeaves : leaves).map((b) => b.box.x),
+    );
     // 左边对齐的块左边只差一点（认字框的左边总有几个像素的抖动）时对齐到同一个位置：
     // 不然每段的缩进都差几磅，Word 里左边是锯齿。差不到 0.7 个字宽的归为一组，取这一组最左的。
     const emPx = (bodySize / (PAGE_W / 20)) * page.width;

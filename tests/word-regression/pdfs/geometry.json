@@ -64,5 +64,11 @@
     "id": "landscape-text-size",
     "source": "11-landscape-text-size.html",
     "sha256": "e5d3e24073f551439ee5fe066278914d9cb04e6bda7f6c1be39d2adebc7c8390"
+  },
+  {
+    "page": 12,
+    "id": "full-bleed-band-margins",
+    "source": "12-full-bleed-band-margins.html",
+    "sha256": "64aec6a8b87fb011f8ac6f9c1b8a0160de58be77ea6330bcc2d270f18dd4bc78"
   }
 ]

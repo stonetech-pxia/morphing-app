@@ -658,6 +658,38 @@ describe('buildDocPage', () => {
     expect(leafBlocks(doc).some((b) => b.kind === 'paragraph' && b.text === '2.')).toBe(false);
   });
 
+  it('does not centre a ragged-right paragraph whose lines share one left edge (EU sample 036)', () => {
+    // 字的左右两边空得差不多（满版的图把整页文字的左右边撑到了纸边），但几行左边对齐、右边参差：左对齐。
+    const { image, lines } = textPage([
+      { text: 'A margin note sits at the far left.', x: 5, y: 60, width: 300 },
+      {
+        text: 'The programme supports schools and towns in planning their buildings',
+        x: 160,
+        y: 200,
+        width: 680,
+      },
+      {
+        text: 'and offers a library of tools, independent advice and a community',
+        x: 160,
+        y: 228,
+        width: 600,
+      },
+      { text: 'A footer mark sits at the far right.', x: 690, y: 1300, width: 305 },
+    ]);
+    const doc = buildDocPage({
+      image,
+      lines,
+      source: 's',
+      skew: 0,
+      paper: { width: 595, height: 842 },
+    });
+    const para = leafBlocks(doc).find(
+      (b): b is DocParagraph => b.kind === 'paragraph' && b.text.startsWith('The programme'),
+    );
+    expect(para?.text).toContain('and offers a library');
+    expect(para?.align).toBeUndefined();
+  });
+
   it('treats a picture region full of body text as text, not as a picture', () => {
     const rows = Array.from({ length: 5 }, (_, i) => ({
       text: `Line ${i + 1} of a long paragraph that fills the page width`,

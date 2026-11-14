@@ -1242,6 +1242,45 @@ describe('writeDocx', () => {
     expect(xml).toContain('<w:ind w:firstLine="595"/>');
   });
 
+  it('measures left indents from the text, not from a full-bleed picture at the paper edge (EU sample 036)', () => {
+    // 满版的页眉色带从 x = 0 开始；字从左页边距（95 像素）开始，不该都往右缩进 95 像素。
+    const band = {
+      kind: 'image' as const,
+      src: 'band',
+      box: { x: 0, y: 0, width: 1000, height: 60 },
+    };
+    const images = new Map([
+      ['band', { bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), width: 1000, height: 60 }],
+    ]);
+    const doc: DocDoc = {
+      version: 1,
+      pages: [
+        {
+          ...page([
+            band,
+            {
+              kind: 'paragraph',
+              text: 'Voorwoord',
+              heading: 1,
+              box: { x: 95, y: 120, width: 200, height: 40 },
+            },
+            {
+              kind: 'paragraph',
+              text: 'Body text.',
+              box: { x: 95, y: 180, width: 300, height: 30 },
+            },
+          ]),
+          paper: { width: 595, height: 842 },
+          margins: { left: 56.7, right: 56.7, top: 56.7, bottom: 56.7 },
+        },
+      ],
+    };
+    const xml = unzip(writeDocx(doc, images)).text('word/document.xml');
+    const paras = xml.match(/<w:p>.*?<\/w:p>/g)!.filter((p) => /Voorwoord|Body text/.test(p));
+    expect(paras).toHaveLength(2);
+    for (const p of paras) expect(p).not.toMatch(/<w:ind w:left/);
+  });
+
   it('places each paragraph at its left edge and keeps the vertical gaps, as plain paragraphs (D-463)', () => {
     // 原图宽 1000 像素 = A4 宽 11906 twip；左页边距 1134 twip = 95 像素，左缩进从那里算。
     const at = (x: number, y: number, width: number) => ({ x, y, width, height: 30 });
