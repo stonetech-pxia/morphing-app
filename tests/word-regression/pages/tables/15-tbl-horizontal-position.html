@@ -1,0 +1,74 @@
+<!doctype html><meta charset="utf-8" /><style>
+  @page {
+    size: A4;
+    margin: 15mm;
+  }
+  body {
+    font:
+      10pt/1.35 'Courier New',
+      monospace;
+    margin: 0;
+  }
+  /* 一张窄小票打在 A4 的正中间：表格要留在原来的横向位置，不能挪到左边距。 */
+  .receipt {
+    width: 78mm;
+    margin: 25mm auto 0;
+  }
+  .c {
+    text-align: center;
+  }
+  h1 {
+    font-size: 13pt;
+    margin: 0 0 2mm;
+    text-align: center;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 4mm 0;
+  }
+  td,
+  th {
+    border: 1px solid #000;
+    padding: 1mm 1.5mm;
+    text-align: left;
+  }
+  td.n,
+  th.n {
+    text-align: right;
+  }
+</style>
+<div class="receipt">
+  <h1>BOULANGERIE MORIN</h1>
+  <div class="c">5 place du Marché, Annecy</div>
+  <div class="c">Ticket 0418 · 12/11/2026 08:14</div>
+  <table>
+    <tr>
+      <th>Article</th>
+      <th class="n">Qty</th>
+      <th class="n">EUR</th>
+    </tr>
+    <tr>
+      <td>Baguette</td>
+      <td class="n">2</td>
+      <td class="n">2.40</td>
+    </tr>
+    <tr>
+      <td>Croissant</td>
+      <td class="n">4</td>
+      <td class="n">5.20</td>
+    </tr>
+    <tr>
+      <td>Tarte aux pommes</td>
+      <td class="n">1</td>
+      <td class="n">14.50</td>
+    </tr>
+    <tr>
+      <td>Pain de seigle</td>
+      <td class="n">1</td>
+      <td class="n">3.90</td>
+    </tr>
+  </table>
+  <div class="c">Total EUR 26.00 · Card</div>
+  <div class="c">Thank you, see you soon</div>
+</div>

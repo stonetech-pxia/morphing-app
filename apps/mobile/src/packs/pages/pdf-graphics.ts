@@ -6,6 +6,59 @@ const overlap = (a, b) =>
   Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) *
   Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
 const covered = (a, b) => overlap(a, b) / Math.max(1, area(a));
+// PDF.js 记录的路径（0 移动、1 直线、2/3 曲线、4 闭合）是什么形状：矩形、圆角矩形（四条边是横平竖直的直线、
+// 四个角是曲线，例如信息卡片）、椭圆。
+function pathShape(path, bounds) {
+  let j = 0,
+    curves = 0,
+    lines = 0,
+    closed = 0,
+    bad = false,
+    x = 0,
+    y = 0,
+    longest = 0,
+    straight = 0,
+    slanted = 0;
+  while (j < path.length) {
+    const op = path[j++];
+    if (op === 0 || op === 1) {
+      const nx = path[j++],
+        ny = path[j++];
+      if (op === 1) {
+        lines++;
+        longest = Math.max(longest, Math.hypot(nx - x, ny - y));
+        if (Math.abs(nx - x) < 0.01 || Math.abs(ny - y) < 0.01) straight += Math.hypot(nx - x, ny - y);
+        else slanted++;
+      }
+      x = nx;
+      y = ny;
+    } else if (op === 2) {
+      j += 4;
+      x = path[j++];
+      y = path[j++];
+      curves++;
+    } else if (op === 3) {
+      j += 2;
+      x = path[j++];
+      y = path[j++];
+      curves++;
+    } else if (op === 4) closed++;
+    else {
+      bad = true;
+      break;
+    }
+  }
+  const w = bounds ? bounds[2] - bounds[0] : 0,
+    h = bounds ? bounds[3] - bounds[1] : 0;
+  return {
+    ellipse: !bad && curves >= 4 && closed > 0 && longest < Math.min(w, h) * 0.05,
+    rectangle: !bad && curves === 0 && lines >= 3 && lines <= 4 && closed > 0,
+    // 圆角只占边的一小段：四条横平竖直的边加起来至少是外框周长的一半（浏览器把每个圆角拆成好几段曲线）。
+    rounded:
+      !bad && curves > 0 && closed > 0 && lines >= 2 && lines <= 4 && !slanted &&
+      straight >= (w + h) * 2 * 0.5,
+  };
+}
 function mergeGraphicBoxes(boxes) {
   const result = [];
   for (const original of boxes) {
@@ -32,6 +85,23 @@ function decorativeOperation(r, full) {
     (r.safeBackdrop || (!r.image && (r.rectangle || r.name === 'shadingFill') &&
       b.x <= full.width * 0.08 && b.y <= full.height * 0.08 &&
       b.x + b.width >= full.width * 0.92 && b.y + b.height >= full.height * 0.92));
+}
+// 画字的指令：没有 Unicode 的字形（text 是空串）也是字，不能当成绘图画进页底或图外的剪图。
+const isTextOp = (r) => typeof r.text === 'string';
+// 剪图那一遍画哪些指令：图里的字、透明字层画，图外的字不画；阴影蒙版下的绘图不画。
+function cropOperation(r, plan) {
+  if (!r) return false;
+  if (isTextOp(r)) return plan.keep.has(r.i) || r.mode === 3;
+  if (r.activeMask && plan.shadows.has(r.activeMask) && (r.name === 'constructPath' || r.image))
+    return false;
+  return true;
+}
+// 页底那一遍只画纯装饰：任何字都不画。
+function backgroundOperation(r, full) {
+  if (!r || isTextOp(r)) return false;
+  if (r.name === 'constructPath' || r.image || r.name === 'shadingFill')
+    return !!decorativeOperation(r, full);
+  return true;
 }
 function padGraphicBoxes(boxes, lines, width, height) {
   // 绘图框和版面框都有边界误差；剪图留少量白边，但不能接管相邻正文。
@@ -267,13 +337,30 @@ function planNativeGraphics(records, input) {
       24;
   // 模型找到了整幅示意图、原生图像证明其中确实有图时，把零散位图和矢量标签作为一张图。
   // 很大的表单区、长段正文和没有原生图像佐证的模型误报不接管。
+  // 区域里图外面有一叠左对齐、一行接一行的字（信头的地址、「NOM : / Date de naissance : / Classe :」，
+  // EU 样本 097）：那是框着的正文，不是图里零散的标注，区域不接管，只剪图自己。
+  const textStack = (items) =>
+    items.some((a) => {
+      const column = items
+        .filter((t) => Math.abs(t.box.x - a.box.x) <= Math.max(2, a.box.height * 0.3))
+        .sort((p, q) => p.box.y - q.box.y);
+      let run = 1;
+      for (let k = 1; k < column.length; k++) {
+        const gap = column[k].box.y - column[k - 1].box.y;
+        run = gap > 0 && gap <= 2.5 * column[k - 1].box.height ? run + 1 : 1;
+        if (run >= 4) return true;
+      }
+      return false;
+    });
   for (const b of input.candidates || []) {
     const inside = texts.filter((t) => covered(t.box, b) > 0.8);
     if (area(b) < area(full) * 0.7 &&
         owned.some((o) => covered(o, b) > 0.8) &&
         inside.every((t) => t.text.trim().length <= 72) &&
         inside.reduce((n, t) => n + t.text.trim().length, 0) < 180) {
-      owned.push(b); nativeArtwork = true;
+      if (!textStack(inside.filter((t) => !owned.some((o) => covered(t.box, o) > 0.8))))
+        owned.push(b);
+      nativeArtwork = true;
     }
   }
   const hasGraphic =
@@ -334,27 +421,54 @@ function planNativeGraphics(records, input) {
       ...groups.map((b) => ({ x: b.x - 2, y: b.y - 2, width: b.width + 4, height: b.height + 4 })),
     );
   }
-  owned.splice(0, owned.length, ...mergeGraphicBoxes(owned));
-  const ocr = (input.lines || []).filter((l) => !owned.some((b) => covered(l, b) > 0.8));
-  const total = ocr.reduce((n, l) => n + l.chars, 0);
-  const matched = ocr.reduce(
-    (n, l) =>
-      n +
-      (texts.some((t) => overlap(l, t.box) / Math.max(1, Math.min(area(l), area(t.box))) > 0.35)
-        ? l.chars
-        : 0),
-    0,
+  // 拼起来的整图下面压着成段的原生正文（斜着的「MUSTER」水印由几百条细位图拼成，EU 样本 071）：
+  // 那是水印、底纹，不是图。接管了就把正文一起画进剪图、切掉跨出图边的字；不接管，字照常可编辑，水印不画。
+  const merged = mergeGraphicBoxes(owned);
+  const watermarks = merged.filter(
+    (b) =>
+      texts
+        .filter((t) => covered(t.box, b) >= 0.8)
+        .reduce((n, t) => n + t.text.replace(/\s/g, '').length, 0) >= 180,
   );
+  owned.splice(0, owned.length, ...merged.filter((b) => !watermarks.includes(b)));
+  const native = (l) =>
+    texts.some((t) => overlap(l, t.box) / Math.max(1, Math.min(area(l), area(t.box))) > 0.35);
+  // 水印自己的笔画被识别成的字（「XXxHXXXXI」）：在水印里，又没有原生字和它对得上。
+  const ink = (l) => watermarks.some((b) => covered(l, b) > 0.8) && !native(l);
+  const ocr = (input.lines || []).filter(
+    (l) => !owned.some((b) => covered(l, b) > 0.8) && !ink(l),
+  );
+  const total = ocr.reduce((n, l) => n + l.chars, 0);
+  const matched = ocr.reduce((n, l) => n + (native(l) ? l.chars : 0), 0);
   // 隐藏的 OCR 字层不算数字正文。混合扫描页不能叠一张含正文的扫描图。
   if (total && matched / total < 0.85) return null;
   return {
     owned,
-    keep: new Set(texts.filter(keep).map((t) => t.i)),
+    watermarks,
+    // 识别行里哪些是水印的笔画（按传进来的 lines 的序号），转 Word 时不当字。
+    watermarkInk: (input.lines || []).flatMap((l, k) => (ink(l) ? [k] : [])),
+    // 图里的字（连同没有 Unicode 的字形）跟着剪图画。
+    keep: new Set(
+      records
+        .filter((r) => isTextOp(r) && r.box && r.alpha > 0.01 && r.mode !== 3 && keep(r))
+        .map((r) => r.i),
+    ),
     shadows: new Set(masks.keys()),
+    // 没画进剪图的字：Word 里按它写颜色；图里和它重叠的识别行也留作正文（不归图）。
     colors: texts.filter((t) => !keep(t)).map((t) => ({ box: t.box, color: t.color })),
-    fills: records.filter((r) => r.fill && r.rectangle && r.box && r.alpha > 0.9 && !r.mask)
-      .map((r) => ({ box: r.box, color: r.color })),
+    // 圆角的信息卡片也是字下面的底色：不进页底（只画整页装饰），只能随段落、格子的底色保留。
+    // 半透明的底色（20% 的品牌色，EU 样本 048）按它在白纸上看起来的浅色写，不写成不透明的深色。
+    fills: records.filter((r) => r.fill && (r.rectangle || r.rounded) && r.box && r.alpha >= 0.05 && !r.mask)
+      .map((r) => ({ box: r.box, color: r.alpha > 0.9 ? r.color : onWhite(r.color, r.alpha) })),
   };
+}
+/** 半透明的颜色（RRGGBB，不透明度 alpha）叠在白纸上的颜色。 */
+function onWhite(color, alpha) {
+  if (!/^[0-9A-F]{6}$/i.test(color)) return color;
+  return [0, 2, 4]
+    .map((k) => Math.round(255 - alpha * (255 - parseInt(color.slice(k, k + 2), 16))))
+    .map((v) => v.toString(16).toUpperCase().padStart(2, '0'))
+    .join('');
 }
 handlers.graphics = async ({ file, index, maxSide, figures, candidates, lines }) => {
   const doc = await open(file);
@@ -391,7 +505,12 @@ handlers.graphics = async ({ file, index, maxSide, figures, candidates, lines })
         if (name === 'save') stack.push({ ...state });
         else if (name === 'restore') state = stack.pop() || state;
         else if (name === 'beginGroup') {
-          groups.push({ state: { ...state }, mask: args[0]?.smask ? 'mask' + ++maskId : null });
+          // 透明组整组按开组时的不透明度叠上去（Illustrator 存的 20% 色块：外面 /ca 0.2，组里 /ca 1）。
+          groups.push({
+            state: { ...state },
+            mask: args[0]?.smask ? 'mask' + ++maskId : null,
+            alpha: state.alpha * (groups.at(-1)?.alpha ?? 1),
+          });
           state = { ...state, alpha: 1, smask: null };
         } else if (name === 'endGroup') {
           const g = groups.pop();
@@ -410,7 +529,7 @@ handlers.graphics = async ({ file, index, maxSide, figures, candidates, lines })
         const rec = {
           i,
           name,
-          alpha: state.alpha,
+          alpha: state.alpha * (groups.at(-1)?.alpha ?? 1),
           mode: state.mode,
           color: state.color,
           activeMask: state.smask,
@@ -431,47 +550,7 @@ handlers.graphics = async ({ file, index, maxSide, figures, candidates, lines })
             args[0],
           );
           const path = args[1]?.[0];
-          if (path && typeof path.length === 'number') {
-            let j = 0,
-              curves = 0,
-              lines = 0,
-              closed = 0,
-              bad = false,
-              x = 0,
-              y = 0,
-              longest = 0;
-            while (j < path.length) {
-              const op = path[j++];
-              if (op === 0 || op === 1) {
-                const nx = path[j++],
-                  ny = path[j++];
-                if (op === 1) {
-                  lines++;
-                  longest = Math.max(longest, Math.hypot(nx - x, ny - y));
-                }
-                x = nx;
-                y = ny;
-              } else if (op === 2) {
-                j += 4;
-                x = path[j++];
-                y = path[j++];
-                curves++;
-              } else if (op === 3) {
-                j += 2;
-                x = path[j++];
-                y = path[j++];
-                curves++;
-              } else if (op === 4) closed++;
-              else {
-                bad = true;
-                break;
-              }
-            }
-            const bounds = args[2],
-              shortSide = bounds ? Math.min(bounds[2] - bounds[0], bounds[3] - bounds[1]) : 0;
-            rec.ellipse = !bad && curves >= 4 && closed > 0 && longest < shortSide * 0.05;
-            rec.rectangle = !bad && curves === 0 && lines >= 3 && lines <= 4 && closed > 0;
-          }
+          if (path && typeof path.length === 'number') Object.assign(rec, pathShape(path, args[2]));
         }
         records.push(rec);
         return true;
@@ -552,18 +631,7 @@ handlers.graphics = async ({ file, index, maxSide, figures, candidates, lines })
       canvasContext: ctx,
       viewport,
       background: 'rgba(0,0,0,0)',
-      operationsFilter(i) {
-        const r = byIndex.get(i);
-        if (!r) return false;
-        if (r.text) return plan.keep.has(i) || r.mode === 3;
-        if (
-          r.activeMask &&
-          plan.shadows.has(r.activeMask) &&
-          (r.name === 'constructPath' || r.image)
-        )
-          return false;
-        return true;
-      },
+      operationsFilter: (i) => cropOperation(byIndex.get(i), plan),
     }).promise;
     // 每张图单独输出。完整绘图层只在此处作剪图中间值，绝不作为文字/表格后面的固定内容层。
     plan.owned = completeBarcodes(ctx, canvas.width, canvas.height, plan.owned, scale,
@@ -584,13 +652,7 @@ handlers.graphics = async ({ file, index, maxSide, figures, candidates, lines })
     if (records.some((r) => decorativeOperation(r, full))) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       await page.render({ canvas, canvasContext: ctx, viewport, background: 'rgba(0,0,0,0)',
-        operationsFilter(i) {
-          const r = byIndex.get(i);
-          if (!r || r.text) return false;
-          if (r.name === 'constructPath' || r.image || r.name === 'shadingFill')
-            return !!decorativeOperation(r, full);
-          return true;
-        },
+        operationsFilter: (i) => backgroundOperation(byIndex.get(i), full),
       }).promise;
       for (const b of plan.owned) ctx.clearRect(b.x * scale, b.y * scale, b.width * scale, b.height * scale);
       backgroundPng = canvas.toDataURL('image/png').split(',')[1];
@@ -603,6 +665,8 @@ handlers.graphics = async ({ file, index, maxSide, figures, candidates, lines })
       crops,
       backgroundPng,
       owned: plan.owned,
+      watermarks: plan.watermarks,
+      watermarkInk: plan.watermarkInk,
       colors: plan.colors,
       fills: plan.fills,
     };

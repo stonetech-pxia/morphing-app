@@ -1,11 +1,21 @@
-import { buildTablePage, type BuildOptions } from './build';
+import { buildTablePage, cachedLines, type BuildOptions } from './build';
 import { assignLines, cleanRegions, lineShareIn, readingOrder, type LayoutRegion } from './layout';
-import { findBarcodes, findTextTables, levelLines } from './text-table';
+import { findBarcodes, findTextTables, levelLines, pageSlope } from './text-table';
 import { findLines } from './lines';
 import { figureOwns, figureWorkingImage, planWordFigures } from './word-figures';
 import { recoverPictureCards } from './word-cards';
 import { restoreWordCellSpans } from './word-cell-spans';
+import { withBullets } from './word-bullets';
+import {
+  ENDS_WITH_FILL,
+  FILL_RUN,
+  findFillIns,
+  joinShadedBlanks,
+  leaderDots,
+  withFillIns,
+} from './word-fill-ins';
 import { restoreWordFormRows } from './word-form-rows';
+import { findPageGutter, sideOfGutter, type PageGutter } from './word-gutter';
 import type { Box, OcrBox, RgbaImage, TableBlock, TableCell } from './types';
 
 // 扫描件转 Word（D-328）：一页的识别结果 + 版面分析的区域 → DocDoc（编辑页改它，docx 每次从它重新生成）。
@@ -186,6 +196,8 @@ export interface DocPageInput {
   regions?: readonly LayoutRegion[];
   /** 原始数字 PDF 已验证的整图（像素坐标）；先隔离图中字和网格，再按普通图片参与排版。 */
   nativeFigures?: readonly Box[];
+  /** 原生 PDF 里没有画进整图剪图的字（像素坐标）：和它重叠的识别行不归图，留作正文。 */
+  nativeText?: readonly Box[];
   /** 同页接管原生整图前的排版；图外字号、样式沿用它，不让移走图内标签改变正文统计。 */
   prior?: DocPage;
   source: string;
@@ -258,6 +270,8 @@ const PARAGRAPH_GAP = 1.2;
 /** 一行字的中线离整页中线不到页宽的这么多、左右都至少空着页宽的 15%（D-463）算居中。 */
 const PAGE_CENTER = 0.06;
 const PAGE_CENTER_MARGIN = 0.15;
+/** 居中的行最宽占容器宽的这么多。 */
+const CENTER_MAX_SHARE = 0.85;
 
 /** 先确定容器，再判断对齐；页眉可额外按整页居中，栏内的字只看本栏。 */
 function alignmentIn(
@@ -270,9 +284,11 @@ function alignmentIn(
 ): DocStyle['align'] {
   const leftGap = box.x - left;
   const rightGap = right - (box.x + box.width);
+  // 差不多和容器一样宽的行（左右各空一点）不算居中：两边的空白是噪声（EU 样本 021 接了填写处的整行）。
   const centered =
     (leftGap > 2 * h &&
       rightGap > 2 * h &&
+      box.width <= CENTER_MAX_SHARE * (right - left) &&
       Math.abs(leftGap - rightGap) < 0.2 * (leftGap + rightGap)) ||
     (pageWidth !== undefined &&
       rows === 1 &&
@@ -301,6 +317,30 @@ const WIDTH_SNAP = 0.08;
 const LIST_ITEM = /^\s*(?:[•·*▪●○◦■□]|[-–—](?!\d)|\d{1,3}[.、)）](?!\d)|[(（]\d{1,3}[)）]|[①-⑳])/;
 const ORDERED = /^\s*(?:(\d{1,3})([.、)）])(?!\d)|[(（](\d{1,3})[)）]|([①-⑳]))\s*/;
 const BULLET = /^\s*(?:[•·*▪●○◦■□]|[-–—](?!\d))\s*/;
+/**
+ * 装饰：符号连着重复（「***」「--」）或者一行两头是同一种符号（「– Anmeldebestätigung –」「*** ATTO ***」），
+ * 是标题、小票上的花边，不是列表的圆点。
+ */
+const DECORATED =
+  /^\s*(?:([*•·▪●○◦■□])\s*\1|[-–—]\s*[-–—])|^\s*(?:([*•·▪●○◦■□]).*\2|[-–—].*[-–—])\s*$/;
+/**
+ * 行首的日期（「21. APR. 2006」「1. Januar 2024」「15. März」「3. 4. 2025」）：德、奥、北欧的写法，日后面也是一个点，
+ * 不是编号（EU 样本 076 的日期章读成了从 21 开始的列表）。月份按德法意西葡英的名字和缩写认。
+ */
+const MONTHS =
+  'jan|jän|feb|fév|fev|mär|mar|apr|avr|abr|mai|may|mag|jun|juin|giu|jul|juil|lug|aug|aoû|aou|ago|' +
+  'sep|set|okt|oct|ott|out|nov|dez|dec|déc|dic|ene|gen';
+const DATE_START = new RegExp(
+  `^\\s*\\d{1,2}\\.\\s*(?:\\d{1,2}\\.\\s*\\d{2,4}\\b|(?:${MONTHS})\\p{L}{0,7}\\.?\\s*(?:\\d{2,4}\\b|$))`,
+  'iu',
+);
+/**
+ * 括号里的编号后面什么都没有、或者又是一个括号里的代码（「(12) (13)」「(6)」「(22) (D.1)」）：表单的字段代码
+ * （欧盟统一的行驶证，EU 样本 089），不是列表的编号。
+ */
+const FIELD_CODE = /^\s*[(（]\d{1,3}[)）]\s*(?:[(（][\p{L}\p{N}.]{1,6}[)）]\s*)*$/u;
+const listStart = (text: string) =>
+  LIST_ITEM.test(text) && !DECORATED.test(text) && !DATE_START.test(text) && !FIELD_CODE.test(text);
 
 const median = (values: readonly number[]) => {
   const sorted = [...values].sort((a, b) => a - b);
@@ -332,7 +372,17 @@ function rowsOf(lines: readonly OcrBox[]): Row[] {
     const first = groups.at(-1)?.[0];
     if (first) {
       const ov = Math.min(first.y + first.height, line.y + line.height) - Math.max(first.y, line.y);
-      if (ov >= 0.5 * Math.min(first.height, line.height)) {
+      // 大字下面居中的一行小字（标志字「flexPEDIA」下面的口号，EU 样本 091）：大字的框高出一截压到小字上，
+      // 但两行左右叠着，是上下两行，不是同一排。
+      const stacked = groups
+        .at(-1)!
+        .some(
+          (l) =>
+            Math.max(l.height, line.height) > 1.6 * Math.min(l.height, line.height) &&
+            Math.min(l.x + l.width, line.x + line.width) - Math.max(l.x, line.x) >
+              0.5 * Math.min(l.width, line.width),
+        );
+      if (ov >= 0.5 * Math.min(first.height, line.height) && !stacked) {
         groups.at(-1)!.push(line);
         continue;
       }
@@ -415,6 +465,8 @@ export function splitLabelColumn(
   const contents = lines.filter((l) => l.x >= mid);
   const across = lines.filter((l) => !labels.includes(l) && !contents.includes(l));
   if (labels.length < LABEL_MIN_LINES || contents.length < LABEL_MIN_LINES) return null;
+  // 左边一列只有编号（「3.」「4.」）的是带编号的条文，编号属于右边那一项，不是标签列（EU 样本 032）。
+  if (labels.every((l) => listStart(l.text) && !stripMarker(l.text))) return null;
   return { across, labels, contents };
 }
 
@@ -446,8 +498,58 @@ function clustersOf(
   ];
 }
 
+/** 两行短行之间至少空出这么多个行高（各自对着左边的一行字时这么多），是一行一行的。 */
+const SHORT_APART = 0.8;
+const SHORT_BESIDE = 0.5;
+/** 金额一类的字：数字占一半以上（「3.60」「19.90 EUR」「-12,5 %」）。 */
+const isAmount = (text: string) => {
+  const t = text.replace(/\s/g, '');
+  return t.length > 0 && (t.match(/\d/g)?.length ?? 0) * 2 >= t.length;
+};
+/** 短行后面至少空出这么多个行高（加上下一行的第一个词）才算放得下：栏和栏之间的空隙不算空着。 */
+const ROOM_GUTTER = 3;
 /** 一排里两块字隔得超过这么多个行高，分成左右两块（一行里词与词的空隙远小于一个行高）。 */
 const ROW_SPLIT = 1.6;
+
+/** 行首的编号和条文之间最多隔这么多个行高还算同一项。 */
+const MARKER_GAP = 6;
+/** 撑满的一行至少拆成这么多个词，词间空隙和中位数最多差这么多，才当成一行（不是几栏）。 */
+const JUSTIFIED_MIN_WORDS = 3;
+const JUSTIFIED_GAP_SPREAD = 0.2;
+
+/**
+ * 两端对齐、词少的一行（「dont   le   siège   est   fixé   à   (adresse   précise)」）词间空得很大，
+ * 识别把每个词分成一块：每块只有一个词、空隙几乎一样大，是一行字，不是几栏（EU 样本 037）。
+ * 几栏、信头左右两边的块里有好几个词，空隙也不会一样大。
+ */
+function justifiedWords(pieces: readonly (readonly OcrBox[])[]): boolean {
+  if (pieces.length < JUSTIFIED_MIN_WORDS) return false;
+  if (!pieces.every((p) => /^\S+$/u.test(p.map((l) => l.text.trim()).join('')))) return false;
+  const gaps = pieces.slice(1).map((p, i) => {
+    const prev = pieces[i]!.at(-1)!;
+    return p[0]!.x - (prev.x + prev.width);
+  });
+  const mid = median(gaps);
+  return gaps.every((g) => Math.abs(g - mid) <= JUSTIFIED_GAP_SPREAD * mid);
+}
+
+/** 一格里至少这么多排、除了最后一排每排至少这么多个字、宽度和最宽的一排差不多，才是一段正文。 */
+const CELL_PROSE_ROWS = 3;
+const CELL_PROSE_CHARS = 40;
+const CELL_PROSE_WIDTH = 0.85;
+
+/**
+ * 格子里的几排字是一段折行的正文（每排很长、除了最后一排都写到头），不是一排一项（地址、日期，D-333）。
+ */
+function proseRows(rows: readonly Row[]): boolean {
+  if (rows.length < CELL_PROSE_ROWS) return false;
+  const widest = Math.max(...rows.map((r) => r.box.width));
+  return rows
+    .slice(0, -1)
+    .every(
+      (r) => [...r.text].length >= CELL_PROSE_CHARS && r.box.width >= CELL_PROSE_WIDTH * widest,
+    );
+}
 
 /** 一排里隔得很远的几块分开（左右两栏、信头左右两边）。 */
 function splitRow(row: Row, lineHeight: number): Row[] {
@@ -457,6 +559,18 @@ function splitRow(row: Row, lineHeight: number): Row[] {
     if (line.x - (prev.x + prev.width) > ROW_SPLIT * lineHeight) out.push([line]);
     else out.at(-1)!.push(line);
   }
+  if (justifiedWords(out)) return [row];
+  // 行首单独的编号（「3.」隔一大段才是条文，EU 样本 032 的符合性声明）和后面的字是同一项：分开了编号自成一栏，
+  // 和条文并排时对不上行（「7.」排到了第 6 项的末行旁边）。
+  const [first, second] = out;
+  if (
+    first?.length === 1 &&
+    second &&
+    listStart(first[0]!.text) &&
+    !stripMarker(first[0]!.text) &&
+    second[0]!.x - (first[0]!.x + first[0]!.width) <= MARKER_GAP * lineHeight
+  )
+    out.splice(0, 2, [...first, ...second]);
   return out.map((g) => ({
     lines: g,
     box: unionBox(g),
@@ -472,31 +586,74 @@ function splitRow(row: Row, lineHeight: number): Row[] {
 function fitsOnPrev(prev: Row, row: Row, right: number, typical: number): boolean {
   // 很短的行（表单的标签一列）长短不一是常事，不是折行；只对够长的行用这个判断。
   if ([...prev.text].length <= LABEL_MAX) return true;
+  return prev.box.x + prev.box.width + firstWordWidth(row) <= right + 0.3 * typical;
+}
+
+/** 一行的第一个词（连同前面的空格）大约多宽：按这一行平均每个字的宽估。中日文的第一个字就可以折行。 */
+function firstWordWidth(row: Row): number {
   const text = row.text.trim();
   const first = /^[\u2e80-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/.test(text)
     ? text.slice(0, 1)
     : (text.split(/\s+/)[0] ?? '');
   const char = row.box.width / Math.max(1, text.length);
-  const word = (first.length + 1) * char;
-  return prev.box.x + prev.box.width + word <= right + 0.3 * typical;
+  return (first.length + 1) * char;
 }
 
 /** 一块里的行分成段落：空隙大、是列表项、上一行没写到右边（不是折行）、或者有缩进的地方开始新的一段。 */
 export function paragraphsOf(
   lines: readonly OcrBox[],
   peers: readonly OcrBox[] = [],
+  /** 整页文字（含表格）的右边；不给时按 peers 和这一块算。 */
+  textRight?: number,
 ): { rows: Row[]; spaced: boolean; list: boolean }[] {
   const rows = rowsOf(lines);
   if (!rows.length) return [];
   const typical = median(rows.map((r) => median(r.lines.map((l) => l.height)))) || 1;
   const left = Math.min(...rows.map((r) => r.box.x));
   // 右边：行数多时用靠右的八成位置，一行特别长（网址、表格里漏进来的）不把右边撑出去。
-  const rights = rows.map((r) => r.box.x + r.box.width).sort((a, b) => a - b);
-  const right = rows.length >= 5 ? rights[Math.floor((rights.length - 1) * 0.85)]! : rights.at(-1)!;
+  // 块外的行（peers）说明这一栏有多宽：几行短行自成一块时，最宽的那行不是栏的右边。
+  // 和块同高、在块左右两边又在那一行横跨范围里有别的字，那一行横跨了别的栏，不算。
+  const top = Math.min(...rows.map((r) => r.box.y));
+  const bottom = Math.max(...rows.map((r) => r.box.y + r.box.height));
+  const own = Math.max(...rows.map((r) => r.box.x + r.box.width));
+  const beside = peers.filter(
+    (q) => (q.x + q.width <= left || q.x >= own) && q.y < bottom && q.y + q.height > top,
+  );
+  const sameColumn = (p: OcrBox) => !beside.some((q) => q.x < p.x + p.width && q.x + q.width > p.x);
+  // 左对齐的：左边对齐、字差不多高、上下挨着（三个行高以内）的行。
+  const column = peers.filter(
+    (p) =>
+      Math.abs(p.x - left) <= typical &&
+      Math.abs(p.height - typical) <= 0.5 * typical &&
+      Math.max(p.y - bottom, top - (p.y + p.height)) <= 3 * typical &&
+      sameColumn(p),
+  );
+  const rights = [
+    ...rows.map((r) => r.box.x + r.box.width),
+    ...column.map((p) => p.x + p.width),
+  ].sort((a, b) => a - b);
+  const right =
+    rights.length >= 5 ? rights[Math.floor((rights.length - 1) * 0.85)]! : rights.at(-1)!;
+  // 居中的：横跨块中线的行有多宽，居中的行就能排多宽。
+  const middle = (left + own) / 2;
+  const centeredWidth = Math.max(
+    own - left,
+    ...peers
+      .filter((p) => p.x <= middle && p.x + p.width >= middle && sameColumn(p))
+      .map((p) => p.width),
+  );
+  // 这一块的字右边能写到哪：块右边、上下三个行高以内最近的别的字（另一栏、另一块）的左边，
+  // 没有时是整页文字的右边。
+  const roomRight = Math.min(
+    textRight ?? Math.max(own, ...peers.map((p) => p.x + p.width)),
+    ...peers
+      .filter((p) => p.x >= own && p.y < bottom + 3 * typical && p.y + p.height > top - 3 * typical)
+      .map((p) => p.x),
+  );
   const out: { rows: Row[]; spaced: boolean; list: boolean }[] = [];
   for (const [i, row] of rows.entries()) {
     const prev = rows[i - 1];
-    const marker = LIST_ITEM.test(row.text);
+    const marker = listStart(row.text);
     const list = marker && /[\p{L}\p{N}]/u.test(stripMarker(row.text));
     const rangeTail =
       prev !== undefined && /\d[-–—]\s*$/.test(prev.text) && /^\s*\d+\.\s*$/.test(row.text);
@@ -506,11 +663,21 @@ export function paragraphsOf(
     const h = median(row.lines.map((l) => l.height));
     const prevH = prev ? median(prev.lines.map((l) => l.height)) : h;
     // 居中排的几行（信头、处方的页眉，D-463）：中线对齐、左边不齐，是一行一行的，不是折行。
+    const centerShift = prev
+      ? Math.abs(prev.box.x + prev.box.width / 2 - (row.box.x + row.box.width / 2))
+      : 0;
+    const leftShift = prev ? Math.abs(prev.box.x - row.box.x) : 0;
+    // 左边只差一点、中线对得比左边准得多的两行也是居中排的（左对齐的行左边只有几像素的抖动）：
+    // 下一行的第一个词放得进居中能排的宽度却换了行，是一行一行排的，不是折行。
+    const centeredLines =
+      prev !== undefined &&
+      centerShift <= CENTER_PAIR * typical &&
+      leftShift > 0.2 * typical &&
+      centerShift < leftShift / 4 &&
+      prev.box.width + firstWordWidth(row) <= centeredWidth + 0.3 * typical;
     const centeredPair =
       prev !== undefined &&
-      Math.abs(prev.box.x + prev.box.width / 2 - (row.box.x + row.box.width / 2)) <=
-        CENTER_PAIR * typical &&
-      Math.abs(prev.box.x - row.box.x) > 0.5 * typical;
+      ((centerShift <= CENTER_PAIR * typical && leftShift > 0.5 * typical) || centeredLines);
     // 同一排左右各有「标签：值」是独立的信息行，不是上一段正文的折行。
     // 只看组外、隔开一栏的字段；正文两栏恰好对齐、字段值自己的续行都不因此拆段。
     const field = (text: string) => /^[^:：.!?。！？\n]{1,30}[:：]\s*\S/u.test(text.trim());
@@ -526,10 +693,51 @@ export function paragraphsOf(
           field(p.text)
         );
       });
+    // 一叠短行（地址、信头、小票上的字段）：下一行的第一个词在上一行后面放得下（右边到下一块字、
+    // 或者整页的右边还空着一大段），却换了行，是一行一行写的，不是折行（EU 样本 023、025、029）。
+    const roomy =
+      prev !== undefined &&
+      [...prev.text].length <= LABEL_MAX &&
+      [...row.text].length <= LABEL_MAX &&
+      prev.box.x + prev.box.width + firstWordWidth(row) + ROOM_GUTTER * typical < roomRight;
+    // 两行短行中间空出将近一个行高（地址后面隔一个空行的「email:」），或者空出半个行高、各自对着
+    // 左边隔得很远的不同的一行字（条款右边一列「○ ja ○ nein」，EU 样本 041、049）：一行一行写的，
+    // 不是折行。正文的折行之间只有一点行距。
+    const facing = (r: Row) =>
+      peers.find(
+        (p) =>
+          p.x + p.width < left - ROW_SPLIT * typical &&
+          Math.min(p.y + p.height, r.box.y + r.box.height) - Math.max(p.y, r.box.y) >=
+            0.5 * Math.min(p.height, r.box.height),
+      );
+    // 小票、价目表的一项一行：两行短行右边隔得很远、同一排上各有自己的金额（EU 样本 003），
+    // 是一项一项的，不是折行（折行的第二行右边不会另有一个金额）。
+    const priced = (r: Row) =>
+      peers.find(
+        (p) =>
+          p.x > r.box.x + r.box.width + ROW_SPLIT * typical &&
+          isAmount(p.text) &&
+          Math.min(p.y + p.height, r.box.y + r.box.height) - Math.max(p.y, r.box.y) >=
+            0.5 * Math.min(p.height, r.box.height),
+      );
+    const apart =
+      prev !== undefined &&
+      [...prev.text].length <= LABEL_MAX &&
+      [...row.text].length <= LABEL_MAX &&
+      ((priced(prev) !== undefined && priced(row) !== undefined && priced(prev) !== priced(row)) ||
+        gap >= SHORT_APART * typical ||
+        (gap >= SHORT_BESIDE * typical &&
+          facing(prev) !== undefined &&
+          facing(row) !== undefined &&
+          facing(prev) !== facing(row)));
     const wrapped =
       prev !== undefined &&
       !centeredPair &&
       !fieldRow &&
+      !roomy &&
+      !apart &&
+      // 以填写处结尾的行（「Name ……」）是一行一行的，不是折行。
+      !ENDS_WITH_FILL.test(prev.text) &&
       gap <= PARAGRAPH_GAP * typical &&
       (prev.box.x + prev.box.width >= right - 1.2 * typical ||
         !fitsOnPrev(prev, row, right, typical)) &&
@@ -545,6 +753,7 @@ export function paragraphsOf(
       last?.list === true &&
       prev !== undefined &&
       !fieldRow &&
+      !ENDS_WITH_FILL.test(prev.text) &&
       gap <= PARAGRAPH_GAP * typical &&
       !list &&
       !bareLabel &&
@@ -672,7 +881,215 @@ export function isRuleGrid(table: TableBlock, lineCount = 0): boolean {
   return filled < GRID_MIN_FILLED * table.cells.length;
 }
 
+/** 一排的编号格（表单左边的「Lfd. Nr.」列里的 1、2、3）：很短。 */
+const ROW_NUMBER_CHARS = 4;
+/** 空白表格的表头最多这么多排。 */
+const HEADER_ROWS_MAX = 2;
+
+/**
+ * 留给人填的空白表格（EU 样本 001、004、006）：横竖线画满，下面的排没有合并格（每排的格子在同样的列线上分开），
+ * 字只在表头（一两排，格子可以横跨几列；下面至少两排空着，最多每排第一格有个编号），或者只在第一列（标签），
+ * 右边空着的格子至少和标签一样宽（议程、奖状边框、试卷的答题线空着的列比有字的窄，见 isSparseColumnLayout）。
+ * 这样的表不按「空格子太多」当成表单的画线丢掉。
+ */
+export function isBlankFormGrid(table: TableBlock): boolean {
+  if (table.rows < 2) return false;
+  const rows = Array.from({ length: table.rows }, (_, r) =>
+    table.cells.filter((c) => c.row === r).sort((a, b) => a.col - b.col),
+  );
+  const starts = (row: readonly TableCell[]) => row.map((c) => c.col).join(',');
+  /** 从第 from 排起每排的格子都在同样的列线上分开、不跨排。 */
+  const regular = (from: number) =>
+    rows[from]!.length >= 2 &&
+    rows
+      .slice(from)
+      .every((row) => row.every((c) => c.rowSpan === 1) && starts(row) === starts(rows[from]!));
+  const has = (c: TableCell) => c.text.trim() !== '';
+  // 表头一排（或两排：表头里的短横线把它分成了两排）有字、格子可以横跨几列，
+  // 下面至少两排一样的空格子（第一格可以是编号）。
+  for (let k = 1; k <= HEADER_ROWS_MAX && k + 2 <= table.rows; k++) {
+    const head = rows.slice(0, k).flat();
+    if (head.some((c) => c.row + c.rowSpan > k) || !regular(k)) continue;
+    const filled = head.filter(has).length;
+    if (
+      filled >= 2 &&
+      filled * 2 >= head.length &&
+      rows
+        .slice(k)
+        .every((row) =>
+          row.every((c, i) => !has(c) || (i === 0 && c.text.trim().length <= ROW_NUMBER_CHARS)),
+        )
+    )
+      return true;
+  }
+  // 第一列是标签，右边的格子空着、至少和标签一样宽。
+  if (!regular(0)) return false;
+  const widthOf = (cells: readonly TableCell[]) =>
+    cells.reduce((sum, c) => sum + (c.box?.width ?? 0), 0);
+  return rows.every(
+    ([label, ...rest]) =>
+      has(label!) &&
+      rest.every((c) => !has(c)) &&
+      widthOf([label!]) > 0 &&
+      widthOf(rest) >= widthOf([label!]),
+  );
+}
+
+/** 填写框里的标签最多这么多行。 */
+const FIELD_LABEL_LINES = 2;
+/** 填写框：标签的底不超过格子高的这么多（标签在上面，下面留着写）。 */
+const FIELD_LABEL_SHARE = 0.5;
+/** 至少这么多个有标签的填写框连在一起，才拿出来当表。 */
+const FIELD_MIN_BOXES = 2;
+/** 至少这么多列。 */
+const FIELD_MIN_COLS = 2;
+
+/**
+ * 横线画满的申报表（波兰 PIT-37、德国的 Antrag，EU 样本 062）：一节一节的方框，每个框左上角一个短标签
+ * （「10. Nazwisko」），下面空着给人写。整页的网格因为框的位置各排不同、空格子多，被当成表单的画线（isRuleGrid）
+ * 整张不要了，框没了，没地方写。这里把这样的网格按整排切开（没有格子跨过的横线处），连着的几排里有字的格子
+ * 都是填写框（字最多两行、贴着格子顶、下面至少留一行高的空）时，拿出来当一张表；别的排（说明文字、
+ * 选项框的一节、节的标题条）照旧排成文字。返回的表从第 0 列起，colWidths 是它自己的列宽。
+ */
+export function fieldBoxTables(
+  table: TableBlock,
+  colWidths: readonly number[],
+  placed: readonly OcrBox[],
+  lineHeight: number,
+): { table: TableBlock; colWidths: number[] }[] {
+  const inCell = (l: Box, c: Box) => {
+    const cx = l.x + l.width / 2;
+    const cy = l.y + l.height / 2;
+    return cx >= c.x && cx <= c.x + c.width && cy >= c.y && cy <= c.y + c.height;
+  };
+  const isField = (c: TableCell) => {
+    const box = c.box;
+    if (!box) return false;
+    const own = placed.filter((l) => inCell(l, box));
+    if (!c.text.trim()) return !own.length;
+    if (!own.length || rowsOf(own).length > FIELD_LABEL_LINES) return false;
+    const top = Math.min(...own.map((l) => l.y)) - box.y;
+    const bottom = Math.max(...own.map((l) => l.y + l.height)) - box.y;
+    return (
+      top <= lineHeight &&
+      bottom <= FIELD_LABEL_SHARE * box.height &&
+      box.height - bottom >= lineHeight
+    );
+  };
+  // 整排切开的地方：没有格子从上面跨过来。
+  const cuts = [0];
+  for (let r = 1; r < table.rows; r++)
+    if (!table.cells.some((c) => c.row < r && r < c.row + c.rowSpan)) cuts.push(r);
+  cuts.push(table.rows);
+  const slabs = cuts.slice(1).map((end, i) => {
+    const cells = table.cells.filter((c) => c.row >= cuts[i]! && c.row < end);
+    const ok = cells.length > 0 && cells.some((c) => c.text.trim()) && cells.every(isField);
+    return { from: cuts[i]!, to: end, cells, ok };
+  });
+  const groups: (typeof slabs)[] = [];
+  let run: typeof slabs = [];
+  for (const s of [...slabs, undefined]) {
+    if (s?.ok) run.push(s);
+    else {
+      if (run.length) groups.push(run);
+      run = [];
+    }
+  }
+  const out: { table: TableBlock; colWidths: number[] }[] = [];
+  for (const group of groups) {
+    let cells = group.flatMap((s) => s.cells);
+    if (cells.filter((c) => c.text.trim()).length < FIELD_MIN_BOXES) continue;
+    // 左右两头整列空着的格子是外框里框旁边的空地（EU 样本 004 的地址框右边），不是填写框。
+    for (;;) {
+      const first = Math.min(...cells.map((c) => c.col));
+      const last = Math.max(...cells.map((c) => c.col + c.colSpan));
+      // 右边：最右一列起的格子都从同一条列线开始；左边反过来。这一条里的格子都空着才去掉。
+      const rightFrom = Math.max(
+        ...cells.filter((c) => c.col + c.colSpan === last).map((c) => c.col),
+      );
+      const leftTo = Math.min(
+        ...cells.filter((c) => c.col === first).map((c) => c.col + c.colSpan),
+      );
+      const strips = [
+        cells.filter((c) => c.col + c.colSpan > rightFrom),
+        cells.filter((c) => c.col < leftTo),
+      ];
+      const strip = strips.find(
+        (side, k) =>
+          side.every((c) => !c.text.trim()) &&
+          side.every((c) => (k === 0 ? c.col >= rightFrom : c.col + c.colSpan <= leftTo)),
+      );
+      if (!strip || strip.length === cells.length) break;
+      cells = cells.filter((c) => !strip.includes(c));
+    }
+    const from = group[0]!.from;
+    // 只留这几排用到的列线。
+    const edges = [...new Set(cells.flatMap((c) => [c.col, c.col + c.colSpan]))].sort(
+      (a, b) => a - b,
+    );
+    // 只有一列、上下叠着的框（处方上只有横线的「Patient/in」「Anschrift」，EU 样本 076）：多半只是填写的横线，
+    // 当成表反而丢了写字的地方，照旧排成文字。
+    if (edges.length - 1 < FIELD_MIN_COLS) continue;
+    const at = (col: number) => edges.indexOf(col);
+    const boxes = cells.map((c) => c.box!);
+    const x = Math.min(...boxes.map((b) => b.x));
+    const y = Math.min(...boxes.map((b) => b.y));
+    out.push({
+      table: {
+        kind: 'table',
+        rows: group[group.length - 1]!.to - from,
+        col: 0,
+        cols: edges.length - 1,
+        cells: cells.map((c) => ({
+          ...c,
+          row: c.row - from,
+          col: at(c.col),
+          colSpan: at(c.col + c.colSpan) - at(c.col),
+        })),
+        box: {
+          x,
+          y,
+          width: Math.max(...boxes.map((b) => b.x + b.width)) - x,
+          height: Math.max(...boxes.map((b) => b.y + b.height)) - y,
+        },
+      },
+      colWidths: edges
+        .slice(1)
+        .map((e, i) =>
+          colWidths.slice(table.col + edges[i]!, table.col + e).reduce((a, b) => a + b, 0),
+        ),
+    });
+  }
+  return out;
+}
+
+/** 空着的格子至少这么多个行高宽，是留着填写的栏，不并进左边（foldEmptyColumns）。 */
+const FILL_IN_LINES = 3;
+
 /** 小装饰网格不靠总格数放行：反复出现的两列数据才是表格证据，空列不能算。 */
+/** 横线至少盖住格子宽的这么多。 */
+const RULE_ACROSS_SHARE = 0.5;
+
+/** 从 y0 到 y1 之间（两行字之间的白缝）有没有一条横穿 x0–x1 的线：某一排像素过半是深色的。 */
+function ruleAcross(image: RgbaImage, x0: number, x1: number, y0: number, y1: number): boolean {
+  const left = Math.max(0, Math.round(x0));
+  const right = Math.min(image.width, Math.round(x1));
+  if (right <= left) return false;
+  const step = Math.max(1, Math.round((right - left) / 200));
+  for (let y = Math.max(0, Math.round(y0)); y < Math.min(image.height, Math.round(y1)); y++) {
+    let dark = 0;
+    let total = 0;
+    for (let x = left; x < right; x += step) {
+      const o = (y * image.width + x) * 4;
+      total++;
+      if (0.299 * image.data[o]! + 0.587 * image.data[o + 1]! + 0.114 * image.data[o + 2]! < 200)
+        dark++;
+    }
+    if (dark >= RULE_ACROSS_SHARE * total) return true;
+  }
+  return false;
+}
+
 function isSparseColumnLayout(table: TableBlock): boolean {
   if (table.rows < 3 || table.cols < 2) return false;
   const filled = table.cells.filter((c) => c.text.trim());
@@ -681,6 +1098,34 @@ function isSparseColumnLayout(table: TableBlock): boolean {
   for (const cell of filled) counts.set(cell.row, (counts.get(cell.row) ?? 0) + 1);
   const paired = [...counts.values()].filter((n) => n >= 2).length;
   if (paired >= 2) return false;
+  // 签到表：表头一排每列都有字，下面至少两排整排空着，是留给人填的表，不是装饰。
+  const rowsWith = new Set(filled.map((c) => c.row));
+  const header = filled.filter((c) => c.row === filled[0]!.row);
+  if (
+    paired === 1 &&
+    rowsWith.size === 1 &&
+    header.reduce((n, c) => n + c.colSpan, 0) === table.cols &&
+    table.rows - 1 >= 2
+  )
+    return false;
+  // 空白表单：标签都在同一列，右边整列空着、至少和标签列一样宽，是填写栏。
+  // 装饰网格（议程、试卷的答题线、奖状边框）空着的列比有字的列窄。
+  if (!paired && filled.every((c) => c.colSpan === 1 && c.col === filled[0]!.col)) {
+    const widthOf = (col: number) =>
+      Math.max(
+        0,
+        ...table.cells
+          .filter((c) => c.col === col && c.colSpan === 1 && c.box)
+          .map((c) => c.box!.width),
+      );
+    const label = filled[0]!.col;
+    for (let col = label + 1; col < table.cols; col++) {
+      const blank = table.cells.every(
+        (c) => !(c.col <= col && c.col + c.colSpan > col) || !c.text.trim(),
+      );
+      if (blank && widthOf(label) > 0 && widthOf(col) >= widthOf(label)) return false;
+    }
+  }
   // 整页共用的列会给一张合并表添上空格子。已有一排真实列关系时，先折掉这些
   // 空列再看密度；不能把本来填得很满的合并表拆成散文，导致表单额外分页。
   const folded = paired ? foldEmptyColumns(table) : table;
@@ -728,6 +1173,13 @@ export function verticalBoxes(
   });
 }
 
+/**
+ * 读起来像页码的字：「3」「- 3 -」「2/3」「Page 2 of 5」「Seite 2 von 3」「iv」「第 2 页」。
+ * 页码区域里只丢这样的字，别的照正文留下。
+ */
+const PAGE_NUMBER =
+  /^\s*[-–—]?\s*(?:(?:pages?|pg|p|seite|s|pagina|pag|página|pág|strona|str|sida|side|blz|bladzijde|folio|fol|стр|第)\.?\s*)?(?:\d{1,4}|(?=[ivxlc])c{0,3}(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3}))(?:\s*(?:\/|of|von|de|di|sur|su|z|av|van|из|共)\s*\d{1,4})?\s*页?\s*[-–—]?\s*$/i;
+
 /** 页边碎片（D-334）：不超过这么多个字（不算空格）。 */
 const STRAY_CHARS = 3;
 /** 离别的字至少这么多个行高才算孤立。 */
@@ -738,15 +1190,38 @@ const STRAY_TALL = 2;
 /** 贴着页边：离图的边不到长边的这么多（1%）。 */
 const STRAY_EDGE = 0.01;
 
+/** 框里至少这么多的点不是白纸（深色、彩色的底）：字印在色条上。 */
+const STRAY_ON_FILL = 0.5;
+
+/** 框里不是白纸的点占多少（隔点取样）：白字印在色条上（表单抬头绿条上的「A1」）时大半是底色。 */
+function fillShare(line: OcrBox, image: RgbaImage): number {
+  const x0 = Math.max(0, Math.floor(line.x));
+  const y0 = Math.max(0, Math.floor(line.y));
+  const x1 = Math.min(image.width, Math.ceil(line.x + line.width));
+  const y1 = Math.min(image.height, Math.ceil(line.y + line.height));
+  let fill = 0;
+  let n = 0;
+  for (let y = y0; y < y1; y += 2) {
+    for (let x = x0; x < x1; x += 2) {
+      const i = (y * image.width + x) * 4;
+      const min = Math.min(image.data[i]!, image.data[i + 1]!, image.data[i + 2]!);
+      n++;
+      if (min < 200) fill++;
+    }
+  }
+  return n ? fill / n : 0;
+}
+
 /**
  * 页边碎片（D-334）：很短、孤立（离别的字至少 3 个行高），而且贴着页边、置信度低或者框比正文高得多的，
  * 是页边的污点、装订孔、签名认成的字（条款页顶上的「00」），不写进文件。认得准、和正文一样高的短字照样留下。
+ * 不贴页边、只是高的短字印在色条上（白字，框里大半是底色）时是表单的代号（EU 样本 056 的「A1」），照样留下。
  */
 function isStray(
   line: OcrBox,
   all: readonly OcrBox[],
   lineHeight: number,
-  page: { width: number; height: number },
+  page: RgbaImage,
 ): boolean {
   if (line.text.replace(/\s/g, '').length > STRAY_CHARS) return false;
   const edge = Math.max(page.width, page.height) * STRAY_EDGE;
@@ -758,6 +1233,7 @@ function isStray(
   const unsure = line.score !== undefined && line.score < STRAY_SCORE;
   const tall = line.height > STRAY_TALL * lineHeight;
   if (!atEdge && !unsure && !tall) return false;
+  if (!atEdge && !unsure && fillShare(line, page) >= STRAY_ON_FILL) return false;
   return all.every((o) => {
     if (o === line) return true;
     const dx = Math.max(0, Math.max(o.x, line.x) - Math.min(o.x + o.width, line.x + line.width));
@@ -855,7 +1331,7 @@ const stripMarker = (text: string) => text.replace(ORDERED, '').replace(BULLET, 
  * 整列都空着的格子并进左边的格子（D-328）：转 Excel 时整页共用一套列线（D-272），一张表会多出只有别的表才有的列，
  * 在 Word 里就是一列空格子。只并没有跨行的格子；列线不变（格子用 colSpan 跨过去）。
  */
-export function foldEmptyColumns(table: TableBlock): TableBlock {
+export function foldEmptyColumns(table: TableBlock, keepWidth = Infinity): TableBlock {
   let cells = table.cells;
   for (let c = table.cols - 1; c > 0; c--) {
     const at = (r: number, col: number) =>
@@ -879,6 +1355,8 @@ export function foldEmptyColumns(table: TableBlock): TableBlock {
       if (ok) pairs.push({ left: left!, empty: empty! });
     }
     if (!ok || !pairs.length) continue;
+    // 填写栏：空格子都够宽（keepWidth，像素），留着给人填。
+    if (pairs.every((p) => (p.empty.box?.width ?? 0) >= keepWidth)) continue;
     const drop = new Set(pairs.map((p) => p.empty));
     const grow = new Map(pairs.map((p) => [p.left, p.empty.colSpan]));
     cells = cells
@@ -895,8 +1373,28 @@ function defaultJoin(lines: readonly OcrBox[]): string {
     .join(' ');
 }
 
+/** A3 的长短边（磅）；比它还大一点的纸算作量错了的纸。 */
+const A3_PT = { short: 841.9, long: 1190.6 };
+const A3_SLACK = 1.05;
+
+/**
+ * 比 A3 还大的 PDF 页（扫描件按 1 像素 = 1 磅存成的 87 × 124 cm）不照抄成 Word 的纸：按原来的高宽比
+ * 缩到 A4 宽（横向按 A4 长边），和没有纸张信息的照片一样。字号本来就按 A4 宽估，这样字和纸的比例才对。
+ */
+export function fitPaper(paper: { width: number; height: number }): {
+  width: number;
+  height: number;
+} {
+  const short = Math.min(paper.width, paper.height);
+  const long = Math.max(paper.width, paper.height);
+  if (short <= A3_PT.short * A3_SLACK && long <= A3_PT.long * A3_SLACK) return paper;
+  const width = paper.width > paper.height ? 841.9 : 595.3;
+  return { width, height: Math.round(((width * paper.height) / paper.width) * 10) / 10 };
+}
+
 /** 一页的 DocPage。 */
 export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {}): DocPage {
+  if (input.paper) input = { ...input, paper: fitPaper(input.paper) };
   const page = buildPage(input, options, true);
   const next = recoverPictureCards(
     page,
@@ -1010,6 +1508,9 @@ export function buildDocPage(input: DocPageInput, options: DocBuildOptions = {})
   return next;
 }
 
+/** 补回的图和旁边的块左右重叠不超过窄的那个宽的这么多，仍算并排。 */
+const FIGURE_EDGE_OVERLAP = 0.05;
+
 /** 补回原生整图时保留文字与来源顺序；跨多个横带的页边图与这些横带共用一张排版表。 */
 export function insertWordFigures(page: DocPage, boxes: readonly Box[]): DocPage {
   const owned = (b: DocLeaf) => boxes.some((box) => lineShareIn(b.box, box) >= 0.8);
@@ -1055,12 +1556,39 @@ export function insertWordFigures(page: DocPage, boxes: readonly Box[]): DocPage
         continue;
       }
     }
+    // 分栏里的图（只在某一栏里）放回那一栏、按上下位置插进去，不挪到整个分栏行的后面。
+    const column = blocks.flatMap((b) => {
+      if (b.kind !== 'row' || b.cells.length < 2) return [];
+      const overlap =
+        Math.min(b.box.y + b.box.height, box.y + box.height) - Math.max(b.box.y, box.y);
+      if (overlap < 0.5 * box.height) return [];
+      const xs = b.cells.map((c) => Math.min(...c.blocks.map((x) => x.box.x)));
+      const cell = b.cells.findIndex((_, i) => {
+        const right = xs[i + 1] ?? b.box.x + b.box.width;
+        const inside = Math.min(right, box.x + box.width) - Math.max(xs[i]!, box.x);
+        return inside >= 0.8 * box.width;
+      });
+      return cell >= 0 ? [{ row: b, cell: b.cells[cell]! }] : [];
+    })[0];
+    if (column) {
+      const { row, cell } = column;
+      const at = cell.blocks.findIndex((b) => b.box.y > box.y);
+      cell.blocks.splice(at < 0 ? cell.blocks.length : at, 0, image);
+      row.box = unionBox([row.box, box]);
+      continue;
+    }
     const index = blocks.findIndex((b) => {
       const overlap =
         Math.min(b.box.y + b.box.height, box.y + box.height) - Math.max(b.box.y, box.y);
+      // 并排行按格子里的块看（中间那张图可能落在行的范围里、两格之间）。剪图带一点留边，
+      // 相邻两张的框常互相压几个像素，这不算挡住，不能因此把一张图拿出这一排。
       return (
         overlap >= 0.3 * Math.min(b.box.height, box.height) &&
-        (box.x >= b.box.x + b.box.width || box.x + box.width <= b.box.x)
+        leafBlocks({ blocks: [b] }).every((x) => {
+          const across =
+            Math.min(x.box.x + x.box.width, box.x + box.width) - Math.max(x.box.x, box.x);
+          return across <= FIGURE_EDGE_OVERLAP * Math.min(x.box.width, box.width);
+        })
       );
     });
     if (index >= 0) {
@@ -1091,6 +1619,24 @@ export function insertWordFigures(page: DocPage, boxes: readonly Box[]): DocPage
   return { ...page, blocks };
 }
 
+/** 比这更竖长（高/宽）的照片不是一页纸（小票、长条截图）：不设纸，按旧版连续排在 A4 上、自然分页。 */
+const PAGE_LIKE_RATIO = 1.6;
+/** 照片的高宽比和 A4 差不到这么多时直接用 A4。 */
+const A4_ASPECT_SNAP = 0.03;
+
+/**
+ * 没有物理尺寸的照片按 A4 宽估纸（横向按 A4 长边），纸的高宽比跟照片一样：横竖同一个比例，不压扁。
+ * 比一页纸还竖长的（小票）不设纸，按旧版连续排在 A4 上、自然分页，不做成一张又窄又长的怪纸。
+ */
+function photoPaper(image: { width: number; height: number }) {
+  if (image.width > image.height)
+    return { width: 841.9, height: (841.9 * image.height) / image.width };
+  const ratio = image.height / image.width;
+  if (Math.abs(ratio / (841.9 / 595.3) - 1) <= A4_ASPECT_SNAP)
+    return { width: 595.3, height: 841.9 };
+  return ratio > PAGE_LIKE_RATIO ? undefined : { width: 595.3, height: 595.3 * ratio };
+}
+
 function buildPage(
   input: DocPageInput,
   options: DocBuildOptions,
@@ -1100,14 +1646,10 @@ function buildPage(
 ): DocPage {
   const join = options.joinLines ?? defaultJoin;
   const { image } = input;
-  const paper =
-    input.paper ??
-    (image.width > image.height
-      ? { width: 841.9, height: (841.9 * image.height) / image.width }
-      : { width: 595.3, height: 841.9 });
-  // 确知的窄幅 PDF 按它的物理宽度估字，再做字号限制；照片仍沿用 A4 标定，也不因宽纸放大字。
-  const fontWidthPx =
-    (image.width * A4_WIDTH_PT) / Math.min(A4_WIDTH_PT, input.paper?.width ?? A4_WIDTH_PT);
+  const paper = input.paper ?? photoPaper(image);
+  // 按 Word 的纸宽估字：窄幅 PDF 按它的物理宽度；横向的纸（横向 A4 的 PDF、横拍的照片）按 842 磅宽，
+  // 不按竖向 A4 的 595 磅，不然字整体只有原来的 0.71 倍。比 A3 大的纸已经由 fitPaper 缩过，不会因此放大字。
+  const fontWidthPx = (image.width * A4_WIDTH_PT) / (paper?.width ?? A4_WIDTH_PT);
   const lines = input.lines.filter((l) => l.text.trim());
   const joinParagraph = lines.length < DENSE_LINES ? (options.joinParagraph ?? join) : join;
   const rotatedLines = lines.filter((l) => l.text.trim().length >= 4 && l.height > 2 * l.width);
@@ -1152,10 +1694,20 @@ function buildPage(
     )
   )
     return previous;
+  // 原生整图：图里的字只有画进了剪图才归图。和剪图外的原生字（nativeText）重叠的识别行留作正文，
+  // 不然一段只有一部分在图里的 PDF 文字（轴标签和图旁的说明连在一起）在图里、正文里都没有。
   const owns = (box: Box) =>
-    native ? figures.some((f) => lineShareIn(box, f.box) > 0.8) : figureOwns(box, figures);
+    native
+      ? figures.some((f) => lineShareIn(box, f.box) > 0.8) &&
+        !input.nativeText?.some((t) => lineShareIn(box, t) >= 0.5)
+      : figureOwns(box, figures);
   const available = figures.length ? lines.filter((l) => !owns(l)) : lines;
-  const working = figureWorkingImage(image, figures, lineHeight);
+  // 表单的点线（填写处）先从找线、组表用的图里抹掉，后面接进标签那一行（EU 样本 021）。
+  const { dots, erased: working } = leaderDots(
+    figureWorkingImage(image, figures, lineHeight),
+    lines,
+    lineHeight,
+  );
   // 抹掉图形不能顺带改变图外网格的坐标系；倾斜仍按原图估计。
   const tableSkew = input.skew ?? (figures.length ? findLines(image).skew : undefined);
   const layout = figures.length
@@ -1168,29 +1720,42 @@ function buildPage(
   // 带线的表格（和转 Excel 一样）；放进表格的行不再参加分段。
   const placedIn = new Map<TableBlock, readonly OcrBox[]>();
   const choppedIn = new Map<TableBlock, number>();
-  const sheet = buildTablePage(
-    {
-      image: working,
-      lines: available,
-      name: '',
-      source: input.source,
-      ...(tableSkew !== undefined ? { skew: tableSkew } : {}),
+  // 横竖线画满的网格（格子都是线分出来的），只有这样的才可能是留给人填的空白表格。
+  const ruledGrids = new Set<TableBlock>();
+  const blankForm = (t: TableBlock) => ruledGrids.has(t) && isBlankFormGrid(t);
+  // 只是框着几行字的框（EU 样本 075 的信）：不当表，字放回正文。
+  const framedTexts = new Set<TableBlock>();
+  const tableInput = {
+    image: working,
+    lines: available,
+    name: '',
+    source: input.source,
+    ...(tableSkew !== undefined ? { skew: tableSkew } : {}),
+  };
+  // 格子里的字按原图一排一行（D-333）：表单一格里的地址、日期各占一行，不接成一段（Word 里格子宽按原图，字号按比例）。
+  // 没有线的表在下面去掉竖排、零星的字以后再认（D-471）。
+  const tableOptions = (splitStacked: boolean): BuildOptions => ({
+    ...options,
+    textTables: false,
+    // 电子版模板常用很浅的灰线画表（EU 样本 001、006），转 Word 时也找。
+    lightRules: true,
+    // 空白的商品栏：表头写在网格上面（EU 样本 001）。
+    headerAbove: true,
+    splitStacked,
+    joinLines: (cell) => {
+      const rows = rowsOf(cell);
+      // 一格里是一段正文（框起来的提示，EU 样本 038）：接成一段，在 Word 里能重新折行。
+      if (proseRows(rows)) return joinParagraph(rows.flatMap((r) => r.lines)).trim();
+      return rows.map((r) => join(r.lines).trim()).join('\n');
     },
-    // 格子里的字按原图一排一行（D-333）：表单一格里的地址、日期各占一行，不接成一段（Word 里格子宽按原图，字号按比例）。
-    // 没有线的表在下面去掉竖排、零星的字以后再认（D-471）。
-    {
-      ...options,
-      textTables: false,
-      joinLines: (cell) =>
-        rowsOf(cell)
-          .map((r) => join(r.lines).trim())
-          .join('\n'),
-      onTable: (table, placed, { chopped }) => {
-        placedIn.set(table, placed);
-        choppedIn.set(table, chopped);
-      },
+    onTable: (table, placed, { chopped, ruled, framedText }) => {
+      placedIn.set(table, placed);
+      choppedIn.set(table, chopped);
+      if (ruled) ruledGrids.add(table);
+      if (framedText) framedTexts.add(table);
     },
-  );
+  });
+  const sheet = buildTablePage(tableInput, tableOptions(false));
   const tol = lineHeight * 0.3;
   const inBox = (l: Box, box: Box) => {
     const cx = l.x + l.width / 2;
@@ -1208,23 +1773,89 @@ function buildPage(
     const chopped = choppedIn.get(t) ?? 0;
     return chopped >= CHOP_MIN && chopped >= CHOP_SHARE * (placedIn.get(t)?.length ?? 0);
   };
-  const ruledCandidates = sheet.blocks.filter(
-    (b): b is TableBlock =>
-      b.kind === 'table' &&
-      !figures.some((f) => lineShareIn(f.box, b.box) >= 0.2) &&
-      !isRuleGrid(b, lines.filter((l) => inBox(l, b.box)).length) &&
+  // 图内的网格（表大半在图里）不要；图跨过表的好几格时（整页的版式框把图表框在里面，D-533）也不要。
+  // 图在表的一格里（表单的证件照占着合并的一格）时表照样要；只是边上压进表的一格（表上面的标志剪下来时带着
+  // 下面一点，EU 样本 062）也照样要：看压进表里的那一部分在不在一格里。
+  const insideOf = (f: Box, b: Box): Box => {
+    const x = Math.max(f.x, b.x);
+    const y = Math.max(f.y, b.y);
+    return {
+      x,
+      y,
+      width: Math.max(0, Math.min(f.x + f.width, b.x + b.width) - x),
+      height: Math.max(0, Math.min(f.y + f.height, b.y + b.height) - y),
+    };
+  };
+  const outsideFigures = (b: TableBlock) =>
+    !figures.some(
+      (f) =>
+        lineShareIn(b.box, f.box) >= 0.5 ||
+        (lineShareIn(f.box, b.box) >= 0.2 &&
+          !b.cells.some((c) => c.box && lineShareIn(insideOf(f.box, b.box), c.box) >= 0.8)),
+    );
+  const sheetTables = sheet.blocks.filter((b): b is TableBlock => b.kind === 'table');
+  const ruledCandidates = sheetTables.filter(
+    (b) =>
+      outsideFigures(b) &&
+      (blankForm(b) || !isRuleGrid(b, lines.filter((l) => inBox(l, b.box)).length)) &&
       !chopsMuch(b),
   );
-  const rejected = repairTables ? ruledCandidates.filter(isSparseColumnLayout) : [];
-  const ruled = ruledCandidates.filter((t) => !rejected.includes(t));
+  const sparse = (t: TableBlock) =>
+    repairTables && !blankForm(t) && (isSparseColumnLayout(t) || framedTexts.has(t));
+  const colWidthsOf = new Map(sheetTables.map((t) => [t, sheet.colWidths] as const));
+  // 共用一个外框、上下叠着的几张表（EU 样本 004 的登记表）连成了一张：在列线换了的横线处分开（findTables 的
+  // splitStacked），每张各自判断。原来要当表的，分开后能当表的部分当表（都不能时照旧整张）；原来被当成表单画线
+  // 丢掉、或者太空被拆开的，只把其中的空白表格（isBlankFormGrid）留下当表，别的部分照旧排成文字。
+  const stacked = buildTablePage(tableInput, tableOptions(true));
+  const stackedTables = stacked.blocks.filter((b): b is TableBlock => b.kind === 'table');
+  const ruled: TableBlock[] = [];
+  const rejected: TableBlock[] = [];
+  // 当成表单画线不要的网格（或者分开后不要的部分）里，一排排的填写框照样当表（EU 样本 062）。
+  const carveFieldBoxes = (t: TableBlock, colWidths: readonly number[]) => {
+    if (!repairTables || chopsMuch(t)) return;
+    const placed = placedIn.get(t) ?? [];
+    for (const f of fieldBoxTables(t, colWidths, placed, lineHeight)) {
+      if (!outsideFigures(f.table)) continue;
+      colWidthsOf.set(f.table, f.colWidths);
+      placedIn.set(
+        f.table,
+        placed.filter((l) => inBox(l, f.table.box)),
+      );
+      ruled.push(f.table);
+    }
+  };
+  for (const t of sheetTables) {
+    const kept = ruledCandidates.includes(t) && !sparse(t);
+    const parts = stackedTables.filter((p) => lineShareIn(p.box, t.box) >= 0.9);
+    const keep =
+      parts.length < 2
+        ? []
+        : parts.filter(
+            (p) =>
+              outsideFigures(p) &&
+              !chopsMuch(p) &&
+              (blankForm(p) ||
+                (kept &&
+                  !isRuleGrid(p, lines.filter((l) => inBox(l, p.box)).length) &&
+                  !sparse(p))),
+          );
+    if (keep.length) {
+      for (const p of keep) colWidthsOf.set(p, stacked.colWidths);
+      ruled.push(...keep);
+      for (const p of parts) if (!keep.includes(p)) carveFieldBoxes(p, stacked.colWidths);
+    } else if (kept) ruled.push(t);
+    else if (ruledCandidates.includes(t)) rejected.push(t);
+    else carveFieldBoxes(t, colWidthsOf.get(t)!);
+  }
   const tables: DocTable[] = ruled.map((table) => {
     // 表里的字号按表里文字的行高（D-335），和正文分开算。
     const h = median(lines.filter((l) => inBox(l, table.box)).map((l) => l.height));
     return {
       kind: 'table',
       ...(rotated ? { direction: 'tbRl' as const } : {}),
-      table: foldEmptyColumns({ ...table, col: 0 }),
-      colWidths: sheet.colWidths.slice(table.col, table.col + table.cols),
+      // 空着的列够写字（填写栏）时不并：只并双线之间、细缝那样的窄列。
+      table: foldEmptyColumns({ ...table, col: 0 }, FILL_IN_LINES * lineHeight),
+      colWidths: colWidthsOf.get(table)!.slice(table.col, table.col + table.cols),
       ...(h ? { size: Math.min(BODY_MAX, Math.max(FORM_MIN, fontSizeOf(h, fontWidthPx))) } : {}),
       box: table.box,
     };
@@ -1236,7 +1867,25 @@ function buildPage(
   const outside = available.filter((l) => !inTable.has(l) && !isStray(l, lines, lineHeight, image));
   // 竖排、旋转的字（页边的竖排标志、侧边的说明、条码旁的编号）：认出来的字多半是乱的，
   // 放进正文又会把字号撑得很大。整块剪成图片，原样保留。
-  const kept = outside.filter((l) => !isVertical(l));
+  const upright = outside.filter((l) => !isVertical(l));
+  // 表单的填写处（一串点、标签右边的横线）接进同一排的标签后面，或者自成一行（EU 样本 021、030）。
+  const fills = findFillIns(
+    working,
+    dots,
+    cachedLines(working, { ...(tableSkew !== undefined ? { skew: tableSkew } : {}), light: true }),
+    upright,
+    lineHeight,
+    [...tables.map((t) => t.box), ...figures.map((f) => f.box)],
+  );
+  const withFills = withFillIns(upright, fills, lineHeight);
+  // 句子中间一块块要填的底色（EU 样本 082）：隔开的几段接回一行。
+  const shaded = joinShadedBlanks(image, withFills.lines, lineHeight);
+  const filled = shaded.lines;
+  const fillSource = new Map(withFills.source);
+  for (const [l, from] of shaded.source) fillSource.set(l, withFills.source.get(from) ?? from);
+  const synthetic = new Set(filled.filter((l) => !fillSource.has(l) && !upright.includes(l)));
+  // 识别漏了的列表记号（「•」「-」）补在行的前面（EU 样本 026、027）。
+  const { lines: kept, source: bulletSource } = withBullets(image, filled);
   const verticals = verticalBoxes(outside.filter(isVertical), cropLineHeight, {
     width: image.width,
     height: image.height,
@@ -1244,37 +1893,82 @@ function buildPage(
   const originalOf = new Map<OcrBox, OcrBox>();
   const leveled = levelLines(kept, lineHeight, image.width / 2);
   leveled.forEach((flat, k) => originalOf.set(flat, kept[k]!));
-  const orig = (l: OcrBox) => originalOf.get(l) ?? l;
+  // 原来的识别行（接了填写处的行换回识别出的那一行：量笔画、颜色、下划线，找它在哪张表里）。
+  const orig = (l: OcrBox) => {
+    const o = originalOf.get(l) ?? l;
+    const b = bulletSource.get(o) ?? o;
+    return fillSource.get(b) ?? b;
+  };
   const releasedCells = new Map<OcrBox, TableCell>();
   for (const table of rejected) {
-    for (const l of placedIn.get(table) ?? []) {
-      const cell = table.cells.find((c) => c.box && lineShareIn(l, c.box) >= 0.5);
-      if (cell) releasedCells.set(l, cell);
+    const placed = placedIn.get(table) ?? [];
+    const cellOf = (l: OcrBox) => table.cells.find((c) => c.box && lineShareIn(l, c.box) >= 0.5);
+    // 上下两格之间没画横线（字之间是白纸）时算同一格：信的外框右边每行一个小刻度，网格一行字切一排，
+    // 去掉网格以后照样一行一段（EU 样本 075）。真画了横线的（议程的格子）仍是各自一条。
+    const same = new Map<TableCell, TableCell>();
+    for (const cell of [...table.cells].sort((a, b) => a.row - b.row)) {
+      const above = table.cells.find(
+        (c) =>
+          c.col === cell.col &&
+          c.colSpan === cell.colSpan &&
+          c.row + c.rowSpan === cell.row &&
+          c.box &&
+          cell.box,
+      );
+      const upper = placed.filter((l) => above && cellOf(l) === above);
+      const lower = placed.filter((l) => cellOf(l) === cell);
+      if (
+        above &&
+        upper.length &&
+        lower.length &&
+        !ruleAcross(
+          working,
+          cell.box!.x,
+          cell.box!.x + cell.box!.width,
+          Math.max(...upper.map((l) => l.y + l.height)),
+          Math.min(...lower.map((l) => l.y)),
+        )
+      )
+        same.set(cell, same.get(above) ?? above);
+    }
+    for (const l of placed) {
+      const cell = cellOf(l);
+      if (cell) releasedCells.set(l, same.get(cell) ?? cell);
     }
   }
   // 没有线的表（D-471）：几排按三列以上对齐的，排成没有边框的表，不接成一句话。
   // 模型只提供范围，不能凭模型直接造表。范围内仍要有三列、多排同时对齐；
   // 已经被带线表接管的范围不重建，整页其余的字沿用原来的严格规则。
   const boundedLines = new Set<OcrBox>();
+  // 整页左右两栏、两栏的行一排一排对齐（EU 样本 044）：先找中缝，没有线的表只在每一栏里找
+  // （不然两栏同一高度的标签对齐成一张横跨两栏的表）。后面有了图片区域再核对一次。
+  const early = findPageGutter(
+    leveled,
+    // 模型的图片区域还没清理（整页的小表单常被框成一张大图），不算；后面用清理过的再核对。
+    [...ruled.map((t) => t.box), ...figures.map((f) => f.box)],
+    lineHeight,
+    image,
+  );
+  const bySide = (ls: readonly OcrBox[]) =>
+    early ? [-1, 0, 1].map((k) => ls.filter((l) => sideOfGutter(l, early) === k)) : [ls];
   const textTables = (repairTables ? (input.regions ?? []) : [])
     .filter((r) => r.kind === 'table' && !ruled.some((t) => lineShareIn(r.box, t.box) >= 0.5))
-    .flatMap((r) => {
-      const members = leveled.filter(
-        (l) => !boundedLines.has(l) && lineShareIn(orig(l), r.box) >= 0.5,
-      );
-      const found = findTextTables(members, lineHeight, orig, true);
-      for (const t of found) for (const l of t.lines) boundedLines.add(l);
-      return found;
-    });
+    .flatMap((r) =>
+      bySide(
+        leveled.filter((l) => !boundedLines.has(l) && lineShareIn(orig(l), r.box) >= 0.5),
+      ).flatMap((members) => {
+        const found = findTextTables(members, lineHeight, orig, true);
+        for (const t of found) for (const l of t.lines) boundedLines.add(l);
+        return found;
+      }),
+    );
   const repairBoxes = [...rejected.map((t) => t.box), ...textTables.map((t) => t.box)];
   const repairBaseline = repairBoxes.length
     ? buildPage(input, options, protectFigures, false, repairBarcodes)
     : undefined;
   textTables.push(
-    ...findTextTables(
-      leveled.filter((l) => !boundedLines.has(l)),
-      lineHeight,
-      orig,
+    ...bySide(leveled.filter((l) => !boundedLines.has(l))).flatMap((part) =>
+      findTextTables(part, lineHeight, orig),
     ),
   );
   const inTextTable = new Set(textTables.flatMap((t) => t.lines));
@@ -1296,10 +1990,17 @@ function buildPage(
     repairBarcodes && !oldBarcodes.length
       ? findBarcodes(working, available, lineHeight, true)
       : oldBarcodes
-  ).filter((b) => !tables.some((t) => !t.borderless && inBox(b, t.box)));
+  ).filter(
+    (b) =>
+      !tables.some((t) => !t.borderless && inBox(b, t.box)) &&
+      // 横跨并排的几张表（中间隔着白缝，EU 样本 090）的一条：大半在表里，也不是条形码。
+      tables.reduce((n, t) => n + (t.borderless ? 0 : lineShareIn(b, t.box)), 0) < 0.5,
+  );
   if (repairBarcodes && protectFigures && repairTables && !oldBarcodes.length && barcodes.length) {
     const baseline = buildPage(input, options, protectFigures, repairTables, false);
-    return insertWordFigures(baseline, barcodes);
+    const pictures = leafBlocks(baseline).filter((b) => b.kind === 'image');
+    const missing = barcodes.filter((b) => !pictures.some((p) => lineShareIn(b, p.box) >= 0.8));
+    return missing.length ? insertWordFigures(baseline, missing) : baseline;
   }
   const inBarcode = (l: OcrBox) => {
     const cx = l.x + l.width / 2;
@@ -1314,6 +2015,14 @@ function buildPage(
   const regions = cleanRegions(layout, free, size, image, protectedImages).filter(
     // 和表格重叠一大半的区域（表格的标题行、表格里认成正文的）不要。
     (r) => {
+      // 原生整图在表的一格里（表头一格里的标志、表单里的证件照，EU 样本 090）：格子里放不了图，
+      // 图留着，排在表的前面，不因为压着表就连整页的图一起撤销。
+      if (
+        r.kind === 'image' &&
+        protectedImages.has(r) &&
+        tables.some((t) => t.table.cells.some((c) => c.box && lineShareIn(r.box, c.box) >= 0.8))
+      )
+        return true;
       const overlaps = tables.map(({ box }) => {
         const ix = Math.min(box.x + box.width, r.box.x + r.box.width) - Math.max(box.x, r.box.x);
         const iy = Math.min(box.y + box.height, r.box.y + r.box.height) - Math.max(box.y, r.box.y);
@@ -1326,11 +2035,29 @@ function buildPage(
     },
   );
   // 接管是整页事务：后续去重或表格过滤若淘汰了任一整图，撤销 OCR/像素隔离，沿用原路径。
+  // 非原生整图时 previous 就是同样参数的原路径结果，不再重建一遍。
   if (figures.some((f) => !regions.some((r) => r.kind === 'image' && r.box === f.box)))
-    return buildPage(input, options, false, repairTables, repairBarcodes);
+    return !native && previous
+      ? previous
+      : buildPage(input, options, false, repairTables, repairBarcodes);
   const merged = mergeTextRegions(regions, lineHeight);
   regions.splice(0, regions.length, ...merged);
   const owner = assignLines(free, regions);
+  // 行首单独的编号跟着同一排右边的条文进同一个区域（版面模型常把编号划进旁边的大区域，EU 样本 032）。
+  for (const [i, l] of free.entries()) {
+    if (!listStart(l.text) || stripMarker(l.text)) continue;
+    const next = free
+      .map((t, k) => ({ t, k }))
+      .filter(
+        ({ t }) =>
+          t.x > l.x + l.width &&
+          t.x - (l.x + l.width) <= MARKER_GAP * lineHeight &&
+          Math.min(t.y + t.height, l.y + l.height) - Math.max(t.y, l.y) >=
+            0.5 * Math.min(t.height, l.height),
+      )
+      .sort((a, b) => a.t.x - b.t.x)[0];
+    if (next && regions[owner[next.k]!]?.kind !== 'image') owner[i] = owner[next.k]!;
+  }
   if (native)
     for (const [i, l] of free.entries()) {
       const region = regions[owner[i] ?? -1];
@@ -1341,7 +2068,12 @@ function buildPage(
   const labelSplit = splitLabelColumn(free, lineHeight);
   // 区域里的行；页码区域的字不要；图片区域里的少量字（标志、照片里的字）也不要。
   let groups: Group[] = [];
-  const images: DocImage[] = [...barcodes, ...verticals].map((box) => ({ kind: 'image', box }));
+  // 版面模型也把条形码认成了图片区域时，只用区域那一张（不然同一个条形码出现两次）。
+  const pictured = regions.filter((r) => r.kind === 'image').map((r) => r.box);
+  const images: DocImage[] = [
+    ...barcodes.filter((b) => !pictured.some((r) => lineShareIn(b, r) >= 0.8)),
+    ...verticals,
+  ].map((box) => ({ kind: 'image', box }));
   for (const [i, region] of regions.entries()) {
     const members = free.filter((_, k) => owner[k] === i);
     if (region.kind === 'image') {
@@ -1360,11 +2092,14 @@ function buildPage(
       });
       continue;
     }
-    if (region.kind === 'pageNumber' || !members.length) continue;
+    // 页码区域只丢读起来像页码的字（D-334）：版面模型也把「Art. 1」「n.a.」这类短字认成页码，丢了就是丢字。
+    const kept =
+      region.kind === 'pageNumber' ? members.filter((l) => !PAGE_NUMBER.test(l.text)) : members;
+    if (!kept.length) continue;
     const title = region.kind === 'title' ? (region.label === 'doc_title' ? 1 : 2) : 0;
     // 一个很大的正文区域（整张小票被认成一块，D-471）里隔得远的几块照样分开：表格的行拿走以后，
     // 上面的店名和下面的号码不再连成一块、把整页的顺序打乱。
-    const clusters = title ? [{ lines: members }] : clustersOf(members, lineHeight, labelSplit);
+    const clusters = title ? [{ lines: kept }] : clustersOf(kept, lineHeight, labelSplit);
     for (const { lines: part, side } of clusters) {
       groups.push({
         lines: part,
@@ -1380,14 +2115,30 @@ function buildPage(
     groups.push({ lines: cluster, title: 0, box: unionBox(cluster), ...(side ? { side } : {}) });
   }
   // 表单：左边一列标签、右边一列值的两块按行配好（D-332）。
-  groups = pairForms(groups, lineHeight);
+  // 整页左右两栏、两栏的行对齐（EU 样本 044）：跨过中缝的块按两边拆开，不配对、不接成「左\t右」。
+  const gutter = early
+    ? findPageGutter(
+        free,
+        [...tables.map((t) => t.box), ...images.map((im) => im.box)],
+        lineHeight,
+        size,
+      )
+    : null;
+  if (gutter) groups = groups.flatMap((g) => splitAtGutter(g, gutter, lineHeight));
+  groups = pairForms(groups, lineHeight, gutter);
   // 字号和笔画：先量出整页的正文字号和笔画粗细，再和它比。
   const strokes = new Map<OcrBox, number>();
-  for (const l of free) strokes.set(l, strokeRatio(image, orig(l)));
+  for (const l of free) strokes.set(l, synthetic.has(orig(l)) ? 0 : strokeRatio(image, orig(l)));
   const pageStroke = median([...strokes.values()].filter((v) => v > 0));
-  const bodyHeight = median(
-    groups.filter((g) => !g.title).flatMap((g) => g.lines.map((l) => l.height)),
+  // 估字号用的行高（同 D-521）：扫描件拉正以后还剩一点斜（0.3–1°），长行的识别框比字高出 宽 × 斜率 一截，
+  // 页脚这样的长行会被量成标题那么大（EU 样本 050），扣掉。按字估的斜率和按线估的都斜才算
+  // （两栏正文的基线错开时，按字估的斜率不准；没有线的页不扣）。
+  const tilt = Math.min(
+    Math.abs(pageSlope(lines, lineHeight)),
+    Math.abs(Math.tan(((tableSkew ?? findLines(image).skew) * Math.PI) / 180)),
   );
+  const sizeHeight = (l: OcrBox) => Math.max(0.6 * l.height, l.height - tilt * l.width);
+  const bodyHeight = median(groups.filter((g) => !g.title).flatMap((g) => g.lines.map(sizeHeight)));
   const bodyH = bodyHeight || lineHeight;
   // 正文页还是表单页（D-335）：数长行（至少四成页宽）里的字占整页（含表格）的多少。
   const charsOf = (ls: readonly OcrBox[]) => ls.reduce((n, l) => n + l.text.length, 0);
@@ -1405,6 +2156,8 @@ function buildPage(
         fontSizeOf(bodyH, fontWidthPx),
       ),
     );
+  // 正文行高按纸宽换算、还没限制范围的字号。
+  const rawBodySize = (bodyH * A4_WIDTH_PT * BOX_TO_FONT) / fontWidthPx;
   // 按字宽估字号（D-463）：正文行的估计够一致时才用。
   const bodyWidths = groups
     .filter((g) => !g.title)
@@ -1430,7 +2183,7 @@ function buildPage(
   ];
   const alignment = new Map<DocParagraph, { h: number; rows: number }>();
   const styleOf = (paraLines: readonly OcrBox[], text: string, title: number) => {
-    const h = median(paraLines.map((l) => l.height));
+    const h = median(paraLines.map(sizeHeight));
     const short = (text.match(/[\p{L}\p{N}]/gu)?.length ?? 0) < SHORT_TEXT && !title;
     const byHeight = h / bodyH;
     const w = widthTrusted ? median(paraLines.map(widthSizeOf).filter((v) => v > 0)) : 0;
@@ -1442,8 +2195,13 @@ function buildPage(
     const snap = byWidth ? WIDTH_SNAP : BODY_SNAP;
     if (short || Math.abs(size - bodySize) <= snap * bodySize) size = bodySize;
     // 已知纸张尺寸时，不能让正文的最小字号把大标题按比例再次放大。
-    if (input.paper && !short && size >= HEADING_RATIO * bodySize)
-      size = Math.min(size, fontSizeOf(h, fontWidthPx));
+    if (input.paper && !short && size >= HEADING_RATIO * bodySize) {
+      // 全大写的行没有下伸的字母，框比同字号的行矮，按自己的框高会读小（16.3 磅读成 13 磅）：
+      // 保留按字宽的比例，只去掉正文被最小字号抬高的那一截。
+      if (/\p{Lu}/u.test(text) && !/\p{Ll}/u.test(text))
+        size = Math.min(size, Math.max(6, Math.round(((size * rawBodySize) / bodySize) * 2) / 2));
+      else size = Math.min(size, fontSizeOf(h, fontWidthPx));
+    }
     const bold =
       pageStroke > 0 && median(paraLines.map((l) => strokes.get(l) ?? 0)) > BOLD_RATIO * pageStroke;
     const color = textColor(image, orig(paraLines[0]!));
@@ -1489,17 +2247,27 @@ function buildPage(
     const paragraphs = paragraphsOf(
       group.lines,
       free.filter((l) => !members.has(l)),
+      textRight,
     ).flatMap((para) => {
       const chunks: (typeof para)[] = [];
       let previousCell: TableCell | undefined;
+      let previousReleased = false;
       for (const row of para.rows) {
         const cells = new Set(row.lines.map((l) => releasedCells.get(orig(l))).filter(Boolean));
         const cell = cells.size === 1 ? [...cells][0] : undefined;
+        const released = cells.size > 0;
         const previous = chunks.at(-1);
-        // 误判网格的不同格子仍是独立信息行，不能因去掉边框就把两条议程接成一段。
-        if (previous && (!cell || !previousCell || cell === previousCell)) previous.rows.push(row);
+        // 误判网格的不同格子仍是独立信息行，不能因去掉边框就把两条议程接成一段；
+        // 网格外的正文和网格里的第一行也不接（一边是原来的段落，一边是去掉边框后放出来的行）。
+        if (
+          previous &&
+          released === previousReleased &&
+          (!cell || !previousCell || cell === previousCell)
+        )
+          previous.rows.push(row);
         else chunks.push({ ...para, rows: [row], spaced: chunks.length ? false : para.spaced });
         previousCell = cell;
+        previousReleased = released;
       }
       return chunks;
     });
@@ -1527,11 +2295,13 @@ function buildPage(
       );
       if (para.list && !released && /[\p{L}\p{N}]/u.test(stripMarker(text))) {
         const marker = listMarker(para.rows[0]!.text);
-        // 同一种编号接着上一个列表；换了写法另起一个。
+        // 同一种编号接着上一个列表；换了写法另起一个。编号不是接着上一项的（议程 1–6 后面的「1. Délibérations」）
+        // 也另起：列表只记第一项的编号，接进去就把后面的编号改成了 7、8（EU 样本 037）。
         if (
           list &&
           list.ordered === marker.ordered &&
           list.format === marker.format &&
+          (!marker.ordered || marker.start === (list.start ?? 1) + list.items.length) &&
           !para.spaced
         ) {
           list.items.push(stripMarker(text));
@@ -1572,9 +2342,19 @@ function buildPage(
         para.rows.length <= 2 &&
         Math.min(box.x, image.width - box.x - box.width) > PAGE_CENTER_MARGIN * image.width &&
         Math.abs(box.x - (image.width - box.x - box.width)) < PAGE_CENTER * image.width;
+      // 几行左边对齐、右边参差的是左对齐的段落，哪怕整段左右空得差不多（EU 样本 036：满版的图把页边压没了）。
+      const lefts = para.rows.map((r) => r.box.x);
+      const rights = para.rows.map((r) => r.box.x + r.box.width);
+      const raggedRight =
+        para.rows.length >= 2 &&
+        Math.max(...lefts) - Math.min(...lefts) <= 0.5 * h &&
+        Math.max(...rights) - Math.min(...rights) > 1.5 * h;
+      const boxAlign = alignmentIn(box, h, para.rows.length, textLeft, textRight, image.width);
       const align = pageCenteredHeading
         ? 'center'
-        : alignmentIn(box, h, para.rows.length, textLeft, textRight, image.width);
+        : boxAlign === 'center' && raggedRight
+          ? undefined
+          : boxAlign;
       const centered = align === 'center';
       const right = align === 'right';
       // 首行缩进：第一行的左边和其他行比，最多 4 个行高（D-330）。只有一行的段落不写首行缩进（D-463）：
@@ -1609,9 +2389,9 @@ function buildPage(
     source: input.source,
     width: image.width,
     height: image.height,
-    paper,
+    ...(paper ? { paper } : {}),
     bodySize,
-    blocks: arrangeUnits(units, lineHeight, {
+    blocks: arrangeColumns(units, lineHeight, gutter, {
       // 密集页沿用原来的局部并排行；长表格的标题 keepNext 会改变跨页行为，另行处理分页。
       dense: lines.length >= DENSE_LINES,
       onColumns: (row) => {
@@ -1630,14 +2410,65 @@ function buildPage(
       },
     }),
   };
+  page.blocks = joinListContinuations(page.blocks, lineHeight);
   if (repairBaseline) {
     // 组表会改变整页字号、分组统计。只替换修复范围中的顶层块，范围外继续用原来的
     // 段落和并排行（包括它们的顺序和样式），避免修一张表挪动上方的日期、署名。
-    const affected = (b: DocBlock) => repairBoxes.some((box) => lineShareIn(b.box, box) >= 0.2);
-    page.blocks = readingOrder(
-      [...repairBaseline.blocks.filter((b) => !affected(b)), ...page.blocks.filter(affected)],
-      lineHeight * 0.3,
+    // 按识别行归属换块：两边分段不同（修复范围上面的段落接进了网格的第一行）时，
+    // 一行字所在的块两边一起换，直到两边换的块装着同一批行，不丢字也不重复。
+    // 自成一行的填写处（一串点）也算一行，它在哪一块里按位置找。
+    const every = [...lines, ...synthetic];
+    const linesOf = (b: DocBlock) => {
+      const boxes = leafBlocks({ blocks: [b] }).map((leaf) => leaf.box);
+      return every.filter((l) => {
+        const cx = l.x + l.width / 2,
+          cy = l.y + l.height / 2;
+        return boxes.some(
+          (box) =>
+            cx >= box.x && cx <= box.x + box.width && cy >= box.y && cy <= box.y + box.height,
+        );
+      });
+    };
+    const oldLines = new Map(repairBaseline.blocks.map((b) => [b, linesOf(b)] as const));
+    const newLines = new Map(page.blocks.map((b) => [b, linesOf(b)] as const));
+    const owned = new Set(
+      every.filter((l) => repairBoxes.some((box) => lineShareIn(l, box) >= 0.5)),
     );
+    const touches = (members: readonly OcrBox[]) => members.some((l) => owned.has(l));
+    for (let size = -1; size !== owned.size;) {
+      size = owned.size;
+      for (const members of [...oldLines.values(), ...newLines.values()])
+        if (touches(members)) for (const l of members) owned.add(l);
+    }
+    const merged = readingOrder(
+      [
+        ...repairBaseline.blocks.filter((b) => !touches(oldLines.get(b)!)),
+        ...page.blocks.filter((b) => touches(newLines.get(b)!)),
+      ],
+      lineHeight * 0.3,
+      lineHeight,
+    );
+    // 拼好以后的字必须和整页重建的字一样多：对不上（行和块对不准）就不修这一页。
+    const words = (blocks: readonly DocBlock[]) =>
+      leafBlocks({ blocks })
+        .flatMap((b) =>
+          b.kind === 'paragraph'
+            ? [b.text]
+            : b.kind === 'list'
+              ? b.items
+              : b.kind === 'table'
+                ? b.table.cells.map((c) => c.text)
+                : [],
+        )
+        .join(' ')
+        // 填写处（「....」「____」）的长短跟着它接在哪一行，不算字。
+        .replace(FILL_RUN, ' ')
+        .split(/\s+/)
+        .filter(Boolean)
+        .sort()
+        .join(' ');
+    if (words(merged) !== words(page.blocks)) return repairBaseline;
+    page.blocks = merged;
   }
   if (previous) {
     const outside = (b: DocLeaf) => figures.every((f) => lineShareIn(b.box, f.box) === 0);
@@ -1739,19 +2570,77 @@ function buildPage(
     )
       return previous;
   }
+  // 左右页边距按字算：贴着纸边的图（满版的色带、页脚的花纹）会把边距压成 0，段落就从纸边排到纸边（EU 样本 036）。
+  // 页上只有图时按图算。上下照旧按所有的块算：页顶的标志、页底的图留在原来的位置。
   const content = leafBlocks(page);
-  if (content.length) {
+  const texts = content.filter((b) => b.kind !== 'image');
+  const across = texts.length ? texts : content;
+  if (content.length && paper) {
+    // 横竖各用自己的比例（近似 A4 的照片按 A4 纸，两个比例只差一点点）。
     const k = paper.width / image.width;
+    const ky = paper.height / image.height;
     const max = Math.min(56.7, paper.width / 10, paper.height / 10);
     const margin = (v: number) => Math.round(Math.max(0, Math.min(max, v)) * 100) / 100;
     page.margins = {
-      left: margin(Math.min(...content.map((b) => b.box.x)) * k),
-      right: margin((image.width - Math.max(...content.map((b) => b.box.x + b.box.width))) * k),
-      top: margin(Math.min(...content.map((b) => b.box.y)) * k),
-      bottom: margin(paper.height - Math.max(...content.map((b) => b.box.y + b.box.height)) * k),
+      left: margin(Math.min(...across.map((b) => b.box.x)) * k),
+      right: margin((image.width - Math.max(...across.map((b) => b.box.x + b.box.width))) * k),
+      top: margin(Math.min(...content.map((b) => b.box.y)) * ky),
+      bottom: margin(paper.height - Math.max(...content.map((b) => b.box.y + b.box.height)) * ky),
     };
   }
   return page;
+}
+
+/**
+ * 列表项的折行被版面模型分到了另一块（EU 样本 026、027）：紧接在列表下面、左边和项目的字对齐（比记号靠右）、
+ * 不比列表宽、字号样式一样的一段，接回最后一项。
+ */
+export function joinListContinuations(blocks: readonly DocBlock[], lineHeight: number): DocBlock[] {
+  const out: DocBlock[] = [];
+  for (const b of blocks) {
+    if (b.kind === 'row') {
+      out.push({
+        ...b,
+        cells: b.cells.map((c) => ({
+          ...c,
+          blocks: joinListContinuations(c.blocks, lineHeight) as DocLeaf[],
+        })),
+      });
+      continue;
+    }
+    const list = out.at(-1);
+    if (
+      list?.kind === 'list' &&
+      !list.ordered &&
+      !list.itemRuns &&
+      b.kind === 'paragraph' &&
+      !b.heading &&
+      !b.runs &&
+      !b.tab &&
+      !b.align &&
+      !listStart(b.text) &&
+      b.box.y - (list.box.y + list.box.height) <= PARAGRAPH_GAP * lineHeight &&
+      b.box.y >= list.box.y + list.box.height - 0.5 * lineHeight &&
+      b.box.x - list.box.x >= 0.5 * lineHeight &&
+      b.box.x - list.box.x <= 3 * lineHeight &&
+      b.box.x + b.box.width <= list.box.x + list.box.width + lineHeight &&
+      b.size === list.size &&
+      b.bold === list.bold &&
+      b.underline === list.underline &&
+      b.color === list.color
+    ) {
+      const items = [...list.items];
+      items[items.length - 1] = `${items.at(-1)!} ${b.text.replace(/\n/g, ' ')}`;
+      out[out.length - 1] = {
+        ...list,
+        items,
+        box: unionBox([list.box, b.box]),
+      };
+      continue;
+    }
+    out.push(b);
+  }
+  return out;
 }
 
 /**
@@ -1906,13 +2795,19 @@ const LABEL_COLON = /[:：]\s*$/;
  * 标签都是冒号结尾，或者有两对以上、标签左对齐、不超过 30 个字、每行单独成段（不是折行的正文）时，
  * 这几行配成一块；两块里没配上的行（上面、下面）各自另成一块。
  */
-function pairForms(groups: readonly Group[], lineHeight: number): Group[] {
+function pairForms(
+  groups: readonly Group[],
+  lineHeight: number,
+  gutter: PageGutter | null = null,
+): Group[] {
   let out = [...groups];
   for (;;) {
     let next: Group[] | null = null;
     for (const left of out) {
       for (const right of out) {
         if (left === right || left.title || right.title || left.pairs || right.pairs) continue;
+        // 整页两栏：左栏的标签不和右栏的字配对。
+        if (gutter && sideOfGutter(left.box, gutter) !== sideOfGutter(right.box, gutter)) continue;
         const found = pairRows(left.lines, right.lines, lineHeight);
         // 标签列和内容列：只有每一行都配上了才配（W-4 的「Step 3:」只配上第一行，其余几行留着，把两列搅乱）。
         const partial = left.side === 'label' && right.side === 'content' && found?.length !== 1;
@@ -1974,6 +2869,62 @@ function pairRows(
     ...group(labels.slice(a + n)),
     ...group(values.slice(0, c)),
     ...group(values.slice(c + n)),
+  ];
+}
+
+/** 一块字的行跨在中缝两边（同一个模型区域、同一排聚成了一块）：左栏、右栏、横跨的各自聚块。 */
+function splitAtGutter(group: Group, gutter: PageGutter, lineHeight: number): Group[] {
+  const sides = [-1, 0, 1].map((s) => group.lines.filter((l) => sideOfGutter(l, gutter) === s));
+  if (sides.filter((s) => s.length).length < 2) return [group];
+  return sides.flatMap((part) =>
+    clusterLines(part, lineHeight).map((ls): Group => {
+      const { pairs: _pairs, ...rest } = group;
+      return { ...rest, lines: ls, box: unionBox(ls) };
+    }),
+  );
+}
+
+/**
+ * 有整页中缝时（findPageGutter）：中缝上面、下面横跨的块照常排，两栏各自排好放进一个两格的并排行
+ * （格子里的块按顺序；格子里还有并排的字段时，写 docx 时由 flowCellBlocks 再排）。
+ */
+function arrangeColumns(
+  units: readonly Unit[],
+  lineHeight: number,
+  gutter: PageGutter | null,
+  options: { dense?: boolean; onColumns?: (row: DocRow) => void },
+): DocBlock[] {
+  if (!gutter) return arrangeUnits(units, lineHeight, options);
+  // 整个在两栏并排那一段上面（页眉左边的页码）、下面的块，和横跨的块一起照常排。
+  const above = units.filter((u) =>
+    sideOfGutter(u.box, gutter) < 0
+      ? u.box.y + u.box.height / 2 < gutter.top
+      : u.box.y + u.box.height <= gutter.top,
+  );
+  const below = units.filter(
+    (u) => !above.includes(u) && (sideOfGutter(u.box, gutter) < 0 || u.box.y >= gutter.bottom),
+  );
+  const cols = [0, 1].map((s) =>
+    units.filter(
+      (u) => !above.includes(u) && !below.includes(u) && sideOfGutter(u.box, gutter) === s,
+    ),
+  );
+  if (cols.some((c) => !c.length)) return arrangeUnits(units, lineHeight, options);
+  const left = Math.min(...cols[0]!.map((u) => u.box.x));
+  const right = Math.max(...cols[1]!.map((u) => u.box.x + u.box.width));
+  const row: DocRow = {
+    kind: 'row',
+    cells: cols.map((c, k) => ({
+      width: k ? right - gutter.x : gutter.x - left,
+      blocks: leafBlocks({ blocks: arrangeUnits(c, lineHeight, { dense: true }) }),
+    })),
+    box: unionBox(cols.flat().map((u) => u.box)),
+  };
+  options.onColumns?.(row);
+  return [
+    ...arrangeUnits(above, lineHeight, options),
+    row,
+    ...arrangeUnits(below, lineHeight, options),
   ];
 }
 
@@ -2065,7 +3016,73 @@ export function arrangeUnits(
     }));
   });
   const bands = mergeColumnRows(arrangeBands(separated, lineHeight), lineHeight);
-  return options.dense ? bands : retainProseColumns(bands, lineHeight, options.onColumns);
+  return splitAnswerRows(
+    options.dense ? bands : retainProseColumns(bands, lineHeight, options.onColumns),
+    lineHeight,
+  );
+}
+
+/**
+ * 答案一列：每块不超过这么多个字（「○ ja ○ nein」、金额、日期）、这么多个行高，上下至少一半对着左边的一块；
+ * 右格不到左格的这么宽。
+ */
+const ANSWER_MAX_CHARS = 30;
+const ANSWER_MAX_LINES = 3;
+const ANSWER_OVERLAP = 0.5;
+const ANSWER_WIDTH_SHARE = 0.5;
+
+/**
+ * 条款旁边一列短的答案（委托书每条后面的「○ ja ○ nein」，EU 样本 041）：一个区域里的几段条款和右边的几个答案
+ * 排成了一个两格的并排行，Word 里左边换了字体折行不一样，右边的答案一个个错开，对不上条款。
+ * 右格都是短的一块一块、每块对着左格的一块时，按答案拆成几行：每行是一个答案和它对着的那段条款
+ * （连同上面没有答案的几段）。右格是正文的（两栏正文）不拆。
+ */
+function splitAnswerRows(blocks: readonly DocBlock[], lineHeight: number): DocBlock[] {
+  return blocks.flatMap((block): DocBlock[] => {
+    if (block.kind !== 'row' || block.cells.length !== 2) return [block];
+    const [left, right] = block.cells as [DocRowCell, DocRowCell];
+    const answers = [...right.blocks].sort((a, b) => a.box.y - b.box.y);
+    const clauses = [...left.blocks].sort((a, b) => a.box.y - b.box.y);
+    if (answers.length < 2 || clauses.length < 2) return [block];
+    if (right.width > ANSWER_WIDTH_SHARE * left.width) return [block];
+    if (
+      !answers.every(
+        (a) =>
+          a.kind === 'paragraph' &&
+          [...a.text.trim()].length <= ANSWER_MAX_CHARS &&
+          a.box.height <= ANSWER_MAX_LINES * lineHeight,
+      )
+    )
+      return [block];
+    const overlap = (a: Box, b: Box) =>
+      Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+    // 每个答案对着的那段条款（重叠最多的）。
+    const owners = answers.map((a) => {
+      let best = -1;
+      for (const [k, c] of clauses.entries())
+        if (
+          overlap(a.box, c.box) >= ANSWER_OVERLAP * Math.min(a.box.height, c.box.height) &&
+          (best < 0 || overlap(a.box, c.box) > overlap(a.box, clauses[best]!.box))
+        )
+          best = k;
+      return best;
+    });
+    // 每个答案都要对着一段，而且顺序一致、不共用一段。
+    if (owners.some((k, i) => k < 0 || (i > 0 && k <= owners[i - 1]!))) return [block];
+    return answers.map((a, i): DocRow => {
+      const from = i ? owners[i - 1]! + 1 : 0;
+      const to = i === answers.length - 1 ? clauses.length : owners[i]! + 1;
+      const mine = clauses.slice(from, to);
+      return {
+        kind: 'row',
+        cells: [
+          { width: left.width, blocks: mine },
+          { width: right.width, blocks: [a] },
+        ],
+        box: unionBox([...mine.map((b) => b.box), a.box]),
+      };
+    });
+  });
 }
 
 /**
@@ -2194,7 +3211,7 @@ function arrangeBands(units: readonly Unit[], lineHeight: number): DocBlock[] {
     .sort((a, b) => top(a) - top(b))
     .flatMap((band): DocBlock[] => {
       const cols = columnsOf(band, gap);
-      if (cols.length < 2) return readingOrder(band, gap).flatMap((u) => u.blocks);
+      if (cols.length < 2) return readingOrder(band, gap, lineHeight).flatMap((u) => u.blocks);
       const lefts = cols.map((c) => Math.min(...c.map((u) => u.box.x)));
       const right = Math.max(...cols.at(-1)!.map((u) => u.box.x + u.box.width));
       return [
@@ -2202,7 +3219,7 @@ function arrangeBands(units: readonly Unit[], lineHeight: number): DocBlock[] {
           kind: 'row',
           cells: cols.map((c, k) => ({
             width: (lefts[k + 1] ?? right) - lefts[k]!,
-            blocks: readingOrder(c, gap).flatMap((u) => u.blocks),
+            blocks: readingOrder(c, gap, lineHeight).flatMap((u) => u.blocks),
           })),
           box: unionBox(band.map((u) => u.box)),
         },

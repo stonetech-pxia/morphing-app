@@ -69,6 +69,8 @@ const SKEW_RANGE = 7;
 const SKEW_COARSE = 1;
 const SKEW_FINE = 0.1;
 const SKEW_MIN = 0.15;
+/** 数暗点的格子宽（像素）：7° 时一格两头只差 1 像素。 */
+const SKEW_CELL = 8;
 /** 最好角度的分数至少是所有角度平均分的这么多倍才算有把握（只有图片、没有成行的字时不转）。 */
 const SKEW_CONFIDENCE = 1.6;
 
@@ -453,29 +455,36 @@ export function looksColored(
  * 文字行对齐时相邻行的计数差最大。返回 0 表示没把握或不需要转。
  */
 export function findSkew(lumaImage: Float32Array, width: number, height: number): number {
-  // 暗点坐标；太多时隔点取样。
   let dark = 0;
   for (let p = 0; p < lumaImage.length; p++) if (lumaImage[p]! < 0.5) dark++;
   // 字太少（或者几乎全是黑的）都不转。
   if (dark < 200 || dark > lumaImage.length * 0.5) return 0;
-  const step = Math.max(1, Math.ceil(dark / 40_000));
+  // 暗点不取样，按每行里横着 SKEW_CELL 像素一格数：每格的暗点数放在格子中间投影。
+  // 不能按扫描顺序每隔几个取一个点：大块实心色块（页眉的深色横条）里取到的点排成斜的格子，
+  // 投影在格子的方向上最整齐，会把倾斜估成好几度；随机取样又给每行添了噪声，盖过了字行。
+  const cols = Math.ceil(width / SKEW_CELL);
+  const counts = new Float64Array(height * cols);
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++)
+      if (lumaImage[y * width + x]! < 0.5) counts[y * cols + Math.floor(x / SKEW_CELL)]!++;
   const xs: number[] = [];
   const ys: number[] = [];
-  let seen = 0;
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      if (lumaImage[y * width + x]! < 0.5 && seen++ % step === 0) {
-        xs.push(x - width / 2);
-        ys.push(y);
-      }
+  const ws: number[] = [];
+  for (let y = 0; y < height; y++)
+    for (let c = 0; c < cols; c++) {
+      const w = counts[y * cols + c]!;
+      if (!w) continue;
+      const left = c * SKEW_CELL;
+      xs.push(left + (Math.min(width, left + SKEW_CELL) - left) / 2 - width / 2);
+      ys.push(y);
+      ws.push(w);
     }
-  }
   const pad = Math.ceil((width / 2) * Math.tan((SKEW_RANGE * Math.PI) / 180)) + 2;
   const rows = new Float64Array(height + pad * 2);
   const score = (deg: number) => {
     const t = Math.tan((deg * Math.PI) / 180);
     rows.fill(0);
-    for (let i = 0; i < xs.length; i++) rows[Math.round(ys[i]! - xs[i]! * t) + pad]!++;
+    for (let i = 0; i < xs.length; i++) rows[Math.round(ys[i]! - xs[i]! * t) + pad]! += ws[i]!;
     let s = 0;
     for (let r = 1; r < rows.length; r++) {
       const d = rows[r]! - rows[r - 1]!;

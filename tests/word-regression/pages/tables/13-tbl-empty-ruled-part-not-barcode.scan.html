@@ -1,0 +1,169 @@
+<!doctype html><meta charset="utf-8" /><style>
+  @page {
+    size: A4 landscape;
+    margin: 12mm;
+  }
+  body {
+    font:
+      8.5pt/1.2 Arial,
+      sans-serif;
+    margin: 0;
+  }
+  h1 {
+    font-size: 13pt;
+    margin: 0 0 5mm;
+  }
+  /* 很多列的带线表，中间一段空着（只有竖线，没有字也没有横线）：一排平行的竖线像条形码（D-501 ④）。 */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid #000;
+  }
+  th,
+  td {
+    padding: 1mm 0.5mm;
+    text-align: center;
+  }
+  th {
+    border-bottom: 1px solid #000;
+  }
+  th + th,
+  td + td {
+    border-left: 1px solid #000;
+  }
+  td:first-child,
+  th:first-child {
+    text-align: left;
+    width: 13%;
+  }
+  tr.empty td {
+    height: 30mm;
+  }
+  tr.data td,
+  tr.empty td,
+  tr.total td {
+    border-top: 1px solid #000;
+  }
+  p {
+    margin: 6mm 0 0;
+  }
+</style>
+<h1>Meter readings per day — November 2026</h1>
+<table>
+  <tr>
+    <th>Meter</th>
+    <th>1</th>
+    <th>2</th>
+    <th>3</th>
+    <th>4</th>
+    <th>5</th>
+    <th>6</th>
+    <th>7</th>
+    <th>8</th>
+    <th>9</th>
+    <th>10</th>
+    <th>11</th>
+    <th>12</th>
+    <th>13</th>
+    <th>14</th>
+    <th>15</th>
+    <th>16</th>
+    <th>17</th>
+    <th>18</th>
+    <th>19</th>
+    <th>20</th>
+  </tr>
+  <tr class="data">
+    <td>Boiler room</td>
+    <td>41</td>
+    <td>39</td>
+    <td>44</td>
+    <td>40</td>
+    <td>38</td>
+    <td>45</td>
+    <td>47</td>
+    <td>42</td>
+    <td>40</td>
+    <td>39</td>
+    <td>43</td>
+    <td>46</td>
+    <td>41</td>
+    <td>40</td>
+    <td>38</td>
+    <td>37</td>
+    <td>44</td>
+    <td>45</td>
+    <td>42</td>
+    <td>41</td>
+  </tr>
+  <tr class="data">
+    <td>Laundry</td>
+    <td>12</td>
+    <td>15</td>
+    <td>11</td>
+    <td>14</td>
+    <td>13</td>
+    <td>9</td>
+    <td>8</td>
+    <td>12</td>
+    <td>15</td>
+    <td>14</td>
+    <td>11</td>
+    <td>10</td>
+    <td>13</td>
+    <td>12</td>
+    <td>16</td>
+    <td>14</td>
+    <td>9</td>
+    <td>8</td>
+    <td>12</td>
+    <td>13</td>
+  </tr>
+  <tr class="empty">
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr class="total">
+    <td>Total</td>
+    <td>53</td>
+    <td>54</td>
+    <td>55</td>
+    <td>54</td>
+    <td>51</td>
+    <td>54</td>
+    <td>55</td>
+    <td>54</td>
+    <td>55</td>
+    <td>53</td>
+    <td>54</td>
+    <td>56</td>
+    <td>54</td>
+    <td>52</td>
+    <td>54</td>
+    <td>51</td>
+    <td>53</td>
+    <td>53</td>
+    <td>54</td>
+    <td>54</td>
+  </tr>
+</table>
+<p>Readings are entered by the caretaker every morning before 9 o'clock.</p>

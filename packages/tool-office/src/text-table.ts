@@ -218,6 +218,18 @@ const isNumber = (s: Segment) => {
 };
 
 /**
+ * 一段字是一个单位（化验单「U/l」「mg/dl」「mmol/l」「%」「sec」，EU 样本 098）：一个词，不超过 6 个字，
+ * 带「/」「%」或者不超过 3 个字母。数后面单独一列的单位和数一样，是数那几列的一部分。
+ */
+const isUnit = (s: Segment) => {
+  const text = s.lines.map((l) => l.text.trim()).join(' ');
+  return (
+    /^[\p{L}µ%°/.]{1,6}$/u.test(text) &&
+    (/[/%]/.test(text) || (text.match(/\p{L}/gu)?.length ?? 0) <= MAX_UNIT_LETTERS)
+  );
+};
+
+/**
  * 第 k 列和第 k + 1 列之间隔得很远时，右边是不是一列列的数、一排一排对着左边（D-502）：
  * 右边的段至少七成是数，右边有字的排至少七成在左边也有字、而且左右两边的高度差不到 1/4 个行高
  * （拍得很斜、没拉平的照片里，碰巧挨上的左右两段差得多，配成一排会把金额配到别的项目旁边），
@@ -240,7 +252,8 @@ function lockedRows(
   return (
     both.length >= MIN_ROWS &&
     both.length >= LOCKED_SHARE * right.length &&
-    (textColumns || segs.filter(isNumber).length >= LOCKED_SHARE * segs.length)
+    (textColumns ||
+      segs.filter((x) => isNumber(x) || isUnit(x)).length >= LOCKED_SHARE * segs.length)
   );
 }
 
@@ -520,6 +533,46 @@ const BAR_TRANSITIONS = 24;
 const BAR_MATCH = 0.7;
 
 /**
+ * 条形码的竖条从上到下贯穿整片：按这片里最深和最浅的中间分黑白，至少两成的列有黑，其中一半以上的列黑的高度过半。
+ * 纸面纹理在整行平均亮度上下跳（扫描件的噪点上下几行一样），夹着一条斜的虚线时也会凑够黑白交替，
+ * 但真正黑的只有虚线那几个像素高、或者只有旁边几个字（D-533 以后零星的字旁边也找条形码，D-471）。
+ */
+function barsFillHeight(image: RgbaImage, box: Box): boolean {
+  const { width, data } = image;
+  const lumAt = (x: number, y: number) => {
+    const o = (y * width + x) * 4;
+    return 0.299 * data[o]! + 0.587 * data[o + 1]! + 0.114 * data[o + 2]!;
+  };
+  const x0 = Math.max(0, box.x);
+  const x1 = Math.min(width, box.x + box.width);
+  const y0 = Math.max(0, box.y);
+  const y1 = Math.min(image.height, box.y + box.height);
+  let lo = 255;
+  let hi = 0;
+  for (let y = y0; y < y1; y++)
+    for (let x = x0; x < x1; x++) {
+      const v = lumAt(x, y);
+      lo = Math.min(lo, v);
+      hi = Math.max(hi, v);
+    }
+  const mid = (lo + hi) / 2;
+  const shares: number[] = [];
+  for (let x = x0; x < x1; x++) {
+    let dark = 0;
+    for (let y = y0; y < y1; y++) if (lumAt(x, y) < mid) dark++;
+    if (dark) shares.push(dark / (y1 - y0));
+  }
+  return shares.length >= 0.2 * (x1 - x0) && median(shares) >= 0.5;
+}
+
+/**
+ * 一片「竖条」里认出来成词的字（三个以上的字母，不全是 I、l 这类竖笔），就不是条形码，是印着正文的底纹：
+ * 车票的防伪三角纹每行都黑白交替，上下又对得齐，夹着的「Von: Fulda」整片被当成条形码剪掉（EU 样本 066）。
+ * 条形码里认出来的零星的字是数字和竖笔。
+ */
+const wordy = (text: string) => (text.match(/\p{L}{3,}/gu) ?? []).some((w) => /[^IilL]/u.test(w));
+
+/**
  * 条形码这样的一片竖条：从上到下几条横线都有很多次黑白交替、而且那里没有认出来的字。
  * 返回它们的范围（原图像素）；高度不到一个行高的不要。
  */
@@ -529,6 +582,13 @@ export function findBarcodes(
   lineHeight: number,
   localText = false,
 ): Box[] {
+  const text = lines.filter((l) => wordy(l.text));
+  const barcode = (b: Box) =>
+    !text.some((l) => {
+      const cx = l.x + l.width / 2;
+      const cy = l.y + l.height / 2;
+      return cx >= b.x && cx <= b.x + b.width && cy >= b.y && cy <= b.y + b.height;
+    });
   const { width, height, data } = image;
   const step = Math.max(2, Math.round(lineHeight / 4));
   const pad = 0.3 * lineHeight;
@@ -623,12 +683,13 @@ export function findBarcodes(
       if (group.length < 2 || group.at(-1)!.y - group[0]!.y + step < lineHeight) continue;
       const x0 = median(group.map((g) => g.x0)),
         x1 = median(group.map((g) => g.x1));
-      out.push({
+      const box = {
         x: Math.round(x0),
         y: group[0]!.y,
         width: Math.round(x1 - x0),
         height: Math.min(height, group.at(-1)!.y + step) - group[0]!.y,
-      });
+      };
+      if (barsFillHeight(image, box) && barcode(box)) out.push(box);
     }
     return out;
   }
@@ -659,5 +720,5 @@ export function findBarcodes(
     group.push(h);
   }
   flush();
-  return out;
+  return out.filter(barcode);
 }

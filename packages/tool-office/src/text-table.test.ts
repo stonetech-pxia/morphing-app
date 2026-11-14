@@ -7,6 +7,7 @@ import { RECEIPT } from './fixtures/receipt-ocr';
 import { writeDocx } from './docx';
 import { renderPage, type Rect } from './test-helpers';
 import { findBarcodes, levelLines, pageSlope } from './text-table';
+import type { LayoutRegion } from './layout';
 import type { OcrBox } from './types';
 
 // 转 Word 的通用版面修正（D-471）。小票是创始人 2026-11-06 发来的一张（Lidl，拍得有点斜、纸是弯的），
@@ -158,6 +159,31 @@ describe('barcodes (D-471)', () => {
     expect(found[0]!.x + found[0]!.width).toBeGreaterThanOrEqual(690);
   });
 
+  it('does not take a security pattern carrying a line of text for a barcode (EU sample 066)', () => {
+    // 同样的竖条中间夹着一行认出来的正文：那是印着字的底纹，不是条形码，字不能被当成条形码里的杂字丢掉。
+    const words: OcrBox = { text: 'Nach: Bad Kissingen', x: 200, y: 350, width: 300, height: 20 };
+    expect(findBarcodes(image, [lines[0]!, words], 20)).toEqual([]);
+    // 条形码里认出来的零星数字照旧不算。
+    expect(findBarcodes(image, lines, 20)).toHaveLength(1);
+  });
+
+  it('does not take a dashed connector on textured paper for a barcode next to text (D-533)', () => {
+    // 斜的虚线（流程图的回流线）每行只有几段；纸面纹理在整行平均亮度上下跳，上下几行一样。
+    const dashes: Rect[] = [];
+    for (let x = 600; x < 1100; x += 14)
+      dashes.push({ x, y: 140 + Math.round((x - 600) * 0.07), width: 8, height: 4 });
+    const paper = renderPage(1400, 300, dashes);
+    for (let y = 0; y < paper.height; y++)
+      for (let x = 0; x < paper.width; x++)
+        for (let c = 0; c < 3; c++) {
+          const o = (y * paper.width + x) * 4 + c;
+          if (paper.data[o] === 255) paper.data[o] = (x * 7919) % 13 < 6 ? 238 : 254;
+        }
+    expect(findBarcodes(paper, [], 35, true)).toEqual([]);
+    // 真的条形码在这条路径上照样找到。
+    expect(findBarcodes(image, lines.slice(0, 1), 20, true)).toHaveLength(1);
+  });
+
   it('keeps a Word barcode beside text without swallowing that text', () => {
     const beside = Array.from({ length: 5 }, (_, i) => ({
       text: `Address ${i + 1}`,
@@ -180,6 +206,20 @@ describe('barcodes (D-471)', () => {
     expect(pictures[0]!.box.height).toBeGreaterThanOrEqual(100);
     expect(JSON.stringify(doc)).toContain('Address 1');
     expect(JSON.stringify(doc)).toContain('Address 5');
+  });
+
+  it('writes the barcode once when the layout model also found it as a picture', () => {
+    const regions: LayoutRegion[] = [
+      {
+        kind: 'image',
+        label: 'image',
+        score: 0.73,
+        box: { x: 90, y: 290, width: 620, height: 140 },
+      },
+    ];
+    const doc = buildDocPage({ image, lines, regions, source: 's', skew: 0 });
+    expect(leafBlocks(doc).filter((b) => b.kind === 'image')).toHaveLength(1);
+    expect(JSON.stringify(doc)).not.toContain('7.00');
   });
 
   it('the barcode is kept as a picture and the stray digits in it are dropped', () => {
@@ -234,6 +274,25 @@ describe('rows kept together when no table lines are found (D-502)', () => {
     const [table, ...others] = tablesIn(lines);
     expect(others).toHaveLength(0);
     expect(rowsOf(table!)).toEqual(items.map((row) => row.filter(Boolean)));
+  });
+
+  it('a lab report (names far from value, unit and range columns) becomes one row per test (EU sample 098)', () => {
+    // 化验单：左边检验项目，隔得很远的右边是结果、单位、参考值三列；单位一列没有数字。
+    const items = [
+      ['GOT', '23', 'U/l', '<35'],
+      ['GPT', '35', 'U/l', '<45'],
+      ['Alk. Phosphatase', '98', 'U/l', '0-129'],
+      ['Bilirubin gesamt', '0.68', 'mg/dl', '<1.00'],
+      ['Gesamteiweiß', '+ 8.2', 'g/dl', '6.0-8.0'],
+      ['Natrium', '138', 'mmol/l', '135-150'],
+    ];
+    const lines = items.flatMap(([label, ...rest], r) => [
+      box(label!, 100, 100 + r * 30, 180),
+      ...rest.map((t, c) => box(t, 760 + c * 190, 100 + r * 30, 70)),
+    ]);
+    const [table, ...others] = tablesIn(lines);
+    expect(others).toHaveLength(0);
+    expect(rowsOf(table!)).toEqual(items);
   });
 
   it('a list of labels with amounts far to the right becomes a two-column table', () => {

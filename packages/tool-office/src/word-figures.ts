@@ -6,6 +6,8 @@ import type { Box, OcrBox, RgbaImage } from './types';
 const captionStart = /^(?:fig(?:ure)?\.?\s*\d+[\s:：.)]|[图圖]\s*\d+[\s:：.、])/iu;
 const captionLabels = new Set(['figure_title', 'chart_title']);
 const area = (b: Box) => b.width * b.height;
+/** 没有图注的图最多占整页的这么多（封面的大照片约六成，NIST 封面插图 0.54）。 */
+const FIGURE_MAX_PAGE_SHARE = 0.8;
 const overlap = (a: Box, b: Box) =>
   Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) *
   Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
@@ -61,6 +63,10 @@ export function planWordFigures(
     )
       continue;
     const inside = lines.filter((l) => l !== caption && lineShareIn(l, b) >= 0.5);
+    // 没有图注、几乎盖满整页的「图」是整页本身（封面的照片底和色块），不是一张图：
+    // 接管了就把页上所有的字一起吞掉（EU 样本 036 封面，一个字都没留下）。页上没有字时照旧当整图。
+    if (!caption && inside.length && area(b) > FIGURE_MAX_PAGE_SHARE * image.width * image.height)
+      continue;
     // 无图注的大色块也可能是多格表单；不能把大量短字段当成示意图标签。
     if (
       !caption &&
@@ -132,6 +138,9 @@ export function planWordFigures(
 export const figureOwns = (line: Box, figures: readonly WordFigure[]): boolean =>
   figures.some((f) => lineShareIn(line, f.box) >= 0.5);
 
+/** 算作线的深色（和找线的绝对门槛一样，0.75 的亮度）。 */
+const RULE_INK = 191;
+
 /** 找线、无框表、条形码只看工作副本；原图仍用于字体测量和最终裁图。 */
 export function figureWorkingImage(
   image: RgbaImage,
@@ -139,15 +148,66 @@ export function figureWorkingImage(
   h: number,
 ): RgbaImage {
   if (!figures.length) return image;
-  const data = image.data.slice();
+  const { width, height } = image;
+  const src = image.data;
+  const data = src.slice();
+  const dark = (x: number, y: number) => {
+    const i = (y * width + x) * 4;
+    return (src[i]! * 299 + src[i + 1]! * 587 + src[i + 2]! * 114) / 1000 < RULE_INK;
+  };
+  // 图框外两边紧挨着都是深色的细细一排（一列）：是穿过图框的表格线（PDF 里的标志图框压过了表头那一格的
+  // 上下边，EU 样本 090），不抹，不然这一格和下面的格连成一块、整张表的合并格都散了。
+  // 两边都是深色的一大片（图压在色块上）不算线，照样抹。
+  const run = Math.max(3, Math.round(0.5 * h));
+  const thin = Math.max(3, Math.round(0.25 * h));
+  const through = (ink: (k: number) => boolean) => {
+    for (let k = 1; k <= run; k++) if (!ink(k)) return false;
+    return true;
+  };
+  const rules = (from: number, to: number, crosses: (at: number) => boolean) => {
+    const kept = new Set<number>();
+    for (let at = from; at < to;) {
+      if (!crosses(at)) {
+        at++;
+        continue;
+      }
+      let end = at;
+      while (end < to && crosses(end)) end++;
+      if (end - at <= thin) for (let k = at; k < end; k++) kept.add(k);
+      at = end;
+    }
+    return kept;
+  };
   for (const f of figures) {
     const pad = 0.15 * h,
       x0 = Math.max(0, Math.floor(f.box.x - pad)),
-      x1 = Math.min(image.width, Math.ceil(f.box.x + f.box.width + pad)),
+      x1 = Math.min(width, Math.ceil(f.box.x + f.box.width + pad)),
       y0 = Math.max(0, Math.floor(f.box.y - pad)),
-      y1 = Math.min(image.height, Math.ceil(f.box.y + f.box.height + pad));
-    for (let y = y0; y < y1; y++)
-      data.fill(255, (y * image.width + x0) * 4, (y * image.width + x1) * 4);
+      y1 = Math.min(height, Math.ceil(f.box.y + f.box.height + pad));
+    const rows = rules(
+      y0,
+      y1,
+      (y) =>
+        x0 - run >= 0 &&
+        x1 + run <= width &&
+        through((k) => dark(x0 - k, y)) &&
+        through((k) => dark(x1 - 1 + k, y)),
+    );
+    const cols = rules(
+      x0,
+      x1,
+      (x) =>
+        y0 - run >= 0 &&
+        y1 + run <= height &&
+        through((k) => dark(x, y0 - k)) &&
+        through((k) => dark(x, y1 - 1 + k)),
+    );
+    for (let y = y0; y < y1; y++) {
+      if (rows.has(y)) continue;
+      data.fill(255, (y * width + x0) * 4, (y * width + x1) * 4);
+      for (const x of cols)
+        data.set(src.subarray((y * width + x) * 4, (y * width + x + 1) * 4), (y * width + x) * 4);
+    }
   }
   return { ...image, data };
 }

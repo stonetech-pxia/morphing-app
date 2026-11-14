@@ -1,0 +1,84 @@
+<!doctype html><meta charset="utf-8" /><style>
+  @page {
+    size: A4;
+    margin: 18mm;
+  }
+  body {
+    font:
+      10pt/1.35 Arial,
+      sans-serif;
+    margin: 0;
+    position: relative;
+  }
+  h1 {
+    font-size: 14pt;
+    margin: 0 0 6mm;
+  }
+  /* 上面两块地址左右并排：不是表。 */
+  .addr {
+    display: flex;
+    justify-content: space-between;
+    margin: 0 0 12mm;
+  }
+  .addr div {
+    width: 40%;
+  }
+  /* 工资单的表身：没有表格线；项目名在左，金额三列在很远的右边。 */
+  .body {
+    position: relative;
+  }
+  .row {
+    position: relative;
+    height: 6.5mm;
+  }
+  .row span {
+    position: absolute;
+    top: 0;
+  }
+  .l {
+    left: 0;
+  }
+  .a {
+    right: 64mm;
+  }
+  .b {
+    right: 32mm;
+  }
+  .c {
+    right: 0;
+  }
+  p {
+    margin: 12mm 0 0;
+  }
+</style>
+<h1>Salary statement — October 2026</h1>
+<div class="addr">
+  <div>
+    Fabrique Lemaire SARL<br />12 Rue des Forges<br />42000 Saint-Étienne<br />Company no. 812 445
+    903
+  </div>
+  <div>
+    Mr Tomasz Wiśniewski<br />8 Allée des Cerisiers<br />Apartment 23<br />42100 Saint-Étienne
+  </div>
+</div>
+<div class="body">
+  <div class="row">
+    <span class="l">Base salary</span><span class="a">151.67</span><span class="b">14.2100</span
+    ><span class="c">2 155.23</span>
+  </div>
+  <div class="row">
+    <span class="l">Overtime 25 %</span><span class="a">12.00</span><span class="b">17.7625</span
+    ><span class="c">213.15</span>
+  </div>
+  <div class="row">
+    <span class="l">Subtotal gross salary</span><span class="a">163.67</span
+    ><span class="c">2 368.38</span>
+  </div>
+  <div class="row"><span class="l">Paid leave allowance</span><span class="c">318.40</span></div>
+  <div class="row">
+    <span class="l">Meal vouchers, employee share</span><span class="a">19.00</span
+    ><span class="b">4.5000</span><span class="c">85.50</span>
+  </div>
+  <div class="row"><span class="l">Transport allowance</span><span class="c">42.10</span></div>
+</div>
+<p>Net pay is transferred to the employee's bank account on the last working day of the month.</p>

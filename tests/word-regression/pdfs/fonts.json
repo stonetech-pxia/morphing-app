@@ -1,0 +1,68 @@
+[
+  {
+    "page": 1,
+    "id": "run-fonts-and-sizes",
+    "source": "01-run-fonts-and-sizes.html",
+    "sha256": "3c490f9696872c5d1d0795803d282cc1b3f1f1ac1365873ab1c34d4340486026"
+  },
+  {
+    "page": 2,
+    "id": "heading-false-positives",
+    "source": "02-heading-false-positives.html",
+    "sha256": "f6628434708244eb34b07333c2fec6b4b68e3eb814a161d8d55d49b2b8011d2b"
+  },
+  {
+    "page": 3,
+    "id": "form-size-proportional",
+    "source": "03-form-size-proportional.html",
+    "sha256": "afca02f94318dcf01287ed27dd5750d2f362d4a43bc3223b380041b167074b08"
+  },
+  {
+    "page": 4,
+    "id": "table-longest-word",
+    "source": "04-table-longest-word.html",
+    "sha256": "3d794d7707b4fcccccdfd4e1e1db1b06ac6cc75b770bfbb45b4587fd0b06e818"
+  },
+  {
+    "page": 5,
+    "id": "prescription",
+    "source": "05-prescription.html",
+    "sha256": "0abc83520b0bf2a12f2ffb992528f52b57304a914dacc4ecf2734f1f928cd3e9"
+  },
+  {
+    "page": 6,
+    "id": "caps-heading-size",
+    "source": "06-caps-heading-size.html",
+    "sha256": "0abc83520b0bf2a12f2ffb992528f52b57304a914dacc4ecf2734f1f928cd3e9"
+  },
+  {
+    "page": 7,
+    "id": "narrow-receipt",
+    "source": "07-narrow-receipt.html",
+    "sha256": "4eab5c024e0acafe13d32fca455f3a72590bbbb14dd650c498775cb9273cb05e"
+  },
+  {
+    "page": 8,
+    "id": "outside-formatting",
+    "source": "08-outside-formatting.pdf",
+    "sha256": "f35afd71d45bb3576601e3c782659b0ae035dc456fc9c345d5ce958b09c8347b"
+  },
+  {
+    "page": 9,
+    "id": "align-within-column",
+    "source": "09-align-within-column.html",
+    "sha256": "3bc873441d223b1e33f36500a32f23a99686b1e7d71e6cb5f525cee9bbbaf27c"
+  },
+  {
+    "page": 10,
+    "id": "left-indent-snap",
+    "source": "10-left-indent-snap.scan.html",
+    "sha256": "5c76d723ed8fa3f1e9bc29f9cce7472bac62c84cb25dc3a25d9867a0bd864dda"
+  },
+  {
+    "page": 11,
+    "id": "skewed-scan-long-lines",
+    "source": "11-skewed-scan-long-lines.scan.html",
+    "sha256": "b7c3c3c1b69637dbd575f51d8b3c7671e7d54eca5a486111236cf70fd5fd41e1"
+  }
+]

@@ -1,0 +1,75 @@
+<!doctype html><meta charset="utf-8" /><style>
+  @page {
+    size: A4;
+    margin: 20mm;
+  }
+  body {
+    font:
+      11pt/1.4 'Courier New',
+      monospace;
+    margin: 0;
+  }
+  /* 小票：商品和合计排成三列；下面紧挨着 GST 汇总（表头一排、数一排），表头横在两列之间（D-503 ②）。 */
+  .r {
+    width: 130mm;
+    margin: 0 auto;
+  }
+  .c {
+    text-align: center;
+  }
+  h1 {
+    font-size: 14pt;
+    text-align: center;
+    margin: 0 0 2mm;
+  }
+  .grid {
+    position: relative;
+    margin: 6mm 0;
+  }
+  .row {
+    position: relative;
+    height: 6.6mm;
+  }
+  .row span {
+    position: absolute;
+    top: 0;
+    white-space: nowrap;
+  }
+</style>
+<div class="r">
+  <h1>PASAR MINI JAYA</h1>
+  <div class="c">Lot 7, Jalan Kenanga, 43000 Kajang</div>
+  <div class="grid">
+    <div class="row">
+      <span style="left: 0">001697 Rice 5kg</span><span style="left: 58mm">5.00 1.00</span
+      ><span style="left: 100mm">5.00 SR</span>
+    </div>
+    <div class="row">
+      <span style="left: 0">766271 Cooking oil</span><span style="left: 56mm">1.00 22.00</span
+      ><span style="left: 100mm">22.00 SR</span>
+    </div>
+    <div class="row">
+      <span style="left: 0">530912 Sugar 1kg</span><span style="left: 58mm">2.00 2.85</span
+      ><span style="left: 100mm">5.70 SR</span>
+    </div>
+    <div class="row">
+      <span style="left: 22mm">Total Amt Incl. GST</span><span style="left: 100mm">32.70</span>
+    </div>
+    <div class="row">
+      <span style="left: 28mm">Rounding Adjustment:</span><span style="left: 105mm">0.00</span>
+    </div>
+    <div class="row">
+      <span style="left: 22mm">Total Amt Payable :</span><span style="left: 100mm">32.70</span>
+    </div>
+    <div class="row">
+      <span style="left: 0">GST Summary</span><span style="left: 40mm">Amount(RM)</span
+      ><span style="left: 76mm">GST (RM)</span>
+    </div>
+    <div class="row">
+      <span style="left: 0">SR = 6 %</span><span style="left: 54mm">30.85</span
+      ><span style="left: 90mm">1.85</span>
+    </div>
+  </div>
+  <div class="c">POINTS EARNED 0.00</div>
+  <div class="c">Thank you, please come again</div>
+</div>

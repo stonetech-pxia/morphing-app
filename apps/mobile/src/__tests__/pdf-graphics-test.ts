@@ -180,4 +180,164 @@ describe('digital PDF graphics ownership', () => {
     expect(result.owned).toHaveLength(4);
     expect([...result.keep]).toEqual([20, 21, 22, 23]);
   });
+  it('reads a rounded card as a fill under its text, but not a circle or a slanted shape', () => {
+    const shape = new Function('handlers', PDF_GRAPHICS_SCRIPT + ';return pathShape;')({});
+    // 浏览器把每个圆角拆成好几段曲线；四条边横平竖直。
+    const corner = (x: number, y: number) => [2, x, y, x, y, x, y, 2, x, y, x, y, x, y];
+    const card = [
+      ...[0, 68, 909, 1, 68, 874],
+      ...corner(76, 866),
+      ...[1, 190, 866],
+      ...corner(198, 874),
+      ...[1, 198, 909],
+      ...corner(190, 917),
+      ...[1, 76, 917],
+      ...corner(68, 909),
+      4,
+    ];
+    expect(shape(card, [68, 866, 198, 917])).toMatchObject({ rounded: true, rectangle: false });
+    const circle = [0, 100, 50, ...corner(150, 100), ...corner(100, 150), ...corner(50, 100), 4];
+    expect(shape(circle, [50, 50, 150, 150]).rounded).toBe(false);
+    const slanted = [0, 0, 0, 1, 100, 10, ...corner(100, 60), 1, 0, 50, 4];
+    expect(shape(slanted, [0, 0, 100, 60]).rounded).toBe(false);
+    const result = plan(
+      [
+        text(1, box(20, 40, 160, 20)),
+        {
+          i: 2,
+          name: 'constructPath',
+          fill: true,
+          rounded: true,
+          alpha: 1,
+          color: 'FFC857',
+          box: box(20, 35, 170, 30),
+        },
+        {
+          i: 3,
+          name: 'constructPath',
+          fill: true,
+          rectangle: true,
+          alpha: 1,
+          color: '1B2A49',
+          box: box(0, 0, 600, 800),
+        },
+      ],
+      input,
+    );
+    expect(result.fills).toContainEqual({ box: box(20, 35, 170, 30), color: 'FFC857' });
+  });
+  it('passes a semi-transparent tint as the pale colour it shows on white paper (EU sample 048)', () => {
+    const result = plan(
+      [
+        text(1, box(20, 40, 160, 20)),
+        {
+          i: 2,
+          name: 'constructPath',
+          fill: true,
+          rectangle: true,
+          alpha: 0.2,
+          color: '88C946',
+          box: box(20, 35, 300, 30),
+        },
+        {
+          i: 3,
+          name: 'constructPath',
+          fill: true,
+          rectangle: true,
+          alpha: 0.02,
+          color: 'FF0000',
+          box: box(20, 100, 300, 30),
+        },
+      ],
+      input,
+    );
+    expect(result.fills).toEqual([{ box: box(20, 35, 300, 30), color: 'E7F4DA' }]);
+  });
+  it('treats glyph runs without Unicode as text, never as drawing in the background or crops', () => {
+    const script = (name: string) =>
+      new Function('handlers', PDF_GRAPHICS_SCRIPT + `;return ${name};`)({});
+    const cropOperation = script('cropOperation');
+    const backgroundOperation = script('backgroundOperation');
+    const figure = box(300, 150, 250, 180);
+    const inside = {
+      i: 6,
+      name: 'showText',
+      text: '',
+      alpha: 1,
+      mode: 0,
+      box: box(320, 200, 60, 15),
+    };
+    const outside = {
+      i: 7,
+      name: 'showText',
+      text: '',
+      alpha: 1,
+      mode: 0,
+      box: box(20, 70, 60, 15),
+    };
+    const result = plan(
+      [
+        text(1, box(20, 40, 160, 20)),
+        { i: 2, image: true, box: box(330, 200, 30, 30) },
+        { i: 3, image: true, box: box(450, 230, 30, 30) },
+        inside,
+        outside,
+      ],
+      { ...input, candidates: [figure] },
+    );
+    expect(result.owned).toEqual([figure]);
+    // 图里的无编码字形跟着这张图；图外的是正文，由可编辑文字承载。
+    expect(result.keep.has(6)).toBe(true);
+    expect(result.keep.has(7)).toBe(false);
+    expect(cropOperation(inside, result)).toBe(true);
+    expect(cropOperation(outside, result)).toBe(false);
+    expect(backgroundOperation(outside, box(0, 0, 600, 800))).toBe(false);
+    expect(backgroundOperation({ i: 8, name: 'setFont' }, box(0, 0, 600, 800))).toBe(true);
+  });
+  it('does not take a watermark pieced from small images over body text as a picture (EU sample 071)', () => {
+    // 斜着的「MUSTER」由二十条互相重叠的小位图拼成，压在 12 行原生正文上；右上角另有一个标志。
+    const body = Array.from({ length: 12 }, (_, k) =>
+      text(k + 1, box(60, 200 + 20 * k, 480, 12), 'Der Anhang enthält keine Werturteile über'),
+    );
+    const pieces = Array.from({ length: 20 }, (_, k) => ({
+      i: 100 + k,
+      image: true,
+      box: box(60 + 24 * k, 520 - 18 * k, 50, 50),
+    }));
+    const logo = { i: 200, image: true, box: box(440, 40, 120, 80) };
+    const junk = { ...box(300, 480, 40, 18), chars: 3 };
+    const result = plan([...body, ...pieces, logo], {
+      ...input,
+      lines: [...body.map((t) => ({ ...t.box, chars: 36 })), junk],
+    });
+    expect(result.owned).toEqual([logo.box]);
+    expect(result.watermarks).toHaveLength(1);
+    expect(result.keep.size).toBe(0);
+    // 水印笔画认出来的「字」不当正文；正文行都留着。
+    expect(result.watermarkInk).toEqual([12]);
+  });
+  it('owns only the logo, not a letterhead region around it that holds stacked lines of text (EU sample 097)', () => {
+    // 成绩单的抬头：两个框，左边学校地址和一个小位图标志，右边四行「标签 : 值」；版面模型把整个抬头框成一张图。
+    const header = box(30, 30, 540, 110);
+    const logo = { i: 50, image: true, box: box(200, 45, 60, 50) };
+    const lines = [
+      text(1, box(45, 40, 110, 10), 'Collège Jean Moulinet'),
+      text(2, box(45, 65, 90, 10), '12 rue des Écoles'),
+      text(3, box(45, 80, 100, 10), '47120 SAINTE-MARIE'),
+      text(4, box(45, 95, 100, 10), 'tél : 05 53 00 11 22'),
+      text(5, box(310, 45, 80, 10), 'NOM – Prénom :'),
+      text(6, box(310, 62, 90, 10), 'Date de naissance :'),
+      text(7, box(310, 79, 40, 10), 'Classe :'),
+      text(8, box(310, 96, 80, 10), 'Année scolaire :'),
+      text(9, box(430, 45, 70, 10), 'DUPONT Lina'),
+      text(10, box(430, 62, 60, 10), '14/05/2011'),
+    ];
+    const result = plan([...lines, logo], {
+      ...input,
+      lines: lines.map((t) => ({ ...t.box, chars: t.text.replace(/\s/g, '').length })),
+      candidates: [header],
+    });
+    expect(result.owned).toEqual([logo.box]);
+    expect(result.keep.size).toBe(0);
+  });
 });

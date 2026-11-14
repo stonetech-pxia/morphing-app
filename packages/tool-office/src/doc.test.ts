@@ -4,6 +4,7 @@ import {
   arrangeUnits,
   buildDocPage,
   clusterLines,
+  fieldBoxTables,
   foldEmptyColumns,
   hasUnderline,
   isRuleGrid,
@@ -74,6 +75,35 @@ describe('paragraphsOf', () => {
     expect(label[1]!.list).toBe(false);
   });
 
+  it('keeps receipt item lines apart when each has its own amount far to the right (EU sample 003)', () => {
+    // 小票：「1 0,4 Schorle」「1 T-RINDERSTEAK」两行，右边隔得很远各有单价和金额；上面一行「Bed. 2 Rg.」
+    // 让右边看着没有空。不是一段折行。
+    const items = [
+      line('10,4 Schorle', 52, 709, 214, 39),
+      line('1 T-RINDERSTEAK', 51, 749, 246, 38),
+    ];
+    const peers = [
+      line('Bed. 2 Rg.:244744', 373, 590, 330, 38),
+      line('3.60', 503, 712, 73, 37),
+      line('3.60', 631, 713, 75, 37),
+      line('19.90', 491, 751, 86, 40),
+      line('19.90', 620, 752, 86, 40),
+    ];
+    expect(paragraphsOf(items, peers)).toHaveLength(2);
+    // 右边是正文（不是金额）时照旧按折行判断。
+    const prose = peers.map((p) => ({ ...p, text: 'and so on' }));
+    expect(paragraphsOf(items, prose)).toHaveLength(1);
+  });
+
+  it('keeps two short lines apart when a blank line height separates them (EU sample 041, 049)', () => {
+    // 答案一列里上下两个「○ ja ○ nein」，中间空着将近一个行高：两行，不是一段折行。
+    const a = line('Oja Onein', 1140, 930, 165, 28);
+    const b = line('O ja O nein', 1140, 984, 165, 28);
+    expect(paragraphsOf([a, b])).toHaveLength(2);
+    // 平常行距的两行短行（窄栏里的折行）照样接成一段。
+    expect(paragraphsOf([a, { ...b, y: 962 }])).toHaveLength(1);
+  });
+
   it('joins wrapped lines, starts a paragraph after a gap, an indent or a list marker', () => {
     const lines = [
       line('First paragraph runs to the right edge and', 100, 100, 800),
@@ -105,6 +135,50 @@ describe('paragraphsOf', () => {
       [false, true],
       [false, true],
     ]);
+  });
+
+  it('keeps centred letterhead lines apart when the next first word would have fit, and joins a wrapped centred title', () => {
+    // 同一条中线、左边只差 9 和 15 像素（不到半个行高）。下面的正文写满 129–1239：
+    // 「Telefon」接在上一行后面、照样居中也排得下，却换了行，是一行一行排的。
+    const lines = [
+      line('Praxis für Allgemeinmedizin · Dr. med. Lena Hartmann', 279, 158, 849, 37),
+      line('Lindenstraße 14, 79098 Freiburg im Breisgau', 347, 207, 713, 41),
+      line('Telefon 0761 555 0192 · Fax 0761 555 0193', 356, 256, 695, 37),
+      line('Sprechzeiten Montag bis Freitag 8–12 Uhr', 371, 308, 666, 37),
+    ];
+    const body = line(
+      'Ibuprofen 400 mg, one tablet up to three times a day with food',
+      129,
+      475,
+      1110,
+      40,
+    );
+    expect(paragraphsOf(lines, [body])).toHaveLength(4);
+    // 居中的标题折成两行、两行差不多长：第二行的第一个词在这一栏的宽里放不下，是同一段。
+    const title = [
+      line('Annual report on the regional water quality of', 200, 100, 600, 40),
+      line('measurements taken in the alpine lakes', 215, 145, 570, 40),
+    ];
+    const narrow = line('Body text of this column.', 200, 260, 600, 40);
+    expect(paragraphsOf(title, [narrow])).toHaveLength(1);
+  });
+
+  it('does not take the widest of a few short lines as the right edge when the column around them is wider', () => {
+    const pets = line(
+      'Pets are allowed with the written consent of the landlord. Small',
+      170,
+      438,
+      1081,
+      46,
+    );
+    const lines = [
+      line('Subletting is not permitted.', 170, 540, 318, 37),
+      line('Inventory checked: Ok', 170, 603, 263, 31),
+    ];
+    // 同一栏里上面的正文写到 1251：「Inventory」接在 488 后面放得下，是两段。
+    expect(paragraphsOf(lines, [pets])).toHaveLength(2);
+    // 别的栏里的行（左边不齐）不算这一栏的宽。
+    expect(paragraphsOf(lines, [{ ...pets, x: 700, width: 500 }])).toHaveLength(1);
   });
 });
 
@@ -236,6 +310,18 @@ describe('paragraphsOf: centered lines (D-463)', () => {
     ];
     expect(paragraphsOf(prose)).toHaveLength(1);
   });
+
+  it('does not put a small tagline into the row of the big wordmark whose box reaches over it (EU sample 091)', () => {
+    // 标志字 136 像素高的框往下压到口号（24 像素高）上面，两行左右叠着。
+    const head = [
+      line('flexPEDIA', 456, 72, 505, 136),
+      line('FLEX OPLOSSINGEN WAAR JE BLIJ VAN WORDT', 478, 191, 471, 24),
+    ];
+    expect(paragraphsOf(head).map((p) => p.rows.map((r) => r.text))).toEqual([
+      ['flexPEDIA'],
+      ['FLEX OPLOSSINGEN WAAR JE BLIJ VAN WORDT'],
+    ]);
+  });
 });
 
 describe('clusterLines', () => {
@@ -348,6 +434,27 @@ describe('buildDocPage', () => {
   const regions = (list: [LayoutRegion['kind'], string, Rect][]): LayoutRegion[] =>
     list.map(([kind, label, box]) => ({ kind, label, score: 0.9, box }));
 
+  it('does not center a line that nearly fills the text width (EU sample 021)', () => {
+    // 页眉的字比正文宽一点：接近整行宽的一行左右各空出两个多行高，不是居中的。
+    const { image, lines } = textPage([
+      { text: 'Gazette of the Region', x: 60, y: 100, width: 220, h: 22 },
+      { text: 'No. 2292', x: 840, y: 100, width: 100, h: 22 },
+      {
+        text: 'He was employed at the company from the first of May until today',
+        x: 110,
+        y: 300,
+        width: 780,
+        h: 22,
+      },
+      { text: 'Short note', x: 110, y: 400, width: 120, h: 22 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const wide = leafBlocks(doc).find(
+      (b): b is DocParagraph => b.kind === 'paragraph' && b.text.startsWith('He was'),
+    )!;
+    expect(wide.align).toBeUndefined();
+  });
+
   it('preserves independent header rows after the layout regions have been merged', () => {
     const { image, lines } = textPage([
       { text: '陈晓明 | ID: DOC-101-3 | 2026-10-15', x: 105, y: 223, width: 432, h: 31 },
@@ -433,6 +540,112 @@ describe('buildDocPage', () => {
     expect(doc.bodySize).toBeLessThanOrEqual(12);
   });
 
+  it('keeps short text the layout model calls a page number unless it reads like one', () => {
+    const { image, lines } = textPage([
+      {
+        text: 'Il Ministro decreta quanto segue per tutte le parti della legge',
+        x: 100,
+        y: 150,
+        width: 800,
+      },
+      { text: 'Decreta:', x: 440, y: 1150, width: 120 },
+      { text: 'Art. 1', x: 450, y: 1210, width: 100 },
+      { text: 'n.a.', x: 100, y: 1270, width: 45 },
+      { text: 'Pagina 2 di 3', x: 820, y: 1360, width: 140 },
+    ]);
+    const doc = buildDocPage({
+      image,
+      lines,
+      source: 's',
+      skew: 0,
+      regions: regions([
+        ['text', 'text', { x: 90, y: 140, width: 820, height: 40 }],
+        ['pageNumber', 'number', { x: 445, y: 1205, width: 110, height: 30 }],
+        ['pageNumber', 'number', { x: 95, y: 1265, width: 55, height: 30 }],
+        ['pageNumber', 'number', { x: 815, y: 1355, width: 150, height: 30 }],
+      ]),
+    });
+    const text = leafBlocks(doc)
+      .flatMap((b) => (b.kind === 'paragraph' ? [b.text] : []))
+      .join('\n');
+    expect(text).toContain('Art. 1');
+    expect(text).toContain('n.a.');
+    // 真的页码照旧不写（D-334）。
+    expect(text).not.toContain('Pagina 2');
+  });
+
+  it('does not take decorative asterisks or dashes around a line for a bullet', () => {
+    const { image, lines } = textPage([
+      { text: '*** ATTO COMPLETO ***', x: 380, y: 100, width: 240 },
+      { text: 'Il testo segue qui sotto.', x: 100, y: 160, width: 300 },
+      { text: '– Anmeldebestätigung –', x: 380, y: 260, width: 240 },
+      { text: 'Bitte aufbewahren.', x: 100, y: 320, width: 250 },
+      { text: '*********RECHNUNG**********', x: 340, y: 420, width: 320 },
+      { text: 'Tisch: 137', x: 100, y: 480, width: 120 },
+      { text: '- echter Punkt eins', x: 100, y: 580, width: 260 },
+      { text: '- echter Punkt zwei', x: 100, y: 605, width: 260 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const leaves = leafBlocks(doc);
+    const paragraphs = leaves.flatMap((b) => (b.kind === 'paragraph' ? [b.text] : []));
+    expect(paragraphs).toContain('*** ATTO COMPLETO ***');
+    expect(paragraphs).toContain('– Anmeldebestätigung –');
+    expect(paragraphs).toContain('*********RECHNUNG**********');
+    expect(leaves.filter((b) => b.kind === 'list')).toMatchObject([
+      { items: ['echter Punkt eins', 'echter Punkt zwei'] },
+    ]);
+  });
+
+  it('does not take a date at the start of a line for a numbered item (EU sample 076)', () => {
+    const { image, lines } = textPage([
+      { text: '21. APR. 2006', x: 100, y: 100, width: 180 },
+      { text: 'Gültig vom', x: 100, y: 200, width: 140 },
+      { text: '1. Januar 2024 bis 31. März 2024', x: 100, y: 260, width: 400 },
+      { text: 'Termin', x: 100, y: 360, width: 100 },
+      { text: '3. 4. 2025', x: 100, y: 420, width: 130 },
+      { text: 'Ablauf', x: 100, y: 520, width: 100 },
+      { text: '1. Erstens kommt der Antrag.', x: 100, y: 580, width: 380 },
+      { text: '2. Zweitens kommt der Bescheid.', x: 100, y: 605, width: 400 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const leaves = leafBlocks(doc);
+    const paragraphs = leaves.flatMap((b) => (b.kind === 'paragraph' ? [b.text] : []));
+    expect(paragraphs).toContain('21. APR. 2006');
+    expect(paragraphs).toContain('1. Januar 2024 bis 31. März 2024');
+    expect(paragraphs).toContain('3. 4. 2025');
+    expect(leaves.filter((b) => b.kind === 'list')).toMatchObject([
+      {
+        ordered: true,
+        start: 1,
+        items: ['Erstens kommt der Antrag.', 'Zweitens kommt der Bescheid.'],
+      },
+    ]);
+  });
+
+  it('does not take bracketed field codes for numbered items (EU sample 089)', () => {
+    // 欧盟统一的行驶证：每一格的编号「(12)」「(13)」只是字段代码，不是列表的编号。
+    const { image, lines } = textPage([
+      { text: '(12) (13)', x: 100, y: 100, width: 120 },
+      { text: 'Masse', x: 100, y: 200, width: 100 },
+      { text: '(6)', x: 100, y: 300, width: 45 },
+      { text: 'Bemerkungen', x: 100, y: 400, width: 160 },
+      { text: '(1) Erstens kommt der Antrag.', x: 100, y: 500, width: 380 },
+      { text: '(2) Zweitens kommt der Bescheid.', x: 100, y: 525, width: 400 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const leaves = leafBlocks(doc);
+    const paragraphs = leaves.flatMap((b) => (b.kind === 'paragraph' ? [b.text] : []));
+    expect(paragraphs).toContain('(12) (13)');
+    expect(paragraphs).toContain('(6)');
+    expect(leaves.filter((b) => b.kind === 'list')).toMatchObject([
+      {
+        ordered: true,
+        start: 1,
+        items: ['Erstens kommt der Antrag.', 'Zweitens kommt der Bescheid.'],
+      },
+    ]);
+  });
+
   it('without layout regions still makes paragraphs and numbered lists from positions', () => {
     const { image, lines } = textPage([
       { text: 'Conditions', x: 100, y: 60, width: 300, h: 40 },
@@ -450,6 +663,123 @@ describe('buildDocPage', () => {
         items: ['Delivery takes two weeks.', 'Payment on delivery.'],
       },
     ]);
+  });
+
+  it('starts a new numbered list when the number does not continue the last item (EU sample 037)', () => {
+    const { image, lines } = textPage([
+      { text: '1. Opening of the meeting', x: 100, y: 150, width: 420 },
+      { text: '2. Reading of the rules', x: 100, y: 175, width: 400 },
+      { text: '3. Any other business', x: 100, y: 200, width: 380 },
+      { text: '1. Decisions:', x: 100, y: 225, width: 220 },
+      { text: '1. The meeting opened at ten o’clock.', x: 100, y: 250, width: 560 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const shown = leafBlocks(doc).flatMap((b) =>
+      b.kind === 'list' ? b.items.map((t, i) => `${(b.start ?? 1) + i} ${t}`) : [],
+    );
+    expect(shown).toEqual([
+      '1 Opening of the meeting',
+      '2 Reading of the rules',
+      '3 Any other business',
+      '1 Decisions:',
+      '1 The meeting opened at ten o’clock.',
+    ]);
+  });
+
+  it('keeps a force-justified line whose words OCR returned one by one as one line (EU sample 037)', () => {
+    const words = ['whose', 'seat', 'is', 'set', 'at', '(full', 'address)'];
+    const { image, lines } = textPage([
+      {
+        text: 'The meeting decided to found the association named below.',
+        x: 100,
+        y: 100,
+        width: 800,
+      },
+      ...words.map((text, i) => ({ text, x: 100 + i * 120, y: 160, width: 60 })),
+      { text: 'The chair then presents the draft statutes.', x: 100, y: 220, width: 620 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const texts = leafBlocks(doc).flatMap((b) => (b.kind === 'paragraph' ? [b.text] : []));
+    expect(texts.some((t) => t.includes('whose seat is set at (full address)'))).toBe(true);
+  });
+
+  it('still splits a row whose far-apart pieces are not single words with even gaps', () => {
+    const { image, lines } = textPage([
+      { text: 'Atelier Lindenhof', x: 100, y: 100, width: 220 },
+      { text: 'Rechnung RE-2026-0311', x: 600, y: 100, width: 300 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const texts = leafBlocks(doc).flatMap((b) => (b.kind === 'paragraph' ? [b.text] : []));
+    expect(texts.some((t) => t.includes('Lindenhof Rechnung'))).toBe(false);
+  });
+
+  it('keeps each number of a numbered item column with its own text (EU sample 032)', () => {
+    const items = [
+      'Name of the manufacturer:',
+      'Object of the declaration:',
+      'The object is in conformity with the following Directives:',
+      'References to the harmonised standards used:',
+      'Additional information:',
+    ];
+    const rows = items.flatMap((text, i) => [
+      { text: `${i + 2}.`, x: 100, y: 120 + i * 70, width: 24 },
+      { text, x: 190, y: 120 + i * 70, width: 14 * text.length },
+    ]);
+    const { image, lines } = textPage(rows);
+    // 版面模型把编号划进了一个大区域，第一项的条文另有一个小区域。
+    const doc = buildDocPage({
+      image,
+      lines,
+      source: 's',
+      skew: 0,
+      regions: regions([
+        ['text', 'text', { x: 95, y: 110, width: 800, height: 380 }],
+        ['text', 'text', { x: 105, y: 115, width: 500, height: 32 }],
+      ]),
+    });
+    // 编号写成列表的编号也行：按列表的起始编号算出显示的编号。
+    const texts = leafBlocks(doc).flatMap((b) =>
+      b.kind === 'paragraph'
+        ? [b.text]
+        : b.kind === 'list'
+          ? b.items.map((t, k) => `${(b.start ?? 1) + k}. ${t}`)
+          : [],
+    );
+    for (const [i, text] of items.entries())
+      expect(texts.some((t) => t.startsWith(`${i + 2}.`) && t.includes(text))).toBe(true);
+    expect(leafBlocks(doc).some((b) => b.kind === 'paragraph' && b.text === '2.')).toBe(false);
+  });
+
+  it('does not centre a ragged-right paragraph whose lines share one left edge (EU sample 036)', () => {
+    // 字的左右两边空得差不多（满版的图把整页文字的左右边撑到了纸边），但几行左边对齐、右边参差：左对齐。
+    const { image, lines } = textPage([
+      { text: 'A margin note sits at the far left.', x: 5, y: 60, width: 300 },
+      {
+        text: 'The programme supports schools and towns in planning their buildings',
+        x: 160,
+        y: 200,
+        width: 680,
+      },
+      {
+        text: 'and offers a library of tools, independent advice and a community',
+        x: 160,
+        y: 228,
+        width: 600,
+      },
+      { text: 'A footer mark sits at the far right.', x: 690, y: 1300, width: 305 },
+    ]);
+    const doc = buildDocPage({
+      image,
+      lines,
+      source: 's',
+      skew: 0,
+      paper: { width: 595, height: 842 },
+    });
+    const para = leafBlocks(doc).find(
+      (b): b is DocParagraph => b.kind === 'paragraph' && b.text.startsWith('The programme'),
+    );
+    expect(para?.text).toContain('and offers a library');
+    expect(para?.align).toBeUndefined();
   });
 
   it('treats a picture region full of body text as text, not as a picture', () => {
@@ -612,6 +942,31 @@ describe('buildDocPage', () => {
     expect(texts[0]).toBe('GENERAL CONDITIONS');
   });
 
+  it('keeps a short tall code printed white on a coloured band (EU sample 056)', () => {
+    // 表单抬头的绿条上白色的大字「A1」：短、高、离别的字远，但不是污点。
+    const code = { x: 120, y: 120, width: 80, height: 70 };
+    const white: Rect[] = [];
+    for (let s = 0; s + 6 <= code.width; s += 14)
+      white.push({ x: code.x + s, y: code.y + 12, width: 6, height: 46, shade: 255 });
+    const band: Rect = { x: 100, y: 100, width: 800, height: 110, color: [74, 140, 63] };
+    const { image, lines } = textPage(
+      [
+        { text: 'INFORMATION FOR THE HOLDER', x: 100, y: 400, width: 400 },
+        {
+          text: 'This certificate concerns the legislation which applies to you.',
+          x: 100,
+          y: 440,
+          width: 800,
+        },
+      ],
+      [...white, band],
+    );
+    const a1 = fakeLine('A1', code, page);
+    const doc = buildDocPage({ image, lines: [a1, ...lines], source: 's', skew: 0 });
+    const texts = leafBlocks(doc).map((b) => (b.kind === 'paragraph' ? b.text : ''));
+    expect(texts).toContain('A1');
+  });
+
   it('sizes a form in proportion to the page, down to about 6 pt; prose stays at 9 pt or more (D-335)', () => {
     // 原图 1000 像素宽按 A4 595 磅换算：行高 13 像素的字约 7 磅。
     const form = textPage(
@@ -686,6 +1041,36 @@ describe('buildDocPage', () => {
     );
   });
 
+  it('sizes text on a landscape page by the landscape paper width, not the portrait A4 width (EU sample 017)', () => {
+    // 横向 A4（842 × 595 磅）渲染成 1400 × 990 像素：20 像素高的行约 842 × 0.9 × 20 / 1400 ≈ 11 磅。
+    const LW = 1400;
+    const LH = 990;
+    const rects: Rect[] = [];
+    const lines: OcrBox[] = [];
+    [
+      'An editable paragraph on a landscape source page.',
+      'The same landscape page continues with a second line.',
+      'And a third body line keeps the size estimate stable.',
+    ].forEach((text, i) => {
+      const y = 100 + i * 45;
+      for (let s = 0; s + 2 <= 900; s += 9)
+        rects.push({ x: 80 + s, y: y + 4, width: 2, height: 12 });
+      lines.push(fakeLine(text, { x: 80, y, width: 900, height: 20 }, { width: LW, height: LH }));
+    });
+    const image = renderPage(LW, LH, rects);
+    const pdf = buildDocPage({
+      image,
+      lines,
+      source: 's',
+      paper: { width: 841.9, height: 595.3 },
+      skew: 0,
+    });
+    // 旧的按 595 磅估：约 7.7 磅（只有原来的 0.71 倍），再被正文下限抬到 9 磅。
+    expect(pdf.bodySize).toBeGreaterThanOrEqual(10.5);
+    // 横拍的照片没有纸张信息，Word 的纸也按横向 A4：字一样大。
+    expect(buildDocPage({ image, lines, source: 's', skew: 0 }).bodySize).toBe(pdf.bodySize);
+  });
+
   it('calibrates fonts to a known narrow PDF before applying the readable body minimum', () => {
     const { image, lines } = textPage([
       {
@@ -723,6 +1108,60 @@ describe('buildDocPage', () => {
     expect(narrow.bodySize).toBeLessThan(old.bodySize);
     expect(letter.bodySize).toBe(old.bodySize);
   });
+  it('gives a photo without paper metadata a page with its own proportions', () => {
+    const page = (width: number, height: number) => {
+      const lines = [
+        fakeLine('Corner Bakery', { x: 150, y: 80, width: 300, height: 30 }, { width, height }),
+        fakeLine(
+          'Total 12.50',
+          { x: 150, y: height - 200, width: 260, height: 30 },
+          { width, height },
+        ),
+      ];
+      return buildDocPage({
+        image: renderPage(
+          width,
+          height,
+          lines.flatMap((l) => glyphs(l.x, l.y + 6, l.width, 18)),
+        ),
+        lines,
+        source: 'receipt.jpg',
+        skew: 0,
+      });
+    };
+    // 不是 A4 比例的一页纸（如 Letter）：纸的高宽比和照片一样，横竖用同一个比例，不把竖向压扁。
+    const letter = page(1000, 1290);
+    expect(letter.paper!.width).toBeCloseTo(595.3, 1);
+    expect(letter.paper!.height / letter.paper!.width).toBeCloseTo(1290 / 1000, 3);
+    // 接近 A4 比例的照片仍是 A4；竖长的小票不设纸，按旧版连续排、自然分页（不压扁成一页 A4）。
+    expect(page(1000, 1400).paper).toEqual({ width: 595.3, height: 841.9 });
+    expect(page(600, 1500).paper).toBeUndefined();
+    expect(page(600, 2400).paper).toBeUndefined();
+  });
+  it('fits a PDF page far larger than A3 (a scan stored at one point per pixel) to A4 width', () => {
+    const { image, lines } = textPage([
+      {
+        text: 'Montant total prélevé ce mois-ci sur votre compte bancaire',
+        x: 60,
+        y: 150,
+        width: 800,
+      },
+      { text: 'Le détail de vos communications se trouve en page 2.', x: 60, y: 180, width: 700 },
+    ]);
+    const build = (paper: { width: number; height: number }) =>
+      buildDocPage({ image, lines, source: 's', paper, skew: 0 });
+    const scan = build({ width: 2481, height: 3508.5 });
+    const a4 = build({ width: 595.3, height: 841.9 });
+    expect(scan.paper!.width).toBeCloseTo(595.3, 1);
+    expect(scan.paper!.height / scan.paper!.width).toBeCloseTo(3508.5 / 2481, 3);
+    // 字号、页边和 A4 原件一样，不因为纸大就把字缩成一小团。
+    expect(scan.bodySize).toBe(a4.bodySize);
+    expect(scan.margins!.left).toBeCloseTo(a4.margins!.left, 0);
+    // 横向的大纸按 A4 长边；A3 和 Letter、Legal 这类真实纸张照旧。
+    expect(build({ width: 3508.5, height: 2481 }).paper!.width).toBeCloseTo(841.9, 1);
+    expect(build({ width: 841.9, height: 1190.6 }).paper).toEqual({ width: 841.9, height: 1190.6 });
+    expect(build({ width: 612, height: 1008 }).paper).toEqual({ width: 612, height: 1008 });
+  });
   it('sizes lines by the width of their letters when the page is set in one font (D-463)', () => {
     // 识别框一样高（p、g 往下伸的字母让小字的框也一样高），字宽看得出大小：正文 17 像素，小字 13，大字 22。
     const px = (text: string, size: number) => Math.round(textEm(text) * size);
@@ -747,6 +1186,35 @@ describe('buildDocPage', () => {
     for (const text of body) expect(sizeOf(text)).toBe(doc.bodySize);
     expect(sizeOf(small)).toBeCloseTo((doc.bodySize * 13) / 17, 0);
     expect(sizeOf(big)).toBeCloseTo((doc.bodySize * 22) / 17, 0);
+  });
+
+  it('keeps the letter-width size of an all-capitals heading on known paper, only removing the body-minimum inflation', () => {
+    // 全大写的行没有上下伸的字母，识别框比同字号的正文矮：框高只说 1.2 倍，字宽说 1.41 倍（D-463 按字宽）。
+    const px = (text: string, size: number) => Math.round(textEm(text) * size);
+    const body = [
+      'Docteur Claire FONTAINE',
+      'Ophtalmologiste diplômée',
+      'Ancienne assistante des hôpitaux',
+      'Réf. cabinet 2026-0417',
+      'Vallon le 11/05/2026',
+    ];
+    const title = 'ORDONNANCE DE LUNETTES';
+    const rows = [
+      ...body.map((text, i) => ({ text, x: 100, y: 100 + i * 60, width: px(text, 17) })),
+      { text: title, x: 300, y: 500, width: px(title, 24), h: 24 },
+    ];
+    const { image, lines } = textPage(rows);
+    const sizes = (paper: { width: number; height: number }) => {
+      const doc = buildDocPage({ image, lines, source: 's', paper, skew: 0 });
+      const para = (doc.blocks as DocParagraph[]).find((p) => p.text === title)!;
+      return { body: doc.bodySize, title: para.size ?? doc.bodySize };
+    };
+    const a4 = sizes({ width: 595.3, height: 841.9 });
+    expect(a4.title / a4.body).toBeCloseTo(24 / 17, 1);
+    // 窄纸（D-533）：正文按物理宽度约 5.4 磅，被抬到最小字号 6 磅；标题按原图约 7.6 磅，不跟着这次抬高再放大。
+    const narrow = sizes({ width: 300, height: 420 });
+    expect(narrow.body).toBe(6);
+    expect(narrow.title).toBeLessThanOrEqual(8);
   });
 
   it('does not make same-size, regular lines in a title region headings; headings keep their size (D-463)', () => {
@@ -857,6 +1325,32 @@ describe('ragged-right wrapping (D-473)', () => {
       line('Second floor', 100, 125, 240),
     ];
     expect(paragraphsOf(value, [line('Account: 123', 721, 100, 190)])).toHaveLength(1);
+  });
+
+  it('keeps stacked short lines apart when the next word would fit in the room to their right (EU sample 023, 025)', () => {
+    // 地址：最宽的一行看着写满了这一块，可是右边一直空到整页的右边（或者右边隔得很远的另一块）。
+    const address = [
+      line('Atelier Garance', 600, 100, 150),
+      line('Camille Rousseau', 600, 125, 165),
+      line('8 place du Marché', 600, 150, 175),
+      line('69002 Lyon', 600, 175, 105),
+    ];
+    expect(paragraphsOf(address, [], 950)).toHaveLength(4);
+    expect(
+      paragraphsOf(
+        address.map((l) => ({ ...l, x: l.x - 500 })),
+        [line('Kunden-Nr.: 1004711', 700, 110, 200)],
+      ),
+    ).toHaveLength(4);
+    // 窄栏的正文：右边隔一条窄缝就是另一栏，下一个词放不下，照样是折行。
+    const column = [
+      line('Die Abschläge haben', 100, 100, 200),
+      line('wir an Ihren Verbrauch', 100, 125, 190),
+      line('angepasst.', 100, 150, 100),
+    ];
+    expect(paragraphsOf(column, [line('Rechte Spalte mit Text', 340, 110, 220)], 600)).toHaveLength(
+      1,
+    );
   });
 
   it('joins a line that stopped short because the next word would not fit', () => {
@@ -1054,6 +1548,31 @@ describe('small layout fixes (D-473)', () => {
     expect(texts.some((t) => t.includes('W-9') && t.includes('\t'))).toBe(false);
   });
 
+  it('sizes long lines of a slightly skewed scan by their text, not their taller box (EU sample 050)', () => {
+    // 斜 0.57°：左右两块同一排的字右边低 7 像素；很长的页脚行的框比字高出 宽 × 斜率。
+    const slope = 0.01;
+    const rows = [0, 1, 2, 3, 4, 5].flatMap((i) => [
+      { text: `Anreise ${i}`, x: 100, y: 200 + i * 40, width: 150 },
+      { text: `Datum ${i}`, x: 800, y: 200 + i * 40 + Math.round(700 * slope), width: 150 },
+    ]);
+    const footer = 'Hotel am See | Seestraße 12 | 5020 Salzburg | Austria | T: +43 662 000000';
+    const { image, lines } = textPage([
+      ...rows,
+      { text: footer, x: 150, y: 1200, width: 700, h: Math.round(20 + 700 * slope) },
+    ]);
+    const doc = buildDocPage({
+      image,
+      lines,
+      source: 's',
+      skew: (Math.atan(slope) * 180) / Math.PI,
+    });
+    const p = leafBlocks(doc).find(
+      (b): b is DocParagraph => b.kind === 'paragraph' && b.text.startsWith('Hotel'),
+    )!;
+    expect(p.heading).toBeUndefined();
+    expect(p.size ?? doc.bodySize).toBeLessThanOrEqual(doc.bodySize * 1.1);
+  });
+
   it('only calls letter-led, mostly-letter text a size-based heading', () => {
     expect(looksLikeHeading('Request for Taxpayer')).toBe(true);
     expect(looksLikeHeading('Displays (8) 40 Floor (40)')).toBe(false);
@@ -1083,6 +1602,56 @@ describe('small layout fixes (D-473)', () => {
     const other = row(300, 'L2', 'R2');
     other.cells[1]!.blocks = [para('R2', 700, 300) as never];
     expect(mergeColumnRows([row(100, 'L1', 'R1'), other], 20)).toHaveLength(2);
+  });
+});
+
+describe('answer column beside clauses (EU sample 041)', () => {
+  const para = (text: string, x: number, y: number, width: number, height: number) => ({
+    kind: 'paragraph' as const,
+    text,
+    box: { x, y, width, height },
+  });
+
+  it('gives each short answer its own row with the clauses up to the one it stands beside', () => {
+    // 一个区域里四段条款（一段没有答案），右边一列「○ ja ○ nein」各对着一段条款的最后一行。
+    const clauses = [
+      para('Sie darf in allen Angelegenheiten entscheiden und befugt sein.', 150, 100, 850, 90),
+      para('Solange es erforderlich ist, darf sie', 150, 230, 400, 25),
+      para('über meine freiheitsentziehende Unterbringung', 190, 280, 700, 25),
+      para('über ärztliche Zwangsmaßnahmen nach dem Gesetz entscheiden.', 190, 330, 800, 60),
+    ];
+    const answers = [
+      para('○ ja ○ nein', 1140, 162, 165, 28),
+      para('○ ja ○ nein', 1140, 278, 165, 28),
+      para('○ ja ○ nein', 1140, 362, 165, 28),
+    ];
+    const units = [
+      { box: { x: 150, y: 100, width: 850, height: 290 }, blocks: clauses },
+      ...answers.map((a) => ({ box: a.box, blocks: [a] })),
+    ];
+    const out = arrangeUnits(units, 28);
+    const rows = out.filter((b): b is DocRow => b.kind === 'row');
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r.cells.map((c) => c.blocks.length))).toEqual([
+      [1, 1],
+      [2, 1],
+      [1, 1],
+    ]);
+    expect((rows[1]!.cells[0]!.blocks[0] as DocParagraph).text).toMatch(/^Solange/);
+  });
+
+  it('keeps a column of prose beside prose as one row', () => {
+    const left = [para('Lorem ipsum dolor sit amet, a long paragraph.', 100, 100, 500, 90)];
+    const right = [
+      para('Another long paragraph of prose in the right column here.', 700, 100, 500, 90),
+      para('And a second paragraph of prose in the right column here.', 700, 220, 500, 90),
+    ];
+    const units = [
+      { box: { x: 100, y: 100, width: 500, height: 90 }, blocks: left },
+      { box: { x: 700, y: 100, width: 500, height: 210 }, blocks: right },
+    ];
+    const rows = arrangeUnits(units, 28).filter((b) => b.kind === 'row');
+    expect(rows).toHaveLength(1);
   });
 });
 
@@ -1287,5 +1856,134 @@ describe('ruled tables whose column lines cut through words (D-502)', () => {
     expect(leaves.filter((b) => b.kind === 'table')).toHaveLength(0);
     const texts = leaves.flatMap((b) => (b.kind === 'paragraph' ? b.text.split('\n') : []));
     for (let r = 0; r < 3; r++) expect(texts.join(' ')).toContain(`Consommations${r}annuelles`);
+  });
+});
+
+describe('ruled field boxes in a rejected form grid (EU sample 062)', () => {
+  // 整页的网格：12 列共用的列线，每排的框分在不同的地方。
+  const colWidths = Array.from({ length: 12 }, () => 100);
+  const cell = (row: number, col: number, colSpan: number, text: string, y: number, h = 60) => ({
+    row,
+    col,
+    rowSpan: 1,
+    colSpan,
+    text,
+    box: { x: col * 100, y, width: colSpan * 100, height: h },
+  });
+  const cells = [
+    // 节的标题条：字在中间，下面没有写的地方。
+    cell(0, 0, 12, 'C. Dane podatnika', 0, 40),
+    cell(1, 0, 5, '10. Nazwisko', 40),
+    cell(1, 5, 3, '11. Pierwsze imię', 40),
+    cell(1, 8, 4, '12. Data urodzenia', 40),
+    cell(2, 0, 4, '13. Kraj', 100),
+    cell(2, 4, 5, '14. Województwo', 100),
+    cell(2, 9, 3, '', 100),
+    // 选项的一节：好几行字。
+    cell(3, 0, 12, '7. Składasz\n1. zeznanie\n2. korektę zeznania', 160, 90),
+    cell(4, 0, 6, '20. Miejscowość', 250),
+    cell(4, 6, 6, '21. Kod pocztowy', 250),
+  ];
+  const table: TableBlock = {
+    kind: 'table',
+    rows: 5,
+    col: 0,
+    cols: 12,
+    cells,
+    box: { x: 0, y: 0, width: 1200, height: 310 },
+  };
+  const placed = [
+    line('C. Dane podatnika', 20, 10, 300),
+    line('10. Nazwisko', 10, 45, 150, 16),
+    line('11. Pierwsze imię', 510, 45, 150, 16),
+    line('12. Data urodzenia', 810, 45, 150, 16),
+    line('13. Kraj', 10, 105, 80, 16),
+    line('14. Województwo', 410, 105, 150, 16),
+    line('7. Składasz', 10, 165, 120, 16),
+    line('1. zeznanie', 40, 192, 120, 16),
+    line('2. korektę zeznania', 40, 220, 160, 16),
+    line('20. Miejscowość', 10, 255, 150, 16),
+    line('21. Kod pocztowy', 610, 255, 150, 16),
+  ];
+
+  it('takes the runs of rows whose filled cells are labelled field boxes as tables', () => {
+    const found = fieldBoxTables(table, colWidths, placed, 20);
+    expect(found).toHaveLength(2);
+    const [first, second] = found;
+    // 10–14 两排一张表，只留这两排用到的列线：0、4、5、8、9、12。
+    expect(first!.table.rows).toBe(2);
+    expect(first!.colWidths).toEqual([400, 100, 300, 100, 300]);
+    expect(first!.table.cells.map((c) => [c.row, c.col, c.colSpan, c.text])).toEqual([
+      [0, 0, 2, '10. Nazwisko'],
+      [0, 2, 1, '11. Pierwsze imię'],
+      [0, 3, 2, '12. Data urodzenia'],
+      [1, 0, 1, '13. Kraj'],
+      [1, 1, 3, '14. Województwo'],
+      [1, 4, 1, ''],
+    ]);
+    // 选项的一节下面的 20、21 是另一张。
+    expect(second!.table.cells.map((c) => c.text)).toEqual(['20. Miejscowość', '21. Kod pocztowy']);
+    expect(second!.colWidths).toEqual([600, 600]);
+  });
+
+  it('leaves out the empty frame space beside the boxes (EU sample 004)', () => {
+    // 两个框只占外框的左半边：右边的空地也被线分成了格子，整列空着。
+    const side = (row: number, y: number, a: string, b: string) => [
+      cell(row, 0, 3, a, y),
+      cell(row, 3, 3, b, y),
+      cell(row, 6, 3, '', y),
+      cell(row, 9, 3, '', y),
+    ];
+    const framed: TableBlock = {
+      ...table,
+      rows: 2,
+      cells: [...side(0, 40, '10. Nazwisko', '11. Imię'), ...side(1, 100, '13. Kraj', '14. Gmina')],
+    };
+    const labels = [
+      line('10. Nazwisko', 10, 45, 150, 16),
+      line('11. Imię', 310, 45, 150, 16),
+      line('13. Kraj', 10, 105, 80, 16),
+      line('14. Gmina', 310, 105, 100, 16),
+    ];
+    const found = fieldBoxTables(framed, colWidths, labels, 20);
+    expect(found.map((f) => [f.table.cols, f.colWidths])).toEqual([[2, [300, 300]]]);
+  });
+
+  it('does not take one column of stacked boxes (EU sample 076)', () => {
+    const stacked: TableBlock = {
+      ...table,
+      rows: 2,
+      cells: [cell(0, 0, 12, 'Patient/in', 40), cell(1, 0, 12, 'Anschrift', 100)],
+    };
+    const labels = [line('Patient/in', 10, 45, 150, 16), line('Anschrift', 10, 105, 150, 16)];
+    expect(fieldBoxTables(stacked, colWidths, labels, 20)).toEqual([]);
+  });
+
+  it('does not take a single field box on its own', () => {
+    // 20 那一排只有自己（上面是选项的一节），只有一个框：不拿。
+    const single = {
+      ...table,
+      cells: cells
+        .filter((c) => c.text !== '21. Kod pocztowy')
+        .map((c) =>
+          c.text === '20. Miejscowość' ? { ...c, colSpan: 12, box: { ...c.box, width: 1200 } } : c,
+        ),
+    };
+    const found = fieldBoxTables(
+      single,
+      colWidths,
+      placed.filter((l) => !l.text.startsWith('21.')),
+      20,
+    );
+    expect(found.map((f) => f.table.cells.map((c) => c.text))).toEqual([
+      [
+        '10. Nazwisko',
+        '11. Pierwsze imię',
+        '12. Data urodzenia',
+        '13. Kraj',
+        '14. Województwo',
+        '',
+      ],
+    ]);
   });
 });

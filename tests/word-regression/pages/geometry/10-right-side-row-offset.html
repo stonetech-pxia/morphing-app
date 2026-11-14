@@ -1,0 +1,36 @@
+<!doctype html><meta charset="utf-8" /><style>
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  body {
+    font:
+      10pt/1.4 Arial,
+      sans-serif;
+    margin: 0;
+    position: relative;
+    width: 210mm;
+    height: 297mm;
+  }
+  .a {
+    position: absolute;
+  }
+  .pair {
+    position: absolute;
+    left: 132mm;
+    width: 55mm;
+    display: flex;
+    justify-content: space-between;
+    font-weight: bold;
+  }
+</style>
+<!-- 发票右半边的两对标签（「FOB | DATE D'EXPÉDITION」）在 Word 里整行挪到了左页边，读起来像是左边「FACTURER À」那块的。 -->
+<div class="a" style="left: 20mm; top: 25mm; font-size: 18pt; font-weight: bold">FACTURE DE VENTE</div>
+<div class="a" style="left: 20mm; top: 50mm; font-weight: bold">FACTURER À</div>
+<div class="a" style="left: 20mm; top: 56mm">Atelier Mercier<br />12 rue des Lilas<br />69003 Lyon</div>
+<div class="pair" style="top: 80mm"><span>FOB</span><span>DATE D'EXPÉDITION</span></div>
+<div class="pair" style="top: 90mm"><span>MODALITÉS</span><span>EXPÉDIÉ VIA</span></div>
+<div class="a" style="left: 20mm; top: 110mm; width: 170mm">
+  Veuillez remettre le paiement dans les 30 jours suivant la date de la facture. Les montants
+  sont indiqués en euros, toutes taxes comprises.
+</div>

@@ -95,6 +95,98 @@ describe('writeDocx', () => {
     const widths = [...grids[1]!.matchAll(/w:w="(\d+)"/g)].map((m) => Number(m[1]));
     expect(widths.at(-1)).toBeGreaterThanOrEqual(Math.ceil(textEm('FLIGHT') * 10 * 20 + 160));
   });
+  it('borrows unused width from earlier cells so a short last cell stays on one line', () => {
+    // 页脚：左边一个网址，右边贴着页边的「1/3」；整行比内容区宽，右边没空白可借，格子只有「1/3」那么宽。
+    const footer = (last: string, lastWidth: number) => ({
+      kind: 'row' as const,
+      box: { x: 40, y: 1350, width: 950, height: 20 },
+      cells: [
+        {
+          width: 950 - lastWidth,
+          blocks: [
+            {
+              kind: 'paragraph' as const,
+              text: 'http://www.example.org/atto/stampa/originario',
+              box: { x: 40, y: 1350, width: 380, height: 18 },
+            },
+          ],
+        },
+        {
+          width: lastWidth,
+          blocks: [
+            {
+              kind: 'paragraph' as const,
+              text: last,
+              box: { x: 990 - lastWidth, y: 1350, width: lastWidth, height: 18 },
+            },
+          ],
+        },
+      ],
+    });
+    for (const [text, width] of [
+      ['1/3', 24],
+      ['Page 2 of 5', 62],
+      ['AUTRE TOTAL', 46],
+    ] as const) {
+      const p: DocPage = { ...page([footer(text, width)], 9), paper: { width: 595, height: 842 } };
+      const xml = unzip(writeDocx({ version: 4, pages: [p] })).text('word/document.xml');
+      const grid = xml.match(/<w:tblGrid>.*?<\/w:tblGrid>/)![0];
+      const widths = [...grid.matchAll(/w:w="(\d+)"/g)].map((m) => Number(m[1]));
+      expect(widths.at(-1)).toBeGreaterThanOrEqual(Math.ceil(textEm(text) * 9 * 20 + 160));
+      // 借的只是左边没用到的宽：网址还放得下一行。
+      expect(widths[0]).toBeGreaterThanOrEqual(
+        Math.ceil(textEm('http://www.example.org/atto/stampa/originario') * 9 * 20 + 160),
+      );
+    }
+  });
+  it('keeps a side-by-side row on the right half where the source has it', () => {
+    // 发票右边的「FOB | DATE D'EXPÉDITION」：左半边空着，整行不该挪到左页边。
+    const p: DocPage = {
+      ...page(
+        [
+          {
+            kind: 'paragraph',
+            text: 'FACTURER À',
+            box: { x: 100, y: 300, width: 150, height: 20 },
+          },
+          {
+            kind: 'row',
+            box: { x: 700, y: 400, width: 220, height: 20 },
+            cells: [
+              {
+                width: 90,
+                blocks: [
+                  {
+                    kind: 'paragraph',
+                    text: 'FOB',
+                    box: { x: 700, y: 400, width: 40, height: 20 },
+                  },
+                ],
+              },
+              {
+                width: 130,
+                blocks: [
+                  {
+                    kind: 'paragraph',
+                    text: 'EXPÉDIÉ VIA',
+                    box: { x: 790, y: 400, width: 120, height: 20 },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        10,
+      ),
+      paper: { width: 595, height: 833 },
+    };
+    const xml = unzip(writeDocx({ version: 4, pages: [p] })).text('word/document.xml');
+    const indent = Number(xml.match(/<w:tblInd w:w="(\d+)"/)?.[1] ?? 0);
+    expect(indent).toBeGreaterThan(0.85 * ((700 - 100) / 1000) * 11906);
+    const grid = xml.match(/<w:tblGrid>.*?<\/w:tblGrid>/)![0];
+    const total = [...grid.matchAll(/w:w="(\d+)"/g)].reduce((n, m) => n + Number(m[1]), 0);
+    expect(indent + total).toBeLessThanOrEqual(11906 - 2 * 1134);
+  });
   it('reserves the painted border in the minimum height of a tightly packed text row', () => {
     const b = { x: 50, y: 100, width: 800, height: 2 };
     const t: DocTable = {
@@ -274,6 +366,37 @@ describe('writeDocx', () => {
     expect(xml.match(/<w:type w:val="nextPage"\/>/g)).toHaveLength(2);
     expect(xml).toContain('First source page');
     expect(xml).toContain('Third source page');
+  });
+
+  it('keeps source spacing on a physical page whose text needs another page anyway', () => {
+    const blocks: DocPage['blocks'] = [];
+    let y = 60;
+    for (let i = 0; i < 8; i++) {
+      blocks.push({
+        kind: 'paragraph',
+        text: `Heading line ${i}`,
+        box: { x: 80, y, width: 300, height: 20 },
+      });
+      y += 80;
+    }
+    blocks.push({
+      kind: 'paragraph',
+      text: 'lorem ipsum dolor sit amet consectetur adipiscing elit '.repeat(80),
+      box: { x: 80, y, width: 840, height: 600 },
+    });
+    const befores = (paper?: { width: number; height: number }) =>
+      [
+        ...unzip(
+          writeDocx({ version: 5, pages: [{ ...page(blocks), ...(paper ? { paper } : {}) }] }),
+        )
+          .text('word/document.xml')
+          .matchAll(/w:before="(\d+)"/g),
+      ].map((m) => Number(m[1]));
+    // 压掉空白也放不进一页：和旧写法一样不压，段落之间照样空开。
+    const spaced = befores({ width: 595.3, height: 841.9 });
+    expect(spaced.length).toBeGreaterThanOrEqual(7);
+    expect(spaced.every((v) => v > 0)).toBe(true);
+    expect(befores()).toHaveLength(spaced.length);
   });
 
   it('gives rotated table cells their source text direction and vertical writing room', () => {
@@ -887,6 +1010,42 @@ describe('writeDocx', () => {
     expect(sizes(table([100, 900], ['MARQUEUR', 'b'], 10))).toEqual([7, 7]);
     // 再长的词也不小于 5 磅。
     expect(sizes(table([100, 900], ['REFRIGERATEURS', 'b'], 10))).toEqual([5, 5]);
+    // 整张表最多跟着缩到 0.6 倍（14 磅的表按内容区本来是 11 磅，最多缩到 6.5 磅）；只有放不下的那一格缩到 5 磅。
+    expect(sizes(table([100, 900], ['REFRIGERATEURS', 'b'], 14))).toEqual([5, 6.5]);
+  });
+
+  it('keeps a table readable when one very narrow column holds a short number (EU sample 020)', () => {
+    const doc: DocDoc = {
+      version: 1,
+      pages: [
+        page([
+          {
+            kind: 'table',
+            colWidths: [855, 30, 115],
+            size: 10,
+            box,
+            table: {
+              kind: 'table',
+              rows: 1,
+              col: 0,
+              cols: 3,
+              box,
+              cells: ['opłata za energię czynną pobraną w okresie', '23', '24,48'].map(
+                (text, col) => ({ row: 0, col, rowSpan: 1, colSpan: 1, text }),
+              ),
+            },
+          },
+        ]),
+      ],
+    };
+    const xml = unzip(writeDocx(doc)).text('word/document.xml');
+    const sizes = [...xml.matchAll(/<w:sz w:val="(\d+)"\/><w:szCs [^>]*><\/w:rPr><w:t /g)].map(
+      (m) => Number(m[1]) / 2,
+    );
+    // 「23」那一列约 14 磅宽：旧的 8 磅格子边距占掉一大半，整张表跟着缩到 5.5 磅。
+    // 边距按格宽缩小后「23」放得下，表照常按内容区缩到 8 磅。
+    expect(sizes).toEqual([8, 8, 8]);
+    expect(xml).toMatch(/<w:tcMar><w:left w:w="\d+" w:type="dxa"\/><w:right w:w="\d+"/);
   });
 
   it('writes each page’s text at that page’s body size (D-335)', () => {
@@ -1083,6 +1242,97 @@ describe('writeDocx', () => {
     expect(xml).toContain('<w:ind w:firstLine="595"/>');
   });
 
+  it('measures left indents from the text, not from a full-bleed picture at the paper edge (EU sample 036)', () => {
+    // 满版的页眉色带从 x = 0 开始；字从左页边距（95 像素）开始，不该都往右缩进 95 像素。
+    const band = {
+      kind: 'image' as const,
+      src: 'band',
+      box: { x: 0, y: 0, width: 1000, height: 60 },
+    };
+    const images = new Map([
+      ['band', { bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), width: 1000, height: 60 }],
+    ]);
+    const doc: DocDoc = {
+      version: 1,
+      pages: [
+        {
+          ...page([
+            band,
+            {
+              kind: 'paragraph',
+              text: 'Voorwoord',
+              heading: 1,
+              box: { x: 95, y: 120, width: 200, height: 40 },
+            },
+            {
+              kind: 'paragraph',
+              text: 'Body text.',
+              box: { x: 95, y: 180, width: 300, height: 30 },
+            },
+          ]),
+          paper: { width: 595, height: 842 },
+          margins: { left: 56.7, right: 56.7, top: 56.7, bottom: 56.7 },
+        },
+      ],
+    };
+    const xml = unzip(writeDocx(doc, images)).text('word/document.xml');
+    const paras = xml.match(/<w:p>.*?<\/w:p>/g)!.filter((p) => /Voorwoord|Body text/.test(p));
+    expect(paras).toHaveLength(2);
+    for (const p of paras) expect(p).not.toMatch(/<w:ind w:left/);
+  });
+
+  it('gives a wide wrapped paragraph the same indent as a heading on its left edge (EU sample 053)', () => {
+    // 信的正文从页边距右边 25 像素起：标题和整段正文左边对齐，正文在 Word 里本来就要折行，缩进不让给剩下的空间。
+    const at = (x: number, y: number, width: number, height = 30) => ({ x, y, width, height });
+    const long = 'Herr Beispiel arbeitete stets sorgfältig, zuverlässig und selbstständig. '.repeat(
+      4,
+    );
+    const doc: DocDoc = {
+      version: 1,
+      pages: [
+        page([
+          { kind: 'paragraph', text: 'Arbeitszeugnis', box: at(120, 100, 200) },
+          { kind: 'paragraph', text: long.trim(), box: at(120, 160, 780, 110) },
+        ]),
+      ],
+    };
+    const xml = unzip(writeDocx(doc)).text('word/document.xml');
+    const lefts = [...xml.matchAll(/<w:ind w:left="(\d+)"/g)].map((m) => m[1]);
+    expect(lefts).toHaveLength(2);
+    expect(lefts[1]).toBe(lefts[0]);
+  });
+
+  it('gives up the indent of wrapped paragraphs when keeping it would push a full page onto two (EU sample 038)', () => {
+    // 一页排满的说明：每段在 Word 里顶格两行、保留缩进要三行。段少时保留缩进，段多到放不下时缩进让出来。
+    let text = 'Vous devez indiquer';
+    while (textEm(text) < 72) text += ' la date de début';
+    const doc = (n: number): DocDoc => ({
+      version: 1,
+      pages: [
+        {
+          ...page(
+            Array.from({ length: n }, (_, i) => ({
+              kind: 'paragraph' as const,
+              text,
+              box: { x: 200, y: 100 + i * 60, width: 800, height: 40 },
+            })),
+          ),
+          height: 1414,
+          paper: { width: 595, height: 842 },
+          margins: { left: 56.7, right: 56.7, top: 56.7, bottom: 56.7 },
+        },
+      ],
+    });
+    const lefts = (n: number) =>
+      [
+        ...unzip(writeDocx(doc(n)))
+          .text('word/document.xml')
+          .matchAll(/<w:p>.*?<\/w:p>/g),
+      ].map((m) => /<w:ind w:left="(\d+)"/.exec(m[0])?.[1] ?? '0');
+    expect(new Set(lefts(5))).not.toContain('0');
+    expect(new Set(lefts(20))).toEqual(new Set(['0']));
+  });
+
   it('places each paragraph at its left edge and keeps the vertical gaps, as plain paragraphs (D-463)', () => {
     // 原图宽 1000 像素 = A4 宽 11906 twip；左页边距 1134 twip = 95 像素，左缩进从那里算。
     const at = (x: number, y: number, width: number) => ({ x, y, width, height: 30 });
@@ -1194,7 +1444,7 @@ describe('writeDocx', () => {
     expect(tables).toHaveLength(2);
     // 外面那张：没有边框，两列按原图宽度换算（1000 像素 = 11906 twip）。
     expect(xml).toMatch(
-      /<w:body><w:tbl><w:tblPr><w:tblW [^>]*><w:tblLayout [^>]*><w:tblBorders><w:top w:val="nil"\/>/,
+      /<w:body><w:tbl><w:tblPr><w:tblW [^>]*><w:tblBorders><w:top w:val="nil"\/>/,
     );
     expect(xml).toContain('<w:gridCol w:w="4762"/><w:gridCol w:w="4167"/>');
     // 里面的表照常有边框，按它那一格的宽（减去左右边距）缩小：2381 → 2004。
@@ -1308,5 +1558,255 @@ describe('left alignment snap (D-473)', () => {
     );
     const lefts = [...xml.matchAll(/<w:ind w:left="(\d+)"/g)].map((m) => m[1]);
     expect(new Set(lefts).size).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('OOXML element order', () => {
+  // ECMA-376 第 1 部分的顺序（只列会写到的几种）：Word 按 schema 的顺序读，顺序错了可能报「无法读取的内容」或丢掉属性。
+  const ORDER: Record<string, string[]> = {
+    pPr: [
+      'pStyle',
+      'keepNext',
+      'keepLines',
+      'pageBreakBefore',
+      'framePr',
+      'widowControl',
+      'numPr',
+      'suppressLineNumbers',
+      'pBdr',
+      'shd',
+      'tabs',
+      'suppressAutoHyphens',
+      'kinsoku',
+      'wordWrap',
+      'overflowPunct',
+      'topLinePunct',
+      'autoSpaceDE',
+      'autoSpaceDN',
+      'bidi',
+      'adjustRightInd',
+      'snapToGrid',
+      'spacing',
+      'ind',
+      'contextualSpacing',
+      'mirrorIndents',
+      'suppressOverlap',
+      'jc',
+      'textDirection',
+      'textAlignment',
+      'textboxTightWrap',
+      'outlineLvl',
+      'divId',
+      'cnfStyle',
+      'rPr',
+      'sectPr',
+      'pPrChange',
+    ],
+    rPr: [
+      'rStyle',
+      'rFonts',
+      'b',
+      'bCs',
+      'i',
+      'iCs',
+      'caps',
+      'smallCaps',
+      'strike',
+      'dstrike',
+      'outline',
+      'shadow',
+      'emboss',
+      'imprint',
+      'noProof',
+      'snapToGrid',
+      'vanish',
+      'webHidden',
+      'color',
+      'spacing',
+      'w',
+      'kern',
+      'position',
+      'sz',
+      'szCs',
+      'highlight',
+      'u',
+      'effect',
+      'bdr',
+      'shd',
+      'fitText',
+      'vertAlign',
+      'rtl',
+      'cs',
+      'em',
+      'lang',
+      'eastAsianLayout',
+      'specVanish',
+      'oMath',
+    ],
+    tcPr: [
+      'cnfStyle',
+      'tcW',
+      'gridSpan',
+      'hMerge',
+      'vMerge',
+      'tcBorders',
+      'shd',
+      'noWrap',
+      'tcMar',
+      'textDirection',
+      'tcFitText',
+      'vAlign',
+      'hideMark',
+    ],
+    tblPr: [
+      'tblStyle',
+      'tblpPr',
+      'tblOverlap',
+      'bidiVisual',
+      'tblStyleRowBandSize',
+      'tblStyleColBandSize',
+      'tblW',
+      'jc',
+      'tblCellSpacing',
+      'tblInd',
+      'tblBorders',
+      'shd',
+      'tblLayout',
+      'tblCellMar',
+      'tblLook',
+    ],
+  };
+  /** 每个 w:pPr / w:rPr / w:tcPr / w:tblPr 的直接子元素，按出现的顺序。 */
+  const childLists = (xml: string) => {
+    const out: { parent: string; children: string[] }[] = [];
+    const stack: { name: string; children: string[] }[] = [];
+    for (const m of xml.matchAll(/<(\/?)w:([A-Za-z]+)[^>]*?(\/?)>/g)) {
+      const [, close, name, self] = m;
+      if (close) {
+        const top = stack.pop()!;
+        if (ORDER[top.name]) out.push({ parent: top.name, children: top.children });
+        continue;
+      }
+      stack.at(-1)?.children.push(name!);
+      if (!self) stack.push({ name: name!, children: [] });
+    }
+    return out;
+  };
+  const misordered = (xml: string) =>
+    childLists(xml).flatMap(({ parent, children }) => {
+      const order = ORDER[parent]!;
+      const at = children.map((c) => order.indexOf(c));
+      return at.some((v) => v < 0) || at.some((v, i) => i > 0 && v <= at[i - 1]!)
+        ? [`${parent}: ${children.join(',')}`]
+        : [];
+    });
+
+  it('writes every property element in schema order, on legacy and physical-paper pages', () => {
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const images = new Map([
+      ['figure', { bytes: png, width: 300, height: 150 }],
+      ['decoration', { bytes: png, width: 1000, height: 1400 }],
+    ]);
+    const cellBox = (x: number, y: number, width: number, height: number) => ({
+      x,
+      y,
+      width,
+      height,
+    });
+    const table: DocTable = {
+      kind: 'table',
+      box: cellBox(100, 500, 800, 120),
+      colWidths: [300, 300, 200],
+      table: {
+        kind: 'table',
+        box: cellBox(100, 500, 800, 120),
+        col: 0,
+        rows: 2,
+        cols: 3,
+        cells: [
+          {
+            row: 0,
+            col: 0,
+            rowSpan: 1,
+            colSpan: 2,
+            text: 'Header\tvalue',
+            box: cellBox(100, 500, 600, 60),
+          },
+          {
+            row: 0,
+            col: 2,
+            rowSpan: 2,
+            colSpan: 1,
+            text: 'Side',
+            box: cellBox(700, 500, 200, 120),
+          },
+          { row: 1, col: 0, rowSpan: 1, colSpan: 1, text: 'a', box: cellBox(100, 560, 300, 60) },
+          { row: 1, col: 1, rowSpan: 1, colSpan: 1, text: 'b', box: cellBox(400, 560, 300, 60) },
+        ],
+      },
+      cellLayout: [
+        {
+          row: 0,
+          col: 0,
+          fill: 'FFCC00',
+          lines: [{ ...cellBox(110, 510, 200, 20), fill: 'FFCC00', color: 'FF0000', tabs: [400] }],
+        },
+        { row: 0, col: 2, fill: 'CCCCCC', lines: [cellBox(710, 510, 50, 20)] },
+      ],
+    };
+    const blocks: DocPage['blocks'] = [
+      { kind: 'image', background: true, src: 'decoration', box: cellBox(0, 0, 1000, 1400) },
+      {
+        kind: 'paragraph',
+        text: 'Heading',
+        heading: 1,
+        align: 'center',
+        box: cellBox(300, 60, 400, 40),
+      },
+      {
+        kind: 'paragraph',
+        text: 'Banded body',
+        fill: 'DDEEFF',
+        color: '336699',
+        bold: true,
+        italic: true,
+        underline: true,
+        align: 'right',
+        box: cellBox(200, 120, 600, 20),
+      },
+      { kind: 'list', ordered: true, items: ['one', 'two'], box: cellBox(150, 160, 400, 40) },
+      { kind: 'image', src: 'figure', box: cellBox(400, 220, 300, 150) },
+      { kind: 'space', box: cellBox(100, 380, 400, 30) },
+      table,
+      {
+        kind: 'row',
+        box: cellBox(100, 700, 800, 60),
+        cells: [
+          {
+            width: 400,
+            blocks: [{ kind: 'paragraph', text: 'Left', box: cellBox(100, 700, 300, 20) }],
+          },
+          {
+            width: 400,
+            blocks: [{ kind: 'paragraph', text: 'Right', box: cellBox(500, 700, 300, 20) }],
+          },
+        ],
+      },
+    ];
+    const paper = { width: 595.3, height: 841.9 };
+    for (const doc of [
+      {
+        version: 5 as const,
+        pages: [
+          { ...page(blocks), paper },
+          { ...page(blocks), paper },
+        ],
+      },
+      { version: 1 as const, pages: [page(blocks), page(blocks)] },
+    ]) {
+      const zip = unzip(writeDocx(doc, images));
+      for (const part of ['word/document.xml', 'word/styles.xml', 'word/numbering.xml'])
+        expect(misordered(zip.text(part)), part).toEqual([]);
+    }
   });
 });

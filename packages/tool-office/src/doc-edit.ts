@@ -316,19 +316,9 @@ export function parseDocDoc(json: string): DocDoc | null {
       )
     )
       return null;
-    return doc.version !== 5
-      ? {
-          ...doc,
-          version: 5,
-          pages:
-            doc.version === 4
-              ? doc.pages
-              : doc.pages.map((p) => ({
-                  ...p,
-                  paper: p.paper ?? { width: 595.3, height: 841.9 },
-                })),
-        }
-      : doc;
+    // 旧版本只升版本号，不补纸张：没有 paper 的页（文字转 Word、导入的 docx、旧扫描）照旧按 A4 的原写法，
+    // 重新打开再存出来和当初一样（占位框靠 spaced 分段，补了纸张会丢掉段前距）。
+    return doc.version !== 5 ? { ...doc, version: 5 } : doc;
   } catch {
     return null;
   }

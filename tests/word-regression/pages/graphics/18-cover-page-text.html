@@ -1,0 +1,124 @@
+<!doctype html>
+<meta charset="utf-8" />
+<style>
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  body {
+    margin: 0;
+    font-family: Helvetica, Arial, sans-serif;
+  }
+  .page {
+    position: relative;
+    width: 210mm;
+    height: 297mm;
+    overflow: hidden;
+    background: #d3ebe9;
+  }
+  canvas {
+    position: absolute;
+    left: 112mm;
+    top: 0;
+    width: 98mm;
+    height: 297mm;
+  }
+  .band {
+    position: absolute;
+    left: 0;
+    top: 30mm;
+    width: 140mm;
+    height: 58mm;
+    background: #04435c;
+    border-bottom-right-radius: 4mm;
+    color: #fff;
+    font-weight: bold;
+  }
+  .t1 {
+    position: absolute;
+    left: 25mm;
+    top: 19mm;
+    font-size: 30pt;
+  }
+  .t2 {
+    position: absolute;
+    left: 25mm;
+    top: 33mm;
+    font-size: 22pt;
+  }
+  .logo {
+    position: absolute;
+    left: 10mm;
+    top: 252mm;
+    width: 48mm;
+    height: 22mm;
+    border: 1.2mm solid #164e62;
+    border-top: none;
+    border-right: none;
+  }
+  .logo .a {
+    position: absolute;
+    left: 22mm;
+    top: 6mm;
+    font-size: 11pt;
+    color: #164e62;
+  }
+  .logo .b {
+    position: absolute;
+    left: 3mm;
+    top: 12mm;
+    font-size: 12pt;
+    font-weight: bold;
+    color: #164e62;
+  }
+  .rule {
+    position: absolute;
+    left: 0;
+    top: 282mm;
+    width: 199mm;
+    height: 0;
+    border-top: 0.6mm solid #f2b705;
+  }
+</style>
+<div class="page">
+  <canvas id="photo" width="560" height="1700"></canvas>
+  <div class="band">
+    <div class="t1">Contrato modelo</div>
+    <div class="t2">Arrendamiento de vivienda</div>
+  </div>
+  <div class="logo"><div class="a">Programa</div><div class="b">Vivienda Escolar</div></div>
+  <div class="rule"></div>
+</div>
+<script>
+  // 一张「照片」：模糊的色块加固定种子的颗粒，像封面右半边的人像照片。
+  const c = document.getElementById('photo').getContext('2d');
+  const g = c.createLinearGradient(0, 0, 560, 1700);
+  g.addColorStop(0, '#c9dbe6');
+  g.addColorStop(0.5, '#5f86a8');
+  g.addColorStop(1, '#c7a58a');
+  c.fillStyle = g;
+  c.fillRect(0, 0, 560, 1700);
+  let r = 12345;
+  const rnd = () => ((r = (r * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  c.filter = 'blur(18px)';
+  for (let i = 0; i < 40; i++) {
+    c.fillStyle = `hsl(${Math.floor(rnd() * 60) + 190}, 35%, ${Math.floor(rnd() * 50) + 25}%)`;
+    c.beginPath();
+    c.ellipse(rnd() * 560, rnd() * 1700, 40 + rnd() * 120, 40 + rnd() * 160, rnd() * 3, 0, 7);
+    c.fill();
+  }
+  c.filter = 'none';
+  c.fillStyle = '#e8c4a8';
+  c.beginPath();
+  c.ellipse(420, 900, 150, 260, 0.6, 0, 7);
+  c.fill();
+  c.strokeStyle = '#ffffff';
+  c.lineWidth = 6;
+  for (let k = 0; k < 4; k++) c.strokeRect(150, 400 + k * 280, 160, 160);
+  const img = c.getImageData(0, 0, 560, 1700);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = Math.floor(rnd() * 21) - 10;
+    for (let k = 0; k < 3; k++) img.data[i + k] = Math.max(0, Math.min(255, img.data[i + k] + n));
+  }
+  c.putImageData(img, 0, 0);
+</script>

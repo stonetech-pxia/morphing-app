@@ -12,3 +12,9 @@ apps/mobile/modules/morph-media/dsp/rnnoise
 # v33 的配置和派生数据（v34 迁移的等价测试用，生成的，不手改）。
 packages/core/src/fixtures/v33
 packages/core/src/fixtures/portal-apps/
+
+# 防倒退测试的来源页和识别记录：格式化会改来源的 sha256，记录就作废了。
+tests/word-regression/pages
+tests/word-regression/fixtures
+tests/word-regression/pdfs
+tests/word-regression/.out

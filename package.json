@@ -26,7 +26,8 @@
     "check:licenses": "node scripts/check-licenses.mjs",
     "check": "npm run lint && npm run format:check && npm run typecheck && npm run test && npm run test:native-dsp && npm run check:licenses && npm run check:locales",
     "test:native-dsp": "node scripts/test-native-dsp.mjs",
-    "check:locales": "node scripts/check-locales.mjs"
+    "check:locales": "node scripts/check-locales.mjs",
+    "test:word-regression": "tsx tests/word-regression/run.ts"
   },
   "dependencies": {
     "patch-package": "^8.0.1"

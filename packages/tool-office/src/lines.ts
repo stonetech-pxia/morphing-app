@@ -69,12 +69,94 @@ const BAND_MAX_SHARE = 0.06;
 const BAND_MIN_ELONGATION = 2;
 const BAND_MIN_FILL = 0.6;
 const BAND_MIN_ANCHORS = 2;
+const BAND_RULED_GAP = 3;
+const BAND_RULED_MIN = 2;
+/** 竖线长到页高的这么多（95%），是纸边或中缝，不参加组表。 */
+const PAGE_EDGE_SHARE = 0.95;
 /** 只有横线的表：左右两端对齐的误差（页宽的 2%），相邻两条最远隔页高的 40%（三线表的表身很高）。 */
 const ALIGN_SHARE = 0.02;
 const RULED_GAP_SHARE = 0.4;
 const RULED_MIN = 3;
+/**
+ * 只有横线的一串，头两条线最远隔页高的 10%：三线表的顶线和表头线之间只有表头那一行，只有表身才可能很高。
+ * 一开始就隔着一大段的，是一节一节表单框的底线、各处填空的横线（EU 样本 014），不是一张表。
+ */
+const RULED_HEAD_GAP_SHARE = 0.1;
+/** 等距的一串（最大间距不超过最小的 RULED_EVEN 倍）遇到超过间距 RULED_SPLIT_STEPS 倍的一段就断开。 */
+const RULED_EVEN = 1.3;
+const RULED_SPLIT_STEPS = 2.5;
 
-/** 墨水深浅：三个通道里最暗的那个（0 黑 – 1 白），红字、蓝字的线也算。 */
+/**
+ * 很浅的表格线（转 Word 用，findLines 的 light）：电子版的发票模板、表单常用浅灰的线（最暗的通道 0.75–0.86），
+ * Sauvola 在白纸上的阈值只有 0.7 左右，找不到。纸很白（整页一半以上的点至少 LIGHT_PAPER：电子版、干净的扫描件）时，
+ * 比纸暗 LIGHT_CONTRAST 的点也算，但只算细的：横着找线时上下连着不超过 LIGHT_THICKNESS（竖线反过来）。
+ * 浅色底纹的格子、色块又宽又高，不算（不然底纹的格子会被当成横条、把表切开）。照片的纸不够白，不受影响。
+ */
+const LIGHT_PAPER = 0.95;
+const LIGHT_CONTRAST = 0.1;
+const LIGHT_THICKNESS_SHARE = 0.004;
+
+/** 整页纸的亮度：墨水深浅的中位数（按 1/256 分档）。 */
+function paperOf(ink: Float32Array): number {
+  const counts = new Uint32Array(257);
+  for (let p = 0; p < ink.length; p++) counts[Math.round(ink[p]! * 256)]!++;
+  let seen = 0;
+  for (let v = 0; v <= 256; v++) {
+    seen += counts[v]!;
+    if (seen * 2 >= ink.length) return v / 256;
+  }
+  return 1;
+}
+
+/**
+ * 在 mask 上加上浅的细线：比纸暗 LIGHT_CONTRAST、沿 across 方向连着不超过 max 个点、两边是白纸的。
+ * vertical 为 true 时按列数连着的点（给横线用），否则按行数（给竖线用）。
+ */
+function addThinLight(
+  mask: Uint8Array,
+  ink: Float32Array,
+  width: number,
+  height: number,
+  paper: number,
+  max: number,
+  vertical: boolean,
+): Uint8Array {
+  const limit = paper - LIGHT_CONTRAST;
+  const bright = paper - LIGHT_CONTRAST / 2;
+  const out = mask.slice();
+  const outer = vertical ? width : height;
+  const inner = vertical ? height : width;
+  const at = (o: number, i: number) => (vertical ? i * width + o : o * width + i);
+  for (let o = 0; o < outer; o++) {
+    let start = -1;
+    for (let i = 0; i <= inner; i++) {
+      const dark = i < inner && ink[at(o, i)]! < limit;
+      if (dark && start < 0) start = i;
+      else if (!dark && start >= 0) {
+        // 两边隔一个点（线边上的灰边）还得是白纸：浅色底纹里的噪点、底纹夹在两行字中间的窄条不算。
+        const before = ink[at(o, Math.max(0, start - 2))]!;
+        const after = ink[at(o, Math.min(inner - 1, i + 1))]!;
+        if (i - start <= max && before >= bright && after >= bright)
+          for (let k = start; k < i; k++) out[at(o, k)] = 1;
+        start = -1;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * 亮度到这么高的颜色是底色，不是墨：黄色、浅绿、浅蓝的底纹格子（意大利电费单的黄色合并格 #FFCB35，EU 样本 057）
+ * 最暗的通道很暗，按它算会和旁边的表格线连成一大块，整条线被当成色块丢掉，表格认不出来。
+ */
+const FILL_LUMA = 0.7;
+/** 而且颜色很浓（最亮和最暗的通道差这么多）：浅蓝的格线、浅灰的底纹、字边上的杂色不算，照旧按最暗的通道。 */
+const FILL_CHROMA = 0.3;
+
+/**
+ * 墨水深浅：三个通道里最暗的那个（0 黑 – 1 白），红字、蓝字的线也算；
+ * 又亮又浓的颜色（FILL_LUMA、FILL_CHROMA：黄、橙黄的底）按亮度算，浅的彩色线在 light 里照样当浅线找。
+ */
 function inkOf(image: RgbaImage): Float32Array {
   const { width, height, data } = image;
   const out = new Float32Array(width * height);
@@ -82,7 +164,10 @@ function inkOf(image: RgbaImage): Float32Array {
     const r = data[i]!;
     const g = data[i + 1]!;
     const b = data[i + 2]!;
-    out[p] = (r < g ? (r < b ? r : b) : g < b ? g : b) / 255;
+    const min = r < g ? (r < b ? r : b) : g < b ? g : b;
+    const max = r > g ? (r > b ? r : b) : g > b ? g : b;
+    const luma = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    out[p] = luma >= FILL_LUMA && (max - min) / 255 >= FILL_CHROMA ? luma : min / 255;
   }
   return out;
 }
@@ -155,6 +240,61 @@ interface Building {
   from: number;
   to: number;
   spans: [number, number][];
+  /** 每一行（从 first 起）的段长之和。 */
+  lengths: number[];
+  /** 每一行（从 first 起）有墨的左右范围。 */
+  ends: [number, number][];
+}
+
+/**
+ * 线上紧贴着一小块颜色（荧光笔标出的金额、圈出名字的红圈，EU 样本 067）：连在一起太粗，整条线被当成色块丢掉。
+ * 太粗的一块里，长度到最长一行的 CORE_SHARE 的那几行够细、别的行都不到最长的 CORE_REST：取那几行当线。
+ */
+const CORE_SHARE = 0.8;
+const CORE_REST = 0.5;
+/** 标记离线的两头至少这么多像素（荧光笔标的金额在格子里，离右边的线还有几个像素）。 */
+const CORE_END_MARGIN = 3;
+/** 贴着线头的行至少这么多才是一块（不是线边上毛糙的一两行）。 */
+const CORE_END_ROWS = 3;
+
+/**
+ * 太粗的一块里贴着色块的细线（CORE_SHARE、CORE_REST）。色块从一条线连到下一条线时（上一排底下、下一排顶上都有标记），
+ * 一块里有好几条，各取各的。
+ */
+function thinCores(l: Building, maxThickness: number): Building[] {
+  // 中间隔了一两行没有墨的，那几行是空的。
+  const lengths = Array.from(l.lengths, (n) => n ?? 0);
+  const longest = Math.max(...lengths);
+  const isCore = lengths.map((n) => n >= CORE_SHARE * longest);
+  if (lengths.some((n, i) => !isCore[i] && n > CORE_REST * longest)) return [];
+  // 贴在线头上的一块（框角上的编号方块，EU 样本 068）是框的一部分，不当成线上的标记。
+  const from = Math.min(...l.ends.filter((_, i) => isCore[i]).map((e) => e[0]));
+  const to = Math.max(...l.ends.filter((_, i) => isCore[i]).map((e) => e[1]));
+  // 线边上毛糙的一两行（稍斜的线在上下一行只有一截）不算。
+  const atEnd = l.ends.filter(
+    (e, i) => e && !isCore[i] && (e[0] - from < CORE_END_MARGIN || to - e[1] < CORE_END_MARGIN),
+  ).length;
+  if (atEnd >= CORE_END_ROWS) return [];
+  const runs: [number, number][] = [];
+  isCore.forEach((c, i) => {
+    if (!c) return;
+    const run = runs[runs.length - 1];
+    if (run && run[1] === i - 1) run[1] = i;
+    else runs.push([i, i]);
+  });
+  if (runs.some(([first, last]) => last - first + 1 > maxThickness)) return [];
+  return runs.map(([first, last]) => {
+    const rows = lengths.slice(first, last + 1);
+    return {
+      ...l,
+      first: l.first + first,
+      last: l.first + last,
+      posSum: rows.reduce((sum, n, i) => sum + (l.first + first + i) * n, 0),
+      weight: rows.reduce((a, b) => a + b, 0),
+      lengths: rows,
+      ends: l.ends.slice(first, last + 1),
+    };
+  });
 }
 
 /** 一组段（不重叠、排好）里加一段，重叠或挨着（gap 以内）的接起来。 */
@@ -195,6 +335,13 @@ function scan(
   horizontal: boolean,
   /** 给了就收集实心的横条（BAND_MAX_SHARE），不当成线。 */
   bands?: Band[],
+  /**
+   * 找竖线时：已经找到的横线压着的点。竖着扫过去，墨断开的地方只隔着横线（线和线交叉）不算断；
+   * 断口里有白纸又连着横线时，横线那几点也算进断口（见 markLines）。
+   */
+  crossing?: Uint8Array,
+  /** 找横线时：把找到的横线压着的点记在这里，给找竖线用。 */
+  marks?: Uint8Array,
 ): RuleLine[] {
   const along = horizontal ? width : height;
   const across = horizontal ? height : width;
@@ -210,18 +357,46 @@ function scan(
     const runs: [number, number][] = [];
     let start = -1;
     let lastDark = -1;
+    // 上一个不是横线的墨点，和从那以后有没有白纸：密排的表里，上下几排字的竖笔画中间只隔着「白缝 + 行线 +
+    // 白缝」，几个像素的断口会把它们接成一条竖线（EU 样本 090）。行线本身不算墨，断口从上一个笔画算起。
+    let lastInk = -1;
+    let white = false;
     for (let i = 0; i <= along; i++) {
       let dark = false;
+      let across_ = false;
       if (i < along) {
         const j = Math.round(r + i * slope);
-        if (j >= 0 && j < across) dark = mask[horizontal ? j * width + i : i * width + j] === 1;
+        if (j >= 0 && j < across) {
+          const p = horizontal ? j * width + i : i * width + j;
+          dark = mask[p] === 1;
+          across_ = dark && crossing?.[p] === 1;
+        }
       }
       if (dark) {
-        if (start < 0) start = i;
+        // 上一个笔画以后隔着白纸和横线，加起来超过断口：断开，从这里起新的一段。
+        if (start >= 0 && !across_ && white && i - lastInk - 1 > MAX_GAP) {
+          if (lastInk - start + 1 >= minLength) runs.push([start, lastInk]);
+          start = -1;
+        }
+        if (start < 0) {
+          start = i;
+          lastInk = i;
+          white = false;
+        }
         lastDark = i;
-      } else if (start >= 0 && (i - lastDark > MAX_GAP || i === along)) {
-        if (lastDark - start + 1 >= minLength) runs.push([start, lastDark]);
-        start = -1;
+        if (!across_) {
+          lastInk = i;
+          white = false;
+        }
+      } else {
+        if (start >= 0) white = true;
+        if (
+          start >= 0 &&
+          (i - lastDark > MAX_GAP || i === along || (white && i - lastInk > MAX_GAP))
+        ) {
+          if (lastDark - start + 1 >= minLength) runs.push([start, lastDark]);
+          start = -1;
+        }
       }
     }
     for (const [a, b] of runs) {
@@ -241,6 +416,9 @@ function scan(
         target.from = Math.min(target.from, a);
         target.to = Math.max(target.to, b);
         addSpan(target.spans, a, b, MAX_GAP);
+        target.lengths[r - target.first] = (target.lengths[r - target.first] ?? 0) + length;
+        const end = target.ends[r - target.first];
+        target.ends[r - target.first] = end ? [Math.min(end[0], a), Math.max(end[1], b)] : [a, b];
       } else {
         open.push({
           first: r,
@@ -250,6 +428,8 @@ function scan(
           from: a,
           to: b,
           spans: [[a, b]],
+          lengths: [length],
+          ends: [[a, b]],
         });
       }
     }
@@ -272,19 +452,29 @@ function scan(
     }
   }
   // 沿线方向的坐标也换到拉正后的：横线上 x' ≈ x + y'·t，竖线上 y' ≈ y − x'·t。
-  const lines = done
-    .filter((l) => l.last - l.first + 1 <= maxThickness)
-    .map((l) => {
-      const pos = l.posSum / l.weight;
-      const shift = horizontal ? pos * t : -pos * t;
-      return {
-        pos,
-        from: l.from + shift,
-        to: l.to + shift,
-        thickness: l.last - l.first + 1,
-        spans: l.spans.map(([a, b]) => [a + shift, b + shift] as [number, number]),
-      };
-    });
+  const kept = done.flatMap((l) => {
+    if (l.last - l.first + 1 <= maxThickness) return [l];
+    return thinCores(l, maxThickness);
+  });
+  if (marks)
+    for (const l of kept)
+      for (let r = l.first; r <= l.last; r++)
+        for (const [a, b] of l.spans)
+          for (let i = Math.max(0, a); i <= Math.min(along - 1, b); i++) {
+            const j = Math.round(r + i * slope);
+            if (j >= 0 && j < across) marks[horizontal ? j * width + i : i * width + j] = 1;
+          }
+  const lines = kept.map((l) => {
+    const pos = l.posSum / l.weight;
+    const shift = horizontal ? pos * t : -pos * t;
+    return {
+      pos,
+      from: l.from + shift,
+      to: l.to + shift,
+      thickness: l.last - l.first + 1,
+      spans: l.spans.map(([a, b]) => [a + shift, b + shift] as [number, number]),
+    };
+  });
   return joinCollinear(
     lines,
     Math.max(2, Math.max(width, height) * MERGE_SHARE),
@@ -360,6 +550,36 @@ function bandAnchors(band: Band, vertical: readonly RuleLine[], t: number, tol: 
   return at.length;
 }
 
+/**
+ * 横条下面紧接着一串和它左右两头都对齐的横线（时刻表、价目表的深色表头下面只有横线，列线只有一两条，EU 样本 024）：
+ * 算一条起止的线。头一条离横条底边不超过 BAND_RULED_GAP 个横条厚，至少 BAND_RULED_MIN 条，相邻两条也不隔更远。
+ */
+function bandRuledBelow(
+  band: Band,
+  horizontal: readonly RuleLine[],
+  t: number,
+  tol: number,
+): number {
+  const thick = band.last - band.first + 1;
+  const shift = band.last * t;
+  const below = horizontal
+    .filter(
+      (h) =>
+        h.pos > band.last &&
+        Math.abs(h.from - (band.from + shift)) <= tol &&
+        Math.abs(h.to - (band.to + shift)) <= tol,
+    )
+    .sort((a, b) => a.pos - b.pos);
+  let at = band.last;
+  let n = 0;
+  for (const h of below) {
+    if (h.pos - at > BAND_RULED_GAP * thick) break;
+    at = h.pos;
+    n++;
+  }
+  return n >= BAND_RULED_MIN ? 1 : 0;
+}
+
 /** 横条的上下边，当成两条横线（坐标换到拉正后，和 scan 的一样）。 */
 function bandEdges(band: Band, t: number): RuleLine[] {
   return [band.first, band.last].map((pos, i) => {
@@ -391,7 +611,10 @@ function bandSides(band: Band, t: number): RuleLine[] {
  * 找一页里的横线和竖线。skew 不给时用 findSkew 估（增强过的图已经拉正，可以直接给 0）。
  * 图太大时先缩小，返回的坐标仍是这张图的像素。
  */
-export function findLines(image: RgbaImage, options: { skew?: number } = {}): PageLines {
+export function findLines(
+  image: RgbaImage,
+  options: { skew?: number; light?: boolean } = {},
+): PageLines {
   const k = Math.max(1, Math.ceil(Math.max(image.width, image.height) / (LINE_MAX_SIDE * 1.05)));
   const work = k > 1 ? shrink(image, k) : image;
   const { width, height } = work;
@@ -399,14 +622,43 @@ export function findLines(image: RgbaImage, options: { skew?: number } = {}): Pa
   const skew = options.skew ?? findSkew(ink, width, height);
   const t = Math.tan((skew * Math.PI) / 180);
   const mask = darkMask(ink, width, height);
+  // 横线、竖线各用一张图：浅的细线只加在找它那个方向的图上（light）。
+  let hMask = mask;
+  let vMask = mask;
+  const paper = options.light ? paperOf(ink) : 0;
+  if (paper >= LIGHT_PAPER) {
+    const max = Math.max(3, Math.round(Math.max(width, height) * LIGHT_THICKNESS_SHARE));
+    hMask = addThinLight(mask, ink, width, height, paper, max, true);
+    vMask = addThinLight(mask, ink, width, height, paper, max, false);
+  }
   const candidates: Band[] = [];
-  const horizontal = scan(mask, width, height, t, true, candidates);
-  let vertical = scan(eraseBands(mask, width, height, t, candidates), width, height, t, false);
+  const crossing = new Uint8Array(width * height);
+  const horizontal = scan(hMask, width, height, t, true, candidates, undefined, crossing);
+  let vertical = scan(
+    eraseBands(vMask, width, height, t, candidates),
+    width,
+    height,
+    t,
+    false,
+    undefined,
+    crossing,
+  );
   const tol = Math.max(4, Math.max(width, height) * TOUCH_SHARE);
-  const bands = candidates.filter((b) => bandAnchors(b, vertical, t, tol) >= BAND_MIN_ANCHORS);
+  const bands = candidates.filter(
+    (b) =>
+      bandAnchors(b, vertical, t, tol) + bandRuledBelow(b, horizontal, t, tol) >= BAND_MIN_ANCHORS,
+  );
   // 不算的横条不抹（抹了会把穿过它的竖线切断）。
   if (bands.length < candidates.length)
-    vertical = scan(eraseBands(mask, width, height, t, bands), width, height, t, false);
+    vertical = scan(
+      eraseBands(vMask, width, height, t, bands),
+      width,
+      height,
+      t,
+      false,
+      undefined,
+      crossing,
+    );
   if (bands.length) {
     const posTol = Math.max(2, Math.max(width, height) * MERGE_SHARE);
     horizontal.splice(
@@ -444,15 +696,192 @@ export function findLines(image: RgbaImage, options: { skew?: number } = {}): Pa
 const touches = (h: RuleLine, v: RuleLine, tol: number) =>
   v.pos >= h.from - tol && v.pos <= h.to + tol && h.pos >= v.from - tol && h.pos <= v.to + tol;
 
+/** 竖线在第 a 到第 b 段（不含 b）之间的那一截。 */
+function piece(v: RuleLine, a: number, b: number): RuleLine {
+  const spans = v.spans.slice(a, b);
+  return { ...v, from: spans[0]![0], to: spans.at(-1)![1], spans };
+}
+
+/**
+ * 竖线上的一处白缝，上头落在一条横线上、下头从另一条横线起：是上下两个框各自的边（发票的商品表下面
+ * 隔一条 10 像素的白缝就是税额表和合计框，EU 样本 054），在这里断开，不当成复印件里断了的一条线接起来。
+ */
+function splitAtBoxGaps(vs: readonly RuleLine[], hs: readonly RuleLine[], near: number) {
+  const ruleAt = (x: number, y: number) => {
+    let best: RuleLine | undefined;
+    for (const h of hs) {
+      if (Math.abs(h.pos - y) > near || x < h.from - near || x > h.to + near) continue;
+      if (!best || Math.abs(h.pos - y) < Math.abs(best.pos - y)) best = h;
+    }
+    return best;
+  };
+  return vs.flatMap((v) => {
+    const pieces: RuleLine[] = [];
+    let start = 0;
+    for (let k = 1; k < v.spans.length; k++) {
+      const above = ruleAt(v.pos, v.spans[k - 1]![1]);
+      const below = ruleAt(v.pos, v.spans[k]![0]);
+      if (above && below && above !== below) {
+        pieces.push(piece(v, start, k));
+        start = k;
+      }
+    }
+    if (!start) return [v];
+    pieces.push(piece(v, start, v.spans.length));
+    return pieces;
+  });
+}
+
+/** 一条竖线（横线也一样）在 [lo, hi] 里的那一段。 */
+function clip(v: RuleLine, lo: number, hi: number): RuleLine {
+  if (v.from >= lo && v.to <= hi) return v;
+  const from = Math.max(v.from, lo);
+  const to = Math.min(v.to, hi);
+  return {
+    ...v,
+    from,
+    to,
+    spans: v.spans
+      .map(([a, b]) => [Math.max(a, from), Math.min(b, to)] as [number, number])
+      .filter(([a, b]) => b > a),
+  };
+}
+
+/**
+ * 叠着的几张表的分界（转 Word）：一条横贯整张表的横线，上面有里面的竖线（不算左右外框）止于它、
+ * 下面有里面的竖线从它开始，而且上下的列线不一样（上面止的那条下面没有接着，下面起的那条上面没有）。
+ * 表头一排横跨所有列（上面没有竖线）、列线一直往下的普通表都不分。
+ */
+function stackedCuts(hs: readonly RuleLine[], vs: readonly RuleLine[], tol: number): number[] {
+  const left = Math.min(...hs.map((h) => h.from), ...vs.map((v) => v.pos));
+  const right = Math.max(...hs.map((h) => h.to), ...vs.map((v) => v.pos));
+  const inner = vs.filter((v) => v.pos > left + tol && v.pos < right - tol);
+  const cuts: number[] = [];
+  for (const h of hs) {
+    if (h.from > left + tol || h.to < right - tol) continue;
+    const ending = inner.filter((v) => Math.abs(v.to - h.pos) <= tol && v.from < h.pos - tol);
+    const starting = inner.filter((v) => Math.abs(v.from - h.pos) <= tol && v.to > h.pos + tol);
+    const at = (list: readonly RuleLine[], x: number) =>
+      list.some((v) => Math.abs(v.pos - x) <= tol);
+    if (
+      ending.some((v) => !at(starting, v.pos)) &&
+      starting.some((v) => !at(ending, v.pos)) &&
+      cuts.every((c) => Math.abs(c - h.pos) > tol)
+    )
+      cuts.push(h.pos);
+  }
+  return cuts;
+}
+
+/**
+ * 并排的两张表（转 Word）：共用上面的表头（整页宽的标题框、「Dati paziente」一排），下面左右两张表中间隔着一道
+ * 白缝，两边的横线各自止于白缝的两边、行也对不齐（化验申请单，EU 样本 090）。连成一张网格时两边的行线、列线
+ * 交错，几十列的格子把字切碎。白缝两边各有一条竖线往下画满（至少三条横线止于它），白缝里没有竖线、没有字，
+ * 而且最后一条横穿白缝的横线以下再没有横线穿过：在那条横线处切开，上面一张，下面左右各一张。
+ * 底下又有横线把两边连起来（中间一列只是合并的一大格）不分。
+ */
+function sideBySide(
+  t: TableLines,
+  tol: number,
+  text: readonly { x: number; y: number; width: number; height: number }[],
+): TableLines[] | null {
+  const xs = [...new Set(t.vs.map((v) => Math.round(v.pos)))].sort((a, b) => a - b);
+  for (let k = 0; k + 1 < xs.length; k++) {
+    const [a, b] = [xs[k]!, xs[k + 1]!];
+    if (b - a < 2 * tol) continue;
+    const crossing = t.hs.filter((h) => h.from < a - tol && h.to > b + tol);
+    if (!crossing.length) continue;
+    const y = Math.max(...crossing.map((h) => h.pos));
+    const below = t.hs.filter((h) => h.pos > y + tol);
+    const ending = below.filter((h) => Math.abs(h.to - a) <= tol);
+    const starting = below.filter((h) => Math.abs(h.from - b) <= tol);
+    if (ending.length < 3 || starting.length < 3) continue;
+    const bottom = Math.max(...below.map((h) => h.pos));
+    // 白缝两边的竖线从切口往下画满两张表各自的大半。
+    const side = (x: number, lines: readonly RuleLine[]) =>
+      t.vs.some(
+        (v) =>
+          Math.abs(v.pos - x) <= tol &&
+          v.from <= y + tol &&
+          v.to >= Math.max(...lines.map((h) => h.pos)) - tol,
+      );
+    if (!side(a, ending) || !side(b, starting)) continue;
+    if (
+      text.some((l) => {
+        const cx = l.x + l.width / 2;
+        const cy = l.y + l.height / 2;
+        return cx > a + tol && cx < b - tol && cy > y && cy < bottom;
+      })
+    )
+      continue;
+    const top: TableLines['hs'] = t.hs.filter((h) => h.pos <= y + tol);
+    const topV = t.vs.filter((v) => v.from < y - tol).map((v) => clip(v, -Infinity, y));
+    const part = (hs: RuleLine[], vs: RuleLine[]): TableLines[] => {
+      if (hs.length < 2) return [];
+      const left = Math.min(...hs.map((h) => h.from), ...vs.map((v) => v.pos));
+      const right = Math.max(...hs.map((h) => h.to), ...vs.map((v) => v.pos));
+      const y0 = Math.min(...hs.map((h) => h.pos), ...vs.map((v) => v.from));
+      const y1 = Math.max(...hs.map((h) => h.pos), ...vs.map((v) => v.to));
+      return [
+        {
+          hs: hs.sort((p, q) => p.pos - q.pos),
+          vs: vs.sort((p, q) => p.pos - q.pos),
+          box: { x: left, y: y0, width: right - left, height: y1 - y0 },
+        },
+      ];
+    };
+    const lower = (lo: number, hi: number) => {
+      const hs = t.hs
+        .filter((h) => h.pos >= y - tol && h.to > lo + tol && h.from < hi - tol)
+        .map((h) => clip(h, lo, hi));
+      const vs = t.vs
+        .filter((v) => v.pos >= lo - tol && v.pos <= hi + tol && v.to > y + tol)
+        .map((v) => clip(v, y, Infinity));
+      return part(hs, vs);
+    };
+    return [...part(top, topV), ...lower(-Infinity, a), ...lower(b, Infinity)];
+  }
+  return null;
+}
+
 /**
  * 只有和别的线连在一起的线才算表格线，连在一起的线组成一张表：
  * 横线至少碰到 2 条竖线、竖线至少碰到 2 条横线；或者至少 3 条左右两端对齐、上下挨得不远的横线（只有横线的表）。
  */
-export function findTables(page: PageLines): TableLines[] {
+export function findTables(
+  page: PageLines,
+  options: {
+    /**
+     * 转 Word：上下叠着的几张表共用外框（表单的整页大框里一节一张表，EU 样本 004）时，在列线换了的横线处分开，
+     * 见 stackedCuts。转 Excel 不分（整页共用列线）。
+     */
+    splitStacked?: boolean;
+    /** 页上的字（和线同一个坐标系）：等距的一串填写横线只在每一格里最多一个短标签时才在大空隙处断开。 */
+    text?: readonly { x: number; y: number; width: number; height: number }[];
+  } = {},
+): TableLines[] {
   const long = Math.max(page.width, page.height);
   const tol = Math.max(4, long * TOUCH_SHARE);
   const hs = page.horizontal;
-  const vs = page.vertical;
+  // 端点落在横线上：离它不超过这么远（线宽加上抗锯齿的边，不跨过白缝）。
+  const near = Math.max(MAX_GAP, tol * 0.4);
+  // 几乎从页顶通到页底的竖线是纸边、对折的中缝（拍的两页并排的说明书，EU 样本 100），不是哪张表的列线：
+  // 不然表格的横线一头离它不到 tol，整半页的字连同这张表被当成一张大网格。
+  const vs = splitAtBoxGaps(
+    page.vertical.filter((v) => v.to - v.from < PAGE_EDGE_SHARE * page.height),
+    hs,
+    near,
+  );
+  const onRule = (x: number, y: number) =>
+    hs.some((h) => Math.abs(h.pos - y) <= near && x >= h.from - near && x <= h.to + near);
+  const ends = new Map(vs.map((v) => [v, [onRule(v.pos, v.from), onRule(v.pos, v.to)]] as const));
+  // 竖线的一头已经落在一条横线上时，不再算碰到这一头外面隔着白缝的横线（上下挨着的两个框不连成一张表）。
+  const meets = (h: RuleLine, v: RuleLine) => {
+    const [top, bottom] = ends.get(v)!;
+    return (
+      touches(h, v, tol) && !(top && h.pos < v.from - near) && !(bottom && h.pos > v.to + near)
+    );
+  };
   // 网格：反复去掉连得不够的线，直到不再变化。
   const hOk = hs.map(() => true);
   const vOk = vs.map(() => true);
@@ -461,14 +890,14 @@ export function findTables(page: PageLines): TableLines[] {
     changed = false;
     for (const [i, h] of hs.entries()) {
       if (!hOk[i]) continue;
-      if (vs.filter((v, j) => vOk[j] && touches(h, v, tol)).length < 2) {
+      if (vs.filter((v, j) => vOk[j] && meets(h, v)).length < 2) {
         hOk[i] = false;
         changed = true;
       }
     }
     for (const [j, v] of vs.entries()) {
       if (!vOk[j]) continue;
-      if (hs.filter((h, i) => hOk[i] && touches(h, v, tol)).length < 2) {
+      if (hs.filter((h, i) => hOk[i] && meets(h, v)).length < 2) {
         vOk[j] = false;
         changed = true;
       }
@@ -484,7 +913,7 @@ export function findTables(page: PageLines): TableLines[] {
   for (const [i, h] of hs.entries()) {
     if (!hOk[i]) continue;
     for (const [j, v] of vs.entries()) {
-      if (vOk[j] && touches(h, v, tol)) {
+      if (vOk[j] && meets(h, v)) {
         union(i, hs.length + j);
         used.add(i).add(hs.length + j);
       }
@@ -516,7 +945,7 @@ export function findTables(page: PageLines): TableLines[] {
   };
   for (const [j, v] of vs.entries()) {
     if (vOk[j]) continue;
-    const i = hs.findIndex((h, k) => hOk[k] && touches(h, v, tol));
+    const i = hs.findIndex((h, k) => hOk[k] && meets(h, v));
     if (i >= 0 && within(find(i), v.pos, v.pos, v.from, v.to)) {
       vOk[j] = true;
       union(hs.length + j, i);
@@ -525,7 +954,7 @@ export function findTables(page: PageLines): TableLines[] {
   }
   for (const [i, h] of hs.entries()) {
     if (hOk[i]) continue;
-    const j = vs.findIndex((v, k) => vOk[k] && touches(h, v, tol));
+    const j = vs.findIndex((v, k) => vOk[k] && meets(h, v));
     if (j >= 0 && within(find(hs.length + j), h.from, h.to, h.pos, h.pos)) {
       hOk[i] = true;
       union(i, hs.length + j);
@@ -535,6 +964,19 @@ export function findTables(page: PageLines): TableLines[] {
   // 只有横线的表：按位置从上到下，左右两端都和上一条对齐、离得不远的接成一串。
   const align = page.width * ALIGN_SHARE;
   const maxGap = page.height * RULED_GAP_SHARE;
+  const maxHeadGap = page.height * RULED_HEAD_GAP_SHARE;
+  // 一张网格的行高：网格里的横线相邻间距的中位数。
+  const rowGapOf = (i: number) => {
+    const ys = hs
+      .filter((_, k) => hOk[k] && find(k) === find(i))
+      .map((g) => g.pos)
+      .sort((a, b) => a - b);
+    const gaps = ys
+      .slice(1)
+      .map((y, k) => y - ys[k]!)
+      .filter((g) => g > tol);
+    return gaps.length ? gaps.sort((a, b) => a - b)[gaps.length >> 1]! : Infinity;
+  };
   const chains: number[][] = [];
   const order = hs.map((_, i) => i).sort((a, b) => hs[a]!.pos - hs[b]!.pos);
   for (const i of order) {
@@ -545,12 +987,59 @@ export function findTables(page: PageLines): TableLines[] {
       const gap = h.pos - last.pos;
       if (gap > maxGap || Math.abs(h.from - last.from) > align || Math.abs(h.to - last.to) > align)
         return false;
+      if (c.length === 1 && !hOk[i] && !hOk[lastIndex] && gap > maxHeadGap) return false;
+      // 隔着一大段（比这一串的间距大一倍以上）、中间压着另一张网格的横线：上下是两串，不跨过网格接起来
+      // （发票右边的填写横线，中间隔着整张商品栏，EU 样本 001）。一串紧挨着穿过网格的线照旧接
+      // （IRS Schedule B 金额栏的横线一格一条，中间的分节线也是网格的线）。
+      const step = c.length >= 2 ? last.pos - hs[c.at(-2)!]!.pos : null;
+      if (
+        !hOk[i] &&
+        step !== null &&
+        gap > 2 * step &&
+        hs.some(
+          (g, k) =>
+            hOk[k] &&
+            g.pos > last.pos + tol &&
+            g.pos < h.pos - tol &&
+            Math.min(g.to, h.to) - Math.max(g.from, h.from) > 0.5 * (h.to - h.from),
+        )
+      )
+        return false;
+      // 等距的一串填写横线（每条间距差不多）后面隔着一大段（超过间距的 RULED_SPLIT_STEPS 倍、页高的 10%）：
+      // 中间是标题、条款，不是表的一排（EU 样本 041 的委托书：两组填写线中间隔着粗体的「erteile hiermit
+      // Vollmacht an」）。排高本来就不一样的表（格子折成几行）照旧接。
+      if (!hOk[i] && !hOk[lastIndex] && c.length >= RULED_MIN && gap > maxHeadGap) {
+        const steps = c.slice(1).map((k, n) => hs[k]!.pos - hs[c[n]!]!.pos);
+        const lo = Math.min(...steps);
+        // 表头那几排（「Libellé  Nombre  Débit  Crédit」）一排有好几块字或者很宽的一行：是表，接着往下接。
+        const labelsOnly = c.slice(1).every((k, n) => {
+          const [y0, y1] = [hs[c[n]!]!.pos, hs[k]!.pos];
+          const inside = (options.text ?? []).filter(
+            (t) =>
+              t.y + t.height / 2 > y0 &&
+              t.y + t.height / 2 < y1 &&
+              t.x + t.width > last.from &&
+              t.x < last.to,
+          );
+          return inside.length <= 1 && inside.every((t) => t.width < 0.5 * (last.to - last.from));
+        });
+        if (labelsOnly && Math.max(...steps) <= RULED_EVEN * lo && gap > RULED_SPLIT_STEPS * lo)
+          return false;
+      }
       // 两张网格（各自有竖线）宽度一样、上下排着，不接成一张（中间常隔着一段文字）。
       if (hOk[i] && hOk[lastIndex]) return find(i) === find(lastIndex);
       // 从网格的线接到不在网格里的线（或反过来）：只有间距和上一格差不多（不到 2 倍）时才接，
       // 例如表头有竖线、下面只有横线的表；网格下面隔着标题的另一张只有横线的表不接上去。
       if (hOk[i] !== hOk[lastIndex]) {
+        // 竖线画满了网格的好几行才停（超过两行，不像表头）：网格到这里就完了，下面只有横线的是另一张表
+        // （中间的标题加留白可能不到两行高）。
+        if (hOk[lastIndex] && c.filter((k) => hOk[k] && find(k) === find(lastIndex)).length > 3)
+          return false;
         const prev = c.length >= 2 ? last.pos - hs[c.at(-2)!]!.pos : null;
+        // 网格上面只有横线的一串往下接网格：间距还要和网格的行高差不多（表头上面的几行）。
+        // 各节标题下的分隔线彼此隔着整段文字，比网格的行高得多，不是这张表的。
+        if (hOk[i] && !c.some((k) => hOk[k]) && prev !== null && prev > 2 * rowGapOf(i))
+          return false;
         return prev !== null && gap <= 2 * prev;
       }
       return true;
@@ -558,11 +1047,59 @@ export function findTables(page: PageLines): TableLines[] {
     if (chain) chain.push(i);
     else chains.push([i]);
   }
+  // 三线表（顶线、紧挨着的表头线、表身下面的底线，表身里没有横线）到底线就完了：底线下面隔着一大段
+  // （合计、付款几行），又是挨得很近的两条线（另一张表的表头线和底线：酒店账单的税额栏，EU 样本 050），
+  // 是另一张表，不接上去。
+  for (let n = 0; n < chains.length; n++) {
+    const c = chains[n]!;
+    if (c.length < 5 || c.slice(0, 5).some((k) => hOk[k])) continue;
+    const [s1, s2, s3, s4] = [1, 2, 3, 4].map((k) => hs[c[k]!]!.pos - hs[c[k - 1]!]!.pos) as [
+      number,
+      number,
+      number,
+      number,
+    ];
+    if (s2 >= 3 * s1 && s3 > maxHeadGap && s3 >= 3 * s4 && s4 <= 2 * s1)
+      chains.splice(n, 1, c.slice(0, 3), c.slice(3));
+  }
+  // 句子里的填空横线（「(DNI/NIE ______),」：横线压在字的底线上，左边或右边紧挨着同一行的字，EU 样本 095）
+  // 不是表格线。一串只有横线的线大半是这样的，不当表（不然几处填空的末端碰巧对齐，接成一张高高的表，
+  // 把中间的正文都圈进去）。
+  const inline = (h: RuleLine) =>
+    (options.text ?? []).some(
+      (t) =>
+        h.pos >= t.y + 0.4 * t.height &&
+        h.pos <= t.y + 1.3 * t.height &&
+        ((t.x + t.width >= h.from - t.height && t.x + t.width <= h.from + 0.5 * t.height) ||
+          (t.x >= h.to - 0.5 * t.height && t.x <= h.to + t.height)),
+    );
+  for (let n = chains.length - 1; n >= 0; n--) {
+    const c = chains[n]!;
+    if (!c.some((k) => hOk[k]) && 2 * c.filter((k) => inline(hs[k]!)).length >= c.length)
+      chains.splice(n, 1);
+  }
   for (const chain of chains) {
     if (chain.length < RULED_MIN) continue;
     for (const i of chain) {
       union(i, chain[0]!);
       used.add(i);
+    }
+  }
+  // 只有横线的一串里的列线（时刻表钟点那一列右边的竖线，左右没有外框）：每条横线只碰到它一条竖线，
+  // 上面的网格规则留不住它。整条在这一串的范围里、碰到这一串至少两条横线的竖线算这张表的列线。
+  for (const chain of chains) {
+    if (chain.length < RULED_MIN) continue;
+    const rules = chain.map((i) => hs[i]!);
+    const l = Math.min(...rules.map((h) => h.from));
+    const r = Math.max(...rules.map((h) => h.to));
+    const t = Math.min(...rules.map((h) => h.pos));
+    const b = Math.max(...rules.map((h) => h.pos));
+    for (const [j, v] of vs.entries()) {
+      if (vOk[j] || used.has(hs.length + j)) continue;
+      if (v.pos < l + tol || v.pos > r - tol || v.from < t - tol || v.to > b + tol) continue;
+      if (rules.filter((h) => meets(h, v)).length < 2) continue;
+      union(hs.length + j, chain[0]!);
+      used.add(hs.length + j);
     }
   }
   // 一张表套在另一张表里（表单的大框里画着一张小表）：合成一张，不然外面那张会把里面的字都拿走。
@@ -613,29 +1150,36 @@ export function findTables(page: PageLines): TableLines[] {
     const allV = members.filter((i) => i >= hs.length).map((i) => vs[i - hs.length]!);
     // 表中间的实心横条（D-501）：上面有竖线止于它的上边，它是下面另一张表的表头
     // （工资单的明细表下面接着汇总表，两张表的列不一样），在它的上边分成两张。
-    const cuts = allH
+    const cuts: number[] = allH
       .filter(
         (h) =>
           h.band === 'top' &&
           allV.some((v) => Math.abs(v.to - h.pos) <= tol && v.from < h.pos - tol),
       )
-      .map((h) => h.pos)
-      .sort((a, b) => a - b);
+      .map((h) => h.pos);
+    if (options.splitStacked) cuts.push(...stackedCuts(allH, allV, tol));
+    cuts.sort((a, b) => a - b);
     const bounds = [-Infinity, ...cuts, Infinity];
     for (let k = 0; k + 1 < bounds.length; k++) {
       const [lo, hi] = [bounds[k]!, bounds[k + 1]!];
       const th = allH.filter((h) => h.pos >= lo - tol && h.pos <= hi + tol);
-      const tv = allV.filter((v) => (v.from + v.to) / 2 > lo && (v.from + v.to) / 2 < hi);
+      // 分开叠着的表时，穿过分界线的竖线（外框的左右两边、上下共用的编号列线）两边各有一段。
+      const tv = options.splitStacked
+        ? allV.filter((v) => v.from < hi - tol && v.to > lo + tol).map((v) => clip(v, lo, hi))
+        : allV.filter((v) => (v.from + v.to) / 2 > lo && (v.from + v.to) / 2 < hi);
       if (th.length < 2) continue;
       const left = Math.min(...th.map((h) => h.from), ...tv.map((v) => v.pos));
       const right = Math.max(...th.map((h) => h.to), ...tv.map((v) => v.pos));
       const top = Math.min(...th.map((h) => h.pos), ...tv.map((v) => v.from));
       const bottom = Math.max(...th.map((h) => h.pos), ...tv.map((v) => v.to));
-      tables.push({
+      const table = {
         hs: th.sort((a, b) => a.pos - b.pos),
         vs: tv.sort((a, b) => a.pos - b.pos),
         box: { x: left, y: top, width: right - left, height: bottom - top },
-      });
+      };
+      tables.push(
+        ...((options.splitStacked && sideBySide(table, tol, options.text ?? [])) || [table]),
+      );
     }
   }
   return tables.sort((a, b) => a.box.y - b.box.y);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildTablePage, sharedColumns } from './build';
+import { buildTablePage, dropTrailingRows, isRuleText, sharedColumns, type Grid } from './build';
 import { INVOICE, INVOICE_ITEMS } from './fixtures/invoice-ocr';
 import { findLines, findTables } from './lines';
 import { fakeLine, glyphs, gridRects, renderPage, type Rect } from './test-helpers';
@@ -55,6 +55,44 @@ describe('table structure from ruled lines (D-272)', () => {
   const xs = [100, 300, 500, 700, 900];
   const ys = [100, 160, 220, 280];
 
+  it('leaves a text line lying wholly above the top rule outside the table (EU sample 024)', () => {
+    // 时刻表的表头横条上面紧挨着一行「01 02 04」（离顶线不到一个容差）：不是表里的字。
+    const { lines, marks } = cellTexts(xs, ys);
+    const above = fakeLine(
+      '01 02 04 06',
+      { x: 520, y: 86, width: 160, height: 13 },
+      { width: W, height: H },
+    );
+    const page = build(
+      [...gridRects(xs, ys), ...marks, ...glyphs(530, 88, 140, 10)],
+      [...lines, above],
+    );
+    const [table] = tablesOf(page);
+    expect(table!.cells.some((c) => c.text.includes('01 02'))).toBe(false);
+    expect(page.blocks.some((b) => b.kind === 'text' && b.text.includes('01 02 04 06'))).toBe(true);
+  });
+
+  it('keeps a framed paragraph (no inner rules) as one left-aligned cell, not one row per line (EU sample 038)', () => {
+    // Cerfa 表格上的提示框：四边一条细框，里面是一段两端对齐的正文，左右留的空一样宽。
+    const texts = [
+      'When you use this specific form your doctor lets you be paid for your sick leave',
+      'without the usual waiting days at the start, during which nothing is normally paid',
+      'to you. If your employer keeps paying your salary during the leave, the employer',
+      'is paid instead of you for every prescribed day of the leave.',
+    ];
+    const lines: OcrBox[] = [];
+    const marks: Rect[] = [];
+    texts.forEach((text, i) => {
+      const box = { x: 130, y: 120 + i * 30, width: i < 3 ? 740 : 480, height: 22 };
+      lines.push(fakeLine(text, box, { width: W, height: H }));
+      marks.push(...glyphs(box.x + 4, box.y + 4, box.width - 8, 14));
+    });
+    const [table] = tablesOf(build([...gridRects([100, 900], [100, 250]), ...marks], lines));
+    expect(shapeOf(table!)).toEqual([1, 1]);
+    expect(table!.cells[0]!.text.split('\n')).toHaveLength(4);
+    expect(table!.cells[0]!.align).toBe('left');
+  });
+
   it('reads a fully ruled 3 × 4 table and puts each text line in its cell', () => {
     const { lines, marks } = cellTexts(xs, ys);
     const page = build([...gridRects(xs, ys), ...marks], lines);
@@ -69,6 +107,27 @@ describe('table structure from ruled lines (D-272)', () => {
     for (const w of page.colWidths) expect(Math.abs(w - 200)).toBeLessThan(6);
     // 没有表外的文字。
     expect(page.blocks.filter((b) => b.kind === 'text')).toHaveLength(0);
+  });
+
+  it('drops "==" text read from a ruled line instead of putting it in a cell (EU sample 020)', () => {
+    const { lines, marks } = cellTexts(xs, ys);
+    // 识别把第一条行线（虚线）读成了一行「==m=」，框的中间正压在线上。
+    const rule = fakeLine(
+      '==m=',
+      { x: 320, y: 151, width: 160, height: 18 },
+      { width: W, height: H },
+    );
+    const page = build([...gridRects(xs, ys), ...marks], [...lines, rule]);
+    const [table] = tablesOf(page);
+    expect(table!.rows).toBe(3);
+    expect(table!.cells.some((c) => c.text.includes('='))).toBe(false);
+    // 也不排成表外的文字。
+    expect(page.blocks.filter((b) => b.kind === 'text')).toHaveLength(0);
+    // 格子里表示「无」的短横照旧是字。
+    expect(isRuleText('-')).toBe(false);
+    expect(isRuleText('—')).toBe(false);
+    expect(isRuleText('主===主')).toBe(true);
+    expect(isRuleText('A-1')).toBe(false);
   });
 
   it('joins broken lines (photocopies) instead of merging cells', () => {
@@ -300,6 +359,30 @@ describe('tables with only horizontal lines (D-272)', () => {
     expect(page.blocks.map((b) => b.kind)).toEqual(['table', 'text', 'table']);
   });
 
+  it('keeps a three-line table apart from a ruled grid above it although the heading gap is under two grid rows', () => {
+    // 网格每行 50；中间的标题和留白只有 80（不到两行）。竖线画满了网格的三行才停：网格到这里就完了，
+    // 不是「只有表头有竖线、下面只有横线」的表。
+    const xs = [100, 500, 900];
+    const ys = [60, 110, 160, 210];
+    const grid = cellTexts(xs, ys);
+    const rects = [
+      ...gridRects(xs, ys),
+      ...[290, 330, 500].map((y) => ({ x: 100, y, width: 802, height: 2 })),
+    ];
+    const lines = [
+      ...grid.lines,
+      fakeLine('Contacts', { x: 100, y: 240, width: 200, height: 24 }, page1),
+      ...row(0, 300, ['Name', 'Phone', 'Days']),
+      ...[0, 1, 2].flatMap((r) => row(r, 345 + r * 50, [`n${r}`, `p${r}`, `d${r}`])),
+    ];
+    const page = build([...rects, ...grid.marks], lines);
+    expect(tablesOf(page).map(shapeOf)).toEqual([
+      [3, 2],
+      [4, 3],
+    ]);
+    expect(page.blocks.map((b) => b.kind)).toEqual(['table', 'text', 'table']);
+  });
+
   it('does not make a table out of aligned fill-in blanks with nothing inside', () => {
     const rects = [200, 250, 300].map((y) => ({ x: 300, y, width: 400, height: 2 }));
     const lines = [200, 250, 300].map((y, i) =>
@@ -464,6 +547,22 @@ describe('cases from real scans (D-272)', () => {
     expect(cellAt(table!, 0, 1)!.text.split('\n')).toEqual(['Date 21/02', 'Diagnostiqueur']);
   });
 
+  it('keeps the step lists of a one-row box in their cells (EU sample 049)', () => {
+    // 说明书：一排三格，每格一个步骤号和几条要点，几格的行一样高，没有一列是数。
+    const columns = [
+      ['1', 'Ins Menü'],
+      ['2', 'Datenspeicher', 'Proben-IDs', 'Methoden', 'Einstellungen'],
+      ['3', 'Neue Methode', 'Methoden editieren', 'mit OK bestätigen'],
+    ];
+    const words = columns.flatMap((lines, c) =>
+      lines.map((text, r) => word(text, 120 + c * 270, 110 + r * 26, 200)),
+    );
+    const [table, ...others] = tablesOf(page(gridRects([100, 370, 640, 900], [100, 250]), words));
+    expect(others).toHaveLength(0);
+    expect([table!.rows, table!.cols]).toEqual([1, 3]);
+    expect(cellAt(table!, 0, 1)!.text.split('\n')).toHaveLength(5);
+  });
+
   it('still splits a body where some rows only have a section label', () => {
     // 工资单：「URSSAF」「Retraite」这种小标题一排只有一格，其他排每列都有字。
     const xs = [100, 400, 650, 900];
@@ -478,6 +577,62 @@ describe('cases from real scans (D-272)', () => {
     expect([table!.rows, table!.cols]).toEqual([6, 3]);
     expect(cellAt(table!, 1, 0)!.text).toBe('URSSAF');
     expect(cellAt(table!, 2, 2)!.text).toBe('1.5');
+  });
+
+  it('does not split label rows by the lines of a cell spanning them (EU sample 057)', () => {
+    // 价目表：左边一格跨三排（上下没有横线），里面两行字；中间一排的标签有三行，右边一行说明。
+    // 左格的两行字不能让中间这一排按字的排分成几行。
+    const xs = [100, 330, 650, 900];
+    const rects = gridRects(xs, [100, 160, 250, 310], {
+      skipH: [
+        [1, 0],
+        [2, 0],
+      ],
+    });
+    const words = [
+      word('QUOTA FISSA', 140, 176, 150),
+      word('(EUR/mese)', 140, 212, 150),
+      word('VENDITA', 400, 120, 200),
+      word('Fissa per 12 mesi', 670, 120, 200),
+      word('COMPONENTE DI', 400, 168, 200),
+      word('DISPACCIAMENTO', 400, 194, 200),
+      word('PARTE FISSA', 400, 220, 200),
+      word('Come stabilito', 670, 194, 200),
+      word('QUOTA', 400, 270, 200),
+      word('Come stabilito', 670, 270, 200),
+    ];
+    const [table, ...others] = tablesOf(page(rects, words));
+    expect(others).toHaveLength(0);
+    expect([table!.rows, table!.cols]).toEqual([3, 3]);
+    expect(cellAt(table!, 0, 0)).toMatchObject({ rowSpan: 3 });
+    expect(cellAt(table!, 1, 1)!.text.split('\n')).toEqual([
+      'COMPONENTE DI',
+      'DISPACCIAMENTO',
+      'PARTE FISSA',
+    ]);
+  });
+
+  it('keeps a boxed field of several lines whole beside label columns that span past it (EU sample 018)', () => {
+    // 文凭附录：「3.1」「3.2」两个编号在框外的列里（上下的横线只画在两个框上），左框四行字、右框两行字。
+    // 外面一个大框，里面两个小框；编号在小框左边。
+    const rects = [
+      ...gridRects([60, 940], [60, 260]),
+      ...gridRects([160, 600], [100, 210]),
+      ...gridRects([660, 900], [100, 210]),
+    ];
+    const words = [
+      word('3.1', 110, 145, 40),
+      word('Studii universitare de licenta', 170, 108, 400),
+      word('al calificarilor CNC', 170, 132, 400),
+      word('Bachelor Studies Level 6', 170, 156, 400),
+      word('European Framework', 170, 180, 400),
+      word('3.2', 610, 145, 40),
+      word('3 ani 180 credite', 670, 130, 200),
+      word('3 years 180 credits', 670, 154, 200),
+    ];
+    const [table] = tablesOf(page(rects, words));
+    const cell = table!.cells.find((c) => c.text.includes('Studii'))!;
+    expect(cell.text.split('\n')).toHaveLength(4);
   });
 
   it('keeps column lines that start below an unruled header', () => {
@@ -501,6 +656,40 @@ describe('cases from real scans (D-272)', () => {
     const [table] = tablesOf(page(gridRects([100, 400, 700, 900], [300, 330]), words));
     expect([table!.rows, table!.cols]).toEqual([1, 3]);
     expect(cellAt(table!, 0, 1)!.text).toBe('6 034,00');
+  });
+
+  it('does not take letter stems stacked through a tight table’s row rules for column lines (EU sample 090)', () => {
+    // 化验单：一排 17 像素高，粗体字上下几乎碰到行线，同一列起头的字（「P-」）的竖笔画隔着行线连成了一条「竖线」。
+    const ys = Array.from({ length: 13 }, (_, r) => 100 + 17 * r);
+    const lines: OcrBox[] = [];
+    const marks: Rect[] = [];
+    for (let r = 0; r + 1 < ys.length; r++) {
+      const box = { x: 60, y: ys[r]! + 3, width: 210, height: 12 };
+      const text = `P-Analisi numero ${String(r).padStart(2, '0')}`;
+      lines.push(fakeLine(text, box, page1, true));
+      lines.push(
+        fakeLine(`${r} - ${r + 9}`, { x: 420, y: ys[r]! + 3, width: 60, height: 12 }, page1, true),
+      );
+      // 每个字（空格除外）一道竖笔画，在字的中间。
+      for (const [i, ch] of Array.from(text).entries())
+        if (ch !== ' ')
+          marks.push({
+            x: 60 + ((i + 0.5) / text.length) * 210,
+            y: ys[r]! + 3,
+            width: 2,
+            height: 12,
+          });
+    }
+    const page = build([...gridRects([40, 400, 600], ys), ...marks], lines);
+    const [table] = tablesOf(page);
+    expect([table!.rows, table!.cells.filter((c) => c.row === 0).length]).toEqual([12, 2]);
+    expect(cellAt(table!, 5, 0)!.text).toBe('P-Analisi numero 05');
+  });
+
+  it('does not take a framed blank with words just beside it for a one-cell table (EU sample 082)', () => {
+    // 句子里要填的一块底色，四边被找成线（一格的框）：紧挨在右边的「y」离它不到容差，以前被圈进一张 1×1 的表。
+    const words = [word('y', 475, 300, 12)];
+    expect(tablesOf(page(gridRects([400, 472], [298, 326]), words))).toHaveLength(0);
   });
 
   it('keeps a title whole above a column line that starts below it', () => {
@@ -871,5 +1060,53 @@ describe('tables without lines in Excel (D-506)', () => {
   it('the columns of the table are the page’s columns', () => {
     const items = tablesOf(page).find((t) => rowsOf(t)[0]?.[0] === 'Item')!;
     expect(page.colWidths.length).toBeGreaterThanOrEqual(items.col + items.cols);
+  });
+});
+
+describe('rules-only tables: closing lines under the last rows (EU sample 003)', () => {
+  // 小票：分隔线之间按空隙分出三列的增值税表，最下面一段是居中的「Vielen Dank / Auf Wiedersehen」，
+  // 横跨了列的空隙。
+  const xs = [60, 240, 600, 940].map((pos) => ({ pos, lined: false }));
+  const ys = [100, 140, 165, 190, 230, 260, 300].map((pos, i) => ({
+    pos,
+    lined: [0, 1, 4, 6].includes(i),
+  }));
+  const rows = ys.length - 1;
+  const cells = Array.from({ length: rows * 3 }, (_, k) => ({
+    row: Math.floor(k / 3),
+    col: k % 3,
+    rowSpan: 1,
+    colSpan: 1,
+    text: '',
+    box: { x: xs[k % 3]!.pos, y: ys[Math.floor(k / 3)]!.pos, width: 1, height: 1 },
+  }));
+  const grid: Grid = { xs, ys, owner: Int32Array.from(cells.keys()), cells };
+  const box = (text: string, x: number, y: number, width = 100): OcrBox => ({
+    text,
+    x,
+    y,
+    width,
+    height: 20,
+  });
+  const vat = [110, 145, 170, 200].flatMap((y, r) => [
+    box(r ? `${r}.00%` : 'MWST', 80, y),
+    box(r ? `${r}.10` : 'Netto', 330, y),
+    box(r ? `${r}.60` : 'Brutto', 780, y),
+  ]);
+
+  it('drops the rows that only hold one centred line across the columns', () => {
+    const closing = [
+      box('Vielen Dank fuer Ihren Besuch', 200, 235, 500),
+      box('Auf Wiedersehen', 380, 270, 300),
+    ];
+    const trimmed = dropTrailingRows(grid, [...vat, ...closing])!;
+    expect(trimmed.grid.ys).toHaveLength(5);
+    expect(trimmed.grid.cells.every((c) => c.row < 4)).toBe(true);
+    expect(trimmed.lines.map((l) => l.text)).not.toContain('Auf Wiedersehen');
+  });
+
+  it('keeps a last row whose text sits in the columns', () => {
+    const totals = [box('Summe', 80, 235), box('23.50', 780, 235)];
+    expect(dropTrailingRows(grid, [...vat, ...totals])).toBeNull();
   });
 });

@@ -1,0 +1,152 @@
+[
+  {
+    "page": 1,
+    "id": "two-column-prose",
+    "source": "01-two-column-prose.html",
+    "sha256": "b2c8bb8fe327e64e75d9f579984ac289a7466d7d99ff4b9dca846a64bea32f95"
+  },
+  {
+    "page": 2,
+    "id": "academic-columns",
+    "source": "02-academic-columns.pdf",
+    "sha256": "b5083ed2513c773c8781660f556e322332cf276f7d8542cfae4fe1c0dac5aee6"
+  },
+  {
+    "page": 3,
+    "id": "side-by-side-blocks",
+    "source": "03-side-by-side-blocks.html",
+    "sha256": "f507d95b331cf44e4b0ed7a3f1e0d0120bf14e8bb432ed04ffb00e311d98a1db"
+  },
+  {
+    "page": 4,
+    "id": "two-column-sections",
+    "source": "04-two-column-sections.html",
+    "sha256": "7cd7c2cc9b1226543cc1bd78dc34f8f2492938d936d84fc7c6132a3f0bf90d63"
+  },
+  {
+    "page": 5,
+    "id": "receipt-one-region",
+    "source": "05-receipt-one-region.scan.html",
+    "sha256": "e3e78f9c7f06f1188f23c04c0ecc61a70cd5dfc4adbb80a10db24c36e6cf2d74"
+  },
+  {
+    "page": 6,
+    "id": "columns-with-figure",
+    "source": "06-columns-with-figure.html",
+    "sha256": "db3342f38915db23296c97b56d4d5e0082687eae7556cf0c8dd8ae930b6c2d0c"
+  },
+  {
+    "page": 7,
+    "id": "first-line-indent",
+    "source": "07-first-line-indent.html",
+    "sha256": "493147f1080ea74aa2a8ffcbd56e29b5f845d9252f908a43fcb23854771e7c18"
+  },
+  {
+    "page": 8,
+    "id": "ragged-right",
+    "source": "08-ragged-right.html",
+    "sha256": "4a50867f485a6b749b2add004c9d3bf60f238cc4ea1d6930d6585309fe3d6fb3"
+  },
+  {
+    "page": 9,
+    "id": "centered-letterhead",
+    "source": "09-centered-letterhead.html",
+    "sha256": "4239ade7f777cb466b4775bea082cdcaebeb4ad3ed9af97b67cb3eb103603e13"
+  },
+  {
+    "page": 10,
+    "id": "stray-margin-mark",
+    "source": "10-stray-margin-mark.scan.html",
+    "sha256": "f38949c335bbf884ee4187025b7401d4c5f6607767d0d1541e65a8c0a158707c"
+  },
+  {
+    "page": 11,
+    "id": "short-lines-not-page-numbers",
+    "source": "11-short-lines-not-page-numbers.html",
+    "sha256": "c9eeac3bdf573002384c22c9a2afd8f7f683cde6efa60d7537bf7e5dde90022c"
+  },
+  {
+    "page": 12,
+    "id": "decorative-markers-not-bullets",
+    "source": "12-decorative-markers-not-bullets.html",
+    "sha256": "de5583b0b7bec0eb95afcaec2f47ca53a074b67e2e21df081c8b2859ce7d09b4"
+  },
+  {
+    "page": 13,
+    "id": "short-stacked-lines",
+    "source": "13-short-stacked-lines.html",
+    "sha256": "0f4c235126751fad7b0839f1c2bbbab05825e81d3a9dafd6b09539a80e0fe15f"
+  },
+  {
+    "page": 14,
+    "id": "missing-list-markers",
+    "source": "14-missing-list-markers.html",
+    "sha256": "ec40be6beb3b3275a239afa0c3be970ea289ee5d08c46931a9da03334664b991"
+  },
+  {
+    "page": 15,
+    "id": "numbered-headings-after-list",
+    "source": "15-numbered-headings-after-list.html",
+    "sha256": "0a5655642531d16c98154f39ce8ddd3a71d815f8c71272fb70f3f2084c3eacb8"
+  },
+  {
+    "page": 16,
+    "id": "justified-line-word-gaps",
+    "source": "16-justified-line-word-gaps.html",
+    "sha256": "d3aa3fddf49842b8bc5de2d5e89242c291ee0b5b5c382c19d1d6eacc210c1a0a"
+  },
+  {
+    "page": 17,
+    "id": "numbered-items-number-column",
+    "source": "17-numbered-items-number-column.html",
+    "sha256": "5eaac52eccb1719e1a345bb256d0acf0122b0a1651d47f6e1dcda66a9c09ca2a"
+  },
+  {
+    "page": 18,
+    "id": "two-up-forms",
+    "source": "18-two-up-forms.html",
+    "sha256": "75cf480ba63936cf05e94d63e6c23e892cc883ead37ce23582342120dcb18104"
+  },
+  {
+    "page": 19,
+    "id": "square-bullets",
+    "source": "19-square-bullets.html",
+    "sha256": "184536dc1293ca30840c39faa27af1ac65ac2b3954bb0a73089ea10a7fccb483"
+  },
+  {
+    "page": 20,
+    "id": "form-code-on-band",
+    "source": "20-form-code-on-band.html",
+    "sha256": "5933c9d80c1b9264ab974b7a8fca00ac36f975c047f54d1cdae554f3b45d2c5c"
+  },
+  {
+    "page": 21,
+    "id": "framed-letter-ticks",
+    "source": "21-framed-letter-ticks.html",
+    "sha256": "dafa5a57be34455a9b8d10af6d17b0171e8dd98202d997c55844f9e1b2f20527"
+  },
+  {
+    "page": 22,
+    "id": "date-at-line-start",
+    "source": "22-date-at-line-start.html",
+    "sha256": "ab4086f06e1a9cf9dcb322729ff05fe37defaa33046b59f3469b673e5e75304e"
+  },
+  {
+    "page": 23,
+    "id": "shaded-blanks-in-sentences",
+    "source": "23-shaded-blanks-in-sentences.html",
+    "sha256": "3c42e25eb0896846eb38eeb8220a981571b49d6b754e0f38c281dc98fe368525"
+  },
+  {
+    "page": 24,
+    "id": "bracketed-field-codes",
+    "source": "24-bracketed-field-codes.html",
+    "sha256": "0ee5cd53addb29fd1fb26f886a511106a5dc34923b4858dac06d4be9e2d33d10"
+  },
+  {
+    "page": 25,
+    "id": "wordmark-tagline-band",
+    "source": "25-wordmark-tagline-band.scan.html",
+    "sha256": "aac4c21968bdc9e4a2a7aaa0573989525d72f75398cf08be3395ad80d73657a6"
+  }
+]

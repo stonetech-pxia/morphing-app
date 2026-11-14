@@ -1,0 +1,170 @@
+<!doctype html>
+<meta charset="utf-8" />
+<style>
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  body {
+    margin: 0;
+    font-family: Georgia, serif;
+    color: #222;
+  }
+  .page {
+    padding: 20mm 22mm;
+    font-size: 11pt;
+    line-height: 1.55;
+  }
+  h2 {
+    font-size: 15pt;
+    margin: 0 0 4mm;
+  }
+  p {
+    margin: 0 0 4mm;
+    text-align: justify;
+  }
+  svg {
+    display: block;
+    margin: 8mm auto;
+    font-family: Arial, sans-serif;
+  }
+</style>
+<div class="page">
+  <h2>2. Water treatment process</h2>
+  <p>
+    The plant draws raw water from the river intake and passes it through four stages before it
+    reaches the distribution network. Each stage is monitored separately, and samples are taken
+    after every step so that a fault can be traced back to the stage where it started.
+  </p>
+  <p>
+    The diagram below shows the main flow and the return line used for sludge. Operators switch the
+    bypass valve only during maintenance, when one of the filter beds is out of service.
+  </p>
+  <svg width="620" height="330" viewBox="0 0 620 330">
+    <defs>
+      <marker id="a" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+        <path d="M0,0 L10,4 L0,8 z" fill="#333" />
+      </marker>
+    </defs>
+    <rect
+      x="10"
+      y="40"
+      width="100"
+      height="56"
+      rx="8"
+      fill="#cfe3f7"
+      stroke="#2b5d8a"
+      stroke-width="2" />
+    <rect
+      x="165"
+      y="40"
+      width="100"
+      height="56"
+      rx="8"
+      fill="#d9efd2"
+      stroke="#3d7a2e"
+      stroke-width="2" />
+    <rect
+      x="320"
+      y="40"
+      width="100"
+      height="56"
+      rx="8"
+      fill="#fbe5c4"
+      stroke="#a8691a"
+      stroke-width="2" />
+    <rect
+      x="475"
+      y="40"
+      width="120"
+      height="56"
+      rx="8"
+      fill="#ead6f2"
+      stroke="#6b3b84"
+      stroke-width="2" />
+    <rect
+      x="165"
+      y="200"
+      width="100"
+      height="56"
+      rx="8"
+      fill="#f4d0d0"
+      stroke="#9a2f2f"
+      stroke-width="2" />
+    <rect
+      x="320"
+      y="200"
+      width="100"
+      height="56"
+      rx="8"
+      fill="#e6e6e6"
+      stroke="#555"
+      stroke-width="2" />
+    <circle cx="535" cy="230" r="34" fill="#c9eef0" stroke="#1d7c84" stroke-width="2" />
+    <line x1="110" y1="68" x2="163" y2="68" stroke="#333" stroke-width="2.5" marker-end="url(#a)" />
+    <line x1="265" y1="68" x2="318" y2="68" stroke="#333" stroke-width="2.5" marker-end="url(#a)" />
+    <line x1="420" y1="68" x2="473" y2="68" stroke="#333" stroke-width="2.5" marker-end="url(#a)" />
+    <line
+      x1="535"
+      y1="96"
+      x2="535"
+      y2="194"
+      stroke="#333"
+      stroke-width="2.5"
+      marker-end="url(#a)" />
+    <line
+      x1="215"
+      y1="96"
+      x2="215"
+      y2="198"
+      stroke="#9a2f2f"
+      stroke-width="2.5"
+      stroke-dasharray="6 4"
+      marker-end="url(#a)" />
+    <line
+      x1="265"
+      y1="228"
+      x2="318"
+      y2="228"
+      stroke="#9a2f2f"
+      stroke-width="2.5"
+      stroke-dasharray="6 4"
+      marker-end="url(#a)" />
+    <path
+      d="M370,200 C370,150 120,150 70,98"
+      fill="none"
+      stroke="#555"
+      stroke-width="2"
+      stroke-dasharray="3 4"
+      marker-end="url(#a)" />
+    <g font-size="13" text-anchor="middle" fill="#111">
+      <text x="60" y="73">Intake</text>
+      <text x="215" y="73">Screening</text>
+      <text x="370" y="66">Coagulation</text>
+      <text x="370" y="84">tank</text>
+      <text x="535" y="73">Sand filter</text>
+      <text x="215" y="233">Sludge</text>
+      <text x="370" y="233">Press</text>
+      <text x="535" y="227">Clear</text>
+      <text x="535" y="243">reservoir</text>
+      <text x="137" y="58" font-size="11">raw</text>
+      <text x="292" y="58" font-size="11">dosed</text>
+      <text x="447" y="58" font-size="11">floc</text>
+      <text x="568" y="150" font-size="11">clean</text>
+      <text x="245" y="150" font-size="11">return</text>
+      <text x="183" y="150" font-size="11">waste</text>
+    </g>
+    <rect x="10" y="290" width="14" height="14" fill="#cfe3f7" stroke="#2b5d8a" />
+    <text x="30" y="302" font-size="11">main flow</text>
+    <rect x="120" y="290" width="14" height="14" fill="#f4d0d0" stroke="#9a2f2f" />
+    <text x="140" y="302" font-size="11">sludge line</text>
+  </svg>
+  <p>
+    Sludge removed during screening is pressed and dried on site. The filtrate from the press is
+    returned to the intake, which keeps the plant's losses below two percent of the treated volume.
+  </p>
+  <p>
+    Each filter bed is backwashed once a day. The clear reservoir holds enough water for twelve
+    hours of normal demand, which leaves time to repair a fault without cutting supply.
+  </p>
+</div>

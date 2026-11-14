@@ -1,0 +1,42 @@
+<!doctype html><meta charset="utf-8" /><style>
+  @page { size: A4; margin: 0; }
+  body { font: 11pt/1.3 Arial, Helvetica, sans-serif; margin: 0; padding: 20mm 10mm 0 11mm; width: 189mm; color: #111; }
+  h1 { font-size: 22pt; margin: 0 0 8mm; }
+  table { border-collapse: collapse; }
+  td, th { border: 1px solid #333; padding: 1.2mm 1.5mm; }
+  th { background: #eee; }
+  .items { width: 100%; }
+  .num { text-align: right; }
+  .under { display: flex; justify-content: space-between; margin-top: 1.3mm; align-items: flex-start; }
+  .small td, .small th { font-size: 8pt; }
+  .small { width: 96mm; }
+  .tot { width: 63mm; }
+  .tot th { text-align: right; }
+</style>
+<h1>Facture FA-2026-0142</h1>
+<table class="items">
+  <tr><th style="width: 50%">Désignation</th><th>Quantité</th><th>Prix unitaire</th><th>Remise</th><th>Total HT</th></tr>
+  <tr><td>Savon à l'huile d'olive 100g</td><td class="num">12</td><td class="num">3.40 €</td><td class="num">5%</td><td class="num">38.76 €</td></tr>
+  <tr><td>Tapenade noire 180g</td><td class="num">6</td><td class="num">5.10 €</td><td class="num"></td><td class="num">30.60 €</td></tr>
+  <tr><td>Huile vierge extra 1L</td><td class="num">20</td><td class="num">14.90 €</td><td class="num"></td><td class="num">298.00 €</td></tr>
+</table>
+<div class="under">
+  <div>
+    <table class="small">
+      <tr><th style="width: 48%">Taxe</th><th>Base</th><th>Montant</th></tr>
+      <tr><td>TVA 0% livraison intracommunautaire</td><td class="num">367.36 €</td><td class="num">0.00 €</td></tr>
+    </table>
+    <table class="small" style="margin-top: 4mm">
+      <tr><th style="width: 48%">Règlement</th><th>Date</th><th>Montant</th></tr>
+      <tr><td>Virement SEPA</td><td class="num">02/11/2026</td><td class="num">120.00 €</td></tr>
+    </table>
+  </div>
+  <table class="tot">
+    <tr><th>Total HT</th><td class="num">367.36 €</td></tr>
+    <tr><th>Total TVA</th><td class="num">0.00 €</td></tr>
+    <tr><th>Total TTC</th><td class="num">367.36 €</td></tr>
+    <tr><th>Reste dû</th><td class="num">247.36 €</td></tr>
+  </table>
+</div>
+<p style="margin-top: 8mm">Paiement par virement à 30 jours. Pénalités de retard au taux légal en vigueur.</p>
+</body>

@@ -32,7 +32,11 @@ export interface BuildOptions {
    * 每张表放进格子的识别行（传进来的对象）：转 Word 时没放进表的行照样排成正文（D-501）。
    * chopped 是被列线从一个词中间切开的行数（D-502）：真的表里字不跨列线，跨了多半是网格认错了。
    */
-  onTable?: (table: TableBlock, lines: readonly OcrBox[], check: { chopped: number }) => void;
+  onTable?: (
+    table: TableBlock,
+    lines: readonly OcrBox[],
+    check: { chopped: number; ruled: boolean; framedText?: boolean },
+  ) => void;
   /**
    * 带线的表以外也认没有线的表（D-506：和转 Word 同一套规则，D-471、D-502、D-503），默认认。
    * 转 Word 自己在去掉竖排、零星的字以后再认，不在这里认。
@@ -43,6 +47,12 @@ export interface BuildOptions {
    * 表外的字按转 Word 的并排规则分栏、估每块字和每张表的字号和粗体。不给时表外的字照旧每段一行（转 Word 自己排）。
    */
   arrange?: boolean;
+  /** 很浅的表格线也找（findLines 的 light）：只给转 Word，转 Excel 不变。 */
+  lightRules?: boolean;
+  /** 共用外框、上下叠着的几张表分开（findTables 的 splitStacked）：只给转 Word。 */
+  splitStacked?: boolean;
+  /** 横竖线画满、里面一个字也没有的网格，紧挨在上面的一排字是它的表头（转 Word 用，withHeaderAbove）。 */
+  headerAbove?: boolean;
 }
 
 export interface PageInput {
@@ -59,17 +69,19 @@ export interface PageInput {
 }
 
 /** 网格的一条边界：lined 是有线的（没有线的是按文字空隙或文字行分出来的，两边不合并）。 */
-interface Boundary {
+export interface Boundary {
   pos: number;
   lined: boolean;
 }
 
-interface Grid {
+export interface Grid {
   xs: Boundary[];
   ys: Boundary[];
   /** 每个位置属于哪个格子（r * cols + c → cells 的下标）。 */
   owner: Int32Array;
   cells: TableCell[];
+  /** 只是一个框着几行字的框，不是表（EU 样本 075）。 */
+  framedText?: boolean;
 }
 
 /** 一个边上有线的长度不到一半就合并两边的格子。 */
@@ -135,6 +147,20 @@ function textRows<T extends Box>(lines: readonly T[]): T[][] {
 }
 
 /** 默认的接法：同一排用空格接，排和排之间换行。 */
+/**
+ * 识别把一条虚线、双线读成的字：至少两个「=」「_」「-」这类记号，其余的字（夹进来的杂字）不超过一半；
+ * 只有一两个「-」的不算（格子里表示「无」的短横）。
+ */
+export function isRuleText(text: string): boolean {
+  const chars = [...text.replace(/\s/g, '')];
+  const marks = chars.filter((c) => /[=_~\-–—]/.test(c));
+  return (
+    marks.length >= 2 &&
+    marks.length * 2 >= chars.length &&
+    (marks.some((c) => /[=_~]/.test(c)) || marks.length >= 3)
+  );
+}
+
 function defaultJoin(lines: readonly OcrBox[]): string {
   return textRows(lines)
     .map((row) => row.map((l) => l.text.trim()).join(' '))
@@ -195,11 +221,53 @@ function gapColumns(lines: readonly OcrBox[], left: number, right: number, lineH
   return out;
 }
 
+/**
+ * 框里的字按字的空隙能分成几列，而且至少一半的排在两列以上有字（键值对、一排一项的清单）：
+ * 这样才按排分成一行一格。
+ */
+function alignedRows(lines: readonly OcrBox[], left: number, right: number, lineHeight: number) {
+  const gaps = gapColumns(lines, left, right, lineHeight);
+  if (!gaps.length) return false;
+  const rows = textRows(lines);
+  const column = (x: number) => gaps.filter((g) => g < x).length;
+  const wide = rows.filter((row) => new Set(row.map((l) => column(centerX(l)))).size >= 2);
+  return wide.length >= rows.length / 2;
+}
+
 const indexOf = (bounds: readonly Boundary[], v: number) => {
   let i = 0;
   while (i < bounds.length - 2 && v >= bounds[i + 1]!.pos) i++;
   return i;
 };
+
+/** 只有四条边的框里至少这么多排字，才是框着一段文字的框（一行字的填写框、带底色的格子照旧当表）。 */
+const FRAME_TEXT_ROWS = 3;
+/** 其中至少这么多排是一整行宽的字（折行的正文）。 */
+const FRAME_WIDE_ROWS = 2;
+
+/** 框里的字至少这么多排、至少这么多排是一整行宽的字（一个识别框占框宽的这么多），才算一段正文。 */
+const PROSE_MIN_ROWS = 2;
+const PROSE_WIDE_SHARE = 2 / 3;
+const PROSE_LINE_WIDTH = 0.6;
+
+/** 一排就是一个很宽的识别框（几栏、键值对的一排是隔开的几块）：有几排。 */
+function wideRows(lines: readonly OcrBox[], width: number): number {
+  return textRows(lines).filter(
+    (row) => row.length === 1 && row[0]!.width >= PROSE_LINE_WIDTH * width,
+  ).length;
+}
+
+/** 框里的字是正文：大多数排是一整行宽的字。 */
+function isProse(lines: readonly OcrBox[], width: number): boolean {
+  const rows = textRows(lines).length;
+  return rows >= PROSE_MIN_ROWS && wideRows(lines, width) >= PROSE_WIDE_SHARE * rows;
+}
+
+/** 一行字大半是数字（金额、日期、编号、百分比）。 */
+function isNumber(text: string): boolean {
+  const s = text.replace(/\s/g, '');
+  return s.length > 0 && (s.match(/\d/g)?.length ?? 0) >= 0.5 * s.length;
+}
 
 /** 一张表的网格：横线定行，竖线定列（没有中间的竖线时按文字空隙分列），边上线不够的两格合并。 */
 function buildGrid(
@@ -240,7 +308,24 @@ function buildGrid(
   const covered = ys.slice(0, -1).map((y, r) => bandCovered(y.pos, ys[r + 1]!.pos));
   const firstCovered = covered.indexOf(true);
   const lastCovered = covered.lastIndexOf(true);
-  const isOpen = (r: number) => firstCovered < 0 || r < firstCovered || r > lastCovered;
+  // 四边有框、里面没有列线、字是一段一段的正文（Cerfa 表格上的提示框，EU 样本 038）：是框起来的一段话，
+  // 不按排分成一行一格（一行字一格，改一个字整段就乱了），也不按字的空隙分列。
+  const framedProse =
+    !inner.length && xs[0]!.lined && xs.at(-1)!.lined && isProse(lines, right - left);
+  // 只有四条边的框（里面没有一条线），框着折行的正文（至少两排是一整行宽的字），字也不是一排一排对成几列的
+  // （一封信：地址、称呼、几段正文，EU 样本 075）：这只是个框，不是表。照旧按排分好交出去，转 Word 不当表，
+  // 字放回正文（见 framedText）。只有短标签的框（病假单上没认出里面细线的「Krankenkasse」框，EU 样本 061）照旧。
+  const framedText =
+    !framedProse &&
+    !inner.length &&
+    xs[0]!.lined &&
+    xs.at(-1)!.lined &&
+    ys.filter((y) => y.lined).length <= 2 &&
+    textRows(lines).length >= FRAME_TEXT_ROWS &&
+    wideRows(lines, right - left) >= FRAME_WIDE_ROWS &&
+    !alignedRows(lines, left, right, lineHeight);
+  const isOpen = (r: number) =>
+    !framedProse && (firstCovered < 0 || r < firstCovered || r > lastCovered);
   const split: Boundary[] = [ys[0]!];
   const open: boolean[] = [];
   // 按排分出来的行，竖线够不够长按分之前的那一段算（弯的线、断线在一小行里容易不够一半）。
@@ -248,7 +333,16 @@ function buildGrid(
   for (let r = 0; r < ys.length - 1; r++) {
     const a = ys[r]!.pos;
     const b = ys[r + 1]!.pos;
-    const rows = textRows(lines.filter((l) => centerY(l) >= a && centerY(l) < b));
+    const inBand = lines.filter((l) => centerY(l) >= a && centerY(l) < b);
+    // 上下的横线在这一列没画（左边一大格跨好几排：电费单黄底的「QUOTA FISSA」，EU 样本 057）：
+    // 这一列的字属于跨排的大格，不按它分排。
+    const spans = (c: number) =>
+      [ys[r]!, ys[r + 1]!].some(
+        (y) => y.lined && coverage(hs, y.pos, xs[c]!.pos, xs[c + 1]!.pos, tol) < MERGE_COVERAGE,
+      );
+    const rows = textRows(
+      isOpen(r) ? inBand : inBand.filter((l) => !spans(indexOf(xs, centerX(l)))),
+    );
     // 上下两排字中间的位置。
     const between = (i: number) =>
       (Math.max(...rows[i - 1]!.map((l) => l.y + l.height)) +
@@ -267,6 +361,8 @@ function buildGrid(
       // 只有个别列里有几排（一格里折行的字）、只有两排（折成两行的表头）、
       // 多数排只有一列有字（表单一格里的几行地址，别的列空着，D-333）不分。
       const rowsByCol = new Map<number, Set<number>>();
+      // 每列有几排、其中几排是数（金额、日期、编号）。
+      const numbersByCol = new Map<number, number>();
       let wide = 0;
       for (const [i, row] of rows.entries()) {
         const cols = new Set<number>();
@@ -275,11 +371,21 @@ function buildGrid(
           cols.add(c);
           if (!rowsByCol.has(c)) rowsByCol.set(c, new Set());
           rowsByCol.get(c)!.add(i);
+          if (isNumber(l.text)) numbersByCol.set(c, (numbersByCol.get(c) ?? 0) + 1);
         }
         if (cols.size >= 2) wide++;
       }
       const multi = [...rowsByCol.values()].filter((g) => g.size >= 2).length;
-      if (multi >= 2 && multi > rowsByCol.size / 2 && wide >= rows.length / 2) {
+      // 有字的列按整段的字数（跨排的大格那一列也算，只是不按它分排）。
+      const used = new Set(inBand.map((l) => indexOf(xs, centerX(l)))).size;
+      // 只有一排框的表（上下就两条横线）是一排一项的表身时总有一列是数（金额、数量、日期）。几格里都是字
+      // （说明书一格一步、几条要点，EU 样本 049）时，几格的行碰巧一样高也不是一排一项，分开就把一格里的
+      // 几行拆散了。
+      const oneBox = ys.filter((y) => y.lined).length <= 2;
+      const numbers = [...numbersByCol.entries()].some(
+        ([c, n]) => n >= 2 && n >= rowsByCol.get(c)!.size / 2,
+      );
+      if (multi >= 2 && multi > used / 2 && wide >= rows.length / 2 && (numbers || !oneBox)) {
         for (let i = 1; i < rows.length; i++) {
           split.push({ pos: between(i), lined: false });
           open.push(false);
@@ -293,7 +399,7 @@ function buildGrid(
     parentBand.push(bySplit ? [a, b] : null);
   }
   ys = split;
-  if (!inner.length) {
+  if (!inner.length && !framedProse) {
     const gaps = gapColumns(lines, left, right, lineHeight);
     xs = [xs[0]!, ...gaps.map((pos) => ({ pos, lined: false })), xs.at(-1)!];
   }
@@ -370,7 +476,7 @@ function buildGrid(
   const remap = new Int32Array(cells.length);
   order.forEach(({ i }, k) => (remap[i] = k));
   for (let p = 0; p < owner.length; p++) owner[p] = remap[owner[p]!]!;
-  return { xs, ys, owner, cells: order.map((o) => o.cell) };
+  return { xs, ys, owner, cells: order.map((o) => o.cell), ...(framedText ? { framedText } : {}) };
 }
 
 /** 表格最上面至少这么多行、每行最多一格有字，才算表单的框（不是表的标题）。 */
@@ -415,6 +521,57 @@ function dropLeadingRows(
       owner[(r - cut) * cols + c] = remap.get(grid.owner[r * cols + c]!)!;
   }
   return { grid: { xs: grid.xs, ys: grid.ys.slice(cut), owner, cells }, lines: kept };
+}
+
+/**
+ * 只有横线的表最下面几排各只有一行横跨各列的字（小票上表格下面居中的「Vielen Dank / Auf Wiedersehen」，
+ * 下面再有一条分隔线，EU 样本 003）：是表下面的话，不是表的行；去掉这几排，字照表外的文字排。
+ * 去掉以后至少两排、其中至少 FORM_BODY_ROWS 排有两格以上有字才去；不然 null。
+ */
+export function dropTrailingRows(
+  grid: Grid,
+  lines: readonly OcrBox[],
+): { grid: Grid; lines: OcrBox[] } | null {
+  const rows = grid.ys.length - 1;
+  const cols = grid.xs.length - 1;
+  if (cols < 2 || grid.xs.slice(1, -1).some((x) => x.lined)) return null;
+  const rowLines = (r: number) => lines.filter((l) => indexOf(grid.ys, centerY(l)) === r);
+  // 这一排只有一行字，横跨了按空隙分出的列。
+  const spanning = (r: number) => {
+    const own = rowLines(r);
+    return (
+      own.length === 1 &&
+      grid.xs
+        .slice(1, -1)
+        .some(
+          (x) =>
+            x.pos > own[0]!.x + own[0]!.height &&
+            x.pos < own[0]!.x + own[0]!.width - own[0]!.height,
+        )
+    );
+  };
+  let cut = rows;
+  let closing = false;
+  while (cut > 0 && (spanning(cut - 1) || !rowLines(cut - 1).length)) {
+    closing ||= spanning(cut - 1);
+    cut--;
+  }
+  if (!closing || cut < 2 || !rowLines(cut - 1).length) return null;
+  const columns = (r: number) => new Set(rowLines(r).map((l) => indexOf(grid.xs, centerX(l)))).size;
+  if (
+    Array.from({ length: cut }, (_, r) => columns(r)).filter((n) => n >= 2).length < FORM_BODY_ROWS
+  )
+    return null;
+  if (grid.cells.some((c) => c.row < cut && c.row + c.rowSpan > cut)) return null;
+  const y = grid.ys[cut]!.pos;
+  const cells = grid.cells.filter((c) => c.row < cut);
+  const keep = new Map(cells.map((c, i) => [grid.cells.indexOf(c), i]));
+  const owner = new Int32Array(cut * cols);
+  for (let p = 0; p < owner.length; p++) owner[p] = keep.get(grid.owner[p]!)!;
+  return {
+    grid: { xs: grid.xs, ys: grid.ys.slice(0, cut + 1), owner, cells },
+    lines: lines.filter((l) => centerY(l) < y),
+  };
 }
 
 /**
@@ -549,8 +706,18 @@ function alignOf(
   lineHeight: number,
   text: string,
 ): CellAlign | undefined {
+  const rows = textRows(pieces);
+  // 好几排左边对齐的字是左对齐的一段（框起来的正文左右留的空一样宽，每排看着都像居中，EU 样本 038）。
+  // 只看每排都是字的：一列一样宽的金额左边也对齐，但它们靠右。
+  const lefts = rows.map((row) => Math.min(...row.map((p) => p.x)));
+  if (
+    rows.length > PROSE_MIN_ROWS &&
+    rows.every((row) => row.some((p) => /\p{L}{3}/u.test(p.text))) &&
+    Math.max(...lefts) - Math.min(...lefts) <= 0.5 * lineHeight
+  )
+    return 'left';
   const votes: Record<CellAlign, number> = { left: 0, center: 0, right: 0 };
-  for (const row of textRows(pieces)) {
+  for (const row of rows) {
     const l = Math.min(...row.map((p) => p.x)) - left;
     const r = right - Math.max(...row.map((p) => p.x + p.width));
     const slack = l + r;
@@ -591,11 +758,88 @@ export function sharedColumns(
   return { pos: groups.map((g) => g.sum / g.members.length), maps };
 }
 
+/** 同一张图、同样的参数找过的线（转 Word 会对同一页组两次表：分不分开叠着的表）。 */
+const linesCache = new WeakMap<RgbaImage, Map<string, PageLines>>();
+export function cachedLines(
+  image: RgbaImage,
+  options: { skew?: number; light?: boolean },
+): PageLines {
+  const key = JSON.stringify(options);
+  let byOptions = linesCache.get(image);
+  if (!byOptions) linesCache.set(image, (byOptions = new Map()));
+  let found = byOptions.get(key);
+  if (!found) byOptions.set(key, (found = findLines(image, options)));
+  return found;
+}
+
+/** 空白网格至少要有这么多排、这么多列，才去找它上面的表头。 */
+const HEADER_GRID_MIN_ROWS = 3;
+const HEADER_GRID_MIN_COLS = 2;
+/** 表头那排字的底边离网格的上边不超过这么多个行高。 */
+const HEADER_GAP_LINES = 1.5;
+
+/**
+ * 横竖线画满、里面没有字的网格（留着填的商品栏）：紧挨在上面、一列一个的那排字是表头。
+ * 找到时在表头上面补一条横线、把竖线往上接到它，表头成为网格的第一排；
+ * 表头的字至少落在一半的列里（至少两列），而且每段字都在一列里面（不跨列线）。
+ */
+function withHeaderAbove(
+  table: TableLines,
+  lines: readonly OcrBox[],
+  tol: number,
+  lineHeight: number,
+): { table: TableLines; lines: OcrBox[] } | null {
+  const { box, hs, vs } = table;
+  const top = box.y;
+  const bottom = box.y + box.height;
+  const cols = vs.length - 1;
+  if (hs.length - 1 < HEADER_GRID_MIN_ROWS || cols < HEADER_GRID_MIN_COLS) return null;
+  // 每条竖线都从上到下画满（是一张规整的网格，不是框里的几条线）。
+  if (vs.some((v) => v.from > top + tol || v.to < bottom - tol)) return null;
+  const near = lines.filter(
+    (l) =>
+      centerX(l) > box.x &&
+      centerX(l) < box.x + box.width &&
+      l.y + l.height <= top + tol &&
+      l.y + l.height >= top - HEADER_GAP_LINES * lineHeight,
+  );
+  if (!near.length) return null;
+  // 只取最下面那一排（中心和最下面的一段差不到半个行高）。
+  const lowest = Math.max(...near.map(centerY));
+  const row = near.filter((l) => lowest - centerY(l) <= 0.5 * lineHeight);
+  const inner = vs.slice(1, -1).map((v) => v.pos);
+  const pad = 0.25 * lineHeight;
+  if (row.some((l) => inner.some((x) => x > l.x + pad && x < l.x + l.width - pad))) return null;
+  const hit = new Set(
+    row.map((l) => vs.findIndex((v, i) => i < cols && centerX(l) < vs[i + 1]!.pos)),
+  );
+  if (hit.size < HEADER_GRID_MIN_COLS || hit.size * 2 < cols) return null;
+  const pos = Math.min(...row.map((l) => l.y)) - 0.3 * lineHeight;
+  const ruleAbove: RuleLine = {
+    pos,
+    from: box.x,
+    to: box.x + box.width,
+    thickness: 1,
+    spans: [[box.x, box.x + box.width]],
+  };
+  return {
+    table: {
+      hs: [ruleAbove, ...hs],
+      vs: vs.map((v) => ({ ...v, from: pos, spans: [[pos, v.to] as [number, number]] })),
+      box: { ...box, y: pos, height: bottom - pos },
+    },
+    lines: row,
+  };
+}
+
 /** 一页的 TablePage：找线、组表、填字、表外文字分段。 */
 export function buildTablePage(input: PageInput, options: BuildOptions = {}): TablePage {
   const join = options.joinLines ?? defaultJoin;
   const { image } = input;
-  const page = findLines(image, input.skew !== undefined ? { skew: input.skew } : {});
+  const page = cachedLines(image, {
+    ...(input.skew !== undefined ? { skew: input.skew } : {}),
+    ...(options.lightRules ? { light: true } : {}),
+  });
   const t = Math.tan((page.skew * Math.PI) / 180);
   const tol = Math.max(4, Math.max(image.width, image.height) * 0.008);
   const arrange = options.arrange === true;
@@ -662,9 +906,22 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     xs: number[];
     lines: OcrBox[];
     chopped: number;
+    /** 每条行线、列线都是画出来的（不是按文字空隙分的）。 */
+    ruled: boolean;
+    framedText?: boolean;
   }[] = [];
-  for (const table of findTables(dropTextStrokes(page, flat))) {
-    const { box } = table;
+  const foundTables = findTables(dropTextStrokes(page, flat), {
+    ...(options.splitStacked ? { splitStacked: true } : {}),
+    text: flat,
+  });
+  const within = (l: Box, b: Box) =>
+    centerX(l) >= b.x &&
+    centerX(l) <= b.x + b.width &&
+    centerY(l) >= b.y &&
+    centerY(l) <= b.y + b.height;
+  for (const found of foundTables) {
+    let table = found;
+    let { box } = table;
     // 大半在图片区域里的「表」是图里的线（示意图、图表的网格）。
     if (
       figures.some((f) => {
@@ -674,19 +931,57 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
       })
     )
       continue;
-    const members = flat.filter(
+    let members = flat.filter(
       (l) =>
         !placed.has(l) &&
         centerX(l) >= box.x - tol &&
         centerX(l) <= box.x + box.width + tol &&
         centerY(l) >= box.y - tol &&
-        centerY(l) <= box.y + box.height + tol,
+        centerY(l) <= box.y + box.height + tol &&
+        // 挨着的另一张表（分开的上下、左右几张表共用一条边，EU 样本 090）框里的字是那张表的。
+        (within(l, box) || !foundTables.some((t) => t !== found && within(l, t.box))),
+    );
+    // 空白表格的表头写在网格上面（发票模板的商品栏，EU 样本 001）：表头那一排算进表里。
+    if (!members.length && options.headerAbove) {
+      const headed = withHeaderAbove(
+        table,
+        flat.filter((l) => !placed.has(l)),
+        tol,
+        lineHeight,
+      );
+      if (headed) {
+        table = headed.table;
+        box = table.box;
+        members = headed.lines;
+      }
+    }
+    // 压在表里一条横线上、只有「=」「_」「-」这类记号的识别行是这条线（虚线、双线）本身（EU 样本 020）：
+    // 算表里的（不排成正文），但不占一排、不写进格子。
+    const ruleText = new Set(
+      members.filter(
+        (l) =>
+          isRuleText(l.text) &&
+          table.hs.some(
+            (h) =>
+              Math.abs(h.pos - centerY(l)) <= Math.max(4, 0.6 * l.height) &&
+              h.from <= l.x + l.width &&
+              h.to >= l.x,
+          ),
+      ),
     );
     // 里面没有字的不算表（例如表单里几条对齐的填空横线）。
-    if (!members.length) continue;
-    const built = buildGrid(table, members, tol, lineHeight);
+    if (members.length === ruleText.size) continue;
+    // 只有一排，字都不在格子里（句子里要填的一块底色四边像线，旁边的字落在容差里，EU 样本 082）：不是表。
+    if (table.hs.length <= 2 && members.every((l) => ruleText.has(l) || !within(l, box))) continue;
+    const built = buildGrid(
+      table,
+      members.filter((l) => !ruleText.has(l)),
+      tol,
+      lineHeight,
+    );
     if (!built) continue;
     let grid: Grid = built;
+    const { framedText } = built;
     // 中心在最外一条横线外面、又横跨了列线的字不是表里的（D-501：照片里弯的一行页脚压着表格的底线，
     // 放进表里会在列线处切碎）。只落在一列里的照旧放进表（表格底线下面的合计行）。
     const top = grid.ys[0]!;
@@ -701,7 +996,9 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
           x.pos > l.x + l.height * 0.5 &&
           x.pos < l.x + l.width - l.height * 0.5,
       );
-      return !(out && across);
+      // 整行都在最上面一条横线上面的字（表头横条上面紧挨着的一行说明）不是表里的。
+      const above = top.lined && l.y + l.height <= top.pos;
+      return !(out && across) && !above;
     });
     if (!inside.length) continue;
     // 表单的框连着好几行（D-520）：上面的几行不是表的行，字留给表外的文字。
@@ -711,11 +1008,17 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
       inside = trimmed.lines;
       if (!inside.length) continue;
     }
+    const tail = dropTrailingRows(grid, inside);
+    if (tail) {
+      grid = tail.grid;
+      inside = tail.lines;
+    }
     const texts = grid.cells.map(() => [] as OcrBox[]);
     for (const line of inside) {
+      if (ruleText.has(line)) continue;
       for (const { cell, piece } of piecesOf(line, grid)) texts[cell]!.push(piece);
     }
-    const chopped = inside.filter((l) => chopsWord(l, grid)).length;
+    const chopped = inside.filter((l) => !ruleText.has(l) && chopsWord(l, grid)).length;
     // 只有横线的表：至少两行有字、按文字空隙至少分出两列才算表（几条分隔线中间的正文分不出列）。
     const rowsWithText = new Set(grid.cells.filter((_, i) => texts[i]!.length).map((c) => c.row));
     if (!table.vs.length && (rowsWithText.size < 2 || grid.xs.length < 3)) continue;
@@ -775,6 +1078,13 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
       xs: grid.xs.map((x) => x.pos),
       lines: inside.map((l) => sourceOf.get(l)!),
       chopped,
+      // 外边的两条竖线可以不画（只有横线和内部列线的「开口」表格），表头写在第一条横线上面时最上边也没有线
+      // （EU 样本 031）：内部列线和第一条以下的横线都画了就算画满。
+      ruled:
+        grid.xs.length > 2 &&
+        grid.xs.slice(1, -1).every((x) => x.lined) &&
+        grid.ys.slice(1).every((y) => y.lined),
+      ...(framedText ? { framedText } : {}),
       block: {
         kind: 'table',
         rows: grid.ys.length - 1,
@@ -817,6 +1127,7 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
         xs,
         lines: members.map((l) => sourceOf.get(l)!),
         chopped: 0,
+        ruled: false,
         block: {
           ...found.table,
           cells: found.table.cells.map((c) => ({
@@ -875,7 +1186,12 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
       colSpan: map[cell.col + cell.colSpan]! - map[cell.col]!,
     }));
   });
-  for (const tb of tables) options.onTable?.(tb.block, tb.lines, { chopped: tb.chopped });
+  for (const tb of tables)
+    options.onTable?.(tb.block, tb.lines, {
+      chopped: tb.chopped,
+      ruled: tb.ruled,
+      ...(tb.framedText ? { framedText: true } : {}),
+    });
   const colWidths =
     tables.length || ranged.length
       ? shared.pos.slice(1).map((x, c) => Math.round(x - shared.pos[c]!))

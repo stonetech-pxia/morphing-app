@@ -1,0 +1,80 @@
+[
+  {
+    "page": 1,
+    "id": "position-indent-and-gaps",
+    "source": "01-position-indent-and-gaps.html",
+    "sha256": "0abc83520b0bf2a12f2ffb992528f52b57304a914dacc4ecf2734f1f928cd3e9"
+  },
+  {
+    "page": 2,
+    "id": "last-column-spare-width",
+    "source": "02-last-column-spare-width.html",
+    "sha256": "2df4edc917ba434179f5b4eb376e4816aa1cb843e9c9384ce61ade745ed35ef0"
+  },
+  {
+    "page": 3,
+    "id": "last-column-cjk-heading",
+    "source": "03-last-column-cjk-heading.html",
+    "sha256": "b98d6129d896d271234f0a004d148561010b34d9e6d2cda425f5d28d01d06277"
+  },
+  {
+    "page": 4,
+    "id": "short-label-width",
+    "source": "04-short-label-width.html",
+    "sha256": "02eda76ad723e02da56c8ee76ea0b9c27446367176ea757c91ea8f78220648b3"
+  },
+  {
+    "page": 5,
+    "id": "landscape-paper-size",
+    "source": "05-landscape-paper-size.html",
+    "sha256": "000c14b40261def826a078313d8f2bb0e1aa561df636ce4a1a4c276e0236769b"
+  },
+  {
+    "page": 6,
+    "id": "table-row-height-budget",
+    "source": "06-table-row-height-budget.pdf",
+    "sha256": "58921bfff63dd369033b440dcef9326a3bf397b7f8f3a43c3cbaf5f7fff4db76"
+  },
+  {
+    "page": 7,
+    "id": "picture-fit-policy",
+    "source": "07-picture-fit-policy.pdf",
+    "sha256": "f21db77c420f9f5784db2ef5bf92ea674b81cafd9c37a7997e0a543b54160628"
+  },
+  {
+    "page": 8,
+    "id": "oversized-scan-paper",
+    "source": "08-oversized-scan-paper.html",
+    "sha256": "cf019d4879531e3af96fb03118e22943817352fec77707eb954e6c89d7a24eb6"
+  },
+  {
+    "page": 9,
+    "id": "short-edge-cell-one-line",
+    "source": "09-short-edge-cell-one-line.html",
+    "sha256": "54331f04da399fb134a26dfa2a03ba4506709db026437248ec57fbcf0fe650dd"
+  },
+  {
+    "page": 10,
+    "id": "right-side-row-offset",
+    "source": "10-right-side-row-offset.html",
+    "sha256": "89caf5de7c80ed4d64430c6546780c8ec25c46382aede787ba0c50c5191996e3"
+  },
+  {
+    "page": 11,
+    "id": "landscape-text-size",
+    "source": "11-landscape-text-size.html",
+    "sha256": "e5d3e24073f551439ee5fe066278914d9cb04e6bda7f6c1be39d2adebc7c8390"
+  },
+  {
+    "page": 12,
+    "id": "full-bleed-band-margins",
+    "source": "12-full-bleed-band-margins.html",
+    "sha256": "64aec6a8b87fb011f8ac6f9c1b8a0160de58be77ea6330bcc2d270f18dd4bc78"
+  },
+  {
+    "page": 13,
+    "id": "wrapped-paragraph-indent",
+    "source": "13-wrapped-paragraph-indent.html",
+    "sha256": "59577b447149972914029dc2affe09e1f8630f5d8726adb824e12631dba8a0c9"
+  }
+]

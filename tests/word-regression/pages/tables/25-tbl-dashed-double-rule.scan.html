@@ -1,0 +1,63 @@
+<!doctype html><meta charset="utf-8" /><style>
+  @page {
+    size: A4;
+    margin: 18mm;
+  }
+  body {
+    font: 10pt/1.3 Arial, sans-serif;
+    margin: 0;
+  }
+  h2 {
+    font-size: 11pt;
+    margin: 0 0 8pt;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    border-top: 1.5px dashed #000;
+    border-bottom: 1.5px dashed #000;
+  }
+  td,
+  th {
+    padding: 1mm 1.5mm;
+    font-size: 9pt;
+    font-weight: normal;
+    text-align: left;
+  }
+  td + td,
+  th + th {
+    border-left: 1.5px dashed #000;
+  }
+  td.n,
+  th.n {
+    text-align: right;
+  }
+  /* 表头下面是两条挨着的虚线 */
+  thead tr {
+    border-bottom: 1.5px dashed #000;
+  }
+  thead tr.d {
+    border-bottom: 1.5px dashed #000;
+  }
+  thead tr.d td {
+    padding: 0;
+    height: 2px;
+  }
+</style>
+<h2>Wyliczenie wartości sprzedaży, na podstawie danych pomiarowych</h2>
+<table>
+<thead>
+<tr><th>Składnik opłat</th><th>Okres</th><th class="n">j.m.</th><th class="n">Ilość</th><th class="n">Cena jedn.</th><th class="n">Netto</th><th class="n">%</th><th class="n">VAT</th><th class="n">Brutto</th></tr>
+<tr class="d"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+</thead>
+<tbody>
+<tr><td>energia całodobowa</td><td>2018-08-28–2018-12-31</td><td class="n">kWh</td><td class="n">0</td><td class="n">0,24300</td><td class="n">0,00</td><td class="n">23</td><td class="n">0,00</td><td class="n">0,00</td></tr>
+<tr><td>opłata sieciowa stała</td><td>2018-08-28–2018-12-31</td><td class="n">mc</td><td class="n">4,129</td><td class="n">4,82000</td><td class="n">19,90</td><td class="n">23</td><td class="n">4,58</td><td class="n">24,48</td></tr>
+<tr><td>opłata przejściowa</td><td>2018-08-28–2018-12-31</td><td class="n">mc</td><td class="n">4,129</td><td class="n">6,50000</td><td class="n">26,84</td><td class="n">23</td><td class="n">6,17</td><td class="n">33,01</td></tr>
+<tr><td>opłata jakościowa</td><td>2018-08-28–2018-12-31</td><td class="n">kWh</td><td class="n">0</td><td class="n">0,01250</td><td class="n">0,00</td><td class="n">23</td><td class="n">0,00</td><td class="n">0,00</td></tr>
+<tr><td>opłata sieciowa zmienna</td><td>2018-08-28–2018-12-31</td><td class="n">kWh</td><td class="n">0</td><td class="n">0,20960</td><td class="n">0,00</td><td class="n">23</td><td class="n">0,00</td><td class="n">0,00</td></tr>
+<tr><td>abonament</td><td>2018-08-28–2018-12-31</td><td class="n">mc</td><td class="n">5</td><td class="n">0,80000</td><td class="n">4,00</td><td class="n">23</td><td class="n">0,92</td><td class="n">4,92</td></tr>
+<tr><td>opłata OZE</td><td>2018-08-28–2018-12-31</td><td class="n">kWh</td><td class="n">0</td><td class="n">0,00000</td><td class="n">0,00</td><td class="n">23</td><td class="n">0,00</td><td class="n">0,00</td></tr>
+</tbody>
+</table>
+<p>Ilość energii zużytej w roku 2017: 0 kWh</p>

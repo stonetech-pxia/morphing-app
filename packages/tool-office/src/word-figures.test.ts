@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { arrangeUnits, buildDocPage, leafBlocks, insertWordFigures } from './doc';
+import { arrangeUnits, buildDocPage, leafBlocks, insertWordFigures, type DocBlock } from './doc';
 import type { LayoutRegion } from './layout';
-import { fakeLine, gridRects, renderPage, type Rect } from './test-helpers';
+import {
+  fakeLine,
+  glyphs,
+  gridRects,
+  renderPage,
+  textConservation,
+  type Rect,
+} from './test-helpers';
 import type { OcrBox } from './types';
 import { restoreWordCellSpans } from './word-cell-spans';
 
@@ -55,6 +62,29 @@ function fixture() {
 }
 
 describe('Word figure ownership', () => {
+  it('does not take a whole cover page with its title as one uncaptioned picture (EU sample 036)', () => {
+    // 右半是照片、左上是深色标题带：版面模型给一个盖满整页的图框，里面只有四行字。
+    const image = renderPage(size.width, size.height, [
+      { x: 560, y: 0, width: 440, height: 1400, shade: 120 },
+      { x: 0, y: 140, width: 670, height: 280, shade: 40 },
+    ]);
+    const lines = [
+      line('Contrato modelo', 110, 230, 420, 50),
+      line('Arrendamiento de vivienda', 110, 290, 540, 42),
+      line('Programa', 150, 1250, 120),
+      line('Vivienda Escolar', 60, 1275, 210),
+    ];
+    const page = buildDocPage({
+      image,
+      lines,
+      source: 'p.jpg',
+      regions: [hint('image', 'image', 0, 0, 1000, 1400)],
+    });
+    expect(text(page)).toContain('Contrato modelo');
+    expect(text(page)).toContain('Vivienda Escolar');
+    expect(leafBlocks(page).some((b) => b.kind === 'image' && b.box.width > 900)).toBe(false);
+  });
+
   it('keeps a tall margin graphic beside the complete figure-caption-body band', () => {
     const figure = { x: 100, y: 200, width: 800, height: 250 },
       margin = { x: 60, y: 180, width: 35, height: 600 };
@@ -78,6 +108,92 @@ describe('Word figure ownership', () => {
       row.kind === 'row' &&
         row.cells[1]!.blocks.map((b) => (b.kind === 'paragraph' ? b.text : b.kind)),
     ).toEqual(['image', 'Caption', 'Body']);
+  });
+  it('puts a figure inside one column of a two-column row back into that column, above its caption', () => {
+    const para = (text: string, x: number, y: number, height = 60) => ({
+      kind: 'paragraph' as const,
+      text,
+      box: { x, y, width: 520, height },
+    });
+    const figure = { x: 724, y: 413, width: 560, height: 259 };
+    const left = [para('Left start', 133, 334, 190), para('Left end', 133, 742, 140)];
+    const right = [
+      para('Right start', 733, 336),
+      para('Figure 1', 734, 691, 27),
+      para('Right end', 733, 746, 140),
+    ];
+    const next = insertWordFigures(
+      {
+        source: 'p.pdf',
+        width: 1408,
+        height: 2016,
+        bodySize: 10.5,
+        blocks: [
+          {
+            kind: 'row',
+            box: { x: 132, y: 280, width: 1132, height: 654 },
+            cells: [
+              { width: 599, blocks: left },
+              { width: 542, blocks: right },
+            ],
+          },
+        ],
+      },
+      [figure],
+    );
+    expect(next.blocks).toHaveLength(1);
+    const row = next.blocks[0]!;
+    const texts = (blocks: readonly DocBlock[]) =>
+      blocks.map((b) => (b.kind === 'paragraph' ? b.text : b.kind));
+    expect(row.kind === 'row' && row.cells.map((c) => texts(c.blocks))).toEqual([
+      ['Left start', 'Left end'],
+      ['Right start', 'image', 'Figure 1', 'Right end'],
+    ]);
+  });
+  it('keeps a row of three pictures in one row when neighbouring boxes overlap by a few pixels', () => {
+    // 商品目录的卡片图：剪出的图带一点留边，相邻两张的框互相压了 4–6 像素。
+    // 中间那张和左右两张都「重叠」，曾被单独放在这一排上面，三排图成了六排。
+    const figures = [
+      { x: 33, y: 165, width: 451, height: 331 },
+      { x: 478, y: 165, width: 456, height: 331 },
+      { x: 930, y: 165, width: 456, height: 331 },
+    ];
+    const label = (text: string, x: number) => ({
+      kind: 'paragraph' as const,
+      text,
+      box: { x, y: 496, width: 250, height: 28 },
+    });
+    const next = insertWordFigures(
+      {
+        source: 'p.pdf',
+        width: 1408,
+        height: 2016,
+        bodySize: 11,
+        blocks: [
+          {
+            kind: 'row',
+            box: { x: 54, y: 496, width: 1165, height: 28 },
+            cells: [
+              { width: 450, blocks: [label('Backpack', 55)] },
+              { width: 449, blocks: [label('Bottle', 506)] },
+              { width: 266, blocks: [label('Socks', 955)] },
+            ],
+          },
+        ],
+      },
+      figures,
+    );
+    const shape = next.blocks.map((b) =>
+      b.kind === 'row'
+        ? b.cells.map((c) =>
+            c.blocks.map((x) => (x.kind === 'paragraph' ? x.text : `${x.kind}@${x.box.x}`)),
+          )
+        : b.kind,
+    );
+    expect(shape).toEqual([
+      [['image@33'], ['image@478'], ['image@930']],
+      [['Backpack'], ['Bottle'], ['Socks']],
+    ]);
   });
   it('places a wide figure before its caption when a stale model row still starts above the figure', () => {
     const figure = { x: 100, y: 200, width: 800, height: 250 };
@@ -213,7 +329,33 @@ describe('Word figure ownership', () => {
       source: 'mixed.jpg',
       nativeFigures: [f.picture.box],
     });
+    expect(textConservation(page, [...f.lines, body])).toEqual({ missing: [], extra: [] });
     expect(text(page)).toContain(body.text);
+  });
+  it('keeps labels inside a native figure as text when their PDF text is not drawn into the crop', () => {
+    // 轴标签和图右边的说明在同一段 PDF 文字里：这段字只有约六成在图里，不画进剪图；
+    // 图里的标签就不能当成图的一部分从正文里去掉，不然哪儿都没有。
+    const f = fixture();
+    const loose = { x: 120, y: 120, width: 860, height: 110 };
+    const page = buildDocPage({
+      image: f.image,
+      lines: f.lines,
+      source: 'chart.pdf',
+      nativeFigures: [f.picture.box],
+      nativeText: [loose],
+    });
+    for (const label of ['Encoder', 'Structure tags', 'Output boxes'])
+      expect(text(page)).toContain(label);
+    expect(leafBlocks(page).filter((b) => b.kind === 'image')).toHaveLength(1);
+    // 画进了剪图的字（不在 nativeText 里）照旧归图。
+    const drawn = buildDocPage({
+      image: f.image,
+      lines: f.lines,
+      source: 'chart.pdf',
+      nativeFigures: [f.picture.box],
+      nativeText: [],
+    });
+    expect(text(drawn)).not.toContain('Encoder');
   });
   it('keeps complete pictures side by side even when crop margins narrow the white gutter', () => {
     const a = { x: 20, y: 100, width: 200, height: 150 },
@@ -415,6 +557,7 @@ describe('Word figure ownership', () => {
       source: 's',
       skew: 0,
     });
+    expect(textConservation(page, [...heading, ...body])).toEqual({ missing: [], extra: [] });
     const title = leafBlocks(page).find((b) => b.kind === 'paragraph' && b.heading === 1);
     expect(title && 'align' in title && title.align).toBe('center');
   });
@@ -515,6 +658,7 @@ describe('Word figure ownership', () => {
       source: 's',
       skew: 0,
     });
+    expect(textConservation(page, [...f.lines, ...data])).toEqual({ missing: [], extra: [] });
     expect(leafBlocks(page).filter((b) => b.kind === 'image')).toHaveLength(1);
     expect(text(page)).not.toContain('Encoder');
     expect(text(page)).toContain('Entry 1');
@@ -533,6 +677,7 @@ describe('Word figure ownership', () => {
       source: 'original',
       skew: 0,
     });
+    expect(textConservation(page, f.lines)).toEqual({ missing: [], extra: [] });
     expect(leafBlocks(page).filter((b) => b.kind === 'image')).toHaveLength(1);
     expect(leafBlocks(page).filter((b) => b.kind === 'table')).toHaveLength(0);
     expect(text(page)).toContain('Figure 1: Pipeline overview.');
@@ -554,6 +699,7 @@ describe('Word figure ownership', () => {
         source: 's',
         skew: 0,
       });
+      expect(textConservation(page, f.lines)).toEqual({ missing: [], extra: [] });
       expect(leafBlocks(page).filter((b) => b.kind === 'image')).toHaveLength(1);
       expect(text(page)).toContain(captionText);
     },
@@ -578,6 +724,7 @@ describe('Word figure ownership', () => {
         source: 's',
         skew: 0,
       });
+      expect(textConservation(page, [...prose, ...f.outside])).toEqual({ missing: [], extra: [] });
       expect(leafBlocks(page).filter((b) => b.kind === 'image')).toHaveLength(0);
       expect(text(page)).toContain('ordinary prose');
     },
@@ -593,6 +740,7 @@ describe('Word figure ownership', () => {
       source: 's',
       skew: 0,
     });
+    expect(textConservation(page, f.lines)).toEqual({ missing: [], extra: [] });
     expect(leafBlocks(page).some((b) => b.kind === 'table')).toBe(true);
     expect(text(page)).toContain('Encoder');
   });
@@ -607,6 +755,7 @@ describe('Word figure ownership', () => {
       source: 's',
       skew: 0,
     });
+    expect(textConservation(page, f.lines)).toEqual({ missing: [], extra: [] });
     const pictures = leafBlocks(page).filter((b) => b.kind === 'image');
     expect(pictures).toHaveLength(1);
     expect(pictures[0]!.box.y + pictures[0]!.box.height).toBeGreaterThanOrEqual(352);
@@ -624,6 +773,7 @@ describe('Word figure ownership', () => {
       source: 's',
       skew: 0,
     });
+    expect(textConservation(page, f.lines)).toEqual({ missing: [], extra: [] });
     expect(text(page)).toContain('Encoder');
     expect(text(page)).toContain('Ordinary body text remains editable');
   });
@@ -638,6 +788,7 @@ describe('Word figure ownership', () => {
       source: 's',
       skew: 0,
     });
+    expect(textConservation(page, f.lines)).toEqual({ missing: [], extra: [] });
     expect(text(page)).toContain('Encoder');
   });
 
@@ -656,6 +807,7 @@ describe('Word figure ownership', () => {
       source: 's',
       skew: 0,
     });
+    expect(textConservation(page, [...f.lines, crossing])).toEqual({ missing: [], extra: [] });
     expect(text(page)).toContain('Encoder');
     expect(text(page)).toContain('An adjacent paragraph must remain editable');
   });
@@ -731,8 +883,120 @@ describe('Word figure ownership', () => {
         source: 's',
         skew: 0,
       });
+      expect(textConservation(page, f.lines)).toEqual({ missing: [], extra: [] });
       expect(text(page)).toContain('Encoder');
       expect(text(page)).toContain('Ordinary body text remains editable');
     },
   );
+
+  it('keeps a bordered form as a table when a photo sits inside one of its cells', () => {
+    const labels = ['Surname', 'Given names', 'Date of birth', 'Nationality', 'Passport no.'];
+    const values = ['Fischer', 'Amara Nwosu', '1990-04-12', 'German', 'C01X00T47'];
+    const lines = labels.flatMap((t, i) => [
+      line(t, 120, 120 + i * 60, 150),
+      line(values[i]!, 370, 120 + i * 60, 160),
+    ]);
+    // 证件照：右边一列合并的四格里一块有纹理的深色图。
+    const photo: Rect[] = [{ x: 740, y: 140, width: 120, height: 150 }];
+    for (let y = 115; y < 330; y += 4)
+      for (let x = 720; x < 880; x += 4)
+        if ((x + y) % 8 === 0) photo.push({ x, y, width: 3, height: 3 });
+    const grid = gridRects([100, 350, 700, 900], [100, 160, 220, 280, 340, 400], {
+      skipH: [
+        [1, 2],
+        [2, 2],
+        [3, 2],
+      ],
+    });
+    const page = buildDocPage({
+      image: renderPage(size.width, size.height, [
+        ...grid,
+        ...photo,
+        ...lines.flatMap((l) => glyphs(l.x, l.y + 4, l.width, 12)),
+      ]),
+      lines,
+      source: 'id-form',
+      skew: 0,
+      regions: [hint('image', 'image', 715, 110, 170, 225)],
+    });
+    const tables = leafBlocks(page).filter((b) => b.kind === 'table');
+    expect(tables).toHaveLength(1);
+    const cells = tables[0]!.table.cells;
+    for (const [i, label] of labels.entries()) {
+      const row = cells.find((c) => c.text === label)!.row;
+      expect(cells.find((c) => c.text === values[i])!.row).toBe(row);
+    }
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
+  });
+
+  it('keeps a ruled form as a table when a logo above it reaches into its top band (EU sample 062)', () => {
+    // 表上面的标志：PDF 里的图比画出来的标志高，下面透明的一截压进了表的标题条（约占图高的四分之一）。
+    const labels = ['Section A', 'Surname', 'Given names', 'Street', 'House no.'];
+    const lines = [
+      line(labels[0]!, 120, 235, 150),
+      line(labels[1]!, 120, 290, 150),
+      line(labels[2]!, 520, 290, 150),
+      line(labels[3]!, 120, 350, 150),
+      line(labels[4]!, 520, 350, 150),
+    ];
+    const grid = gridRects([100, 500, 900], [220, 280, 340, 400], { skipV: [[1, 0]] });
+    const logo: Rect[] = [{ x: 110, y: 110, width: 150, height: 70 }];
+    const page = buildDocPage({
+      image: renderPage(size.width, size.height, [
+        ...grid,
+        ...logo,
+        ...lines.flatMap((l) => glyphs(l.x, l.y + 4, l.width, 12)),
+      ]),
+      lines,
+      source: 'form.pdf',
+      skew: 0,
+      nativeFigures: [{ x: 100, y: 100, width: 200, height: 160 }],
+    });
+    const tables = leafBlocks(page).filter((b) => b.kind === 'table');
+    expect(tables).toHaveLength(1);
+    expect(tables[0]!.table.rows).toBe(3);
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
+  });
+
+  it('keeps the rules a native logo overlaps, so its cell and the merged band below stay whole (EU sample 090)', () => {
+    // 表头左上格的标志：PDF 里的图框压过了这一格的上下两条横线。抹图时把横线也抹掉一截，
+    // 标志格和下面横跨整张表的「Dati paziente」一排连成不是长方形的一块，整张表退回不合并，标志跨了好几格。
+    const lines = [
+      line('MODULO RICHIESTA ESAMI', 450, 150, 350),
+      line('Dati paziente', 430, 232, 140),
+      line('Glucosio', 240, 290, 120),
+      line('mg/dL', 450, 290, 80),
+      line('65 - 100', 700, 290, 100),
+      line('Urea', 240, 350, 80),
+      line('mg/dL', 450, 350, 80),
+      line('10 - 50', 700, 350, 100),
+    ];
+    // 第一列（勾选框那一列，100–220）只在下面的数据行有竖线。
+    const grid = gridRects([100, 220, 400, 650, 900], [100, 220, 260, 320, 380], {
+      skipV: [
+        [1, 0],
+        [3, 0],
+        [1, 1],
+        [2, 1],
+        [3, 1],
+      ],
+    });
+    const logo: Rect[] = [{ x: 170, y: 120, width: 150, height: 80 }];
+    const page = buildDocPage({
+      image: renderPage(size.width, size.height, [
+        ...grid,
+        ...logo,
+        ...lines.flatMap((l) => glyphs(l.x, l.y + 4, l.width, 12)),
+      ]),
+      lines,
+      source: 'form.pdf',
+      skew: 0,
+      nativeFigures: [{ x: 150, y: 96, width: 200, height: 128 }],
+    });
+    const tables = leafBlocks(page).filter((b) => b.kind === 'table');
+    expect(tables).toHaveLength(1);
+    const band = tables[0]!.table.cells.find((c) => c.text === 'Dati paziente')!;
+    expect(band.colSpan).toBe(4);
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
+  });
 });
