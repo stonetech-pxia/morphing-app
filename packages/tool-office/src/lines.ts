@@ -238,6 +238,46 @@ interface Building {
   from: number;
   to: number;
   spans: [number, number][];
+  /** 每一行（从 first 起）的段长之和。 */
+  lengths: number[];
+}
+
+/**
+ * 线上紧贴着一小块颜色（荧光笔标出的金额、圈出名字的红圈，EU 样本 067）：连在一起太粗，整条线被当成色块丢掉。
+ * 太粗的一块里，长度到最长一行的 CORE_SHARE 的那几行够细、别的行都不到最长的 CORE_REST：取那几行当线。
+ */
+const CORE_SHARE = 0.8;
+const CORE_REST = 0.5;
+
+/**
+ * 太粗的一块里贴着色块的细线（CORE_SHARE、CORE_REST）。色块从一条线连到下一条线时（上一排底下、下一排顶上都有标记），
+ * 一块里有好几条，各取各的。
+ */
+function thinCores(l: Building, maxThickness: number): Building[] {
+  // 中间隔了一两行没有墨的，那几行是空的。
+  const lengths = Array.from(l.lengths, (n) => n ?? 0);
+  const longest = Math.max(...lengths);
+  const isCore = lengths.map((n) => n >= CORE_SHARE * longest);
+  if (lengths.some((n, i) => !isCore[i] && n > CORE_REST * longest)) return [];
+  const runs: [number, number][] = [];
+  isCore.forEach((c, i) => {
+    if (!c) return;
+    const run = runs[runs.length - 1];
+    if (run && run[1] === i - 1) run[1] = i;
+    else runs.push([i, i]);
+  });
+  if (runs.some(([first, last]) => last - first + 1 > maxThickness)) return [];
+  return runs.map(([first, last]) => {
+    const rows = lengths.slice(first, last + 1);
+    return {
+      ...l,
+      first: l.first + first,
+      last: l.first + last,
+      posSum: rows.reduce((sum, n, i) => sum + (l.first + first + i) * n, 0),
+      weight: rows.reduce((a, b) => a + b, 0),
+      lengths: rows,
+    };
+  });
 }
 
 /** 一组段（不重叠、排好）里加一段，重叠或挨着（gap 以内）的接起来。 */
@@ -324,6 +364,7 @@ function scan(
         target.from = Math.min(target.from, a);
         target.to = Math.max(target.to, b);
         addSpan(target.spans, a, b, MAX_GAP);
+        target.lengths[r - target.first] = (target.lengths[r - target.first] ?? 0) + length;
       } else {
         open.push({
           first: r,
@@ -333,6 +374,7 @@ function scan(
           from: a,
           to: b,
           spans: [[a, b]],
+          lengths: [length],
         });
       }
     }
@@ -356,7 +398,10 @@ function scan(
   }
   // 沿线方向的坐标也换到拉正后的：横线上 x' ≈ x + y'·t，竖线上 y' ≈ y − x'·t。
   const lines = done
-    .filter((l) => l.last - l.first + 1 <= maxThickness)
+    .flatMap((l) => {
+      if (l.last - l.first + 1 <= maxThickness) return [l];
+      return thinCores(l, maxThickness);
+    })
     .map((l) => {
       const pos = l.posSum / l.weight;
       const shift = horizontal ? pos * t : -pos * t;

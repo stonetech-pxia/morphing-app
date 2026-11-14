@@ -552,4 +552,20 @@ export const TABLES: Case[] = [
       order('Schorle', 'T-RINDERSTEAK', 'MWST', 'Summe', 'Vielen Dank', 'Bewirtungsaufwand'),
     ],
   },
+  {
+    id: 'tbl-highlighted-statement',
+    suite: 'tables',
+    fix: 'EU sample 067',
+    what: 'Bank statement whose amounts and payees are marked with a green highlighter right under or over the row rules: the marks joined the rules into blocks too thick to be lines, so those rules were dropped and several transactions shared one row while the second line of others became fake rows.',
+    lang: 'deu',
+    checks: [
+      table({ containing: ['Datum', 'Erläuterung', 'Betrag'], rows: 8, maxRows: 8 }),
+      inRow('01.10.2026', 'Wohnung Lindenweg 4', '620,00'),
+      inRow('02.10.2026', 'Gartenverein', '85,00'),
+      inRow('09.10.2026', 'Stadtwerke', '74,00'),
+      inRow('12.10.2026', 'Nebenjob Bibliothek', '310,00'),
+      inRow('18.10.2026', 'Buchhandlung', '23,90'),
+      inRow('27.10.2026', 'Geschenk für Ida', '30,00'),
+    ],
+  },
 ];

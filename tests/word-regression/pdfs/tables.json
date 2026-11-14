@@ -178,5 +178,11 @@
     "id": "tbl-receipt-vat-block-thanks",
     "source": "30-tbl-receipt-vat-block-thanks.jpg",
     "sha256": "03fad7768c1886803867553b6cd3804beaa04aa6fa1e2bce7edba4df727380d4"
+  },
+  {
+    "page": 31,
+    "id": "tbl-highlighted-statement",
+    "source": "31-tbl-highlighted-statement.html",
+    "sha256": "625a55d1dddf11900e4ad08707d0287212046ed2a040ca025c9737843320da6a"
   }
 ]

@@ -40,6 +40,24 @@ describe('light rules (Word)', () => {
   });
 });
 
+describe('highlights touching a rule', () => {
+  it('keeps a row rule with a highlighted word right under or over it (EU sample 067)', () => {
+    // 银行对账单：金额、收款人用绿色荧光笔标出来，色块紧贴着行线（上面或下面）；
+    // 一排里上下两块挨着时，从这一排的顶线一直连到底线。
+    const ys = [300, 360, 420, 480, 540];
+    const rules = gridRects([100, 300, 760, 900], ys, { thickness: 2 });
+    const marks: Rect[] = [
+      { x: 790, y: 362, width: 90, height: 28, color: [0, 200, 0] },
+      { x: 320, y: 422, width: 110, height: 27, color: [0, 200, 0] },
+      { x: 320, y: 450, width: 110, height: 30, color: [0, 200, 0] },
+      { x: 780, y: 482, width: 100, height: 30, color: [0, 200, 0] },
+    ];
+    const tables = findTables(findLines(renderPage(W, H, [...rules, ...marks]), { skew: 0 }));
+    expect(tables).toHaveLength(1);
+    expect(tables[0]!.hs.map((h) => Math.round(h.pos / 10) * 10)).toEqual(ys);
+  });
+});
+
 describe('colour-filled cells', () => {
   it('finds the rules around a yellow cell spanning all rows (EU sample 057)', () => {
     // 电费单的价目表：左边一格黄底（#FFCB35，最暗的通道很暗）跨三排，深灰的线围着它。
