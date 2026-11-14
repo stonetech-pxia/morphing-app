@@ -901,6 +901,106 @@ export function isBlankFormGrid(table: TableBlock): boolean {
   );
 }
 
+/** 填写框里的标签最多这么多行。 */
+const FIELD_LABEL_LINES = 2;
+/** 填写框：标签的底不超过格子高的这么多（标签在上面，下面留着写）。 */
+const FIELD_LABEL_SHARE = 0.5;
+/** 至少这么多个有标签的填写框连在一起，才拿出来当表。 */
+const FIELD_MIN_BOXES = 2;
+
+/**
+ * 横线画满的申报表（波兰 PIT-37、德国的 Antrag，EU 样本 062）：一节一节的方框，每个框左上角一个短标签
+ * （「10. Nazwisko」），下面空着给人写。整页的网格因为框的位置各排不同、空格子多，被当成表单的画线（isRuleGrid）
+ * 整张不要了，框没了，没地方写。这里把这样的网格按整排切开（没有格子跨过的横线处），连着的几排里有字的格子
+ * 都是填写框（字最多两行、贴着格子顶、下面至少留一行高的空）时，拿出来当一张表；别的排（说明文字、
+ * 选项框的一节、节的标题条）照旧排成文字。返回的表从第 0 列起，colWidths 是它自己的列宽。
+ */
+export function fieldBoxTables(
+  table: TableBlock,
+  colWidths: readonly number[],
+  placed: readonly OcrBox[],
+  lineHeight: number,
+): { table: TableBlock; colWidths: number[] }[] {
+  const inCell = (l: Box, c: Box) => {
+    const cx = l.x + l.width / 2;
+    const cy = l.y + l.height / 2;
+    return cx >= c.x && cx <= c.x + c.width && cy >= c.y && cy <= c.y + c.height;
+  };
+  const isField = (c: TableCell) => {
+    const box = c.box;
+    if (!box) return false;
+    const own = placed.filter((l) => inCell(l, box));
+    if (!c.text.trim()) return !own.length;
+    if (!own.length || rowsOf(own).length > FIELD_LABEL_LINES) return false;
+    const top = Math.min(...own.map((l) => l.y)) - box.y;
+    const bottom = Math.max(...own.map((l) => l.y + l.height)) - box.y;
+    return (
+      top <= lineHeight &&
+      bottom <= FIELD_LABEL_SHARE * box.height &&
+      box.height - bottom >= lineHeight
+    );
+  };
+  // 整排切开的地方：没有格子从上面跨过来。
+  const cuts = [0];
+  for (let r = 1; r < table.rows; r++)
+    if (!table.cells.some((c) => c.row < r && r < c.row + c.rowSpan)) cuts.push(r);
+  cuts.push(table.rows);
+  const slabs = cuts.slice(1).map((end, i) => {
+    const cells = table.cells.filter((c) => c.row >= cuts[i]! && c.row < end);
+    const ok = cells.length > 0 && cells.some((c) => c.text.trim()) && cells.every(isField);
+    return { from: cuts[i]!, to: end, cells, ok };
+  });
+  const groups: (typeof slabs)[] = [];
+  let run: typeof slabs = [];
+  for (const s of [...slabs, undefined]) {
+    if (s?.ok) run.push(s);
+    else {
+      if (run.length) groups.push(run);
+      run = [];
+    }
+  }
+  const out: { table: TableBlock; colWidths: number[] }[] = [];
+  for (const group of groups) {
+    const cells = group.flatMap((s) => s.cells);
+    if (cells.filter((c) => c.text.trim()).length < FIELD_MIN_BOXES) continue;
+    const from = group[0]!.from;
+    // 只留这几排用到的列线。
+    const edges = [...new Set(cells.flatMap((c) => [c.col, c.col + c.colSpan]))].sort(
+      (a, b) => a - b,
+    );
+    const at = (col: number) => edges.indexOf(col);
+    const boxes = cells.map((c) => c.box!);
+    const x = Math.min(...boxes.map((b) => b.x));
+    const y = Math.min(...boxes.map((b) => b.y));
+    out.push({
+      table: {
+        kind: 'table',
+        rows: group[group.length - 1]!.to - from,
+        col: 0,
+        cols: edges.length - 1,
+        cells: cells.map((c) => ({
+          ...c,
+          row: c.row - from,
+          col: at(c.col),
+          colSpan: at(c.col + c.colSpan) - at(c.col),
+        })),
+        box: {
+          x,
+          y,
+          width: Math.max(...boxes.map((b) => b.x + b.width)) - x,
+          height: Math.max(...boxes.map((b) => b.y + b.height)) - y,
+        },
+      },
+      colWidths: edges
+        .slice(1)
+        .map((e, i) =>
+          colWidths.slice(table.col + edges[i]!, table.col + e).reduce((a, b) => a + b, 0),
+        ),
+    });
+  }
+  return out;
+}
+
 /** 空着的格子至少这么多个行高宽，是留着填写的栏，不并进左边（foldEmptyColumns）。 */
 const FILL_IN_LINES = 3;
 
@@ -1612,6 +1712,20 @@ function buildPage(
   const stackedTables = stacked.blocks.filter((b): b is TableBlock => b.kind === 'table');
   const ruled: TableBlock[] = [];
   const rejected: TableBlock[] = [];
+  // 当成表单画线不要的网格（或者分开后不要的部分）里，一排排的填写框照样当表（EU 样本 062）。
+  const carveFieldBoxes = (t: TableBlock, colWidths: readonly number[]) => {
+    if (!repairTables || chopsMuch(t)) return;
+    const placed = placedIn.get(t) ?? [];
+    for (const f of fieldBoxTables(t, colWidths, placed, lineHeight)) {
+      if (!outsideFigures(f.table)) continue;
+      colWidthsOf.set(f.table, f.colWidths);
+      placedIn.set(
+        f.table,
+        placed.filter((l) => inBox(l, f.table.box)),
+      );
+      ruled.push(f.table);
+    }
+  };
   for (const t of sheetTables) {
     const kept = ruledCandidates.includes(t) && !sparse(t);
     const parts = stackedTables.filter((p) => lineShareIn(p.box, t.box) >= 0.9);
@@ -1630,8 +1744,10 @@ function buildPage(
     if (keep.length) {
       for (const p of keep) colWidthsOf.set(p, stacked.colWidths);
       ruled.push(...keep);
+      for (const p of parts) if (!keep.includes(p)) carveFieldBoxes(p, stacked.colWidths);
     } else if (kept) ruled.push(t);
     else if (ruledCandidates.includes(t)) rejected.push(t);
+    else carveFieldBoxes(t, colWidthsOf.get(t)!);
   }
   const tables: DocTable[] = ruled.map((table) => {
     // 表里的字号按表里文字的行高（D-335），和正文分开算。

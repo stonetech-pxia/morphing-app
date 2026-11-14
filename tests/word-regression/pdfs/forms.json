@@ -94,5 +94,11 @@
     "id": "framed-header-row-answer-lines",
     "source": "16-framed-header-row-answer-lines.html",
     "sha256": "3e113403c878c7e507b5a829170ed118d43a3c99c43fe601b7e4cdc436aaf877"
+  },
+  {
+    "page": 17,
+    "id": "ruled-field-boxes",
+    "source": "17-ruled-field-boxes.html",
+    "sha256": "195cc20c0611001c91bd7e2fd3ddf955dc7c2b29a0f4ada083047b8125088b67"
   }
 ]

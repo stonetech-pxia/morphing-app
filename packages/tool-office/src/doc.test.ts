@@ -4,6 +4,7 @@ import {
   arrangeUnits,
   buildDocPage,
   clusterLines,
+  fieldBoxTables,
   foldEmptyColumns,
   hasUnderline,
   isRuleGrid,
@@ -1793,5 +1794,101 @@ describe('ruled tables whose column lines cut through words (D-502)', () => {
     expect(leaves.filter((b) => b.kind === 'table')).toHaveLength(0);
     const texts = leaves.flatMap((b) => (b.kind === 'paragraph' ? b.text.split('\n') : []));
     for (let r = 0; r < 3; r++) expect(texts.join(' ')).toContain(`Consommations${r}annuelles`);
+  });
+});
+
+describe('ruled field boxes in a rejected form grid (EU sample 062)', () => {
+  // 整页的网格：12 列共用的列线，每排的框分在不同的地方。
+  const colWidths = Array.from({ length: 12 }, () => 100);
+  const cell = (row: number, col: number, colSpan: number, text: string, y: number, h = 60) => ({
+    row,
+    col,
+    rowSpan: 1,
+    colSpan,
+    text,
+    box: { x: col * 100, y, width: colSpan * 100, height: h },
+  });
+  const cells = [
+    // 节的标题条：字在中间，下面没有写的地方。
+    cell(0, 0, 12, 'C. Dane podatnika', 0, 40),
+    cell(1, 0, 5, '10. Nazwisko', 40),
+    cell(1, 5, 3, '11. Pierwsze imię', 40),
+    cell(1, 8, 4, '12. Data urodzenia', 40),
+    cell(2, 0, 4, '13. Kraj', 100),
+    cell(2, 4, 5, '14. Województwo', 100),
+    cell(2, 9, 3, '', 100),
+    // 选项的一节：好几行字。
+    cell(3, 0, 12, '7. Składasz\n1. zeznanie\n2. korektę zeznania', 160, 90),
+    cell(4, 0, 6, '20. Miejscowość', 250),
+    cell(4, 6, 6, '21. Kod pocztowy', 250),
+  ];
+  const table: TableBlock = {
+    kind: 'table',
+    rows: 5,
+    col: 0,
+    cols: 12,
+    cells,
+    box: { x: 0, y: 0, width: 1200, height: 310 },
+  };
+  const placed = [
+    line('C. Dane podatnika', 20, 10, 300),
+    line('10. Nazwisko', 10, 45, 150, 16),
+    line('11. Pierwsze imię', 510, 45, 150, 16),
+    line('12. Data urodzenia', 810, 45, 150, 16),
+    line('13. Kraj', 10, 105, 80, 16),
+    line('14. Województwo', 410, 105, 150, 16),
+    line('7. Składasz', 10, 165, 120, 16),
+    line('1. zeznanie', 40, 192, 120, 16),
+    line('2. korektę zeznania', 40, 220, 160, 16),
+    line('20. Miejscowość', 10, 255, 150, 16),
+    line('21. Kod pocztowy', 610, 255, 150, 16),
+  ];
+
+  it('takes the runs of rows whose filled cells are labelled field boxes as tables', () => {
+    const found = fieldBoxTables(table, colWidths, placed, 20);
+    expect(found).toHaveLength(2);
+    const [first, second] = found;
+    // 10–14 两排一张表，只留这两排用到的列线：0、4、5、8、9、12。
+    expect(first!.table.rows).toBe(2);
+    expect(first!.colWidths).toEqual([400, 100, 300, 100, 300]);
+    expect(first!.table.cells.map((c) => [c.row, c.col, c.colSpan, c.text])).toEqual([
+      [0, 0, 2, '10. Nazwisko'],
+      [0, 2, 1, '11. Pierwsze imię'],
+      [0, 3, 2, '12. Data urodzenia'],
+      [1, 0, 1, '13. Kraj'],
+      [1, 1, 3, '14. Województwo'],
+      [1, 4, 1, ''],
+    ]);
+    // 选项的一节下面的 20、21 是另一张。
+    expect(second!.table.cells.map((c) => c.text)).toEqual(['20. Miejscowość', '21. Kod pocztowy']);
+    expect(second!.colWidths).toEqual([600, 600]);
+  });
+
+  it('does not take a single field box on its own', () => {
+    // 20 那一排只有自己（上面是选项的一节），只有一个框：不拿。
+    const single = {
+      ...table,
+      cells: cells
+        .filter((c) => c.text !== '21. Kod pocztowy')
+        .map((c) =>
+          c.text === '20. Miejscowość' ? { ...c, colSpan: 12, box: { ...c.box, width: 1200 } } : c,
+        ),
+    };
+    const found = fieldBoxTables(
+      single,
+      colWidths,
+      placed.filter((l) => !l.text.startsWith('21.')),
+      20,
+    );
+    expect(found.map((f) => f.table.cells.map((c) => c.text))).toEqual([
+      [
+        '10. Nazwisko',
+        '11. Pierwsze imię',
+        '12. Data urodzenia',
+        '13. Kraj',
+        '14. Województwo',
+        '',
+      ],
+    ]);
   });
 });

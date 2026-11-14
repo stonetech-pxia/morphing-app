@@ -381,4 +381,25 @@ export const FORMS: Case[] = [
       ),
     ],
   },
+  {
+    id: 'ruled-field-boxes',
+    suite: 'forms',
+    fix: 'EU sample 062',
+    what: 'A fully ruled blank application form (like the Polish PIT-37): every row splits into boxes at different places and most boxes are empty below a short label, so the page-wide grid was rejected as form ruling; the boxes vanished, leaving nowhere to type, and the labels became numbered list items.',
+    checks: [
+      inRow('10. Nazwisko', '11. Pierwsze imię', '12. Data urodzenia'),
+      inRow('16. Gmina', '17. Ulica', '18. Nr domu', '19. Nr lokalu'),
+      inRow('25. Gmina', '26. Ulica', '27. Nr domu', '28. Nr lokalu'),
+      differentTables('10. Nazwisko', '22. Kraj'),
+      notInTable('mieszkasz w gminie co najmniej od roku'),
+      notInTable('korekta złożona na wezwanie urzędu'),
+      order(
+        'B.1. Dane wnioskodawcy',
+        '10. Nazwisko',
+        '20. Miejscowość',
+        'B.2. Adres korespondencyjny',
+        '22. Kraj',
+      ),
+    ],
+  },
 ];
