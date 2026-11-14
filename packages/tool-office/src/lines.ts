@@ -71,6 +71,8 @@ const BAND_MIN_FILL = 0.6;
 const BAND_MIN_ANCHORS = 2;
 const BAND_RULED_GAP = 3;
 const BAND_RULED_MIN = 2;
+/** 竖线长到页高的这么多（95%），是纸边或中缝，不参加组表。 */
+const PAGE_EDGE_SHARE = 0.95;
 /** 只有横线的表：左右两端对齐的误差（页宽的 2%），相邻两条最远隔页高的 40%（三线表的表身很高）。 */
 const ALIGN_SHARE = 0.02;
 const RULED_GAP_SHARE = 0.4;
@@ -863,7 +865,13 @@ export function findTables(
   const hs = page.horizontal;
   // 端点落在横线上：离它不超过这么远（线宽加上抗锯齿的边，不跨过白缝）。
   const near = Math.max(MAX_GAP, tol * 0.4);
-  const vs = splitAtBoxGaps(page.vertical, hs, near);
+  // 几乎从页顶通到页底的竖线是纸边、对折的中缝（拍的两页并排的说明书，EU 样本 100），不是哪张表的列线：
+  // 不然表格的横线一头离它不到 tol，整半页的字连同这张表被当成一张大网格。
+  const vs = splitAtBoxGaps(
+    page.vertical.filter((v) => v.to - v.from < PAGE_EDGE_SHARE * page.height),
+    hs,
+    near,
+  );
   const onRule = (x: number, y: number) =>
     hs.some((h) => Math.abs(h.pos - y) <= near && x >= h.from - near && x <= h.to + near);
   const ends = new Map(vs.map((v) => [v, [onRule(v.pos, v.from), onRule(v.pos, v.to)]] as const));

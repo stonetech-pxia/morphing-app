@@ -208,5 +208,11 @@
     "id": "tbl-lab-results-unit-column",
     "source": "35-tbl-lab-results-unit-column.html",
     "sha256": "18e261c3026a46b93f853d5c4761c91acfd08b6a7d29fea31ecd7bd739f80a64"
+  },
+  {
+    "page": 36,
+    "id": "tbl-table-beside-page-fold",
+    "source": "36-tbl-table-beside-page-fold.scan.html",
+    "sha256": "fd92d16d909464bfa570b79fdd0d0b6afcbf900fed043576ce5a80751cdcbd52"
   }
 ]

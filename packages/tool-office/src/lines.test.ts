@@ -351,3 +351,16 @@ describe('skew next to a solid colour band', () => {
     expect(tables.some((t) => t.hs.length === 10 && t.vs.length === 4)).toBe(true);
   });
 });
+
+describe('page edges are not table rules', () => {
+  it('keeps a ruled table apart from the fold of a photographed two-page leaflet (EU sample 100)', () => {
+    // 两页并排拍的说明书：中缝是一条从页顶通到页底的黑线，右页表格的横线左端离它只有 4 像素。
+    const fold: Rect = { x: 478, y: 5, width: 3, height: 1390 };
+    const grid = gridRects([485, 600, 760, 900], [1000, 1050, 1100, 1150, 1200]);
+    const tables = findTables(findLines(renderPage(W, H, [fold, ...grid]), { skew: 0 }));
+    expect(tables).toHaveLength(1);
+    expect(tables[0]!.box.y).toBeGreaterThan(990);
+    expect(tables[0]!.box.height).toBeLessThan(220);
+    expect(tables[0]!.vs).toHaveLength(4);
+  });
+});

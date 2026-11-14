@@ -626,4 +626,23 @@ export const TABLES: Case[] = [
       inRow('Thrombinzeit', '16.5', 'sec', '16.0-20.0'),
     ],
   },
+  {
+    id: 'tbl-table-beside-page-fold',
+    suite: 'tables',
+    fix: 'page-edge rules; EU sample 100',
+    what: "Photo of a two-page leaflet: the fold is a black line from the top of the page to the bottom, and the repair table on the right page starts a few pixels right of it. Once the scan's tilt was measured correctly the table rules touched the fold, the whole right page became one big grid that was rejected, and the repair table was lost with it.",
+    lang: 'deu',
+    checks: [
+      table({
+        rows: 4,
+        cols: 5,
+        cells: [
+          { row: 0, col: 1, text: 'Reparaturschein' },
+          { row: 1, col: 1, text: 'R-4471' },
+          { row: 2, col: 4, text: 'Schalter' },
+        ],
+      }),
+      notInTable('Die Garantiezeit beträgt'),
+    ],
+  },
 ];
