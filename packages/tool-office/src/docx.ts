@@ -910,6 +910,8 @@ export function writeDocx(
       flow.height = heightOf(block, maxWidth, from);
     };
     // 左缩进（twip）：居中、靠右的段落没有；一行的段落放得下才缩进（不让它折到下一行）。
+    // 在 Word 里顶格也一行放不下的段落反正要折行，缩进不让给剩下的空间：和同一左边的标题、短段落对齐
+    // （不然越宽的段落缩进越少，左边参差不齐，EU 样本 053、057）。
     const leftOf = (block: DocLeaf, from: number, maxWidth: number): number => {
       if (block.kind === 'paragraph' && block.tab) return 0;
       if (
@@ -921,7 +923,12 @@ export function writeDocx(
       )
         return 0;
       const room = maxWidth - twip(block.box.width) * (block.kind === 'table' ? 1 : WIDTH_SLACK);
-      const v = Math.min(twip((snap.get(block.box.x) ?? block.box.x) - from), Math.max(0, room));
+      const offset = twip((snap.get(block.box.x) ?? block.box.x) - from);
+      const wraps =
+        block.kind === 'paragraph' &&
+        !/[\n\t]/.test(block.text) &&
+        textEm(block.text) * sizeOf(block) * 20 * WIDTH_SLACK > maxWidth;
+      const v = wraps ? offset : Math.min(offset, Math.max(0, room));
       return v >= MIN_INDENT ? Math.round(v / 10) * 10 : 0;
     };
     // 表格前面的空白：一个 1 磅的空段落带着段前距。

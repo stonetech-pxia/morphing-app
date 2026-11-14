@@ -70,5 +70,11 @@
     "id": "full-bleed-band-margins",
     "source": "12-full-bleed-band-margins.html",
     "sha256": "64aec6a8b87fb011f8ac6f9c1b8a0160de58be77ea6330bcc2d270f18dd4bc78"
+  },
+  {
+    "page": 13,
+    "id": "wrapped-paragraph-indent",
+    "source": "13-wrapped-paragraph-indent.html",
+    "sha256": "59577b447149972914029dc2affe09e1f8630f5d8726adb824e12631dba8a0c9"
   }
 ]

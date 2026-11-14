@@ -244,4 +244,29 @@ export const GEOMETRY: Case[] = [
       aligned('We horen graag wat je vindt', 'left'),
     ],
   },
+  {
+    id: 'wrapped-paragraph-indent',
+    suite: 'geometry',
+    fix: 'EU sample 053, 057',
+    what: 'A letter whose text block starts right of the page margin: every paragraph got its indent cut to the room left beside its own width, so the wide justified paragraphs got 0–250 twips and the heading and short lines 280: a stepped left edge.',
+    lang: 'deu',
+    checks: [
+      custom("wrapped paragraphs share the heading's left indent", (c) => {
+        const texts = [
+          'Arbeitszeugnis',
+          'Herr Jonas Beispiel',
+          'Zu seinen Aufgaben',
+          'Herr Beispiel arbeitete',
+          'Sein Verhalten',
+        ];
+        const ind = texts.map((t) => {
+          const p = xmlPara(c, t);
+          return p ? indentLeft(p) : NaN;
+        });
+        return ind[0]! > 0 && ind.every((v) => Math.abs(v - ind[0]!) <= 60)
+          ? null
+          : `indents ${ind.join(', ')}`;
+      }),
+    ],
+  },
 ];

@@ -1281,6 +1281,27 @@ describe('writeDocx', () => {
     for (const p of paras) expect(p).not.toMatch(/<w:ind w:left/);
   });
 
+  it('gives a wide wrapped paragraph the same indent as a heading on its left edge (EU sample 053)', () => {
+    // 信的正文从页边距右边 25 像素起：标题和整段正文左边对齐，正文在 Word 里本来就要折行，缩进不让给剩下的空间。
+    const at = (x: number, y: number, width: number, height = 30) => ({ x, y, width, height });
+    const long = 'Herr Beispiel arbeitete stets sorgfältig, zuverlässig und selbstständig. '.repeat(
+      4,
+    );
+    const doc: DocDoc = {
+      version: 1,
+      pages: [
+        page([
+          { kind: 'paragraph', text: 'Arbeitszeugnis', box: at(120, 100, 200) },
+          { kind: 'paragraph', text: long.trim(), box: at(120, 160, 780, 110) },
+        ]),
+      ],
+    };
+    const xml = unzip(writeDocx(doc)).text('word/document.xml');
+    const lefts = [...xml.matchAll(/<w:ind w:left="(\d+)"/g)].map((m) => m[1]);
+    expect(lefts).toHaveLength(2);
+    expect(lefts[1]).toBe(lefts[0]);
+  });
+
   it('places each paragraph at its left edge and keeps the vertical gaps, as plain paragraphs (D-463)', () => {
     // 原图宽 1000 像素 = A4 宽 11906 twip；左页边距 1134 twip = 95 像素，左缩进从那里算。
     const at = (x: number, y: number, width: number) => ({ x, y, width, height: 30 });
