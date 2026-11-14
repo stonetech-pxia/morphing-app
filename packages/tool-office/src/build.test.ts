@@ -547,6 +547,22 @@ describe('cases from real scans (D-272)', () => {
     expect(cellAt(table!, 0, 1)!.text.split('\n')).toEqual(['Date 21/02', 'Diagnostiqueur']);
   });
 
+  it('keeps the step lists of a one-row box in their cells (EU sample 049)', () => {
+    // 说明书：一排三格，每格一个步骤号和几条要点，几格的行一样高，没有一列是数。
+    const columns = [
+      ['1', 'Ins Menü'],
+      ['2', 'Datenspeicher', 'Proben-IDs', 'Methoden', 'Einstellungen'],
+      ['3', 'Neue Methode', 'Methoden editieren', 'mit OK bestätigen'],
+    ];
+    const words = columns.flatMap((lines, c) =>
+      lines.map((text, r) => word(text, 120 + c * 270, 110 + r * 26, 200)),
+    );
+    const [table, ...others] = tablesOf(page(gridRects([100, 370, 640, 900], [100, 250]), words));
+    expect(others).toHaveLength(0);
+    expect([table!.rows, table!.cols]).toEqual([1, 3]);
+    expect(cellAt(table!, 0, 1)!.text.split('\n')).toHaveLength(5);
+  });
+
   it('still splits a body where some rows only have a section label', () => {
     // 工资单：「URSSAF」「Retraite」这种小标题一排只有一格，其他排每列都有字。
     const xs = [100, 400, 650, 900];

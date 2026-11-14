@@ -263,6 +263,12 @@ function isProse(lines: readonly OcrBox[], width: number): boolean {
   return rows >= PROSE_MIN_ROWS && wideRows(lines, width) >= PROSE_WIDE_SHARE * rows;
 }
 
+/** 一行字大半是数字（金额、日期、编号、百分比）。 */
+function isNumber(text: string): boolean {
+  const s = text.replace(/\s/g, '');
+  return s.length > 0 && (s.match(/\d/g)?.length ?? 0) >= 0.5 * s.length;
+}
+
 /** 一张表的网格：横线定行，竖线定列（没有中间的竖线时按文字空隙分列），边上线不够的两格合并。 */
 function buildGrid(
   table: TableLines,
@@ -355,6 +361,8 @@ function buildGrid(
       // 只有个别列里有几排（一格里折行的字）、只有两排（折成两行的表头）、
       // 多数排只有一列有字（表单一格里的几行地址，别的列空着，D-333）不分。
       const rowsByCol = new Map<number, Set<number>>();
+      // 每列有几排、其中几排是数（金额、日期、编号）。
+      const numbersByCol = new Map<number, number>();
       let wide = 0;
       for (const [i, row] of rows.entries()) {
         const cols = new Set<number>();
@@ -363,13 +371,21 @@ function buildGrid(
           cols.add(c);
           if (!rowsByCol.has(c)) rowsByCol.set(c, new Set());
           rowsByCol.get(c)!.add(i);
+          if (isNumber(l.text)) numbersByCol.set(c, (numbersByCol.get(c) ?? 0) + 1);
         }
         if (cols.size >= 2) wide++;
       }
       const multi = [...rowsByCol.values()].filter((g) => g.size >= 2).length;
       // 有字的列按整段的字数（跨排的大格那一列也算，只是不按它分排）。
       const used = new Set(inBand.map((l) => indexOf(xs, centerX(l)))).size;
-      if (multi >= 2 && multi > used / 2 && wide >= rows.length / 2) {
+      // 只有一排框的表（上下就两条横线）是一排一项的表身时总有一列是数（金额、数量、日期）。几格里都是字
+      // （说明书一格一步、几条要点，EU 样本 049）时，几格的行碰巧一样高也不是一排一项，分开就把一格里的
+      // 几行拆散了。
+      const oneBox = ys.filter((y) => y.lined).length <= 2;
+      const numbers = [...numbersByCol.entries()].some(
+        ([c, n]) => n >= 2 && n >= rowsByCol.get(c)!.size / 2,
+      );
+      if (multi >= 2 && multi > used / 2 && wide >= rows.length / 2 && (numbers || !oneBox)) {
         for (let i = 1; i < rows.length; i++) {
           split.push({ pos: between(i), lined: false });
           open.push(false);

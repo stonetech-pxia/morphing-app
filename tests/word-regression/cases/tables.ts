@@ -600,4 +600,16 @@ export const TABLES: Case[] = [
       notInTable('MWST 10'),
     ],
   },
+  {
+    id: 'tbl-step-lists-in-cells',
+    suite: 'tables',
+    fix: 'EU sample 049 (regression after 2009761b)',
+    what: 'Manual with numbered steps in two stacked ruled tables (3 cells over 2), each cell holding a short bulleted list. The lines of the lists sit at the same heights in neighbouring cells, so every list line became its own table row and each list was cut into pieces.',
+    lang: 'deu',
+    checks: [
+      table({ containing: ['Ins', 'Datenspeicher', 'Einstellungen', 'Neue Methode'], maxRows: 2 }),
+      table({ containing: ['Bearbeiten', 'Kundenparameter', 'Öchsle'], maxRows: 2 }),
+      notInTable('Alternativ siehe Punkt'),
+    ],
+  },
 ];
