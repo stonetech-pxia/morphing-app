@@ -58,6 +58,24 @@ describe('colour-filled cells', () => {
   });
 });
 
+describe('boxes stacked a few pixels apart', () => {
+  it('does not join an invoice item table with the tables a few pixels under it (EU sample 054)', () => {
+    // 商品表下面隔一条窄窄的白缝：左边一张税额表、右边一个合计框，各有自己的框，
+    // 左右的边和商品表的列线在同一条竖线上。
+    const items = gridRects([60, 560, 700, 820, 940], [300, 340, 380, 420]);
+    const tax = gridRects([60, 260, 400], [428, 458, 488]);
+    const totals = gridRects([700, 820, 940], [428, 458, 488, 518]);
+    const tables = findTables(
+      findLines(renderPage(W, H, [...items, ...tax, ...totals]), { skew: 0 }),
+    );
+    expect(tables.map((t) => [t.hs.length, t.vs.length])).toEqual([
+      [4, 5],
+      [3, 3],
+      [4, 3],
+    ]);
+  });
+});
+
 describe('findTables: rules above a grid', () => {
   it('does not chain section underlines far above a grid into it', () => {
     // 会议纪要：各节标题下面一条横线，彼此隔着整段文字；最后一节下面是一张网格。

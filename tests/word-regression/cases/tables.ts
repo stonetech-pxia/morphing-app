@@ -522,4 +522,20 @@ export const TABLES: Case[] = [
       notInTable('Questi costi non dipendono'),
     ],
   },
+  {
+    id: 'tbl-invoice-subtables-close-below',
+    suite: 'tables',
+    fix: 'EU sample 054',
+    what: 'A tax table and a totals box, each with its own frame, about 10 px under an invoice item table: their side lines lie on the item table\'s column lines, so they were joined across the white gap and all three became one 9-column grid with filler cells, the tax header as an item row and "Reste dû" beside the payment.',
+    lang: 'fra',
+    checks: [
+      table({ containing: ['Désignation', 'Huile vierge extra'], rows: 4, maxRows: 4 }),
+      differentTables('Huile vierge extra', 'TVA 0%'),
+      differentTables('Huile vierge extra', 'Total TTC'),
+      differentTables('TVA 0%', 'Total TTC'),
+      table({ containing: ['Total HT', 'Reste dû'], rows: 4 }),
+      inRow('Total TTC', '367.36'),
+      inRow('Virement SEPA', '02/11/2026', '120.00'),
+    ],
+  },
 ];

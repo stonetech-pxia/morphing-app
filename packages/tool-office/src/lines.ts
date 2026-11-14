@@ -568,6 +568,42 @@ export function findLines(
 const touches = (h: RuleLine, v: RuleLine, tol: number) =>
   v.pos >= h.from - tol && v.pos <= h.to + tol && h.pos >= v.from - tol && h.pos <= v.to + tol;
 
+/** 竖线在第 a 到第 b 段（不含 b）之间的那一截。 */
+function piece(v: RuleLine, a: number, b: number): RuleLine {
+  const spans = v.spans.slice(a, b);
+  return { ...v, from: spans[0]![0], to: spans.at(-1)![1], spans };
+}
+
+/**
+ * 竖线上的一处白缝，上头落在一条横线上、下头从另一条横线起：是上下两个框各自的边（发票的商品表下面
+ * 隔一条 10 像素的白缝就是税额表和合计框，EU 样本 054），在这里断开，不当成复印件里断了的一条线接起来。
+ */
+function splitAtBoxGaps(vs: readonly RuleLine[], hs: readonly RuleLine[], near: number) {
+  const ruleAt = (x: number, y: number) => {
+    let best: RuleLine | undefined;
+    for (const h of hs) {
+      if (Math.abs(h.pos - y) > near || x < h.from - near || x > h.to + near) continue;
+      if (!best || Math.abs(h.pos - y) < Math.abs(best.pos - y)) best = h;
+    }
+    return best;
+  };
+  return vs.flatMap((v) => {
+    const pieces: RuleLine[] = [];
+    let start = 0;
+    for (let k = 1; k < v.spans.length; k++) {
+      const above = ruleAt(v.pos, v.spans[k - 1]![1]);
+      const below = ruleAt(v.pos, v.spans[k]![0]);
+      if (above && below && above !== below) {
+        pieces.push(piece(v, start, k));
+        start = k;
+      }
+    }
+    if (!start) return [v];
+    pieces.push(piece(v, start, v.spans.length));
+    return pieces;
+  });
+}
+
 /** 一条竖线在 [lo, hi] 里的那一段。 */
 function clip(v: RuleLine, lo: number, hi: number): RuleLine {
   if (v.from >= lo && v.to <= hi) return v;
@@ -628,7 +664,19 @@ export function findTables(
   const long = Math.max(page.width, page.height);
   const tol = Math.max(4, long * TOUCH_SHARE);
   const hs = page.horizontal;
-  const vs = page.vertical;
+  // 端点落在横线上：离它不超过这么远（线宽加上抗锯齿的边，不跨过白缝）。
+  const near = Math.max(MAX_GAP, tol * 0.4);
+  const vs = splitAtBoxGaps(page.vertical, hs, near);
+  const onRule = (x: number, y: number) =>
+    hs.some((h) => Math.abs(h.pos - y) <= near && x >= h.from - near && x <= h.to + near);
+  const ends = new Map(vs.map((v) => [v, [onRule(v.pos, v.from), onRule(v.pos, v.to)]] as const));
+  // 竖线的一头已经落在一条横线上时，不再算碰到这一头外面隔着白缝的横线（上下挨着的两个框不连成一张表）。
+  const meets = (h: RuleLine, v: RuleLine) => {
+    const [top, bottom] = ends.get(v)!;
+    return (
+      touches(h, v, tol) && !(top && h.pos < v.from - near) && !(bottom && h.pos > v.to + near)
+    );
+  };
   // 网格：反复去掉连得不够的线，直到不再变化。
   const hOk = hs.map(() => true);
   const vOk = vs.map(() => true);
@@ -637,14 +685,14 @@ export function findTables(
     changed = false;
     for (const [i, h] of hs.entries()) {
       if (!hOk[i]) continue;
-      if (vs.filter((v, j) => vOk[j] && touches(h, v, tol)).length < 2) {
+      if (vs.filter((v, j) => vOk[j] && meets(h, v)).length < 2) {
         hOk[i] = false;
         changed = true;
       }
     }
     for (const [j, v] of vs.entries()) {
       if (!vOk[j]) continue;
-      if (hs.filter((h, i) => hOk[i] && touches(h, v, tol)).length < 2) {
+      if (hs.filter((h, i) => hOk[i] && meets(h, v)).length < 2) {
         vOk[j] = false;
         changed = true;
       }
@@ -660,7 +708,7 @@ export function findTables(
   for (const [i, h] of hs.entries()) {
     if (!hOk[i]) continue;
     for (const [j, v] of vs.entries()) {
-      if (vOk[j] && touches(h, v, tol)) {
+      if (vOk[j] && meets(h, v)) {
         union(i, hs.length + j);
         used.add(i).add(hs.length + j);
       }
@@ -692,7 +740,7 @@ export function findTables(
   };
   for (const [j, v] of vs.entries()) {
     if (vOk[j]) continue;
-    const i = hs.findIndex((h, k) => hOk[k] && touches(h, v, tol));
+    const i = hs.findIndex((h, k) => hOk[k] && meets(h, v));
     if (i >= 0 && within(find(i), v.pos, v.pos, v.from, v.to)) {
       vOk[j] = true;
       union(hs.length + j, i);
@@ -701,7 +749,7 @@ export function findTables(
   }
   for (const [i, h] of hs.entries()) {
     if (hOk[i]) continue;
-    const j = vs.findIndex((v, k) => vOk[k] && touches(h, v, tol));
+    const j = vs.findIndex((v, k) => vOk[k] && meets(h, v));
     if (j >= 0 && within(find(hs.length + j), h.from, h.to, h.pos, h.pos)) {
       hOk[i] = true;
       union(i, hs.length + j);
@@ -813,7 +861,7 @@ export function findTables(
     for (const [j, v] of vs.entries()) {
       if (vOk[j] || used.has(hs.length + j)) continue;
       if (v.pos < l + tol || v.pos > r - tol || v.from < t - tol || v.to > b + tol) continue;
-      if (rules.filter((h) => touches(h, v, tol)).length < 2) continue;
+      if (rules.filter((h) => meets(h, v)).length < 2) continue;
       union(hs.length + j, chain[0]!);
       used.add(hs.length + j);
     }

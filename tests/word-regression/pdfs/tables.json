@@ -166,5 +166,11 @@
     "id": "tbl-yellow-row-span-label",
     "source": "28-tbl-yellow-row-span-label.html",
     "sha256": "72aa42f3db5b29ac5bb32444c767fba5433b08c185635b3a272c84d3052be2ea"
+  },
+  {
+    "page": 29,
+    "id": "tbl-invoice-subtables-close-below",
+    "source": "29-tbl-invoice-subtables-close-below.html",
+    "sha256": "71e81cbff9e3ab575d879e76ee9d914d913e21cb06042549e3ec00f85d4915b9"
   }
 ]
