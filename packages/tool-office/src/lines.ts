@@ -1054,6 +1054,22 @@ export function findTables(
     if (s2 >= 3 * s1 && s3 > maxHeadGap && s3 >= 3 * s4 && s4 <= 2 * s1)
       chains.splice(n, 1, c.slice(0, 3), c.slice(3));
   }
+  // 句子里的填空横线（「(DNI/NIE ______),」：横线压在字的底线上，左边或右边紧挨着同一行的字，EU 样本 095）
+  // 不是表格线。一串只有横线的线大半是这样的，不当表（不然几处填空的末端碰巧对齐，接成一张高高的表，
+  // 把中间的正文都圈进去）。
+  const inline = (h: RuleLine) =>
+    (options.text ?? []).some(
+      (t) =>
+        h.pos >= t.y + 0.4 * t.height &&
+        h.pos <= t.y + 1.3 * t.height &&
+        ((t.x + t.width >= h.from - t.height && t.x + t.width <= h.from + 0.5 * t.height) ||
+          (t.x >= h.to - 0.5 * t.height && t.x <= h.to + t.height)),
+    );
+  for (let n = chains.length - 1; n >= 0; n--) {
+    const c = chains[n]!;
+    if (!c.some((k) => hOk[k]) && 2 * c.filter((k) => inline(hs[k]!)).length >= c.length)
+      chains.splice(n, 1);
+  }
   for (const chain of chains) {
     if (chain.length < RULED_MIN) continue;
     for (const i of chain) {

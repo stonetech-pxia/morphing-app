@@ -274,6 +274,19 @@ describe('findTables: rules-only chains', () => {
     expect(tables[0]!.box.y + tables[0]!.box.height).toBeLessThan(600);
   });
 
+  it('does not chain underscore blanks inside sentences into a table (EU sample 095)', () => {
+    // 合同模板：「(DNI/NIE ______),」的填空横线压在字的底线上，几处的末端碰巧上下对齐。
+    const ys = [300, 390, 900];
+    const rules: Rect[] = ys.map((y) => ({ x: 700, y, width: 180, height: 2 }));
+    const text = ys.flatMap((y) => [
+      { x: 590, y: y - 20, width: 104, height: 24 },
+      { x: 884, y: y - 20, width: 20, height: 24 },
+    ]);
+    const page = findLines(renderPage(W, H, rules), { skew: 0 });
+    expect(findTables(page)).toHaveLength(1);
+    expect(findTables(page, { text })).toHaveLength(0);
+  });
+
   it('still chains a ruled table with uneven rows', () => {
     // 每排一条横线、排高不一样（有的格子折成好几行）：照旧是一张表。
     const ys = [200, 240, 280, 420, 460, 640, 680];

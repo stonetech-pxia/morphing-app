@@ -106,5 +106,11 @@
     "id": "label-frame",
     "source": "18-label-frame.html",
     "sha256": "739d54588faee53c7419df98e7949391cf2f0a983265297c357d4fbcdedd22aa"
+  },
+  {
+    "page": 19,
+    "id": "inline-underscore-blanks",
+    "source": "19-inline-underscore-blanks.html",
+    "sha256": "0806a0682f221a238053a23f9d03f9324b427a520063b0df8861dca61d9e0fd7"
   }
 ]
