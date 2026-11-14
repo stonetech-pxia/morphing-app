@@ -326,6 +326,30 @@ describe('readingOrder', () => {
     ]);
   });
 
+  it('reads a framed form’s column captions as one row before the items below (EU sample 016)', () => {
+    // 表单框里的列标题「CONCEPTO  BASE  TIPO  APORTACIÓN / EMPRESA」：右边两栏下面只有填写线，没有字。
+    const items = [
+      item('concepto', 327, 376, 124, 24),
+      item('base', 741, 377, 64, 26),
+      item('item-1', 144, 415, 268, 25),
+      item('item-2', 143, 443, 480, 21),
+      item('item-3', 136, 593, 758, 32),
+      item('tipo', 938, 379, 56, 26),
+      item('aportacion', 1082, 367, 147, 27),
+      item('empresa', 1100, 392, 110, 24),
+    ];
+    expect(readingOrder(items, 7, 24).map((i) => i.id)).toEqual([
+      'concepto',
+      'base',
+      'tipo',
+      'aportacion',
+      'empresa',
+      'item-1',
+      'item-2',
+      'item-3',
+    ]);
+  });
+
   it('reads blocks on the same band left to right (letter head: address left, date right)', () => {
     const items = [item('date', 600, 100, 300, 30), item('address', 80, 90, 300, 90)];
     expect(readingOrder(items).map((i) => i.id)).toEqual(['address', 'date']);

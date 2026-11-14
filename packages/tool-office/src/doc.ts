@@ -2149,6 +2149,7 @@ function buildPage(
         ...page.blocks.filter((b) => touches(newLines.get(b)!)),
       ],
       lineHeight * 0.3,
+      lineHeight,
     );
     // 拼好以后的字必须和整页重建的字一样多：对不上（行和块对不准）就不修这一页。
     const words = (blocks: readonly DocBlock[]) =>
@@ -2913,7 +2914,7 @@ function arrangeBands(units: readonly Unit[], lineHeight: number): DocBlock[] {
     .sort((a, b) => top(a) - top(b))
     .flatMap((band): DocBlock[] => {
       const cols = columnsOf(band, gap);
-      if (cols.length < 2) return readingOrder(band, gap).flatMap((u) => u.blocks);
+      if (cols.length < 2) return readingOrder(band, gap, lineHeight).flatMap((u) => u.blocks);
       const lefts = cols.map((c) => Math.min(...c.map((u) => u.box.x)));
       const right = Math.max(...cols.at(-1)!.map((u) => u.box.x + u.box.width));
       return [
@@ -2921,7 +2922,7 @@ function arrangeBands(units: readonly Unit[], lineHeight: number): DocBlock[] {
           kind: 'row',
           cells: cols.map((c, k) => ({
             width: (lefts[k + 1] ?? right) - lefts[k]!,
-            blocks: readingOrder(c, gap).flatMap((u) => u.blocks),
+            blocks: readingOrder(c, gap, lineHeight).flatMap((u) => u.blocks),
           })),
           box: unionBox(band.map((u) => u.box)),
         },

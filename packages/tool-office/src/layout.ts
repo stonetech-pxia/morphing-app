@@ -357,12 +357,44 @@ function bands(
   return { groups, widest };
 }
 
+/** 各栏共用的一排表头最多这么多行高。 */
+const HEADER_ROW_LINES = 3;
+
+/**
+ * 竖着切开的几栏里，有一栏只有最上面的一排短字（框起来的表单的列标题「CONCEPTO  BASE  TIPO  APORTACIÓN」，
+ * 下面的填写处没有字，EU 样本 016）：这一排是各栏共用的表头，不是一栏。整块落在这一排里的字先排（按左右），
+ * 剩下的再排；不然右边的列标题排到左边所有的项目后面。这一排不超过 HEADER_ROW_LINES 个行高，
+ * 至少两栏各有一块整块在这一排里（两栏正文的段落比这一排高，不受影响）。
+ */
+function headerRow<T extends { box: Box }>(
+  items: readonly T[],
+  groups: readonly number[][],
+  gap: number,
+  lineHeight: number,
+): [T[], T[]] | null {
+  const bottomOf = (it: T) => it.box.y + it.box.height;
+  const top = Math.min(...items.map((it) => it.box.y));
+  const bottoms = groups.map((g) => Math.max(...g.map((i) => bottomOf(items[i]!))));
+  // 只有这一排的几栏：整栏不超过 HEADER_ROW_LINES 个行高。
+  const short = bottoms.filter((b) => b - top <= HEADER_ROW_LINES * lineHeight);
+  if (!short.length || short.length === bottoms.length) return null;
+  const row = Math.max(...short);
+  const inRow = (it: T) => bottomOf(it) <= row + gap;
+  if (groups.filter((g) => g.some((i) => inRow(items[i]!))).length < 2) return null;
+  return [items.filter(inRow), items.filter((it) => !inRow(it))];
+}
+
 /**
  * 阅读顺序（XY 切分）：横着能切开就分成上下几段、从上到下，竖着能切开就分成几栏、从左到右，
  * 两种都能切时按空隙宽的那种切（两栏之间的空隙比栏里段落之间的宽）；都切不开时按上边、再按左边排。
  * gap 是算作空隙的最小宽度（防止紧挨着的两块被切开）。
  */
-export function readingOrder<T extends { box: Box }>(items: readonly T[], gap = 0): T[] {
+export function readingOrder<T extends { box: Box }>(
+  items: readonly T[],
+  gap = 0,
+  /** 正文行高：给了才认各栏共用的一排表头（headerRow）。 */
+  lineHeight?: number,
+): T[] {
   if (items.length <= 1) return [...items];
   const rows = bands(
     items.map((it) => [it.box.y, it.box.y + it.box.height]),
@@ -379,10 +411,16 @@ export function readingOrder<T extends { box: Box }>(items: readonly T[], gap = 
         ? cols.groups
         : null;
   if (!split) return [...items].sort((a, b) => a.box.y - b.box.y || a.box.x - b.box.x);
+  if (split !== rows.groups && lineHeight) {
+    const head = headerRow(items, split, gap, lineHeight);
+    if (head)
+      return [...readingOrder(head[0], gap, lineHeight), ...readingOrder(head[1], gap, lineHeight)];
+  }
   return split.flatMap((group) =>
     readingOrder(
       group.map((i) => items[i]!),
       gap,
+      lineHeight,
     ),
   );
 }

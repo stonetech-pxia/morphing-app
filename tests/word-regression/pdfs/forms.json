@@ -88,5 +88,11 @@
     "id": "yes-no-answer-column",
     "source": "15-yes-no-answer-column.html",
     "sha256": "09e5b120f6574a53412a6efd4a92fcd60fba9100416a52e5a56ac0210b19fdd1"
+  },
+  {
+    "page": 16,
+    "id": "framed-header-row-answer-lines",
+    "source": "16-framed-header-row-answer-lines.html",
+    "sha256": "3e113403c878c7e507b5a829170ed118d43a3c99c43fe601b7e4cdc436aaf877"
   }
 ]
