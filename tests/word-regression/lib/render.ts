@@ -10,7 +10,13 @@ export function renderDocx(dir: string): string[] {
   execFileSync(
     need(ENV.soffice, 'LibreOffice'),
     ['--headless', '--convert-to', 'pdf', '--outdir', dir, `${dir}/out.docx`],
-    { stdio: 'ignore', timeout: 120000 },
+    {
+      stdio: 'ignore',
+      timeout: 120000,
+      env: existsSync(ENV.fontconfig)
+        ? { ...process.env, FONTCONFIG_FILE: process.env.FONTCONFIG_FILE ?? ENV.fontconfig }
+        : process.env,
+    },
   );
   if (!existsSync(`${dir}/out.pdf`)) return [];
   execFileSync(

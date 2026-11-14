@@ -33,6 +33,13 @@ export const ENV = {
   /** 只在 --render 时用：LibreOffice 把 docx 画成 PDF，pdftoppm 画成图。 */
   soffice: process.env.WORD_REGRESSION_SOFFICE ?? `${RUNTIME}/bin/override/soffice`,
   pdftoppm: process.env.WORD_REGRESSION_PDFTOPPM ?? `${RUNTIME}/bin/override/pdftoppm`,
+  /**
+   * 无头 LibreOffice 自带的 fontconfig 配置。不指给它时它只认自带的字体，中文全画成空白；
+   * 这份配置里有系统字体目录。
+   */
+  fontconfig:
+    process.env.WORD_REGRESSION_FONTCONFIG ??
+    `${RUNTIME}/native/libreoffice-headless/libreoffice/LibreOfficeDev.app/Contents/Resources/fontconfig/fonts.conf`,
 };
 
 export function need(path: string, what: string): string {
