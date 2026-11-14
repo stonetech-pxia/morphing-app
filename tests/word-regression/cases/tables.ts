@@ -571,7 +571,7 @@ export const TABLES: Case[] = [
   {
     id: 'tbl-side-by-side-lab-tables',
     suite: 'tables',
-    fix: 'EU sample 090',
+    fix: '2009761b; EU sample 090',
     what: "Landscape lab request form: two dense ruled tables side by side under a shared header frame with a logo. The logo's picture box covered the header rules, so erasing it broke the header cells; the two tables were one grid with interleaved rows; and the stems of letters starting at the same place in rows only 17 px high were joined across the row rules into column lines. The grid was rejected and the page exploded into scattered fragments over several pages.",
     lang: 'ita',
     checks: [

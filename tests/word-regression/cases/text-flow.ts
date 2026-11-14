@@ -423,7 +423,7 @@ export const TEXT_FLOW: Case[] = [
   {
     id: 'shaded-blanks-in-sentences',
     suite: 'text-flow',
-    fix: 'EU sample 082',
+    fix: '823d8cc4; EU sample 082',
     what: "Spanish lease template whose blanks are filled teal boxes inside the sentences: OCR broke each line at every box, the pieces became side-by-side cells, one-cell tables and loose lines, and the last piece of a clause's first line came before its heading.",
     lang: 'spa',
     checks: [
@@ -444,7 +444,7 @@ export const TEXT_FLOW: Case[] = [
   {
     id: 'bracketed-field-codes',
     suite: 'text-flow',
-    fix: 'EU sample 089',
+    fix: 'e34bd7eb; EU sample 089',
     what: 'Field codes of the EU vehicle registration form such as "(12) (13)" and "(24)" at the start of a line were read as list numbers, so the code became list numbering that cannot be edited.',
     lang: 'spa',
     checks: [
