@@ -94,5 +94,11 @@
     "id": "cover-page-text",
     "source": "18-cover-page-text.html",
     "sha256": "875339810076d5c991f5f99e517f488f45d04b6917dfe31d8f486c9284333f30"
+  },
+  {
+    "page": 17,
+    "id": "logo-over-table-top",
+    "source": "19-logo-over-table-top.html",
+    "sha256": "cf011915e605ef7c30935e9f96448d17383b9247617e39f9ab4b066771c3a6e4"
   }
 ]

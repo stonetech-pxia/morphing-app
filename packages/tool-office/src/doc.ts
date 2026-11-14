@@ -1577,13 +1577,24 @@ function buildPage(
     return chopped >= CHOP_MIN && chopped >= CHOP_SHARE * (placedIn.get(t)?.length ?? 0);
   };
   // 图内的网格（表大半在图里）不要；图跨过表的好几格时（整页的版式框把图表框在里面，D-533）也不要。
-  // 图在表的一格里（表单的证件照占着合并的一格）时表照样要。
+  // 图在表的一格里（表单的证件照占着合并的一格）时表照样要；只是边上压进表的一格（表上面的标志剪下来时带着
+  // 下面一点，EU 样本 062）也照样要：看压进表里的那一部分在不在一格里。
+  const insideOf = (f: Box, b: Box): Box => {
+    const x = Math.max(f.x, b.x);
+    const y = Math.max(f.y, b.y);
+    return {
+      x,
+      y,
+      width: Math.max(0, Math.min(f.x + f.width, b.x + b.width) - x),
+      height: Math.max(0, Math.min(f.y + f.height, b.y + b.height) - y),
+    };
+  };
   const outsideFigures = (b: TableBlock) =>
     !figures.some(
       (f) =>
         lineShareIn(b.box, f.box) >= 0.5 ||
         (lineShareIn(f.box, b.box) >= 0.2 &&
-          !b.cells.some((c) => c.box && lineShareIn(f.box, c.box) >= 0.8)),
+          !b.cells.some((c) => c.box && lineShareIn(insideOf(f.box, b.box), c.box) >= 0.8)),
     );
   const sheetTables = sheet.blocks.filter((b): b is TableBlock => b.kind === 'table');
   const ruledCandidates = sheetTables.filter(

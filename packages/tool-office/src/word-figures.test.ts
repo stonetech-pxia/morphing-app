@@ -883,4 +883,33 @@ describe('Word figure ownership', () => {
     }
     expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
   });
+
+  it('keeps a ruled form as a table when a logo above it reaches into its top band (EU sample 062)', () => {
+    // 表上面的标志：PDF 里的图比画出来的标志高，下面透明的一截压进了表的标题条（约占图高的四分之一）。
+    const labels = ['Section A', 'Surname', 'Given names', 'Street', 'House no.'];
+    const lines = [
+      line(labels[0]!, 120, 235, 150),
+      line(labels[1]!, 120, 290, 150),
+      line(labels[2]!, 520, 290, 150),
+      line(labels[3]!, 120, 350, 150),
+      line(labels[4]!, 520, 350, 150),
+    ];
+    const grid = gridRects([100, 500, 900], [220, 280, 340, 400], { skipV: [[1, 0]] });
+    const logo: Rect[] = [{ x: 110, y: 110, width: 150, height: 70 }];
+    const page = buildDocPage({
+      image: renderPage(size.width, size.height, [
+        ...grid,
+        ...logo,
+        ...lines.flatMap((l) => glyphs(l.x, l.y + 4, l.width, 12)),
+      ]),
+      lines,
+      source: 'form.pdf',
+      skew: 0,
+      nativeFigures: [{ x: 100, y: 100, width: 200, height: 160 }],
+    });
+    const tables = leafBlocks(page).filter((b) => b.kind === 'table');
+    expect(tables).toHaveLength(1);
+    expect(tables[0]!.table.rows).toBe(3);
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
+  });
 });
