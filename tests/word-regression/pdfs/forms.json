@@ -64,5 +64,11 @@
     "id": "fill-in-lines",
     "source": "11-fill-in-lines.html",
     "sha256": "81678e6bc8c67c28ebeb4307653b474e1eb50aefc2fe73c98e13b2df4c580653"
+  },
+  {
+    "page": 12,
+    "id": "open-blank-grids",
+    "source": "12-open-blank-grids.html",
+    "sha256": "57c9075fe1031add498743479ec56912aa115d1457b446c621e7ab2957f5555a"
   }
 ]

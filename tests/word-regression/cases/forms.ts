@@ -274,4 +274,16 @@ export const FORMS: Case[] = [
       aligned('urodzony', 'left'),
     ],
   },
+  {
+    id: 'open-blank-grids',
+    suite: 'forms',
+    fix: 'EU sample 031',
+    what: 'Two blank "Lfd. Nr. / Datum von / Datum bis / Kalendertag(e)" grids side by side, with only horizontal rules and inner column lines (no outer verticals) and the header above the first rule: they were taken for form ruling, so the header became loose lines and the rows a two-column number list that swallowed the footer; each must be a fillable 12×4 table.',
+    lang: 'deu',
+    checks: [
+      table({ containing: ['Lfd.', 'Datum von', 'Kalender', '1', '11'], rows: 12, cols: 4 }),
+      table({ containing: ['Lfd.', 'Datum bis', '12', '22'], rows: 12, cols: 4 }),
+      notInTable('Seite 2 von 3'),
+    ],
+  },
 ];

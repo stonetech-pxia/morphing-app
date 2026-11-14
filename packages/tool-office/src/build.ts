@@ -918,7 +918,12 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
       xs: grid.xs.map((x) => x.pos),
       lines: inside.map((l) => sourceOf.get(l)!),
       chopped,
-      ruled: grid.xs.every((x) => x.lined) && grid.ys.every((y) => y.lined),
+      // 外边的两条竖线可以不画（只有横线和内部列线的「开口」表格），表头写在第一条横线上面时最上边也没有线
+      // （EU 样本 031）：内部列线和第一条以下的横线都画了就算画满。
+      ruled:
+        grid.xs.length > 2 &&
+        grid.xs.slice(1, -1).every((x) => x.lined) &&
+        grid.ys.slice(1).every((y) => y.lined),
       block: {
         kind: 'table',
         rows: grid.ys.length - 1,

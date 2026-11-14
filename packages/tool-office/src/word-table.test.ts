@@ -320,6 +320,42 @@ describe('Word table evidence', () => {
     ]);
   });
 
+  it('keeps an open numbered blank grid (no outer column lines, header above the first rule) as a table (EU sample 031)', () => {
+    // 德国的雇主证明（EU 样本 031）：只有横线和内部列线，外边没有竖线；表头写在第一条横线上面，
+    // 内部列线从表头上边画下来。
+    const lines = [
+      word('Nr.', 110, 70, 30),
+      word('Datum von', 180, 70, 140),
+      word('Datum bis', 480, 70, 140),
+      word('Tage', 730, 70, 80),
+      ...[1, 2, 3, 4, 5].map((n) => word(String(n), 120, 62 + n * 50, 14)),
+    ];
+    const ys = [100, 150, 200, 250, 300, 350];
+    const page = buildDocPage({
+      image: image(lines, [
+        ...gridRects([100, 160, 460, 710, 900], ys, {
+          skipV: ys
+            .slice(1)
+            .flatMap((_, r) => [[0, r] as [number, number], [4, r] as [number, number]]),
+        }),
+        ...[160, 460, 710].map((x) => ({ x, y: 60, width: 2, height: 40 })),
+      ]),
+      lines,
+      source: 'open-blank-grid',
+      skew: 0,
+    });
+    expect(textConservation(page, lines)).toEqual({ missing: [], extra: [] });
+    const tables = leafBlocks(page).filter((b) => b.kind === 'table');
+    expect(tables).toHaveLength(1);
+    expect(tables[0]!.table.rows).toBe(6);
+    expect(tables[0]!.table.cells.filter((c) => c.row === 2).map((c) => c.text)).toEqual([
+      '2',
+      '',
+      '',
+      '',
+    ]);
+  });
+
   it('keeps a sign-up sheet with a header row and empty rows as a table', () => {
     const lines = [
       word('Name', 120, 120, 100),
