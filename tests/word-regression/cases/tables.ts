@@ -555,7 +555,7 @@ export const TABLES: Case[] = [
   {
     id: 'tbl-highlighted-statement',
     suite: 'tables',
-    fix: 'EU sample 067',
+    fix: 'dadbbdf7; EU sample 067',
     what: 'Bank statement whose amounts and payees are marked with a green highlighter right under or over the row rules: the marks joined the rules into blocks too thick to be lines, so those rules were dropped and several transactions shared one row while the second line of others became fake rows.',
     lang: 'deu',
     checks: [

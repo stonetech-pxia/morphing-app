@@ -384,7 +384,7 @@ export const FORMS: Case[] = [
   {
     id: 'ruled-field-boxes',
     suite: 'forms',
-    fix: 'EU sample 062',
+    fix: '209af9e5, 85746143; EU sample 062',
     what: 'A fully ruled blank application form (like the Polish PIT-37): every row splits into boxes at different places and most boxes are empty below a short label, so the page-wide grid was rejected as form ruling; the boxes vanished, leaving nowhere to type, and the labels became numbered list items.',
     checks: [
       inRow('10. Nazwisko', '11. Pierwsze imię', '12. Data urodzenia'),

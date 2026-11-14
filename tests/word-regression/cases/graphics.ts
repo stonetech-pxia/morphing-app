@@ -230,7 +230,7 @@ export const GRAPHICS: Case[] = [
   {
     id: 'logo-over-table-top',
     suite: 'graphics',
-    fix: 'EU sample 062',
+    fix: 'c90d6ca7; EU sample 062',
     what: 'A logo image whose transparent lower margin reaches a few millimetres into the top band of the ruled form below it: more than a fifth of the picture lay inside the table and not inside one of its cells, so the whole form was taken for a layout frame around a picture and lost its table.',
     checks: [
       table({ containing: ['Dane wnioskodawcy', 'Imię i nazwisko', 'Adres e-mail'], rows: 5 }),

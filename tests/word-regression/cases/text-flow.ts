@@ -390,7 +390,7 @@ export const TEXT_FLOW: Case[] = [
   {
     id: 'boxes-different-line-pitch',
     suite: 'text-flow',
-    fix: 'EU sample 070',
+    fix: '85054e39, b1de76a3; EU sample 070',
     what: 'Two boxes side by side whose lines have a different pitch (a conditions box beside a totals table, two address boxes): rows were formed band by band, so a wrapped bullet was cut between two rows, an amount landed one row below its label and the last lines of each box came out after both boxes.',
     lang: 'fra',
     checks: [
