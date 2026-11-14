@@ -8,6 +8,7 @@ import { restoreWordCellSpans } from './word-cell-spans';
 import { withBullets } from './word-bullets';
 import { ENDS_WITH_FILL, FILL_RUN, findFillIns, leaderDots, withFillIns } from './word-fill-ins';
 import { restoreWordFormRows } from './word-form-rows';
+import { findPageGutter, sideOfGutter, type PageGutter } from './word-gutter';
 import type { Box, OcrBox, RgbaImage, TableBlock, TableCell } from './types';
 
 // 扫描件转 Word（D-328）：一页的识别结果 + 版面分析的区域 → DocDoc（编辑页改它，docx 每次从它重新生成）。
@@ -1616,25 +1617,35 @@ function buildPage(
   // 模型只提供范围，不能凭模型直接造表。范围内仍要有三列、多排同时对齐；
   // 已经被带线表接管的范围不重建，整页其余的字沿用原来的严格规则。
   const boundedLines = new Set<OcrBox>();
+  // 整页左右两栏、两栏的行一排一排对齐（EU 样本 044）：先找中缝，没有线的表只在每一栏里找
+  // （不然两栏同一高度的标签对齐成一张横跨两栏的表）。后面有了图片区域再核对一次。
+  const early = findPageGutter(
+    leveled,
+    // 模型的图片区域还没清理（整页的小表单常被框成一张大图），不算；后面用清理过的再核对。
+    [...ruled.map((t) => t.box), ...figures.map((f) => f.box)],
+    lineHeight,
+    image,
+  );
+  const bySide = (ls: readonly OcrBox[]) =>
+    early ? [-1, 0, 1].map((k) => ls.filter((l) => sideOfGutter(l, early) === k)) : [ls];
   const textTables = (repairTables ? (input.regions ?? []) : [])
     .filter((r) => r.kind === 'table' && !ruled.some((t) => lineShareIn(r.box, t.box) >= 0.5))
-    .flatMap((r) => {
-      const members = leveled.filter(
-        (l) => !boundedLines.has(l) && lineShareIn(orig(l), r.box) >= 0.5,
-      );
-      const found = findTextTables(members, lineHeight, orig, true);
-      for (const t of found) for (const l of t.lines) boundedLines.add(l);
-      return found;
-    });
+    .flatMap((r) =>
+      bySide(
+        leveled.filter((l) => !boundedLines.has(l) && lineShareIn(orig(l), r.box) >= 0.5),
+      ).flatMap((members) => {
+        const found = findTextTables(members, lineHeight, orig, true);
+        for (const t of found) for (const l of t.lines) boundedLines.add(l);
+        return found;
+      }),
+    );
   const repairBoxes = [...rejected.map((t) => t.box), ...textTables.map((t) => t.box)];
   const repairBaseline = repairBoxes.length
     ? buildPage(input, options, protectFigures, false, repairBarcodes)
     : undefined;
   textTables.push(
-    ...findTextTables(
-      leveled.filter((l) => !boundedLines.has(l)),
-      lineHeight,
-      orig,
+    ...bySide(leveled.filter((l) => !boundedLines.has(l))).flatMap((part) =>
+      findTextTables(part, lineHeight, orig),
     ),
   );
   const inTextTable = new Set(textTables.flatMap((t) => t.lines));
@@ -1768,7 +1779,17 @@ function buildPage(
     groups.push({ lines: cluster, title: 0, box: unionBox(cluster), ...(side ? { side } : {}) });
   }
   // 表单：左边一列标签、右边一列值的两块按行配好（D-332）。
-  groups = pairForms(groups, lineHeight);
+  // 整页左右两栏、两栏的行对齐（EU 样本 044）：跨过中缝的块按两边拆开，不配对、不接成「左\t右」。
+  const gutter = early
+    ? findPageGutter(
+        free,
+        [...tables.map((t) => t.box), ...images.map((im) => im.box)],
+        lineHeight,
+        size,
+      )
+    : null;
+  if (gutter) groups = groups.flatMap((g) => splitAtGutter(g, gutter, lineHeight));
+  groups = pairForms(groups, lineHeight, gutter);
   // 字号和笔画：先量出整页的正文字号和笔画粗细，再和它比。
   const strokes = new Map<OcrBox, number>();
   for (const l of free) strokes.set(l, synthetic.has(orig(l)) ? 0 : strokeRatio(image, orig(l)));
@@ -2028,7 +2049,7 @@ function buildPage(
     height: image.height,
     ...(paper ? { paper } : {}),
     bodySize,
-    blocks: arrangeUnits(units, lineHeight, {
+    blocks: arrangeColumns(units, lineHeight, gutter, {
       // 密集页沿用原来的局部并排行；长表格的标题 keepNext 会改变跨页行为，另行处理分页。
       dense: lines.length >= DENSE_LINES,
       onColumns: (row) => {
@@ -2431,13 +2452,19 @@ const LABEL_COLON = /[:：]\s*$/;
  * 标签都是冒号结尾，或者有两对以上、标签左对齐、不超过 30 个字、每行单独成段（不是折行的正文）时，
  * 这几行配成一块；两块里没配上的行（上面、下面）各自另成一块。
  */
-function pairForms(groups: readonly Group[], lineHeight: number): Group[] {
+function pairForms(
+  groups: readonly Group[],
+  lineHeight: number,
+  gutter: PageGutter | null = null,
+): Group[] {
   let out = [...groups];
   for (;;) {
     let next: Group[] | null = null;
     for (const left of out) {
       for (const right of out) {
         if (left === right || left.title || right.title || left.pairs || right.pairs) continue;
+        // 整页两栏：左栏的标签不和右栏的字配对。
+        if (gutter && sideOfGutter(left.box, gutter) !== sideOfGutter(right.box, gutter)) continue;
         const found = pairRows(left.lines, right.lines, lineHeight);
         // 标签列和内容列：只有每一行都配上了才配（W-4 的「Step 3:」只配上第一行，其余几行留着，把两列搅乱）。
         const partial = left.side === 'label' && right.side === 'content' && found?.length !== 1;
@@ -2499,6 +2526,62 @@ function pairRows(
     ...group(labels.slice(a + n)),
     ...group(values.slice(0, c)),
     ...group(values.slice(c + n)),
+  ];
+}
+
+/** 一块字的行跨在中缝两边（同一个模型区域、同一排聚成了一块）：左栏、右栏、横跨的各自聚块。 */
+function splitAtGutter(group: Group, gutter: PageGutter, lineHeight: number): Group[] {
+  const sides = [-1, 0, 1].map((s) => group.lines.filter((l) => sideOfGutter(l, gutter) === s));
+  if (sides.filter((s) => s.length).length < 2) return [group];
+  return sides.flatMap((part) =>
+    clusterLines(part, lineHeight).map((ls): Group => {
+      const { pairs: _pairs, ...rest } = group;
+      return { ...rest, lines: ls, box: unionBox(ls) };
+    }),
+  );
+}
+
+/**
+ * 有整页中缝时（findPageGutter）：中缝上面、下面横跨的块照常排，两栏各自排好放进一个两格的并排行
+ * （格子里的块按顺序；格子里还有并排的字段时，写 docx 时由 flowCellBlocks 再排）。
+ */
+function arrangeColumns(
+  units: readonly Unit[],
+  lineHeight: number,
+  gutter: PageGutter | null,
+  options: { dense?: boolean; onColumns?: (row: DocRow) => void },
+): DocBlock[] {
+  if (!gutter) return arrangeUnits(units, lineHeight, options);
+  // 整个在两栏并排那一段上面（页眉左边的页码）、下面的块，和横跨的块一起照常排。
+  const above = units.filter((u) =>
+    sideOfGutter(u.box, gutter) < 0
+      ? u.box.y + u.box.height / 2 < gutter.top
+      : u.box.y + u.box.height <= gutter.top,
+  );
+  const below = units.filter(
+    (u) => !above.includes(u) && (sideOfGutter(u.box, gutter) < 0 || u.box.y >= gutter.bottom),
+  );
+  const cols = [0, 1].map((s) =>
+    units.filter(
+      (u) => !above.includes(u) && !below.includes(u) && sideOfGutter(u.box, gutter) === s,
+    ),
+  );
+  if (cols.some((c) => !c.length)) return arrangeUnits(units, lineHeight, options);
+  const left = Math.min(...cols[0]!.map((u) => u.box.x));
+  const right = Math.max(...cols[1]!.map((u) => u.box.x + u.box.width));
+  const row: DocRow = {
+    kind: 'row',
+    cells: cols.map((c, k) => ({
+      width: k ? right - gutter.x : gutter.x - left,
+      blocks: leafBlocks({ blocks: arrangeUnits(c, lineHeight, { dense: true }) }),
+    })),
+    box: unionBox(cols.flat().map((u) => u.box)),
+  };
+  options.onColumns?.(row);
+  return [
+    ...arrangeUnits(above, lineHeight, options),
+    row,
+    ...arrangeUnits(below, lineHeight, options),
   ];
 }
 

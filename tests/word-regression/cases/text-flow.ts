@@ -329,4 +329,36 @@ export const TEXT_FLOW: Case[] = [
       ),
     ],
   },
+  {
+    id: 'two-up-forms',
+    suite: 'text-flow',
+    fix: 'EU sample 044',
+    what: 'A gazette page printing two columns of small blank invoice forms whose label lines sit at the same heights on both sides, with a grey seal behind each form: the lines of the two columns were interleaved one by one and same-height labels joined into "left<tab>right" paragraphs, and the page ran onto several pages; each column must be read on its own.',
+    lang: 'por',
+    checks: [
+      custom(
+        'the Fatura forms are in the left column and the Recibo forms in the right one',
+        (c) => {
+          const ls = leaves(c.doc).filter((l) => l.leaf.kind === 'paragraph');
+          const find = (re: RegExp) =>
+            ls.filter((l) => l.leaf.kind === 'paragraph' && re.test(l.leaf.text));
+          const fatura = find(/FATURA N/i);
+          const recibo = find(/RECIBO N/i);
+          if (fatura.length !== 2 || recibo.length !== 2)
+            return `found ${fatura.length} "FATURA N.º" and ${recibo.length} "RECIBO N.º" paragraphs`;
+          const row = fatura[0]!.row?.block;
+          if (!row || ![...fatura, ...recibo].every((l) => l.row?.block === row))
+            return 'not all in one side-by-side row';
+          if (fatura.some((l) => l.row!.cell !== 0) || recibo.some((l) => l.row!.cell !== 1))
+            return 'Fatura forms not left / Recibo forms not right';
+          return null;
+        },
+      ),
+      custom('no paragraph mixes the two columns', (c) => {
+        const bad = c.paras.filter((p) => /FATURA/i.test(p.text) && /RECIBO/i.test(p.text));
+        return bad.length ? `mixed: ${bad[0]!.text.slice(0, 60)}` : null;
+      }),
+      order('Diário da República', 'FATURA N', 'Original', 'Duplicado', 'RECIBO N'),
+    ],
+  },
 ];
