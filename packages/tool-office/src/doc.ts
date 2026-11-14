@@ -1005,15 +1005,38 @@ const STRAY_TALL = 2;
 /** 贴着页边：离图的边不到长边的这么多（1%）。 */
 const STRAY_EDGE = 0.01;
 
+/** 框里至少这么多的点不是白纸（深色、彩色的底）：字印在色条上。 */
+const STRAY_ON_FILL = 0.5;
+
+/** 框里不是白纸的点占多少（隔点取样）：白字印在色条上（表单抬头绿条上的「A1」）时大半是底色。 */
+function fillShare(line: OcrBox, image: RgbaImage): number {
+  const x0 = Math.max(0, Math.floor(line.x));
+  const y0 = Math.max(0, Math.floor(line.y));
+  const x1 = Math.min(image.width, Math.ceil(line.x + line.width));
+  const y1 = Math.min(image.height, Math.ceil(line.y + line.height));
+  let fill = 0;
+  let n = 0;
+  for (let y = y0; y < y1; y += 2) {
+    for (let x = x0; x < x1; x += 2) {
+      const i = (y * image.width + x) * 4;
+      const min = Math.min(image.data[i]!, image.data[i + 1]!, image.data[i + 2]!);
+      n++;
+      if (min < 200) fill++;
+    }
+  }
+  return n ? fill / n : 0;
+}
+
 /**
  * 页边碎片（D-334）：很短、孤立（离别的字至少 3 个行高），而且贴着页边、置信度低或者框比正文高得多的，
  * 是页边的污点、装订孔、签名认成的字（条款页顶上的「00」），不写进文件。认得准、和正文一样高的短字照样留下。
+ * 不贴页边、只是高的短字印在色条上（白字，框里大半是底色）时是表单的代号（EU 样本 056 的「A1」），照样留下。
  */
 function isStray(
   line: OcrBox,
   all: readonly OcrBox[],
   lineHeight: number,
-  page: { width: number; height: number },
+  page: RgbaImage,
 ): boolean {
   if (line.text.replace(/\s/g, '').length > STRAY_CHARS) return false;
   const edge = Math.max(page.width, page.height) * STRAY_EDGE;
@@ -1025,6 +1048,7 @@ function isStray(
   const unsure = line.score !== undefined && line.score < STRAY_SCORE;
   const tall = line.height > STRAY_TALL * lineHeight;
   if (!atEdge && !unsure && !tall) return false;
+  if (!atEdge && !unsure && fillShare(line, page) >= STRAY_ON_FILL) return false;
   return all.every((o) => {
     if (o === line) return true;
     const dx = Math.max(0, Math.max(o.x, line.x) - Math.min(o.x + o.width, line.x + line.width));

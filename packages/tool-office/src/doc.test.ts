@@ -879,6 +879,31 @@ describe('buildDocPage', () => {
     expect(texts[0]).toBe('GENERAL CONDITIONS');
   });
 
+  it('keeps a short tall code printed white on a coloured band (EU sample 056)', () => {
+    // 表单抬头的绿条上白色的大字「A1」：短、高、离别的字远，但不是污点。
+    const code = { x: 120, y: 120, width: 80, height: 70 };
+    const white: Rect[] = [];
+    for (let s = 0; s + 6 <= code.width; s += 14)
+      white.push({ x: code.x + s, y: code.y + 12, width: 6, height: 46, shade: 255 });
+    const band: Rect = { x: 100, y: 100, width: 800, height: 110, color: [74, 140, 63] };
+    const { image, lines } = textPage(
+      [
+        { text: 'INFORMATION FOR THE HOLDER', x: 100, y: 400, width: 400 },
+        {
+          text: 'This certificate concerns the legislation which applies to you.',
+          x: 100,
+          y: 440,
+          width: 800,
+        },
+      ],
+      [...white, band],
+    );
+    const a1 = fakeLine('A1', code, page);
+    const doc = buildDocPage({ image, lines: [a1, ...lines], source: 's', skew: 0 });
+    const texts = leafBlocks(doc).map((b) => (b.kind === 'paragraph' ? b.text : ''));
+    expect(texts).toContain('A1');
+  });
+
   it('sizes a form in proportion to the page, down to about 6 pt; prose stays at 9 pt or more (D-335)', () => {
     // 原图 1000 像素宽按 A4 595 磅换算：行高 13 像素的字约 7 磅。
     const form = textPage(

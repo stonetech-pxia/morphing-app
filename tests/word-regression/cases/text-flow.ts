@@ -379,4 +379,11 @@ export const TEXT_FLOW: Case[] = [
       ),
     ],
   },
+  {
+    id: 'form-code-on-band',
+    suite: 'text-flow',
+    fix: 'EU sample 056',
+    what: 'The form code "A1" printed in large white letters on a green header band, away from the page edge: being short, tall and isolated, it was dropped as a stray mark, so the one word that names the form was lost.',
+    checks: [order('A1', 'Certificate concerning', 'INFORMATION FOR THE HOLDER')],
+  },
 ];
