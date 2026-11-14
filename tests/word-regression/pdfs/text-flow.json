@@ -106,5 +106,11 @@
     "id": "two-up-forms",
     "source": "18-two-up-forms.html",
     "sha256": "75cf480ba63936cf05e94d63e6c23e892cc883ead37ce23582342120dcb18104"
+  },
+  {
+    "page": 19,
+    "id": "square-bullets",
+    "source": "19-square-bullets.html",
+    "sha256": "184536dc1293ca30840c39faa27af1ac65ac2b3954bb0a73089ea10a7fccb483"
   }
 ]

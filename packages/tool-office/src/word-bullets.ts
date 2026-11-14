@@ -18,6 +18,9 @@ const DASH_THICK = 0.15;
 /** 同一种记号至少这么多行、左边差不到这么多个行高，才是列表。 */
 const MARKS_MIN = 2;
 const MARK_ALIGN = 0.5;
+/** 第一个字的中心离字的左边约这么多个行高；第一个字离框的左边至少这么多个行高才算框里有记号。 */
+const CHAR_HALF = 0.25;
+const INSIDE_MIN = 0.6;
 
 type Kind = 'dot' | 'dash';
 interface Mark {
@@ -30,11 +33,23 @@ const inkAt = (image: RgbaImage, x: number, y: number) => {
   return Math.min(image.data[o]!, image.data[o + 1]!, image.data[o + 2]!) < 128;
 };
 
+/**
+ * 字真正从哪里开始：识别框常常从记号开始（框里有「■」，字里却没有它，EU 样本 041），
+ * 第一个字的位置离框的左边超过半个行高时按第一个字算。
+ */
+function textStart(line: OcrBox): number {
+  const first = line.chars?.length === [...line.text].length ? line.chars[0] : undefined;
+  if (!first) return line.x;
+  const x = line.x + first.at * line.width - CHAR_HALF * line.height;
+  return x - line.x >= INSIDE_MIN * line.height ? x : line.x;
+}
+
 /** 行左边的一小块墨：只有一块、大小和位置像圆点或短横时返回它。 */
 function markOf(image: RgbaImage, line: OcrBox): Mark | null {
   const h = line.height;
+  const start = textStart(line);
   const x0 = Math.max(0, Math.floor(line.x - MARK_FAR * h));
-  const x1 = Math.min(image.width, Math.floor(line.x - MARK_NEAR * h));
+  const x1 = Math.min(image.width, Math.floor(start - MARK_NEAR * h));
   const y0 = Math.max(0, Math.floor(line.y));
   const y1 = Math.min(image.height, Math.ceil(line.y + h));
   if (x1 - x0 < 2 || y1 - y0 < 2) return null;
@@ -125,13 +140,13 @@ export function withBullets(
       ([o, m]) => m.kind === mark.kind && Math.abs(m.x - mark.x) <= MARK_ALIGN * o.height,
     );
     if (peers.length < MARKS_MIN) return l;
-    const x = mark.x;
+    const x = Math.min(mark.x, l.x);
     const width = l.x + l.width - x;
     const head = `${TEXT[mark.kind]} `;
     const chars = l.chars?.length
       ? [
-          { text: TEXT[mark.kind], at: 0 },
-          { text: ' ', at: (l.x - x) / 2 / width },
+          { text: TEXT[mark.kind], at: (mark.x - x) / width },
+          { text: ' ', at: (mark.x - x + textStart(l) - x) / 2 / width },
           ...l.chars.map((c) => ({ text: c.text, at: (l.x - x + c.at * l.width) / width })),
         ]
       : undefined;

@@ -361,4 +361,22 @@ export const TEXT_FLOW: Case[] = [
       order('Diário da República', 'FATURA N', 'Original', 'Duplicado', 'RECIBO N'),
     ],
   },
+  {
+    id: 'square-bullets',
+    suite: 'text-flow',
+    fix: 'EU sample 041',
+    what: 'Clauses marked with small grey "■" squares that OCR leaves out of the text but includes in the line boxes: the bullet recovery looked only left of the boxes, so every square was lost and the clauses became plain paragraphs.',
+    lang: 'deu',
+    checks: [
+      listItem('Sie darf meinen Aufenthalt bestimmen.'),
+      listItem('Sie darf einen Heimvertrag abschließen und kündigen.'),
+      order(
+        'Aufenthalt bestimmen',
+        'Mietvertrag',
+        'Wohnungsmietvertrag',
+        'Heimvertrag',
+        'Behörden',
+      ),
+    ],
+  },
 ];

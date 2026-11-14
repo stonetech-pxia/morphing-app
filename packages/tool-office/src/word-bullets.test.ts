@@ -45,6 +45,25 @@ describe('list markers OCR did not read (EU sample 026, 027)', () => {
     expect(source.get(out[0]!)).toBe(lines[0]);
   });
 
+  it('puts back square bullets that sit inside the start of the line boxes (EU sample 041)', () => {
+    // 识别框从方块记号开始，字里却没有它：第一个字在框里往右一段。
+    const rects: Rect[] = [
+      { x: 122, y: 108, width: 10, height: 10 },
+      ...glyphs(150, 104, 400, 18),
+      { x: 122, y: 168, width: 10, height: 10 },
+      ...glyphs(150, 164, 300, 18),
+    ];
+    const boxed = (text: string, y: number, width: number): OcrBox => ({
+      ...line(text, 118, y, width),
+      chars: [...text].map((t, i) => ({ text: t, at: (34 + (i + 0.5) * 12) / width })),
+    });
+    const lines = [boxed('Sie darf entscheiden', 100, 432), boxed('Sie darf bestimmen', 160, 332)];
+    const { lines: out } = withBullets(renderPage(W, H, rects), lines);
+    expect(out.map((l) => l.text)).toEqual(['• Sie darf entscheiden', '• Sie darf bestimmen']);
+    expect(out[0]!.x).toBeLessThanOrEqual(122);
+    expect(out[0]!.chars?.length).toBe([...out[0]!.text].length);
+  });
+
   it('leaves a single stray mark and a line with a word on its left alone', () => {
     const rects: Rect[] = [
       // 只有一行左边有一个点（扫描件上的脏点）。

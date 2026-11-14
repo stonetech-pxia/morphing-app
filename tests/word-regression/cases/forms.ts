@@ -338,8 +338,13 @@ export const FORMS: Case[] = [
         const ls = leaves(c.doc).filter((l) => l.leaf.kind === 'paragraph');
         const answers = ls.filter((l) => l.leaf.kind === 'paragraph' && /nein/.test(l.leaf.text));
         if (answers.length !== 6) return `${answers.length} answer paragraphs, want 6`;
+        // 条款可能是段落，也可能是列表项（补回了「■」记号）。
         const clauseOf = (re: RegExp) =>
-          ls.find((l) => l.leaf.kind === 'paragraph' && re.test(l.leaf.text));
+          leaves(c.doc).find(
+            (l) =>
+              (l.leaf.kind === 'paragraph' && re.test(l.leaf.text)) ||
+              (l.leaf.kind === 'list' && l.leaf.items.some((t) => re.test(t))),
+          );
         const want: [RegExp, number][] = [
           [/Patientenverfügung/, 0],
           [/Schweigepflicht/, 1],
