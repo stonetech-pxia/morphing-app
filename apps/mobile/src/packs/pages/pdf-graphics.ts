@@ -429,9 +429,18 @@ function planNativeGraphics(records, input) {
     // 没画进剪图的字：Word 里按它写颜色；图里和它重叠的识别行也留作正文（不归图）。
     colors: texts.filter((t) => !keep(t)).map((t) => ({ box: t.box, color: t.color })),
     // 圆角的信息卡片也是字下面的底色：不进页底（只画整页装饰），只能随段落、格子的底色保留。
-    fills: records.filter((r) => r.fill && (r.rectangle || r.rounded) && r.box && r.alpha > 0.9 && !r.mask)
-      .map((r) => ({ box: r.box, color: r.color })),
+    // 半透明的底色（20% 的品牌色，EU 样本 048）按它在白纸上看起来的浅色写，不写成不透明的深色。
+    fills: records.filter((r) => r.fill && (r.rectangle || r.rounded) && r.box && r.alpha >= 0.05 && !r.mask)
+      .map((r) => ({ box: r.box, color: r.alpha > 0.9 ? r.color : onWhite(r.color, r.alpha) })),
   };
+}
+/** 半透明的颜色（RRGGBB，不透明度 alpha）叠在白纸上的颜色。 */
+function onWhite(color, alpha) {
+  if (!/^[0-9A-F]{6}$/i.test(color)) return color;
+  return [0, 2, 4]
+    .map((k) => Math.round(255 - alpha * (255 - parseInt(color.slice(k, k + 2), 16))))
+    .map((v) => v.toString(16).toUpperCase().padStart(2, '0'))
+    .join('');
 }
 handlers.graphics = async ({ file, index, maxSide, figures, candidates, lines }) => {
   const doc = await open(file);
@@ -468,7 +477,12 @@ handlers.graphics = async ({ file, index, maxSide, figures, candidates, lines })
         if (name === 'save') stack.push({ ...state });
         else if (name === 'restore') state = stack.pop() || state;
         else if (name === 'beginGroup') {
-          groups.push({ state: { ...state }, mask: args[0]?.smask ? 'mask' + ++maskId : null });
+          // 透明组整组按开组时的不透明度叠上去（Illustrator 存的 20% 色块：外面 /ca 0.2，组里 /ca 1）。
+          groups.push({
+            state: { ...state },
+            mask: args[0]?.smask ? 'mask' + ++maskId : null,
+            alpha: state.alpha * (groups.at(-1)?.alpha ?? 1),
+          });
           state = { ...state, alpha: 1, smask: null };
         } else if (name === 'endGroup') {
           const g = groups.pop();
@@ -487,7 +501,7 @@ handlers.graphics = async ({ file, index, maxSide, figures, candidates, lines })
         const rec = {
           i,
           name,
-          alpha: state.alpha,
+          alpha: state.alpha * (groups.at(-1)?.alpha ?? 1),
           mode: state.mode,
           color: state.color,
           activeMask: state.smask,

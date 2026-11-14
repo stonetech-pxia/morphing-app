@@ -146,4 +146,23 @@ export const NATIVE: Case[] = [
       }),
     ],
   },
+  {
+    id: 'translucent-tints',
+    suite: 'native',
+    fix: 'EU sample 048',
+    what: 'Digital fee statement whose heading bars and total band are brand colours at 20 % opacity (one inside a transparency group, one as an rgba fill): they were written as solid saturated green and orange fills behind black text; they must stay pale tints.',
+    lang: 'fra',
+    checks: [
+      custom('fills are pale tints, not the opaque brand colours', (c) => {
+        const fills = [...c.xml.matchAll(/<w:shd [^>]*w:fill="([0-9A-Fa-f]{6})"/g)].map((m) =>
+          m[1]!.toUpperCase(),
+        );
+        const channels = (f: string) => [0, 2, 4].map((k) => parseInt(f.slice(k, k + 2), 16));
+        const dark = fills.filter((f) => Math.min(...channels(f)) < 0xb0);
+        if (dark.length) return `saturated fills ${[...new Set(dark)].join(', ')}`;
+        const pale = fills.filter((f) => f !== 'FFFFFF' && Math.min(...channels(f)) >= 0xc0);
+        return pale.length ? null : 'no pale tint kept';
+      }),
+    ],
+  },
 ];

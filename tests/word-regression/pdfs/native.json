@@ -46,5 +46,11 @@
     "id": "narrow-cell-dark-edge",
     "source": "08-narrow-cell-dark-edge.html",
     "sha256": "58c41cbcbaa1c2bc0fb16ee58d4d47d7221946b4b44e9af99c271fbe369a27ab"
+  },
+  {
+    "page": 9,
+    "id": "translucent-tints",
+    "source": "09-translucent-tints.html",
+    "sha256": "d7624521829f90a3b773318f0d89d8af4a670eae3c60371a4cc700afbe824b5a"
   }
 ]

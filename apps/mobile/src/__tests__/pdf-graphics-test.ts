@@ -226,6 +226,33 @@ describe('digital PDF graphics ownership', () => {
     );
     expect(result.fills).toContainEqual({ box: box(20, 35, 170, 30), color: 'FFC857' });
   });
+  it('passes a semi-transparent tint as the pale colour it shows on white paper (EU sample 048)', () => {
+    const result = plan(
+      [
+        text(1, box(20, 40, 160, 20)),
+        {
+          i: 2,
+          name: 'constructPath',
+          fill: true,
+          rectangle: true,
+          alpha: 0.2,
+          color: '88C946',
+          box: box(20, 35, 300, 30),
+        },
+        {
+          i: 3,
+          name: 'constructPath',
+          fill: true,
+          rectangle: true,
+          alpha: 0.02,
+          color: 'FF0000',
+          box: box(20, 100, 300, 30),
+        },
+      ],
+      input,
+    );
+    expect(result.fills).toEqual([{ box: box(20, 35, 300, 30), color: 'E7F4DA' }]);
+  });
   it('treats glyph runs without Unicode as text, never as drawing in the background or crops', () => {
     const script = (name: string) =>
       new Function('handlers', PDF_GRAPHICS_SCRIPT + `;return ${name};`)({});
