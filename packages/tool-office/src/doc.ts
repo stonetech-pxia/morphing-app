@@ -961,8 +961,31 @@ export function fieldBoxTables(
   }
   const out: { table: TableBlock; colWidths: number[] }[] = [];
   for (const group of groups) {
-    const cells = group.flatMap((s) => s.cells);
+    let cells = group.flatMap((s) => s.cells);
     if (cells.filter((c) => c.text.trim()).length < FIELD_MIN_BOXES) continue;
+    // 左右两头整列空着的格子是外框里框旁边的空地（EU 样本 004 的地址框右边），不是填写框。
+    for (;;) {
+      const first = Math.min(...cells.map((c) => c.col));
+      const last = Math.max(...cells.map((c) => c.col + c.colSpan));
+      // 右边：最右一列起的格子都从同一条列线开始；左边反过来。这一条里的格子都空着才去掉。
+      const rightFrom = Math.max(
+        ...cells.filter((c) => c.col + c.colSpan === last).map((c) => c.col),
+      );
+      const leftTo = Math.min(
+        ...cells.filter((c) => c.col === first).map((c) => c.col + c.colSpan),
+      );
+      const strips = [
+        cells.filter((c) => c.col + c.colSpan > rightFrom),
+        cells.filter((c) => c.col < leftTo),
+      ];
+      const strip = strips.find(
+        (side, k) =>
+          side.every((c) => !c.text.trim()) &&
+          side.every((c) => (k === 0 ? c.col >= rightFrom : c.col + c.colSpan <= leftTo)),
+      );
+      if (!strip || strip.length === cells.length) break;
+      cells = cells.filter((c) => !strip.includes(c));
+    }
     const from = group[0]!.from;
     // 只留这几排用到的列线。
     const edges = [...new Set(cells.flatMap((c) => [c.col, c.col + c.colSpan]))].sort(

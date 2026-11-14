@@ -1864,6 +1864,23 @@ describe('ruled field boxes in a rejected form grid (EU sample 062)', () => {
     expect(second!.colWidths).toEqual([600, 600]);
   });
 
+  it('leaves out the empty frame space beside the boxes (EU sample 004)', () => {
+    // 地址框只占外框的左半边：右边的空地也被线分成了格子，整列空着。
+    const side = (row: number, y: number, label: string) => [
+      cell(row, 0, 6, label, y),
+      cell(row, 6, 3, '', y),
+      cell(row, 9, 3, '', y),
+    ];
+    const framed: TableBlock = {
+      ...table,
+      rows: 2,
+      cells: [...side(0, 40, '10. Nazwisko'), ...side(1, 100, '13. Kraj')],
+    };
+    const labels = placed.filter((l) => /^1[03]\./.test(l.text));
+    const found = fieldBoxTables(framed, colWidths, labels, 20);
+    expect(found.map((f) => [f.table.cols, f.colWidths])).toEqual([[1, [600]]]);
+  });
+
   it('does not take a single field box on its own', () => {
     // 20 那一排只有自己（上面是选项的一节），只有一个框：不拿。
     const single = {
