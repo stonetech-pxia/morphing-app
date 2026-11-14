@@ -69,12 +69,12 @@ export interface PageInput {
 }
 
 /** 网格的一条边界：lined 是有线的（没有线的是按文字空隙或文字行分出来的，两边不合并）。 */
-interface Boundary {
+export interface Boundary {
   pos: number;
   lined: boolean;
 }
 
-interface Grid {
+export interface Grid {
   xs: Boundary[];
   ys: Boundary[];
   /** 每个位置属于哪个格子（r * cols + c → cells 的下标）。 */
@@ -466,6 +466,57 @@ function dropLeadingRows(
       owner[(r - cut) * cols + c] = remap.get(grid.owner[r * cols + c]!)!;
   }
   return { grid: { xs: grid.xs, ys: grid.ys.slice(cut), owner, cells }, lines: kept };
+}
+
+/**
+ * 只有横线的表最下面几排各只有一行横跨各列的字（小票上表格下面居中的「Vielen Dank / Auf Wiedersehen」，
+ * 下面再有一条分隔线，EU 样本 003）：是表下面的话，不是表的行；去掉这几排，字照表外的文字排。
+ * 去掉以后至少两排、其中至少 FORM_BODY_ROWS 排有两格以上有字才去；不然 null。
+ */
+export function dropTrailingRows(
+  grid: Grid,
+  lines: readonly OcrBox[],
+): { grid: Grid; lines: OcrBox[] } | null {
+  const rows = grid.ys.length - 1;
+  const cols = grid.xs.length - 1;
+  if (cols < 2 || grid.xs.slice(1, -1).some((x) => x.lined)) return null;
+  const rowLines = (r: number) => lines.filter((l) => indexOf(grid.ys, centerY(l)) === r);
+  // 这一排只有一行字，横跨了按空隙分出的列。
+  const spanning = (r: number) => {
+    const own = rowLines(r);
+    return (
+      own.length === 1 &&
+      grid.xs
+        .slice(1, -1)
+        .some(
+          (x) =>
+            x.pos > own[0]!.x + own[0]!.height &&
+            x.pos < own[0]!.x + own[0]!.width - own[0]!.height,
+        )
+    );
+  };
+  let cut = rows;
+  let closing = false;
+  while (cut > 0 && (spanning(cut - 1) || !rowLines(cut - 1).length)) {
+    closing ||= spanning(cut - 1);
+    cut--;
+  }
+  if (!closing || cut < 2 || !rowLines(cut - 1).length) return null;
+  const columns = (r: number) => new Set(rowLines(r).map((l) => indexOf(grid.xs, centerX(l)))).size;
+  if (
+    Array.from({ length: cut }, (_, r) => columns(r)).filter((n) => n >= 2).length < FORM_BODY_ROWS
+  )
+    return null;
+  if (grid.cells.some((c) => c.row < cut && c.row + c.rowSpan > cut)) return null;
+  const y = grid.ys[cut]!.pos;
+  const cells = grid.cells.filter((c) => c.row < cut);
+  const keep = new Map(cells.map((c, i) => [grid.cells.indexOf(c), i]));
+  const owner = new Int32Array(cut * cols);
+  for (let p = 0; p < owner.length; p++) owner[p] = keep.get(grid.owner[p]!)!;
+  return {
+    grid: { xs: grid.xs, ys: grid.ys.slice(0, cut + 1), owner, cells },
+    lines: lines.filter((l) => centerY(l) < y),
+  };
 }
 
 /**
@@ -889,6 +940,11 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
       grid = trimmed.grid;
       inside = trimmed.lines;
       if (!inside.length) continue;
+    }
+    const tail = dropTrailingRows(grid, inside);
+    if (tail) {
+      grid = tail.grid;
+      inside = tail.lines;
     }
     const texts = grid.cells.map(() => [] as OcrBox[]);
     for (const line of inside) {

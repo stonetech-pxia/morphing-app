@@ -538,4 +538,18 @@ export const TABLES: Case[] = [
       inRow('Virement SEPA', '02/11/2026', '120.00'),
     ],
   },
+  {
+    id: 'tbl-receipt-vat-block-thanks',
+    suite: 'tables',
+    fix: 'EU sample 003 (regression after ecdb14ce)',
+    what: 'Restaurant bill (scan) whose VAT block sits between dashed separators: once the dashes were found as light rules the block became its own table (wanted), but the two item lines above it were joined into one line with their amounts in a separate block, and the centred "Vielen Dank / Auf Wiedersehen" under the totals became full-width rows of the VAT table.',
+    lang: 'deu',
+    checks: [
+      table({ containing: ['MWST', '16.00%', '18.95', 'BAR GEGEBEN'] }),
+      notInTable('Vielen Dank'),
+      notInTable('Auf Wiedersehen'),
+      apart('Schorle', 'T-RINDERSTEAK'),
+      order('Schorle', 'T-RINDERSTEAK', 'MWST', 'Summe', 'Vielen Dank', 'Bewirtungsaufwand'),
+    ],
+  },
 ];

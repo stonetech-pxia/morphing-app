@@ -467,6 +467,11 @@ function clustersOf(
 /** 两行短行之间至少空出这么多个行高（各自对着左边的一行字时这么多），是一行一行的。 */
 const SHORT_APART = 0.8;
 const SHORT_BESIDE = 0.5;
+/** 金额一类的字：数字占一半以上（「3.60」「19.90 EUR」「-12,5 %」）。 */
+const isAmount = (text: string) => {
+  const t = text.replace(/\s/g, '');
+  return t.length > 0 && (t.match(/\d/g)?.length ?? 0) * 2 >= t.length;
+};
 /** 短行后面至少空出这么多个行高（加上下一行的第一个词）才算放得下：栏和栏之间的空隙不算空着。 */
 const ROOM_GUTTER = 3;
 /** 一排里两块字隔得超过这么多个行高，分成左右两块（一行里词与词的空隙远小于一个行高）。 */
@@ -671,11 +676,22 @@ export function paragraphsOf(
           Math.min(p.y + p.height, r.box.y + r.box.height) - Math.max(p.y, r.box.y) >=
             0.5 * Math.min(p.height, r.box.height),
       );
+    // 小票、价目表的一项一行：两行短行右边隔得很远、同一排上各有自己的金额（EU 样本 003），
+    // 是一项一项的，不是折行（折行的第二行右边不会另有一个金额）。
+    const priced = (r: Row) =>
+      peers.find(
+        (p) =>
+          p.x > r.box.x + r.box.width + ROW_SPLIT * typical &&
+          isAmount(p.text) &&
+          Math.min(p.y + p.height, r.box.y + r.box.height) - Math.max(p.y, r.box.y) >=
+            0.5 * Math.min(p.height, r.box.height),
+      );
     const apart =
       prev !== undefined &&
       [...prev.text].length <= LABEL_MAX &&
       [...row.text].length <= LABEL_MAX &&
-      (gap >= SHORT_APART * typical ||
+      ((priced(prev) !== undefined && priced(row) !== undefined && priced(prev) !== priced(row)) ||
+        gap >= SHORT_APART * typical ||
         (gap >= SHORT_BESIDE * typical &&
           facing(prev) !== undefined &&
           facing(row) !== undefined &&

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildTablePage, isRuleText, sharedColumns } from './build';
+import { buildTablePage, dropTrailingRows, isRuleText, sharedColumns, type Grid } from './build';
 import { INVOICE, INVOICE_ITEMS } from './fixtures/invoice-ocr';
 import { findLines, findTables } from './lines';
 import { fakeLine, glyphs, gridRects, renderPage, type Rect } from './test-helpers';
@@ -987,5 +987,53 @@ describe('tables without lines in Excel (D-506)', () => {
   it('the columns of the table are the page’s columns', () => {
     const items = tablesOf(page).find((t) => rowsOf(t)[0]?.[0] === 'Item')!;
     expect(page.colWidths.length).toBeGreaterThanOrEqual(items.col + items.cols);
+  });
+});
+
+describe('rules-only tables: closing lines under the last rows (EU sample 003)', () => {
+  // 小票：分隔线之间按空隙分出三列的增值税表，最下面一段是居中的「Vielen Dank / Auf Wiedersehen」，
+  // 横跨了列的空隙。
+  const xs = [60, 240, 600, 940].map((pos) => ({ pos, lined: false }));
+  const ys = [100, 140, 165, 190, 230, 260, 300].map((pos, i) => ({
+    pos,
+    lined: [0, 1, 4, 6].includes(i),
+  }));
+  const rows = ys.length - 1;
+  const cells = Array.from({ length: rows * 3 }, (_, k) => ({
+    row: Math.floor(k / 3),
+    col: k % 3,
+    rowSpan: 1,
+    colSpan: 1,
+    text: '',
+    box: { x: xs[k % 3]!.pos, y: ys[Math.floor(k / 3)]!.pos, width: 1, height: 1 },
+  }));
+  const grid: Grid = { xs, ys, owner: Int32Array.from(cells.keys()), cells };
+  const box = (text: string, x: number, y: number, width = 100): OcrBox => ({
+    text,
+    x,
+    y,
+    width,
+    height: 20,
+  });
+  const vat = [110, 145, 170, 200].flatMap((y, r) => [
+    box(r ? `${r}.00%` : 'MWST', 80, y),
+    box(r ? `${r}.10` : 'Netto', 330, y),
+    box(r ? `${r}.60` : 'Brutto', 780, y),
+  ]);
+
+  it('drops the rows that only hold one centred line across the columns', () => {
+    const closing = [
+      box('Vielen Dank fuer Ihren Besuch', 200, 235, 500),
+      box('Auf Wiedersehen', 380, 270, 300),
+    ];
+    const trimmed = dropTrailingRows(grid, [...vat, ...closing])!;
+    expect(trimmed.grid.ys).toHaveLength(5);
+    expect(trimmed.grid.cells.every((c) => c.row < 4)).toBe(true);
+    expect(trimmed.lines.map((l) => l.text)).not.toContain('Auf Wiedersehen');
+  });
+
+  it('keeps a last row whose text sits in the columns', () => {
+    const totals = [box('Summe', 80, 235), box('23.50', 780, 235)];
+    expect(dropTrailingRows(grid, [...vat, ...totals])).toBeNull();
   });
 });

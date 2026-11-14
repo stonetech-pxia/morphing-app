@@ -172,5 +172,11 @@
     "id": "tbl-invoice-subtables-close-below",
     "source": "29-tbl-invoice-subtables-close-below.html",
     "sha256": "71e81cbff9e3ab575d879e76ee9d914d913e21cb06042549e3ec00f85d4915b9"
+  },
+  {
+    "page": 30,
+    "id": "tbl-receipt-vat-block-thanks",
+    "source": "30-tbl-receipt-vat-block-thanks.jpg",
+    "sha256": "03fad7768c1886803867553b6cd3804beaa04aa6fa1e2bce7edba4df727380d4"
   }
 ]

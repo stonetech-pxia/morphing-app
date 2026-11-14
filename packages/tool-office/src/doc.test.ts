@@ -74,6 +74,26 @@ describe('paragraphsOf', () => {
     expect(label[1]!.list).toBe(false);
   });
 
+  it('keeps receipt item lines apart when each has its own amount far to the right (EU sample 003)', () => {
+    // 小票：「1 0,4 Schorle」「1 T-RINDERSTEAK」两行，右边隔得很远各有单价和金额；上面一行「Bed. 2 Rg.」
+    // 让右边看着没有空。不是一段折行。
+    const items = [
+      line('10,4 Schorle', 52, 709, 214, 39),
+      line('1 T-RINDERSTEAK', 51, 749, 246, 38),
+    ];
+    const peers = [
+      line('Bed. 2 Rg.:244744', 373, 590, 330, 38),
+      line('3.60', 503, 712, 73, 37),
+      line('3.60', 631, 713, 75, 37),
+      line('19.90', 491, 751, 86, 40),
+      line('19.90', 620, 752, 86, 40),
+    ];
+    expect(paragraphsOf(items, peers)).toHaveLength(2);
+    // 右边是正文（不是金额）时照旧按折行判断。
+    const prose = peers.map((p) => ({ ...p, text: 'and so on' }));
+    expect(paragraphsOf(items, prose)).toHaveLength(1);
+  });
+
   it('keeps two short lines apart when a blank line height separates them (EU sample 041, 049)', () => {
     // 答案一列里上下两个「○ ja ○ nein」，中间空着将近一个行高：两行，不是一段折行。
     const a = line('Oja Onein', 1140, 930, 165, 28);
