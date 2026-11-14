@@ -794,10 +794,10 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     /** 每条行线、列线都是画出来的（不是按文字空隙分的）。 */
     ruled: boolean;
   }[] = [];
-  for (const found of findTables(
-    dropTextStrokes(page, flat),
-    options.splitStacked ? { splitStacked: true } : {},
-  )) {
+  for (const found of findTables(dropTextStrokes(page, flat), {
+    ...(options.splitStacked ? { splitStacked: true } : {}),
+    text: flat,
+  })) {
     let table = found;
     let { box } = table;
     // 大半在图片区域里的「表」是图里的线（示意图、图表的网格）。

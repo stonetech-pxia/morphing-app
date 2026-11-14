@@ -611,6 +611,8 @@ export function findTables(
      * 见 stackedCuts。转 Excel 不分（整页共用列线）。
      */
     splitStacked?: boolean;
+    /** 页上的字（和线同一个坐标系）：等距的一串填写横线只在每一格里最多一个短标签时才在大空隙处断开。 */
+    text?: readonly { x: number; y: number; width: number; height: number }[];
   } = {},
 ): TableLines[] {
   const long = Math.max(page.width, page.height);
@@ -746,7 +748,20 @@ export function findTables(
       if (!hOk[i] && !hOk[lastIndex] && c.length >= RULED_MIN && gap > maxHeadGap) {
         const steps = c.slice(1).map((k, n) => hs[k]!.pos - hs[c[n]!]!.pos);
         const lo = Math.min(...steps);
-        if (Math.max(...steps) <= RULED_EVEN * lo && gap > RULED_SPLIT_STEPS * lo) return false;
+        // 表头那几排（「Libellé  Nombre  Débit  Crédit」）一排有好几块字或者很宽的一行：是表，接着往下接。
+        const labelsOnly = c.slice(1).every((k, n) => {
+          const [y0, y1] = [hs[c[n]!]!.pos, hs[k]!.pos];
+          const inside = (options.text ?? []).filter(
+            (t) =>
+              t.y + t.height / 2 > y0 &&
+              t.y + t.height / 2 < y1 &&
+              t.x + t.width > last.from &&
+              t.x < last.to,
+          );
+          return inside.length <= 1 && inside.every((t) => t.width < 0.5 * (last.to - last.from));
+        });
+        if (labelsOnly && Math.max(...steps) <= RULED_EVEN * lo && gap > RULED_SPLIT_STEPS * lo)
+          return false;
       }
       // 两张网格（各自有竖线）宽度一样、上下排着，不接成一张（中间常隔着一段文字）。
       if (hOk[i] && hOk[lastIndex]) return find(i) === find(lastIndex);

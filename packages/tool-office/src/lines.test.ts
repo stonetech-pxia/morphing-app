@@ -135,6 +135,21 @@ describe('findTables: rules-only chains', () => {
     expect(tables[1]!.box.y).toBeGreaterThan(600);
   });
 
+  it('still chains evenly spaced header rules across a tall table body (EU sample 048)', () => {
+    // 表头一排四块字、下面一排小标题，再往下是很高的表身和合计。
+    const ys = [200, 240, 280, 560, 600];
+    const rules: Rect[] = ys.map((y) => ({ x: 60, y, width: 882, height: 2 }));
+    const text = [
+      { x: 150, y: 210, width: 80, height: 20 },
+      { x: 600, y: 210, width: 80, height: 20 },
+      { x: 720, y: 210, width: 60, height: 20 },
+      { x: 840, y: 210, width: 60, height: 20 },
+      { x: 70, y: 250, width: 300, height: 20 },
+    ];
+    const tables = findTables(findLines(renderPage(W, H, rules), { skew: 0 }), { text });
+    expect(tables.map((t) => t.hs.length)).toEqual([5]);
+  });
+
   it('still chains a ruled table with uneven rows', () => {
     // 每排一条横线、排高不一样（有的格子折成好几行）：照旧是一张表。
     const ys = [200, 240, 280, 420, 460, 640, 680];
