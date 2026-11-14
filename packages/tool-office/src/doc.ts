@@ -372,7 +372,17 @@ function rowsOf(lines: readonly OcrBox[]): Row[] {
     const first = groups.at(-1)?.[0];
     if (first) {
       const ov = Math.min(first.y + first.height, line.y + line.height) - Math.max(first.y, line.y);
-      if (ov >= 0.5 * Math.min(first.height, line.height)) {
+      // 大字下面居中的一行小字（标志字「flexPEDIA」下面的口号，EU 样本 091）：大字的框高出一截压到小字上，
+      // 但两行左右叠着，是上下两行，不是同一排。
+      const stacked = groups
+        .at(-1)!
+        .some(
+          (l) =>
+            Math.max(l.height, line.height) > 1.6 * Math.min(l.height, line.height) &&
+            Math.min(l.x + l.width, line.x + line.width) - Math.max(l.x, line.x) >
+              0.5 * Math.min(l.width, line.width),
+        );
+      if (ov >= 0.5 * Math.min(first.height, line.height) && !stacked) {
         groups.at(-1)!.push(line);
         continue;
       }

@@ -142,5 +142,11 @@
     "id": "bracketed-field-codes",
     "source": "24-bracketed-field-codes.html",
     "sha256": "0ee5cd53addb29fd1fb26f886a511106a5dc34923b4858dac06d4be9e2d33d10"
+  },
+  {
+    "page": 25,
+    "id": "wordmark-tagline-band",
+    "source": "25-wordmark-tagline-band.scan.html",
+    "sha256": "aac4c21968bdc9e4a2a7aaa0573989525d72f75398cf08be3395ad80d73657a6"
   }
 ]

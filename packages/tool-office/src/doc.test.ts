@@ -310,6 +310,18 @@ describe('paragraphsOf: centered lines (D-463)', () => {
     ];
     expect(paragraphsOf(prose)).toHaveLength(1);
   });
+
+  it('does not put a small tagline into the row of the big wordmark whose box reaches over it (EU sample 091)', () => {
+    // 标志字 136 像素高的框往下压到口号（24 像素高）上面，两行左右叠着。
+    const head = [
+      line('flexPEDIA', 456, 72, 505, 136),
+      line('FLEX OPLOSSINGEN WAAR JE BLIJ VAN WORDT', 478, 191, 471, 24),
+    ];
+    expect(paragraphsOf(head).map((p) => p.rows.map((r) => r.text))).toEqual([
+      ['flexPEDIA'],
+      ['FLEX OPLOSSINGEN WAAR JE BLIJ VAN WORDT'],
+    ]);
+  });
 });
 
 describe('clusterLines', () => {

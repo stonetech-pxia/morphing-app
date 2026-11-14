@@ -454,4 +454,15 @@ export const TEXT_FLOW: Case[] = [
       numbered('Conserve el documento en el vehículo.', 2),
     ],
   },
+  {
+    id: 'wordmark-tagline-band',
+    suite: 'text-flow',
+    fix: 'EU sample 091',
+    what: "Payslip guide whose header is a blue band with a large white wordmark and a small tagline centred under it: the wordmark's tall box reached down over the tagline, so both were taken for one row and written as one heading paragraph at the wordmark's size, wrapping over several lines and pushing the table onto a second page.",
+    lang: 'eng',
+    checks: [
+      apart('DOMO', 'FLEXIBEL WERK'),
+      order('DOMO', 'FLEXIBEL WERK', 'Omschrijving loonstrook'),
+    ],
+  },
 ];
