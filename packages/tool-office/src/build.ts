@@ -290,7 +290,16 @@ function buildGrid(
   for (let r = 0; r < ys.length - 1; r++) {
     const a = ys[r]!.pos;
     const b = ys[r + 1]!.pos;
-    const rows = textRows(lines.filter((l) => centerY(l) >= a && centerY(l) < b));
+    const inBand = lines.filter((l) => centerY(l) >= a && centerY(l) < b);
+    // 上下的横线在这一列没画（左边一大格跨好几排：电费单黄底的「QUOTA FISSA」，EU 样本 057）：
+    // 这一列的字属于跨排的大格，不按它分排。
+    const spans = (c: number) =>
+      [ys[r]!, ys[r + 1]!].some(
+        (y) => y.lined && coverage(hs, y.pos, xs[c]!.pos, xs[c + 1]!.pos, tol) < MERGE_COVERAGE,
+      );
+    const rows = textRows(
+      isOpen(r) ? inBand : inBand.filter((l) => !spans(indexOf(xs, centerX(l)))),
+    );
     // 上下两排字中间的位置。
     const between = (i: number) =>
       (Math.max(...rows[i - 1]!.map((l) => l.y + l.height)) +

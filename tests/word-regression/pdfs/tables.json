@@ -160,5 +160,11 @@
     "id": "tbl-framed-prose-callout",
     "source": "27-tbl-framed-prose-callout.html",
     "sha256": "e42983105cfa6bae09625e5af0df570a1a54712847de3bb6052cf96961193804"
+  },
+  {
+    "page": 28,
+    "id": "tbl-yellow-row-span-label",
+    "source": "28-tbl-yellow-row-span-label.html",
+    "sha256": "72aa42f3db5b29ac5bb32444c767fba5433b08c185635b3a272c84d3052be2ea"
   }
 ]

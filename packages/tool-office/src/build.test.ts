@@ -563,6 +563,39 @@ describe('cases from real scans (D-272)', () => {
     expect(cellAt(table!, 2, 2)!.text).toBe('1.5');
   });
 
+  it('does not split label rows by the lines of a cell spanning them (EU sample 057)', () => {
+    // 价目表：左边一格跨三排（上下没有横线），里面两行字；中间一排的标签有三行，右边一行说明。
+    // 左格的两行字不能让中间这一排按字的排分成几行。
+    const xs = [100, 330, 650, 900];
+    const rects = gridRects(xs, [100, 160, 250, 310], {
+      skipH: [
+        [1, 0],
+        [2, 0],
+      ],
+    });
+    const words = [
+      word('QUOTA FISSA', 140, 176, 150),
+      word('(EUR/mese)', 140, 212, 150),
+      word('VENDITA', 400, 120, 200),
+      word('Fissa per 12 mesi', 670, 120, 200),
+      word('COMPONENTE DI', 400, 168, 200),
+      word('DISPACCIAMENTO', 400, 194, 200),
+      word('PARTE FISSA', 400, 220, 200),
+      word('Come stabilito', 670, 194, 200),
+      word('QUOTA', 400, 270, 200),
+      word('Come stabilito', 670, 270, 200),
+    ];
+    const [table, ...others] = tablesOf(page(rects, words));
+    expect(others).toHaveLength(0);
+    expect([table!.rows, table!.cols]).toEqual([3, 3]);
+    expect(cellAt(table!, 0, 0)).toMatchObject({ rowSpan: 3 });
+    expect(cellAt(table!, 1, 1)!.text.split('\n')).toEqual([
+      'COMPONENTE DI',
+      'DISPACCIAMENTO',
+      'PARTE FISSA',
+    ]);
+  });
+
   it('keeps column lines that start below an unruled header', () => {
     // 物业账单的批次表：表头有底色、下面没有横线，表头里的竖线断了，只从表身开始。
     const xs = [100, 300, 500, 700, 900];

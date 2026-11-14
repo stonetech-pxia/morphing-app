@@ -493,4 +493,33 @@ export const TABLES: Case[] = [
       notInTable('Complétez les rubriques'),
     ],
   },
+  {
+    id: 'tbl-yellow-row-span-label',
+    suite: 'tables',
+    fix: 'EU sample 057',
+    what: 'Dark-ruled tariff tables whose first column is one yellow cell spanning all rows: the yellow fill counted as ink, so every rule touching it was dropped as a colour block and the tables became one row per text line or zipped prose; once found, the text rows of the spanning cell also split each label row into several.',
+    lang: 'ita',
+    checks: [
+      table({
+        containing: ['QUOTA FISSA', 'COMMERCIALIZZAZIONE', 'DI DISPACCIAMENTO'],
+        rows: 3,
+        cols: 3,
+        cells: [
+          { row: 1, col: 1, text: 'PARTE FISSA' },
+          { row: 1, col: 2, text: "stabilito dall'Autorità" },
+        ],
+      }),
+      table({
+        containing: ['QUOTA ENERGIA', 'PREZZO P', 'SBILANCIAMENTO'],
+        rows: 6,
+        cols: 3,
+        cells: [{ row: 4, col: 1, text: 'PARTE VARIABILE' }],
+      }),
+      table({ containing: ['QUOTA POTENZA', 'tariffa di trasporto'], rows: 3 }),
+      inRow('QUOTA FISSA (€/POD/mese)', 'tariffa di trasporto'),
+      inRow('GARANZIA', 'fonti rinnovabili'),
+      differentTables('COMMERCIALIZZAZIONE', 'QUOTA ENERGIA'),
+      notInTable('Questi costi non dipendono'),
+    ],
+  },
 ];

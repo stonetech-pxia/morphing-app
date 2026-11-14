@@ -40,6 +40,24 @@ describe('light rules (Word)', () => {
   });
 });
 
+describe('colour-filled cells', () => {
+  it('finds the rules around a yellow cell spanning all rows (EU sample 057)', () => {
+    // 电费单的价目表：左边一格黄底（#FFCB35，最暗的通道很暗）跨三排，深灰的线围着它。
+    const rules = gridRects([100, 330, 650, 900], [300, 360, 420, 480], {
+      thickness: 3,
+      skipH: [
+        [1, 0],
+        [2, 0],
+      ],
+    }).map((r) => ({ ...r, shade: 58 }));
+    const fill: Rect = { x: 103, y: 303, width: 227, height: 177, color: [255, 203, 53] };
+    const tables = findTables(findLines(renderPage(W, H, [...rules, fill]), { light: true }));
+    expect(tables).toHaveLength(1);
+    expect(tables[0]!.hs).toHaveLength(4);
+    expect(tables[0]!.vs).toHaveLength(4);
+  });
+});
+
 describe('findTables: rules above a grid', () => {
   it('does not chain section underlines far above a grid into it', () => {
     // 会议纪要：各节标题下面一条横线，彼此隔着整段文字；最后一节下面是一张网格。
