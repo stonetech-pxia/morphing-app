@@ -348,23 +348,6 @@ export const sideBySide = (a: string, b: string): Check => ({
   },
 });
 
-/** 这几处文字都在同一个并排行的同一格里（并排的一个框的内容没有被拆到几排里）。 */
-export const sameCell = (...texts: string[]): Check => ({
-  name: `same cell ${texts.map((t) => JSON.stringify(t)).join(' + ')}`,
-  run(c) {
-    const ls = leaves(c.doc);
-    const at = texts.map((t) => ls.find((l) => norm(leafText(l.leaf)).includes(norm(t))));
-    const missing = texts.find((_, k) => !at[k]);
-    if (missing) return `"${missing}" is missing from the blocks`;
-    const first = at[0]!.row;
-    if (!first) return `"${texts[0]}" is not in a side-by-side row`;
-    const off = texts.find(
-      (_, k) => at[k]!.row?.block !== first.block || at[k]!.row?.cell !== first.cell,
-    );
-    return off ? `"${off}" is not in the cell of "${texts[0]}"` : null;
-  },
-});
-
 /** 这处文字所在的段落（或表格）是这样对齐的。 */
 export const aligned = (text: string, align: 'left' | 'center' | 'right'): Check => ({
   name: `${JSON.stringify(text)} aligned ${align}`,
