@@ -457,7 +457,7 @@ export const TEXT_FLOW: Case[] = [
   {
     id: 'wordmark-tagline-band',
     suite: 'text-flow',
-    fix: '4ac59c6d; skew next to a solid band: EU sample 091',
+    fix: '4ac59c6d, 63323e60; EU sample 091',
     what: "Payslip guide whose header is a blue band with a large white wordmark and a small tagline centred under it: the wordmark's tall box reached down over the tagline, so both were taken for one row and written as one heading paragraph at the wordmark's size, wrapping over several lines and pushing the table onto a second page. The dark band also made the skew estimate for the rule search come out at about −7° (the sampled band pixels lined up along a slant), so the fully ruled 9×3 table fell apart into a small two-column table, loose paragraphs and a borderless table.",
     lang: 'eng',
     checks: [

@@ -43,7 +43,7 @@ The models must be the ones the app downloads (their SHA-256 is in `packages/cor
    - `.jpg` / `.png`: a photo or scan filling the page.
      Synthetic pages are preferred: no personal data, no licence questions, and the content can be shaped to hit exactly the case.
 2. Rebuild the PDF: `npx tsx tests/word-regression/build-pdfs.ts <suite>`.
-3. Add the case to `cases/<suite>.ts` (register a new suite file in `cases.ts`) with the fix it guards (commit or D-number), one sentence on what used to go wrong, and assertions from `lib/checks.ts` (`order`, `together`, `apart`, `times`, `table`, `notInTable`, `noTables`, `images`, `sideBySide`, `aligned`, `heading`, `listItem`, or `custom`).
+3. Add the case to `cases/<suite>.ts` (register a new suite file in `cases.ts`) with the fix it guards (commit or D-number), one sentence on what used to go wrong, and assertions from `lib/checks.ts` (`order`, `together`, `apart`, `times`, `table`, `notInTable`, `noTables`, `images`, `sideBySide`, `picturesInRows`, `aligned`, `heading`, `listItem`, or `custom`).
 4. Record OCR for the new page: `npx tsx tests/word-regression/run.ts --only <case-id> --record`.
 5. Check that the case fails on the code before the fix and passes after it, and look at it once with `--render`.
 

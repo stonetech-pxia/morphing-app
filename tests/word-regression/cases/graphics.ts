@@ -181,7 +181,7 @@ export const GRAPHICS: Case[] = [
   {
     id: 'picture-cards',
     suite: 'graphics',
-    fix: '261a67d4, 5bbd80a0 D-533; 202a26be D-534',
+    fix: '261a67d4, 5bbd80a0 D-533; 202a26be D-534; ce8aa77b',
     what: 'Catalog page with nine ruled picture cards and no image-model proposals: the pictures used to be lost; each card keeps its picture and its editable label. Neighbouring picture boxes overlapped by a few pixels, so the middle picture of every row was taken out of the row and written on its own above it.',
     checks: [
       images({ min: 9, max: 9 }),
